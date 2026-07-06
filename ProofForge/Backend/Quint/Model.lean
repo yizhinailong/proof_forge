@@ -11,6 +11,7 @@ inductive QuintType where
   | set (elem : QuintType)
   | map (key val : QuintType)
   | list (elem : QuintType)
+  | hashStr
   | custom (name : String)
 
 def QuintType.name : QuintType → String
@@ -18,8 +19,9 @@ def QuintType.name : QuintType → String
   | .bool => "bool"
   | .str => "str"
   | .set elem => s!"Set[{elem.name}]"
-  | .map key val => s!"Map[{key.name}, {val.name}]"
+  | .map key val => s!"{key.name} -> {val.name}"
   | .list elem => s!"List[{elem.name}]"
+  | .hashStr => "str"
   | .custom name => name
 
 /-- Binary operators supported in generated Quint expressions. -/
@@ -27,6 +29,7 @@ inductive BinOp where
   | add | sub | mul | div | mod
   | eq | ne | lt | le | gt | ge
   | and | or
+  deriving BEq
 
 def BinOp.symbol : BinOp → String
   | .add => "+"
@@ -57,6 +60,7 @@ def sanitizeName (name : String) : String :=
 /-- Unary operators supported in generated Quint expressions. -/
 inductive UnOp where
   | not | neg
+  deriving BEq
 
 def UnOp.symbol : UnOp → String
   | .not => "not"
@@ -76,9 +80,11 @@ inductive Expr where
   | range (low high : Expr)
   | setLit (values : Array Expr)
   | listLit (values : Array Expr)
+  | index (list index : Expr)
   | mapLit (entries : Array (Expr × Expr))
+  | methodCall (receiver : Expr) (method : String) (args : Array Expr)
   | ite (cond thenExpr elseExpr : Expr)
-  deriving Inhabited
+  deriving Inhabited, BEq
 
 /-- A clause inside an action body. -/
 inductive ActionClause where
@@ -119,6 +125,11 @@ structure Val where
   name : String
   body : Expr
 
+/-- A temporal (liveness) property declaration. -/
+structure Temporal where
+  name : String
+  body : Expr
+
 /-- A Quint module. -/
 structure Module where
   name : String
@@ -127,6 +138,7 @@ structure Module where
   pureDefs : Array PureDef := #[]
   actions : Array Action := #[]
   vals : Array Val := #[]
+  temporals : Array Temporal := #[]
   deriving Inhabited
 
 end ProofForge.Backend.Quint

@@ -168,6 +168,8 @@ inductive EmitMode where
   | counterIrSui
   | counterIrQuint
   | valueVaultIrQuint
+  | irQuint
+  | irQuintScenario
   deriving BEq, Inhabited
 
 def EmitMode.emitsEvmDeployManifest : EmitMode → Bool
@@ -347,6 +349,8 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .counterIrSui
   | .counterIrQuint => true
   | .valueVaultIrQuint => true
+  | .irQuint => true
+  | .irQuintScenario => true
   | _ => false
 
 def EmitMode.isLegacyAlias : EmitMode → Bool

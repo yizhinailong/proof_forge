@@ -165,6 +165,9 @@ scoped syntax "constructor_param " ident " : " term ";" : contractItem
 scoped syntax "constructor_param " ident " : " "cstring" ";" : contractItem
 scoped syntax "constructor_param " ident " : " "cbytes" ";" : contractItem
 scoped syntax "constructor_param " ident " : " "u256array" ";" : contractItem
+scoped syntax "quint_invariant " ident " := " str : contractItem
+scoped syntax "quint_liveness " ident " := " str : contractItem
+scoped syntax "do " term ";" : contractItem
 scoped syntax "entry " ident " do" ppLine entryStmt* : contractItem
 scoped syntax "entry " ident " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
 scoped syntax "entry " ident "(" ident " : " term ")" " do" ppLine entryStmt* : contractItem
@@ -564,6 +567,11 @@ private structure LoweredItem where
   action? : Option (TSyntax `term) := none
   binder : TSyntax `term → MacroM (TSyntax `term) := fun body => pure body
 
+private def strLitValue (stx : TSyntax `str) : MacroM String := do
+  match stx.raw.isStrLit? with
+  | some s => pure s
+  | none => Macro.throwError "expected string literal for quint_invariant expression"
+
 private def lowerItem (item : TSyntax `contractItem) : MacroM LoweredItem := do
   match item with
   | `(contractItem| upgrade_policy_immutable;) =>
@@ -590,6 +598,18 @@ private def lowerItem (item : TSyntax `contractItem) : MacroM LoweredItem := do
   | `(contractItem| constructor_param $name:ident : "u256array";) =>
       let nameLit := identNameLit name
       let action ← `(ProofForge.Contract.Surface.declareConstructorParam $nameLit "uint256[]")
+      return { action? := some action }
+  | `(contractItem| quint_invariant $name:ident := $expr:str) =>
+      let nameLit := identNameLit name
+      let exprStr ← strLitValue expr
+      let exprLit := Syntax.mkStrLit exprStr
+      let action ← `(ProofForge.Contract.Surface.declareQuintInvariant $nameLit $exprLit)
+      return { action? := some action }
+  | `(contractItem| quint_liveness $name:ident := $expr:str) =>
+      let nameLit := identNameLit name
+      let exprStr ← strLitValue expr
+      let exprLit := Syntax.mkStrLit exprStr
+      let action ← `(ProofForge.Contract.Surface.declareQuintLiveness $nameLit $exprLit)
       return { action? := some action }
   | `(contractItem| do $action:term;) =>
       return { action? := some action }

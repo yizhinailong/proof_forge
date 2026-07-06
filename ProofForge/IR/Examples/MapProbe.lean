@@ -37,6 +37,18 @@ def pathKey : Expr :=
 def pathValue : Expr :=
   .literal (.hash4 77 88 99 111)
 
+def nestedOuterKey : Expr :=
+  .literal (.hash4 4004 0 0 0)
+
+def nestedInnerKey : Expr :=
+  .literal (.hash4 5005 0 0 0)
+
+def nestedPathValue : Expr :=
+  .literal (.hash4 88 99 111 112)
+
+def pathAssignKey : Expr :=
+  .literal (.u64 3003)
+
 def zeroHash : Expr :=
   .literal (.hash4 0 0 0 0)
 
@@ -86,6 +98,100 @@ def pathLifecycle : Entrypoint := {
     .letBind "value" .hash pathValue,
     .effect (.storagePathWrite "balances" #[.mapKey (.local "key")] (.local "value")),
     .return (.effect (.storagePathRead "balances" #[.mapKey (.local "key")]))
+  ]
+}
+
+def nestedPathLifecycle : Entrypoint := {
+  name := "nested_path_lifecycle"
+  returns := .hash
+  body := #[
+    .effect (.storagePathWrite "balances"
+      #[.mapKey nestedOuterKey, .mapKey nestedInnerKey] nestedPathValue),
+    .return (.effect (.storagePathRead "balances"
+      #[.mapKey nestedOuterKey, .mapKey nestedInnerKey]))
+  ]
+}
+
+def tripleOuterKey : Expr :=
+  .literal (.hash4 7007 0 0 0)
+
+def tripleMiddleKey : Expr :=
+  .literal (.hash4 8008 0 0 0)
+
+def tripleInnerKey : Expr :=
+  .literal (.hash4 9009 0 0 0)
+
+def triplePathValue : Expr :=
+  .literal (.hash4 10 20 30 40)
+
+def triplePathLifecycle : Entrypoint := {
+  name := "triple_path_lifecycle"
+  returns := .hash
+  body := #[
+    .effect (.storagePathWrite "balances"
+      #[.mapKey tripleOuterKey, .mapKey tripleMiddleKey, .mapKey tripleInnerKey] triplePathValue),
+    .return (.effect (.storagePathRead "balances"
+      #[.mapKey tripleOuterKey, .mapKey tripleMiddleKey, .mapKey tripleInnerKey]))
+  ]
+}
+
+def nestedDynamicPathLifecycle : Entrypoint := {
+  name := "nested_dynamic_path_lifecycle"
+  returns := .hash
+  params := #[("inner", .hash)]
+  body := #[
+    .effect (.storagePathWrite "balances"
+      #[.mapKey nestedOuterKey, .mapKey (.local "inner")] pathValue),
+    .return (.effect (.storagePathRead "balances"
+      #[.mapKey nestedOuterKey, .mapKey (.local "inner")]))
+  ]
+}
+
+def nestedU64OuterKey : Expr :=
+  .literal (.u64 4004)
+
+def nestedU64InnerKey : Expr :=
+  .literal (.u64 5005)
+
+def nestedPathAssignLifecycle : Entrypoint := {
+  name := "nested_path_assign_lifecycle"
+  returns := .u64
+  body := #[
+    .effect (.storagePathWrite "scores"
+      #[.mapKey nestedU64OuterKey, .mapKey nestedU64InnerKey] (.literal (.u64 88))),
+    .effect (.storagePathAssignOp "scores"
+      #[.mapKey nestedU64OuterKey, .mapKey nestedU64InnerKey] .add (.literal (.u64 7))),
+    .return (.effect (.storagePathRead "scores"
+      #[.mapKey nestedU64OuterKey, .mapKey nestedU64InnerKey]))
+  ]
+}
+
+def stateScores : StateDecl := {
+  id := "scores"
+  kind := .map .u64 8
+  type := .u64
+}
+
+def pathAssignLifecycle : Entrypoint := {
+  name := "path_assign_lifecycle"
+  returns := .u64
+  body := #[
+    .effect (.storagePathWrite "scores" #[.mapKey pathAssignKey] (.literal (.u64 10))),
+    .effect (.storagePathAssignOp "scores" #[.mapKey pathAssignKey] .add (.literal (.u64 5))),
+    .return (.effect (.storagePathRead "scores" #[.mapKey pathAssignKey]))
+  ]
+}
+
+def hashPathAssignUpdatedValue : Expr :=
+  .literal (.hash4 99 88 77 66)
+
+def hashPathAssignLifecycle : Entrypoint := {
+  name := "hash_path_assign_lifecycle"
+  returns := .hash
+  body := #[
+    .effect (.storagePathWrite "balances" #[.mapKey pathKey] pathValue),
+    .effect (.storagePathAssignOp "balances" #[.mapKey pathKey] .add hashPathAssignUpdatedValue),
+    .return (.effect (.storagePathRead "balances" #[.mapKey pathKey]))
   ]
 }
 
@@ -207,6 +313,56 @@ def emitWatModule : Module := {
   name := "MapProbe",
   state := #[stateBefore, stateBalances, stateAfter],
   entrypoints := #[ewGetBalance, ewHasBalance, ewSetBalance]
+}
+
+/-- Quint/MBT subset: map get/has/set with a presence guard on `getBalance` so
+    absent keys fail the action, matching IR `storageMapGet` error semantics. -/
+def emitQuintStorageModule : Module := {
+  name := "MapProbe",
+  state := #[stateBalances],
+  entrypoints := #[ewGetBalance, ewHasBalance, ewSetBalance]
+}
+
+/-- Quint/MBT subset: `path_lifecycle` via single-segment `storagePath*` on map state. -/
+def emitQuintPathModule : Module := {
+  name := "MapProbe",
+  state := #[stateBalances],
+  entrypoints := #[pathLifecycle]
+}
+
+/-- Quint/MBT subset: nested consecutive `mapKey` `storagePath*` on hash map state. -/
+def emitQuintNestedPathModule : Module := {
+  name := "MapProbe",
+  state := #[stateBalances],
+  entrypoints := #[nestedPathLifecycle]
+}
+
+/-- Quint/MBT subset: three consecutive `mapKey` `storagePath*` on hash map state. -/
+def emitQuintTriplePathModule : Module := {
+  name := "MapProbe",
+  state := #[stateBalances],
+  entrypoints := #[triplePathLifecycle]
+}
+
+/-- Quint/MBT subset: literal + dynamic nested `mapKey` `storagePath*` on hash map state. -/
+def emitQuintNestedDynamicPathModule : Module := {
+  name := "MapProbe",
+  state := #[stateBalances],
+  entrypoints := #[nestedDynamicPathLifecycle]
+}
+
+/-- Quint/MBT subset: `storagePathAssignOp` on single- and nested-mapKey U64 paths. -/
+def emitQuintPathAssignModule : Module := {
+  name := "MapProbe",
+  state := #[stateScores],
+  entrypoints := #[pathAssignLifecycle, nestedPathAssignLifecycle]
+}
+
+/-- Quint/MBT subset: `storagePathAssignOp` on hash-valued map paths (replace stub). -/
+def emitQuintHashPathAssignModule : Module := {
+  name := "MapProbe",
+  state := #[stateBalances],
+  entrypoints := #[hashPathAssignLifecycle]
 }
 
 /-! EmitWat "full" subset: every MapProbe entrypoint EXCEPT `pathLifecycle` (which

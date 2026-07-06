@@ -58,9 +58,19 @@ partial def emitExpr (prec : Nat) (e : Expr) : String :=
       s!"Set({emitList values})"
   | .listLit values =>
       s!"[{emitList values}]"
+  | .index list index =>
+      s!"{emit list}[{emit index}]"
   | .mapLit entries =>
       let entriesStr := String.intercalate ", " (entries.map (fun (k, v) => s!"{emit k} -> {emit v}")).toList
       s!"Map({entriesStr})"
+  | .methodCall receiver method args =>
+      let argsStr := emitList args
+      -- Receiver needs tighter precedence than `ite` (5) so `if ... else k.in(...)` parses correctly.
+      let recv := emitExpr 6 receiver
+      if args.isEmpty then
+        s!"{recv}.{method}()"
+      else
+        s!"{recv}.{method}({argsStr})"
   | .ite cond thenExpr elseExpr =>
       wrap 5 s!"if ({emit cond}) {emit thenExpr} else {emit elseExpr}"
 
@@ -70,7 +80,7 @@ partial def emitActionClause (depth : Nat) (clause : ActionClause) : String :=
   | .assign target value =>
       s!"{ind}{emitExpr 0 target} = {emitExpr 0 value}"
   | .guard expr =>
-      s!"{ind}{emitExpr 0 expr}"
+      s!"{ind}({emitExpr 0 expr})"
   | .call name args =>
       if args.isEmpty then
         ind ++ name
@@ -119,6 +129,9 @@ def emitVar (v : Var) : String :=
 def emitVal (v : Val) : String :=
   s!"val {v.name} = {emitExpr 0 v.body}"
 
+def emitTemporal (t : Temporal) : String :=
+  s!"temporal {t.name} = {emitExpr 0 t.body}"
+
 def emitModule (m : Module) : String :=
   let parts : Array String := #[]
   let parts := if m.constants.isEmpty then parts else parts ++ m.constants.map emitConstant
@@ -126,6 +139,7 @@ def emitModule (m : Module) : String :=
   let parts := if m.pureDefs.isEmpty then parts else parts ++ m.pureDefs.map emitPureDef
   let parts := parts ++ m.actions.map emitAction
   let parts := if m.vals.isEmpty then parts else parts ++ m.vals.map emitVal
+  let parts := if m.temporals.isEmpty then parts else parts ++ m.temporals.map emitTemporal
   let body := String.intercalate "\n\n" (parts.map (fun s => "  " ++ s)).toList
   "module " ++ m.name ++ " {\n" ++ body ++ "\n}"
 

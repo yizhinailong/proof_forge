@@ -7,6 +7,9 @@ open ProofForge.Contract.Source
 contract_source Counter do
   state count : .u64
 
+  quint_invariant countBounded := "count <= MAX_UINT"
+  quint_liveness eventuallyPositive := "eventually(count > 0)"
+
   entry «initialize» do
     count := u64 0;
 

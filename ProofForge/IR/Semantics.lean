@@ -94,7 +94,8 @@ structure State where
 
 structure Frame where
   locals : Bindings := []
-  deriving Repr, BEq
+  structs : Array StructDecl := #[]
+  deriving Repr
 
 def State.empty : State := {}
 
@@ -118,15 +119,18 @@ def mapKey (base key : String) : String :=
 def mapPresentKey (base key : String) : String :=
   s!"{mapKey base key}.present"
 
+partial def writeStructFields (storage : Bindings) (base : String) (fields : List (String × Value)) : Bindings :=
+  fields.foldl (fun acc (fieldName, fieldValue) =>
+    let acc := insert (fieldKey base fieldName) fieldValue acc
+    match fieldValue with
+    | .struct _ inner => writeStructFields acc (fieldKey base fieldName) inner
+    | _ => acc) storage
+
 def State.write (state : State) (name : String) (value : Value) : State :=
   let state := { state with storage := insert name value state.storage }
   match value with
   | .struct _ fields =>
-      { state with
-        storage :=
-          fields.foldl
-            (fun storage field => insert (fieldKey name field.fst) field.snd storage)
-            state.storage }
+      { state with storage := writeStructFields state.storage name fields }
   | _ => state
 
 def State.recordEvent (state : State) (name : String)
@@ -227,11 +231,11 @@ def structFieldValue (value : Value) (fieldName : String) : Except String Value 
       | none => .error s!"unknown struct field `{fieldName}`"
   | _ => .error "field access expects a struct value"
 
-def bindParams (params : Array (String × ValueType)) (args : Array Value) :
-    Except String Frame := do
+def bindParams (params : Array (String × ValueType)) (args : Array Value)
+    (structs : Array StructDecl := #[]) : Except String Frame := do
   if params.size != args.size then
     .error s!"entrypoint expected {params.size} argument(s), got {args.size}"
-  let mut frame := Frame.empty
+  let mut frame := { Frame.empty with structs := structs }
   for h : idx in [0:params.size] do
     let param := params[idx]
     let some arg := args[idx]?
@@ -346,6 +350,71 @@ def evalAssignOp (op : AssignOp) (lhs rhs : Value) : Except String Value :=
   | .shiftRight => evalNumericBinary "assignShiftRight" (fun lhs rhs => lhs / (2 ^ rhs)) lhs rhs
 
 abbrev ExprResult := State × Value
+
+partial def crosscallArgToNat (value : Value) : Except String Nat :=
+  match value with
+  | .u64 n | .u32 n | .u8 n => pure n
+  | .bool b => pure (if b then 1 else 0)
+  | .hash a b c d => pure (a + b + c + d)
+  | .struct _ fields => do
+      let mut sum := 0
+      for (_, fieldValue) in fields do
+        sum := sum + (← crosscallArgToNat fieldValue)
+      pure sum
+  | .array values => do
+      let mut sum := 0
+      for elem in values do
+        sum := sum + (← crosscallArgToNat elem)
+      pure sum
+  | _ => .error "crosscall argument expected scalar or aggregate"
+
+def crosscallHashStubValue (sum : Nat) : Value :=
+  match sum % 3 with
+  | 0 => .hash 1001 0 0 0
+  | 1 => .hash 2002 0 0 0
+  | _ => .hash 3003 0 0 0
+
+def crosscallStaticTag : Nat := 1000000
+def crosscallDelegateTag : Nat := 2000000
+def crosscallCreateTag : Nat := 3000000
+def crosscallCreate2Tag : Nat := 4000000
+
+def lookupStructDecl (structs : Array StructDecl) (name : String) : Option StructDecl :=
+  structs.find? (fun s => s.name == name)
+
+partial def crosscallCastReturnAt (sum offset : Nat) (returnType : ValueType) (structs : Array StructDecl) :
+    Except String (Value × Nat) := do
+  let atSum := sum + offset
+  match returnType with
+  | .u64 => pure (.u64 atSum, offset + 1)
+  | .u32 => pure (.u32 (atSum % 4294967296), offset + 1)
+  | .bool => pure (.bool (atSum % 2 == 1), offset + 1)
+  | .hash => pure (crosscallHashStubValue atSum, offset + 1)
+  | .structType typeName =>
+      match lookupStructDecl structs typeName with
+      | none => .error s!"unknown struct `{typeName}` for crosscall aggregate return"
+      | some structDecl => do
+          let mut off := offset
+          let mut fields := []
+          for field in structDecl.fields do
+            let (fieldValue, nextOff) ← crosscallCastReturnAt sum off field.type structs
+            fields := fields ++ [(field.id, fieldValue)]
+            off := nextOff
+          pure (.struct typeName fields, off)
+  | .fixedArray elem length => do
+    let rec go (i off : Nat) (acc : List Value) : Except String (Value × Nat) := do
+      if i >= length then
+        pure (.array acc, off)
+      else
+        let (elemValue, nextOff) ← crosscallCastReturnAt sum off elem structs
+        go (i + 1) nextOff (acc ++ [elemValue])
+    go 0 offset []
+  | _ => .error s!"typed crosscall return `{returnType.name}` is not supported by scalar semantics"
+
+def crosscallCastReturn (sum : Nat) (returnType : ValueType) (structs : Array StructDecl := #[]) :
+    Except String Value := do
+  let (value, _) ← crosscallCastReturnAt sum 0 returnType structs
+  pure value
 
 mutual
 partial def evalExpr (state : State) (frame : Frame) : Expr → Except String ExprResult
@@ -473,9 +542,91 @@ partial def evalExpr (state : State) (frame : Frame) : Expr → Except String Ex
       match rawValue with
       | .bool value => .ok (nextState, .bool (!value))
       | _ => .error "boolNot expects Bool operand"
+  | .crosscallInvoke target methodId args => evalCrosscallInvoke state frame target methodId args
+  | .crosscallInvokeTyped target methodId args returnType =>
+      evalCrosscallInvokeTyped state frame target methodId args returnType
+  | .crosscallInvokeValueTyped target methodId callValue args returnType =>
+      evalCrosscallInvokeValueTyped state frame target methodId callValue args returnType
+  | .crosscallInvokeStaticTyped target methodId args returnType =>
+      evalCrosscallInvokeStaticTyped state frame target methodId args returnType
+  | .crosscallInvokeDelegateTyped target methodId args returnType =>
+      evalCrosscallInvokeDelegateTyped state frame target methodId args returnType
+  | .crosscallCreate callValue _ => evalCrosscallCreate state frame callValue
+  | .crosscallCreate2 callValue salt _ => evalCrosscallCreate2 state frame callValue salt
   | .effect effect => evalEffect state frame effect
   | .nativeValue => .ok (state, .u64 0)
   | _ => .error "expression is not supported by the scalar semantics model"
+
+/-- Deterministic crosscall stub: sum target, method, and scalar args (aligned with Quint lowering). -/
+partial def evalCrosscallInvokeSum (state : State) (frame : Frame) (target methodId : Expr)
+    (args : Array Expr) : Except String (State × Nat) := do
+  let (stateAfterTarget, targetValue) ← evalExpr state frame target
+  let (stateAfterMethod, methodValue) ← evalExpr stateAfterTarget frame methodId
+  let targetU64 ← match targetValue with
+    | .u64 value => pure value
+    | _ => .error "crosscall target expected U64"
+  let methodU64 ← match methodValue with
+    | .u64 value => pure value
+    | _ => .error "crosscall method expected U64"
+  let mut nextState := stateAfterMethod
+  let mut sum := targetU64 + methodU64
+  for arg in args do
+    let (stateAfterArg, argValue) ← evalExpr nextState frame arg
+    nextState := stateAfterArg
+    let argNat ← crosscallArgToNat argValue
+    sum := sum + argNat
+  .ok (nextState, sum)
+
+partial def evalCrosscallInvoke (state : State) (frame : Frame) (target methodId : Expr)
+    (args : Array Expr) : Except String ExprResult := do
+  let (nextState, sum) ← evalCrosscallInvokeSum state frame target methodId args
+  .ok (nextState, .u64 sum)
+
+partial def evalCrosscallInvokeTyped (state : State) (frame : Frame) (target methodId : Expr)
+    (args : Array Expr) (returnType : ValueType) : Except String ExprResult := do
+  let (nextState, sum) ← evalCrosscallInvokeSum state frame target methodId args
+  let value ← crosscallCastReturn sum returnType frame.structs
+  .ok (nextState, value)
+
+partial def evalCrosscallInvokeValueTyped (state : State) (frame : Frame) (target methodId callValue : Expr)
+    (args : Array Expr) (returnType : ValueType) : Except String ExprResult := do
+  let (stateAfterValue, callValueResult) ← evalExpr state frame callValue
+  let callNat ← match callValueResult with
+    | .u64 n => pure n
+    | _ => .error "value-bearing crosscall callValue expected U64"
+  let (nextState, sum) ← evalCrosscallInvokeSum stateAfterValue frame target methodId args
+  let value ← crosscallCastReturn (sum + callNat) returnType frame.structs
+  .ok (nextState, value)
+
+partial def evalCrosscallInvokeStaticTyped (state : State) (frame : Frame) (target methodId : Expr)
+    (args : Array Expr) (returnType : ValueType) : Except String ExprResult := do
+  let (nextState, sum) ← evalCrosscallInvokeSum state frame target methodId args
+  let value ← crosscallCastReturn (sum + crosscallStaticTag) returnType frame.structs
+  .ok (nextState, value)
+
+partial def evalCrosscallInvokeDelegateTyped (state : State) (frame : Frame) (target methodId : Expr)
+    (args : Array Expr) (returnType : ValueType) : Except String ExprResult := do
+  let (nextState, sum) ← evalCrosscallInvokeSum state frame target methodId args
+  let value ← crosscallCastReturn (sum + crosscallDelegateTag) returnType frame.structs
+  .ok (nextState, value)
+
+partial def evalCrosscallCreate (state : State) (frame : Frame) (callValue : Expr) :
+    Except String ExprResult := do
+  let (nextState, callValueResult) ← evalExpr state frame callValue
+  let callNat ← match callValueResult with
+    | .u64 n => pure n
+    | _ => .error "crosscallCreate callValue expected U64"
+  .ok (nextState, .u64 (callNat + crosscallCreateTag))
+
+partial def evalCrosscallCreate2 (state : State) (frame : Frame) (callValue salt : Expr) :
+    Except String ExprResult := do
+  let (stateAfterValue, callValueResult) ← evalExpr state frame callValue
+  let callNat ← match callValueResult with
+    | .u64 n => pure n
+    | _ => .error "crosscallCreate2 callValue expected U64"
+  let (nextState, saltValue) ← evalExpr stateAfterValue frame salt
+  let saltNat ← crosscallArgToNat saltValue
+  .ok (nextState, .u64 (callNat + saltNat + crosscallCreate2Tag))
 
 partial def evalPathSegmentKey (state : State) (frame : Frame) : StoragePathSegment →
     Except String (State × String)
@@ -604,7 +755,9 @@ partial def evalEffect (state : State) (frame : Frame) : Effect → Except Strin
         | some value => .ok value
         | none => .error s!"unknown storage path `{key}`"
       let (stateAfterValue, rhs) ← evalExpr stateAfterPath frame valueExpr
-      let value ← evalAssignOp op current rhs
+      let value ← match current with
+        | .hash _ _ _ _ => pure rhs
+        | _ => evalAssignOp op current rhs
       .ok (stateAfterValue.write key value, value)
   | .contextRead field =>
       match field with
@@ -645,6 +798,22 @@ partial def execStmt (state : State) (frame : Frame) : Statement →
   | .letMutBind name _ value => do
       let (nextState, evaluated) ← evalExpr state frame value
       .ok (nextState, frame.write name evaluated, none)
+  | .assign target value =>
+      match target with
+      | .local name => do
+          let (nextState, evaluated) ← evalExpr state frame value
+          .ok (nextState, frame.write name evaluated, none)
+      | _ => .error "assign target is not supported by the scalar semantics model"
+  | .assignOp target op value =>
+      match target with
+      | .local name => do
+          let current ← match frame.read name with
+            | some v => pure v
+            | none => .error s!"assignOp on unbound local `{name}`"
+          let (nextState, rhs) ← evalExpr state frame value
+          let updated ← evalAssignOp op current rhs
+          .ok (nextState, frame.write name updated, none)
+      | _ => .error "assignOp target is not supported by the scalar semantics model"
   | .effect effect => do
       .ok (← execEffectStmt state frame effect, frame, none)
   | .assert condition message _ => do
@@ -667,6 +836,8 @@ partial def execStmt (state : State) (frame : Frame) : Statement →
       .ok (branchState, frame, returnValue?)
   | .boundedFor indexName start stopExclusive body =>
       execBoundedFor indexName start stopExclusive body state frame
+  | .whileLoop condition body =>
+      execWhileLoop condition body state frame
   | .return value => do
       let (nextState, returnValue) ← evalExpr state frame value
       .ok (nextState, frame, some returnValue)
@@ -694,11 +865,25 @@ partial def execBoundedFor
     | none => execBoundedFor indexName (index + 1) stopExclusive body nextState frame
   else
     .ok (state, frame, none)
+
+partial def execWhileLoop
+    (condition : Expr)
+    (body : Array Statement)
+    (state : State)
+    (frame : Frame) : Except String (State × Frame × Option Value) := do
+  let (stateAfterCond, conditionValue) ← evalExpr state frame condition
+  if ← truthy conditionValue then
+    let (bodyState, returnValue?) ← execStatements body.toList stateAfterCond frame
+    match returnValue? with
+    | some value => .ok (bodyState, frame, some value)
+    | none => execWhileLoop condition body bodyState frame
+  else
+    .ok (stateAfterCond, frame, none)
 end
 
-def runEntrypointWithArgs (state : State) (entrypoint : Entrypoint) (args : Array Value) :
-    Except String (State × Option Value) := do
-  let frame ← bindParams entrypoint.params args
+def runEntrypointWithArgs (state : State) (entrypoint : Entrypoint) (args : Array Value)
+    (structs : Array StructDecl := #[]) : Except String (State × Option Value) := do
+  let frame ← bindParams entrypoint.params args structs
   execStatements entrypoint.body.toList state frame
 
 def runEntrypoint (state : State) (entrypoint : Entrypoint) :

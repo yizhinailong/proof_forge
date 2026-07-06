@@ -51,6 +51,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y wabt
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Quint CLI
+        run: npm install -g @informalsystems/quint
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
       - name: Tool versions
         run: |
           lean --version
@@ -62,6 +76,10 @@ jobs:
           cargo --version
           just --version
           wat2wasm --version
+          node --version
+          npm --version
+          quint --version
+          java -version
 
       - name: Build Lean package
         run: just build
@@ -131,6 +149,12 @@ jobs:
 
       - name: Run Psy metadata CLI smoke test
         run: just psy-metadata-cli
+
+      - name: Run Quint MBT replay gate
+        run: just quint-mbt-gate
+
+      - name: Run Quint IR model gate
+        run: just quint-ir-model-gate
 
       - name: Check EVM diagnostics
         run: just evm-diagnostics

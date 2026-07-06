@@ -177,13 +177,69 @@ Tasks:
   `scripts/quint/mbt-replay-gate.sh` with graceful skips when `quint` or
   Java 17+ are unavailable; expose them as `just quint-model-gate` and
   `just quint-mbt-gate`.
-- Add a ValueVault IR fixture and extend the generator/replay gates to cover it.
-- Parse manual invariants from scenario TOML under `[invariants]` and emit them
-  as Quint `val` definitions.
-- Extend the supported IR subset toward maps, arrays, structs, and bounded loops
-  as the corresponding IR semantics coverage grows.
-- Consider adding `quint verify` to the default CI path once Java 17+ is
-  available in the build environment.
+- Done: add ValueVault fixture and MBT replay gate (`Tests/Quint/ValueVaultReplay.lean`).
+- Done: parse scenario TOML `[invariants]` and emit Quint `val` definitions
+  (`ProofForge.Backend.Quint.Scenario`, `Invariants.lean`).
+- Done: extend supported IR subset with storage arrays, maps (get/has/set),
+  struct field flattening, and `storagePath*` fixtures (`array`, `map`, `map-path`,
+  `map-nested-path`, `map-path-assign`, `struct`, `array-path`, `struct-path`,
+  `struct-dynamic-path`) wired through `just quint-mbt-gate`.
+- Done: scalar local assignment (`letMutBind`, `.assign`, `.assignOp` on
+  `.local` targets) with `assignment` fixture in `just quint-mbt-gate`.
+- Done: scalar `crosscallInvoke` / `crosscallInvokeTyped` (U64 return stub:
+  `target + method + sum(args)`) with `crosscall` fixture in `just quint-mbt-gate`.
+- Done: crosscall args coverage — `call_with_args` entrypoint sums nondet
+  `amount` + `fee` in the `crosscall` fixture Model/Replay gate.
+- Done: typed crosscall scalar returns — `crosscallInvokeTyped` Bool/U32/Hash
+  stub casts in Lower/Semantics with `call_remote_bool` / `call_remote_u32` /
+  `call_remote_hash` in the `crosscall` fixture gate.
+- Done: value/static/delegate typed crosscall stubs — `crosscallInvokeValueTyped`
+  (+ callValue), `crosscallInvokeStaticTyped` (+1_000_000 tag),
+  `crosscallInvokeDelegateTyped` (+2_000_000 tag) in the `crosscall` fixture gate.
+- Done: `crosscallCreate` / `crosscallCreate2` stubs — `callValue + 3_000_000` and
+  `callValue + salt + 4_000_000` in Lower/Semantics with `deploy_create` /
+  `deploy_create2` in the `crosscall` fixture gate.
+- Done: aggregate crosscall params/returns — flatten struct and fixed-array
+  leaves into deterministic sum slots in Lower/Semantics with
+  `call_remote_pair` / `call_remote_pair_arg` / `call_remote_array` /
+  `call_remote_array_arg` in the `crosscall` fixture gate.
+- Done: `.assert` / `.assertEq` statement guards with `assert` fixture in
+  `just quint-mbt-gate`; gate rebuilds `proof-forge` before CLI emit smoke.
+- Done: hash-valued map `storagePathAssignOp` replace stub with
+  `map-hash-path-assign` fixture in `just quint-mbt-gate`.
+- Done: three+ consecutive `mapKey` `storagePath*` paths via generalized
+  `mapKeyPath` lowering with `map-triple-path` fixture in `just quint-mbt-gate`.
+- Done: literal + dynamic nested `mapKey` `storagePath*` paths via runtime
+  braced segment composition with `map-nested-dynamic-path` fixture in
+  `just quint-mbt-gate`.
+- Done: nested `#[ref]` struct fields via recursive flattening and `storagePath*`
+  lowering with `nested-struct-ref` fixture in `just quint-mbt-gate`.
+- Done: unbounded integers abstraction — scenario `unbounded_integers` flag,
+  two-domain integer bounds documentation, and `unbounded-int` fixture in
+  `just quint-mbt-gate`.
+- Done: add `quint verify` to the default CI path via `just quint-model-gate`
+  with Temurin Java 17 in `.github/workflows/ci.yml`.
+- Done: replay sampled Quint MBT traces through the EVM backend (Counter v1)
+  via `ProofForge.Backend.Quint.EvmReplay`, `Tests/Quint/CounterEvmReplay.lean`,
+  `scripts/quint/evm-backend-replay-gate.sh`, and `just quint-evm-backend-replay-gate`.
+- Done: unified `quint-ir-model-gate` (`scripts/quint/ir-model-gate.sh`,
+  `Tests/Quint/CounterIrModelGate.lean`, `Tests/Quint/ValueVaultIrModelGate.lean`,
+  `just quint-ir-model-gate`) runs emit → verify → MBT → IR replay → Counter EVM
+  replay in one gate; wired into `just check` and CI (replacing standalone
+  `quint-model-gate` in CI).
+- Done: `contract_source` `quint_invariant` annotations on Counter and
+  ValueVault (`ProofForge.Contract.Spec.quintInvariants`, CLI emit merge,
+  `Tests/Quint/ContractSourceInvariants.lean`); ValueVault scenario TOML
+  `[invariants]` moved to contract source.
+- Done: `contract_source` `quint_liveness` temporal annotations on Counter
+  (`ProofForge.Contract.Spec.quintLiveness`, `ProofForge.Backend.Quint.Liveness`,
+  scenario TOML `[liveness]`, `Tests/Quint/ContractSourceLiveness.lean`).
+- Done: unified testkit Quint ITF replay bridge (`testkit/harness-quint`,
+  `[[quint]]` scenario expectations, `testkit/scenarios/quint-counter.toml` and
+  `quint-value-vault.toml`, `just testkit-quint`, wired into `just quint-mbt-gate`).
+- Done: auto-generated per-fixture `*.scenario.toml` via
+  `proof-forge emit --target quint --format scenario`
+  (`ProofForge.Backend.Quint.Scenario.renderToml`, `Tests/Quint/ScenarioEmit.lean`).
 
 Acceptance criteria:
 
@@ -194,6 +250,10 @@ Acceptance criteria:
   passes.
 - `quint verify` is exercised by `just quint-model-gate` and skips gracefully
   when Java 17+ is missing.
+- `just quint-evm-backend-replay-gate` replays a Counter MBT ITF trace through
+  Foundry-etched EVM bytecode and passes.
+- `just quint-ir-model-gate` runs the full Counter/ValueVault Quint validation
+  pipeline (emit, verify, MBT, IR replay, and Counter EVM replay) in one step.
 
 ## Workstream 2: Artifact Metadata
 
