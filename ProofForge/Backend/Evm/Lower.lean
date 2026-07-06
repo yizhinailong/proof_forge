@@ -55,11 +55,6 @@ def arrayReadTargetPlan? (module : Module) (stateId : String) : Option ArrayRead
   | .ok target => some target
   | .error _ => none
 
-def dynamicArrayTargetPlan? (module : Module) (stateId : String) : Option DynamicArrayTargetPlan :=
-  match dynamicArrayTargetPlan module stateId with
-  | .ok target => some target
-  | .error _ => none
-
 def structFieldWriteTargetPlan?
     (module : Module)
     (stateId fieldName : String) : Option StructFieldWriteTargetPlan :=
@@ -1282,13 +1277,11 @@ mutual
         | none => .ok (.storageArrayStructFieldWrite stateId indexPlan fieldName valuePlan)
     | .storageDynamicArrayPush stateId value => do
         let valuePlan ← buildExprPlan module env value
-        match dynamicArrayTargetPlan? module stateId with
-        | some target => .ok (.storageDynamicArrayPushTarget target valuePlan)
-        | none => .ok (.storageDynamicArrayPush stateId valuePlan)
-    | .storageDynamicArrayPop stateId =>
-        match dynamicArrayTargetPlan? module stateId with
-        | some target => .ok (.storageDynamicArrayPopTarget target)
-        | none => .ok (.storageDynamicArrayPop stateId)
+        let target ← lowerPlan <| dynamicArrayTargetPlan module stateId
+        .ok (.storageDynamicArrayPushTarget target valuePlan)
+    | .storageDynamicArrayPop stateId => do
+        let target ← lowerPlan <| dynamicArrayTargetPlan module stateId
+        .ok (.storageDynamicArrayPopTarget target)
     | .memoryArraySet array index value => do
         let arrayPlan ← buildExprPlan module env array
         let indexPlan ← buildExprPlan module env index
@@ -1420,6 +1413,40 @@ def buildExpressionExprPlan
       ensureExpressionCrosscallReturnWord "delegate" returnType
   | _ => pure ()
   buildExprPlan module env expr
+
+def fixedArrayAssignmentSourcePlans
+    (module : Module)
+    (env : TypeEnv)
+    (name : String)
+    (elementType : ValueType)
+    (length : Nat)
+    (value : Expr) : Except LowerError (Array FixedArrayAssignmentSourcePlan) := do
+  match value with
+  | .local sourceName => do
+      let (sourceElementType, sourceLength) ← requireLocalFixedArray "assignment value" env sourceName
+      ensureType s!"assignment target `{name}` fixed-array element type" elementType sourceElementType
+      if sourceLength != length then
+        .error { message := s!"assignment target `{name}` expected fixed array length {length}, got {sourceLength}" }
+      let mut sources : Array FixedArrayAssignmentSourcePlan := #[]
+      for _h : idx in [0:length] do
+        sources := sources.push {
+          index := idx
+          expr := .local (arrayLocalElementName sourceName idx)
+        }
+      .ok sources
+  | .arrayLit literalElementType literalValues => do
+      ensureType s!"assignment target `{name}` fixed-array element type" elementType literalElementType
+      if literalValues.size != length then
+        .error { message := s!"assignment target `{name}` expected fixed array length {length}, got {literalValues.size}" }
+      let mut sources : Array FixedArrayAssignmentSourcePlan := #[]
+      for h : idx in [0:literalValues.size] do
+        sources := sources.push {
+          index := idx
+          expr := ← buildExprPlan module env literalValues[idx]
+        }
+      .ok sources
+  | _ =>
+      .error { message := s!"assignment target `{name}` fixed-array whole assignment supports local fixed-array values or array literals in IR EVM v0" }
 
 def crosscallModeArgContext : CrosscallMode → String
   | .call => "typed crosscall argument"
