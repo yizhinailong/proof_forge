@@ -4310,6 +4310,60 @@ def testScalarFallbackGateLocalAggregatePlanToYul : IO Unit := do
       requireCallExpr guard "__proof_forge_local_array_get_2" 3 "local struct-array field assert planned guard"
   | _ => throw <| IO.userError "local struct-array field assert must use planned helper guard"
 
+def testScalarFallbackGateMemoryArrayPlanToYul : IO Unit := do
+  let memoryEnv : TypeEnv := #[
+    { name := "buf", type := .array .u64, isMutable := false },
+    { name := "idx", type := .u64, isMutable := false }
+  ]
+  require
+    (!exprSupportsPlanScalarYul (.memoryArrayNew .u64 (.literal (.u64 2))))
+    "standalone memoryArrayNew must not be accepted as scalar plan gate"
+  let lengthExpr : Expr :=
+    .memoryArrayLength (.memoryArrayNew .u64 (.add (.local "idx") (.literal (.u64 1))))
+  require
+    (exprSupportsPlanScalarYul lengthExpr)
+    "memory array length over new array must be accepted by scalar plan gate"
+  let lengthBindingStmts ← requireOk
+    (lowerScalarBindingStmtPlanOrFallback
+      ProofForge.IR.Examples.Counter.module
+      memoryEnv
+      "len"
+      .u64
+      false
+      lengthExpr)
+    "memory array length scalar binding plan-to-yul"
+  require (lengthBindingStmts.size == 1) "memory array length binding statement count"
+  match lengthBindingStmts[0]! with
+  | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.builtin "mload" args)) => do
+      let typedName ← requireAt vars 0 "memory array length binding var"
+      require (typedName.name == "len") "memory array length binding target"
+      let source ← requireAt args 0 "memory array length binding source"
+      requireCallExpr source (Helper.memoryArrayNew).name 1 "memory array length planned new-array source"
+  | _ => throw <| IO.userError "memory array length binding must use planned mload"
+  let getExpr : Expr :=
+    .memoryArrayGet (.local "buf") (.add (.local "idx") (.literal (.u64 0)))
+  require
+    (exprSupportsPlanScalarYul getExpr)
+    "memory array get over local array must be accepted by scalar plan gate"
+  let getReturnStmts ← requireOk
+    (lowerScalarReturnStmtPlanOrFallback
+      ProofForge.IR.Examples.Counter.module
+      memoryEnv
+      "memory_array_get_return"
+      .u64
+      getExpr
+      false)
+    "memory array get scalar return plan-to-yul"
+  require (getReturnStmts.size == 1) "memory array get return statement count"
+  match getReturnStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["result"]) "memory array get return target"
+      require (name == (Helper.memoryArrayGet).name) "memory array get return helper"
+      require (args.size == 2) "memory array get return helper arg count"
+      requireIdentExpr args[0]! "buf" "memory array get return array source"
+      requireCallExpr args[1]! "__pf_checked_add" 2 "memory array get return planned index"
+  | _ => throw <| IO.userError "memory array get return must use planned helper assignment"
+
 def testLocalCrosscallWordsToYul : IO Unit := do
   let simpleStructFields (typeName : String) : Except LowerError (Array String) :=
     if typeName == "Point" then
@@ -9590,6 +9644,7 @@ def main : IO UInt32 := do
   testAggregateLiteralEntrypointPlannedBody
   testScalarFallbackGateAggregateLiteralPlanToYul
   testScalarFallbackGateLocalAggregatePlanToYul
+  testScalarFallbackGateMemoryArrayPlanToYul
   testLocalAbiWordsToYul
   testLocalCrosscallWordsToYul
   testReturnValueWordPlanToYul

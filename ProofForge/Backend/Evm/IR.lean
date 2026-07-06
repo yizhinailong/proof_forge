@@ -2496,6 +2496,14 @@ partial def exprSupportsPlanScalarYul : ProofForge.IR.Expr → Bool
   | .field (.local _) _ => true
   | .field (.arrayGet array index) _ =>
       exprSupportsPlanScalarYul (.arrayGet array index)
+  | .memoryArrayLength (.local _) => true
+  | .memoryArrayLength (.memoryArrayNew _ length) =>
+      exprSupportsPlanScalarYul length
+  | .memoryArrayGet (.local _) index =>
+      exprSupportsPlanScalarYul index
+  | .memoryArrayGet (.memoryArrayNew _ length) index =>
+      exprSupportsPlanScalarYul length &&
+        exprSupportsPlanScalarYul index
   | .arrayLit _ _
   | .arrayGet _ _
   | .memoryArrayNew _ _
