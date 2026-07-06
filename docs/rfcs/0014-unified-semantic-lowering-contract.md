@@ -157,7 +157,7 @@ remains a non-goal.
 - Replacing the existing AST printers or external tool invocations. The contract
   sits *above* the AST layer; printers stay as they are.
 - Forcing every backend to grow EVM-shaped `ExprPlan`/`StmtPlan` body plans on
-  day one. Body planning is backloaded (Phase 5) and only where it pays.
+  day one. Body planning is backloaded (Phase 6) and only where it pays.
 
 ## Current state per backend
 
@@ -287,7 +287,7 @@ Concretely per backend:
 - `ManifestPlan` — linkage fields the manifest/IDL/client emitters read.
 
 Body planning (`ExprPlan`/`StmtPlan` for Solana instructions) is **deferred**
-to Phase 5; Phase 2 plans only the layout/dispatch/CPI/account schema.
+to Phase 6; Phase 2 plans only the layout/dispatch/CPI/account schema.
 
 **NEAR**: `NearModulePlan` covers:
 
@@ -298,7 +298,7 @@ to Phase 5; Phase 2 plans only the layout/dispatch/CPI/account schema.
 - `PromisePlan` (future) — crosscall lowering targets; today crosscall →
   Promise lowering is a documented EmitWat gap.
 
-**Psy**: `PsyModulePlan` is extended **later** (Phase 5) toward entrypoint/body
+**Psy**: `PsyModulePlan` is extended **later** (Phase 6) toward entrypoint/body
 plans; initial scope keeps the existing metadata-only plan and aligns the
 `buildModulePlan` → `buildModuleWithPlan` seam to the shared contract.
 
@@ -369,13 +369,13 @@ Plus a unified comparison entry:
 just semantic-plan-matrix     -- runs evm + psy + near + solana semantic-plan gates
 ```
 
-Golden plan snapshots (Phase 6 stretch) would serialize plans to JSON for human
-review; that is an open question, not a Phase 1–4 requirement.
+Golden plan snapshots (Phase 7 stretch) would serialize plans to JSON for human
+review; that is an open question, not a Phase 1–5 requirement.
 
 ## Phased rollout
 
-Each phase is independently shippable and reverses cleanly. Phases 0–3 are
-Tier B; Phase 4 begins the Tier C seam without delivering full proofs.
+Each phase is independently shippable and reverses cleanly. Phases 0–4 are
+Tier B; Phase 5 begins the Tier C seam without delivering full proofs.
 
 ### Phase 0 — Lowering interface document (4–6 weeks)
 
@@ -453,9 +453,79 @@ reference-equivalence gates; refactor must keep them byte-stable. Recommend
 landing behind a feature flag (e.g. `--solana-plan=v2`) and switching after
 golden parity is demonstrated.
 
-**Scope cut:** body planning (`ExprPlan`/`StmtPlan` for Solana) → Phase 5.
+**Scope cut:** body planning (`ExprPlan`/`StmtPlan` for Solana) → Phase 6.
 
-### Phase 3 — NEAR plan layer (8–12 weeks)
+### Phase 3 — Shared diagnostic contract (prerequisite, landed 2026-07-07)
+
+**Status:** Minimal stub landed. Build green, smoke green, no existing
+diagnostic bytes changed.
+
+**Motivation:** Phase 1 found that `validateCapabilities`, the return-path
+check, identifier validity, and `ensureNumericType` could not be safely unified
+because each backend's error type, rules, and messages differ. A shared
+diagnostic vocabulary is the prerequisite for growing the shared validate
+surface beyond the four Phase 1 pure helpers. This phase introduces it without
+migrating any backend.
+
+**What was landed (the minimal, safe stub):**
+
+- `ProofForge/Backend/Diagnostic.lean` (new) — `LoweringDiagnostic`
+  (`message` + optional `backend?` / `severity` / `code?` metadata),
+  `Severity`, the `LoweringError` typeclass contract, two trivial adapters
+  (`LoweringDiagnostic` identity, `String` for the `Except String` shape
+  `SharedValidate` uses today), `fromTargetDiagnostic`, and `liftSharedError`.
+- `Tests/Diagnostic.lean` (new, 9 cases) pins the byte-stability invariant:
+  `LoweringDiagnostic.render` outputs **only** `message`, so any backend
+  delegating to it sees byte-identical output to its existing
+  `<Name>.render := err.message`.
+- `justfile`: `diagnostic-smoke` recipe added to `check`.
+
+**Design decision (shared type + typeclass, not typeclass-only):** a field-level
+audit (see [`docs/shared-diagnostic-design.md`](../shared-diagnostic-design.md))
+showed every backend lowering/plan/emit error type is *already* the same shape —
+a single-field `structure <Name> where message : String` whose `render` is
+`err.message`. A shared concrete type is therefore justified, not premature: a
+typeclass-only contract would leave `SharedValidate` returning `Except String`
+(the Phase 1 status quo), which is what this phase grows beyond. The optional
+metadata fields do not participate in `render`, so they cannot perturb golden
+diagnostics.
+
+**What was NOT done (deferred follow-ups, explicitly tracked):**
+
+- **Per-backend `LoweringError` instances.** Each backend's concrete error type
+  (`Evm.Validate.LowerError`, `WasmNear.IR.LowerError`, …) should declare a
+  trivial adapter instance. Purely additive; no `.render` bytes change. One PR
+  per backend so each backend's golden suite guards against drift.
+- **Migrating `SharedValidate` helpers to return
+  `Except LoweringDiagnostic α`.** Changes `SharedError` and every call site
+  that folds it. Safe in principle via `liftSharedError`, but a wider diff;
+  lands after the adapter instances.
+- **Unifying `validateCapabilities` / the return-path check / identifier
+  validity / `ensureNumericType`.** A shared `Diagnostic` type is a
+  *prerequisite*, not a sufficient condition — the per-backend rules and
+  messages must also be aligned first. Deferred to a later phase.
+
+**Diagnostic stability:** unchanged. `Tests/Diagnostic.lean` pins
+`LoweringDiagnostic.render` to the bare `message`. No backend's concrete
+`render` was touched; no golden diagnostic test needed updating.
+
+**Touch list:**
+
+- `ProofForge/Backend/Diagnostic.lean` (new)
+- `Tests/Diagnostic.lean` (new)
+- `justfile` (`diagnostic-smoke`, wired into `check`)
+- `docs/shared-diagnostic-design.md` (new — field-level audit + design)
+- `docs/rfcs/0014-…` (this RFC), `docs/zh/rfcs/0014-…` (translation sync)
+
+**Risks:** none for the stub (purely additive, no backend signature changes).
+Follow-up adapter PRs risk golden churn if an adapter accidentally changes a
+`s!"..."` interpolation; mitigated by one-PR-per-backend and each backend's
+golden suite.
+
+**Scope cut:** migrating backends onto `LoweringDiagnostic` as their public
+error type; unifying the per-backend validation rules. Both are follow-ups.
+
+### Phase 4 — NEAR plan layer (8–12 weeks)
 
 **Milestones:**
 
@@ -476,15 +546,15 @@ feature-flag strategy as Phase 2.
 
 **Scope cut:** full Wasm instruction semantics in Lean (Tier C, deferred).
 
-### Phase 4 — Refinement seam (ongoing)
+### Phase 5 — Refinement seam (ongoing)
 
-Phase 4 splits cleanly into two paths now that the Quint verification backend
+Phase 5 splits cleanly into two paths now that the Quint verification backend
 exists as a Tier C-diff vehicle.
 
-**Path 4a — Tier C-diff cross-backend rollout (engineering).**
+**Path 5a — Tier C-diff cross-backend rollout (engineering).**
 
 - Mirror the existing `just quint-evm-backend-replay-gate` pattern on every
-  backend once its `*ModulePlan` lands in Phase 2/3:
+  backend once its `*ModulePlan` lands in Phase 2/4:
   - Solana: `just quint-solana-backend-replay-gate` — Quint MBT ITF trace →
     Mollusk invocation against the emitted `.so` (Tier C-diff; avoids needing a
     Lean sBPF semantics).
@@ -495,7 +565,7 @@ exists as a Tier C-diff vehicle.
   harness differs per backend. The `*ModulePlan` is what makes the emitted
   artifact stable enough for trace-level differential testing.
 
-**Path 4b — Tier C-proof seam (research).**
+**Path 5b — Tier C-proof seam (research).**
 
 - Add `ProofForge/Backend/Solana/Refinement.lean` skeleton: Counter IR trace
   obligation against the selector-dispatched asm surface (no full sBPF
@@ -512,26 +582,26 @@ exists as a Tier C-diff vehicle.
 
 **Touch list:**
 
-- Path 4a: `scripts/quint/*-backend-replay-gate.sh` (new per backend),
+- Path 5a: `scripts/quint/*-backend-replay-gate.sh` (new per backend),
   `ProofForge/Backend/Quint/{Solana,Near,Psy}Replay.lean` (new, mirroring
   existing `EvmReplay.lean`), `justfile` recipes.
-- Path 4b: `ProofForge/Backend/Solana/Refinement.lean` (new),
+- Path 5b: `ProofForge/Backend/Solana/Refinement.lean` (new),
   `Tests/NearWasmFormal.lean`,
   `ProofForge/Contract/Examples/ValueVaultInvariant.lean`.
 
-**Risks:** overstating what is "proven" — Path 4a is differential testing
-(Tier C-diff), not a proof; Path 4b remains a seam (Counter/ValueVault trace
+**Risks:** overstating what is "proven" — Path 5a is differential testing
+(Tier C-diff), not a proof; Path 5b remains a seam (Counter/ValueVault trace
 shape), not Tier C-proof completeness.
 
 **Scope cut:** Tier C-proof for Solana (full syscall semantics in Lean).
 
-### Phase 5–6 (stretch)
+### Phase 6–7 (stretch)
 
-- **Phase 5:** Psy body plans; Solana `ExprPlan`/`StmtPlan`; EVM completes
+- **Phase 6:** Psy body plans; Solana `ExprPlan`/`StmtPlan`; EVM completes
   `StmtPlan` ownership per `docs/implementation-backlog.md`.
-- **Phase 6:** `.evm-plan.json` / `.solana-plan.json` / `.near-plan.json`
+- **Phase 7:** `.evm-plan.json` / `.solana-plan.json` / `.near-plan.json`
   snapshots for human review (RFC 0004 open question); consider Lean typeclass
-  encoding of the lowering contract if Phase 0–4 shapes stabilize.
+  encoding of the lowering contract if Phase 0–5 shapes stabilize.
 
 ## Feasibility / difficulty
 
@@ -545,7 +615,7 @@ shape), not Tier C-proof completeness.
 
 **Dependencies:**
 
-1. FV-2 IR semantics growth (Tier A) — needed for Phase 4 obligations to cover
+1. FV-2 IR semantics growth (Tier A) — needed for Phase 5 obligations to cover
    more than scalars + fixed aggregates.
 2. FV-3 ownership rules — Phase 1 ownership hook depends on ownership being
    sound for the IR subset in scope.
@@ -561,9 +631,9 @@ shape), not Tier C-proof completeness.
   host-import, and circuit models are not isomorphic to storage slots + ABI
   selectors. This RFC carries the same boundary forward.
 - **Formal-only unification via a Lean typeclass.** Deferred: the typeclass
-  encoding is plausible once Phase 0–4 shapes stabilize, but locking it in
+  encoding is plausible once Phase 0–5 shapes stabilize, but locking it in
   before Solana/NEAR plans exist risks premature abstraction. Tracked as an
-  open question for Phase 6.
+  open question for Phase 7.
 - **Status quo.** Rejected: on Solana, enforcement is scattered across
   diagnostics, golden asm, Mollusk, and surfpool/Web3 with no inspectable plan.
   That makes review harder, blocks Tier A/C attachment, and leaves Solana as
@@ -576,7 +646,7 @@ shape), not Tier C-proof completeness.
 - **Diagnostic message churn.** Phase 1 moves shared checks; golden diagnostic
   snapshots must update together. Mitigation: single PR per backend, CI red
   is loud.
-- **WAT golden churn on NEAR.** Same mitigation; Phase 3 is gated by
+- **WAT golden churn on NEAR.** Same mitigation; Phase 4 is gated by
   offline-host smoke parity.
 - **RFC 0004 boundary drift.** This RFC must not be read as "every backend
   adopts EVM's plan types". The non-goals section is explicit.
@@ -585,7 +655,7 @@ shape), not Tier C-proof completeness.
   reviewers, not added to `just check` until costs are measured.
 - **Premature abstraction.** Phase 0 stays documentation; Phase 1 is the
   smallest reversible extraction (shared validate). If Phase 1 lands cleanly,
-  Phase 2/3 proceed; if not, the RFC is revisited before Solana/NEAR work.
+  Phase 2/4 proceed; if not, the RFC is revisited before Solana/NEAR work.
 
 ## Drawbacks
 
@@ -594,15 +664,15 @@ shape), not Tier C-proof completeness.
   formal-facing (refinement seam), not a new product capability.
 - Risk of premature abstraction if the contract is over-specified before
   Solana/NEAR plans exist. Mitigated by backloading Lean typeclass encoding to
-  Phase 6.
+  Phase 7.
 
 ## Open questions
 
-- Should plan artifacts be serialized to JSON for human review (Phase 6
+- Should plan artifacts be serialized to JSON for human review (Phase 7
   stretch)? RFC 0004 leaves this open; this RFC inherits the question.
-- Should CosmWasm follow the NEAR split now or after Phase 3 lands?
+- Should CosmWasm follow the NEAR split now or after Phase 4 lands?
 - Should the lowering contract be encoded as a Lean typeclass, and if so, at
-  which stage (Phase 0 stub vs Phase 6 stable shape)?
+  which stage (Phase 0 stub vs Phase 7 stable shape)?
 - Should `just semantic-plan-matrix` be part of `just check`, `just ci`, or a
   separate reviewer-only entry?
 - **Phase 2+ prerequisite — shared Diagnostic type.** Phase 1 inventory showed
@@ -611,9 +681,28 @@ shape), not Tier C-proof completeness.
   different signatures, rules, and diagnostic strings. Should a shared
   `Diagnostic` type be introduced (with per-backend wrappers) so these checks
   can be unified in a later phase without churning existing golden diagnostic
-  output? This does not block Phase 2 (SolanaModulePlan) or Phase 3 (NEAR plan)
+  output? This does not block Phase 2 (SolanaModulePlan) or Phase 4 (NEAR plan)
   but is required before the "shared validate" surface can grow beyond the four
   pure helpers landed in Phase 1.
+
+  **Resolution (2026-07-07, Phase 3 stub landed):** yes — introduce a shared
+  concrete `LoweringDiagnostic` type *plus* a `LoweringError` typeclass contract
+  in `ProofForge.Backend.Diagnostic`. A field-level audit (see
+  [`docs/shared-diagnostic-design.md`](../shared-diagnostic-design.md)) showed
+  every backend lowering/plan/emit error type is already the same shape — a
+  single-field `structure <Name> where message : String` whose `render` is
+  `err.message` — so a shared concrete type is justified, not premature. The
+  shared `render` outputs **only** `message`, so backends delegating to it see
+  byte-identical output; the optional `backend?` / `severity` / `code?` fields
+  are metadata for the CLI report layer and do not participate in `render`.
+  Backends keep their concrete error types and implement the typeclass with a
+  trivial adapter; `SharedValidate`'s `SharedError = String` is not migrated in
+  the stub. This unblocks the "shared validate surface grows beyond Phase 1"
+  goal as a follow-up (after per-backend adapter instances land), but does not
+  by itself unify `validateCapabilities` / the return-path check / identifier
+  validity / `ensureNumericType` — those still require aligning the per-backend
+  rules and messages first. See the "Phase 3 — Shared diagnostic contract"
+  subsection below.
 
 ## Future work
 
@@ -624,13 +713,13 @@ shape), not Tier C-proof completeness.
   backend's `*ModulePlan` lands. Long-term goal: one
   `just quint-<target>-backend-replay-gate` per primary backend.
 - **Tier C-proof:** deepen `Evm.Refinement` and `WasmNear.Refinement`; add
-  `Solana.Refinement` beyond the Phase 4 Counter seam toward syscall-aware
+  `Solana.Refinement` beyond the Phase 5 Counter seam toward syscall-aware
   obligations. Evaluate integrating an external Lean EVM semantics such as
   `powdr-labs/evm-semantics` as the target execution model for the EVM
   refinement obligations (replacing or augmenting the in-tree
   `Evm.YulSemantics` executable subset).
 - **Plan JSON snapshots** for cross-backend plan diffing in CI.
-- **Lean typeclass** for the lowering contract once Phase 0–4 shapes are
+- **Lean typeclass** for the lowering contract once Phase 0–5 shapes are
   proven.
 
 ## References
