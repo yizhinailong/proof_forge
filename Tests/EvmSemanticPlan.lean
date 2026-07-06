@@ -1206,25 +1206,19 @@ def testPlannedCrosscallHelperDiscoveryToYul : IO Unit := do
   | _ => throw <| IO.userError "aggregate crosscall return assignment must assign aggregate helper call"
   let aggregateAssignmentFromPlan ←
     requireOk
-      (ProofForge.Backend.Evm.ToYul.crosscallAggregateReturnAssignmentPlanStatement
+      (ProofForge.Backend.Evm.ToYul.crosscallAggregateReturnAssignmentExpandedPlanStatement
         toYulError
         (fun
           | .local name => .ok (Lean.Compiler.Yul.Expr.id name)
           | .literalWord value => .ok (Lean.Compiler.Yul.Expr.num value)
           | _ => .error { message := "aggregate crosscall return plan helper test only lowers local/literal scalar plans" })
-        (fun name type =>
-          if name == "pair" && type == .structType "RemotePair" then
-            .ok #[Lean.Compiler.Yul.Expr.id "pair_flag", Lean.Compiler.Yul.Expr.id "pair_small"]
-          else
-            .error { message := "aggregate crosscall return plan helper test unexpected local source" })
-        (fun _stateId _type =>
-          .error { message := "aggregate crosscall return plan helper test should not lower storage sources" })
         { aggregateAssignmentPlan with
           args := #[
-            CrosscallArgWordPlan.local "pair" (.structType "RemotePair"),
+            CrosscallArgWordPlan.expr (.local "pair_flag"),
+            CrosscallArgWordPlan.expr (.local "pair_small"),
             CrosscallArgWordPlan.expr (.literalWord 7)
           ] })
-      "aggregate crosscall return assignment plan helper"
+      "aggregate crosscall return assignment expanded plan helper"
   let aggregateAssignmentFromPlanName ←
     requireOk
       (ProofForge.Backend.Evm.ToYul.crosscallHelperFunctionName
@@ -4594,6 +4588,36 @@ def testLocalCrosscallWordsToYul : IO Unit := do
       throw <| IO.userError "direct crosscall arg word plan scalar word must be numeric"
   requireIdentExpr directArgWords[3]! "current_x" "direct crosscall arg word plan storage word 0"
   requireIdentExpr directArgWords[4]! "current_y" "direct crosscall arg word plan storage word 1"
+  let expandedArgWords ← requireOk
+    (ProofForge.Backend.Evm.ToYul.crosscallExpandedArgWordPlanExprs
+      toYulError
+      (fun
+        | .literalWord value => .ok (Lean.Compiler.Yul.Expr.num value)
+        | .local name => .ok (Lean.Compiler.Yul.Expr.id name)
+        | _ => .error { message := "expanded crosscall arg word test only lowers literal/local scalar plans" })
+      #[
+        CrosscallArgWordPlan.expr (.local "p_x"),
+        CrosscallArgWordPlan.expr (.local "p_y"),
+        CrosscallArgWordPlan.expr (.literalWord 9)
+      ])
+    "expanded crosscall arg word plan ToYul"
+  require (expandedArgWords.size == 3) "expanded crosscall arg word plan word count"
+  requireIdentExpr expandedArgWords[0]! "p_x" "expanded crosscall arg word plan local word 0"
+  requireIdentExpr expandedArgWords[1]! "p_y" "expanded crosscall arg word plan local word 1"
+  match expandedArgWords[2]! with
+  | Lean.Compiler.Yul.Expr.lit value =>
+      require (value.value == "9") "expanded crosscall arg word plan scalar word"
+  | _ =>
+      throw <| IO.userError "expanded crosscall arg word plan scalar word must be numeric"
+  requireErrorContains
+    (ProofForge.Backend.Evm.ToYul.crosscallExpandedArgWordPlanExprs
+      toYulError
+      (fun
+        | .literalWord value => .ok (Lean.Compiler.Yul.Expr.num value)
+        | _ => .error { message := "expanded crosscall arg word test only lowers literal scalar plans" })
+      #[CrosscallArgWordPlan.local "p" (.structType "Point")])
+    "pre-expanded argument word plans"
+    "expanded crosscall arg word plan rejects provider source"
   let directCrosscallExpr ← requireOk
     (ProofForge.Backend.Evm.ToYul.crosscallExprPlanExpr
       toYulError
@@ -4629,6 +4653,31 @@ def testLocalCrosscallWordsToYul : IO Unit := do
     "__proof_forge_crosscall_5"
     7
     "direct provider-backed crosscall ExprPlan-to-Yul"
+  let expandedCrosscallExpr ← requireOk
+    (ProofForge.Backend.Evm.ToYul.crosscallExpandedExprPlanExpr
+      toYulError
+      (fun
+        | .literalWord value => .ok (Lean.Compiler.Yul.Expr.num value)
+        | .local name => .ok (Lean.Compiler.Yul.Expr.id name)
+        | _ => .error { message := "expanded crosscall expression test only lowers literal/local scalar plans" })
+      ProofForge.Backend.Evm.Plan.CrosscallMode.call
+      (.local "target")
+      (.literalWord 305419896)
+      none
+      #[
+        CrosscallArgWordPlan.expr (.local "p_x"),
+        CrosscallArgWordPlan.expr (.local "p_y"),
+        CrosscallArgWordPlan.expr (.literalWord 9),
+        CrosscallArgWordPlan.expr (.local "current_x"),
+        CrosscallArgWordPlan.expr (.local "current_y")
+      ]
+      .u64)
+    "expanded crosscall ExprPlan-to-Yul"
+  requireCallExpr
+    expandedCrosscallExpr
+    "__proof_forge_crosscall_5"
+    7
+    "expanded crosscall ExprPlan-to-Yul"
   let structEnv : TypeEnv := #[
     { name := "p", type := .structType "Point", isMutable := false }
   ]

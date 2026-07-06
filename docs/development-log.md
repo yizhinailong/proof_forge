@@ -17,6 +17,43 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Expanded Crosscall Word Plan Boundary
+
+Work range: `codex/evm-crosscall-expanded-word-plan`
+
+Summary:
+
+- Added expanded-word ToYul helpers for crosscall argument words, scalar
+  crosscall expression helper calls, and aggregate crosscall return assignments.
+- Routed active `IR.lean` crosscall lowering through the expanded-word helpers
+  so local/storage provider callbacks are no longer part of the active
+  crosscall expression or return-assignment path.
+- Kept the provider-backed ToYul helpers available for direct/legacy source-plan
+  tests and older callers.
+- Added semantic-plan coverage for expanded crosscall argument words, rejection
+  of unexpanded provider source markers, expanded scalar crosscall helper calls,
+  and expanded aggregate return-assignment plans.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+just evm-semantic-plan
+scripts/i18n/check-sync.sh
+python3 -m json.tool scripts/i18n/manifest.json >/dev/null
+git diff --check
+```
+
+Known limitations:
+
+- Provider-backed crosscall helpers still exist for direct/legacy local and
+  storage source-plan surfaces.
+
+Next step:
+
+- Continue retiring the remaining direct/legacy provider-backed crosscall helper
+  surfaces after their tests and callers move to explicit word plans.
+
 ### EVM Fixed-Array Assignment Source Plans
 
 Work range: `codex/evm-dynamic-array-target-plan`

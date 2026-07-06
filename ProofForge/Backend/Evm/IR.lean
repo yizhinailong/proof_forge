@@ -2003,7 +2003,10 @@ mutual
           (toValidateTypeEnv env)
           context
           args
-    lowerCrosscallArgWordPlanExprs module env context plans
+    ProofForge.Backend.Evm.ToYul.crosscallExpandedArgWordPlanExprs
+      toYulError
+      (lowerExprPlanExpr module env)
+      plans
 
   partial def lowerExprThroughPlan
       (module : Module)
@@ -2366,13 +2369,9 @@ mutual
       Except LowerError Lean.Compiler.Yul.Expr := do
     match plan with
     | .crosscall mode target methodId callValue? args returnType => do
-        ProofForge.Backend.Evm.ToYul.crosscallExprPlanExpr
+        ProofForge.Backend.Evm.ToYul.crosscallExpandedExprPlanExpr
           toYulError
           (lowerExprPlanExpr module env)
-          (fun name type =>
-            lowerLocalCrosscallWords module env (crosscallPlanArgContext mode) name type)
-          (fun stateId type =>
-            lowerStorageCrosscallWords module env (crosscallPlanArgContext mode) stateId type)
           mode
           target
           methodId
@@ -2392,12 +2391,9 @@ def lowerCrosscallReturnAssignmentPlan
     (env : TypeEnv)
     (plan : ProofForge.Backend.Evm.Plan.CrosscallReturnAssignmentPlan) :
     Except LowerError Lean.Compiler.Yul.Statement := do
-  let argContext := crosscallPlanArgContext plan.mode
-  ProofForge.Backend.Evm.ToYul.crosscallAggregateReturnAssignmentPlanStatement
+  ProofForge.Backend.Evm.ToYul.crosscallAggregateReturnAssignmentExpandedPlanStatement
     toYulError
     (lowerExprPlanExpr module env)
-    (fun name type => lowerLocalCrosscallWords module env argContext name type)
-    (fun stateId type => lowerStorageCrosscallWords module env argContext stateId type)
     plan
 
 def lowerAbiWordPlanExprs
