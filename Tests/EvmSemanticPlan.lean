@@ -5241,6 +5241,59 @@ def testAggregateAssignmentPlanToYul : IO Unit := do
           require (sourceName == "__proof_forge_array_ys_0") "whole local fixed-array assignment integration source"
       | _ => throw <| IO.userError "whole local fixed-array assignment integration must snapshot source first"
   | _ => throw <| IO.userError "whole local fixed-array assignment integration must lower to ToYul block"
+  let nestedAssignEnv : TypeEnv := #[
+    { name := "matrix", type := .fixedArray (.fixedArray .u64 2) 2, isMutable := true },
+    { name := "other", type := .fixedArray (.fixedArray .u64 2) 2, isMutable := false }
+  ]
+  let nestedSourcePlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.nestedFixedArrayAssignmentSourcePlans
+      ProofForge.IR.Examples.EvmArrayValueProbe.module
+      (toValidateTypeEnv nestedAssignEnv)
+      "matrix"
+      (.fixedArray (.fixedArray .u64 2) 2)
+      (.local "other"))
+    "Lower nested fixed-array assignment source plans"
+  require (nestedSourcePlans.size == 4) "Lower nested fixed-array assignment source plan count"
+  let nestedSourcePlan10 ← requireAt nestedSourcePlans 2 "Lower nested fixed-array assignment source plan missing path 1,0"
+  require (nestedSourcePlan10.path == #[1, 0]) "Lower nested fixed-array assignment source plan path"
+  require nestedSourcePlan10.fieldName?.isNone "Lower nested fixed-array assignment source plan scalar leaf"
+  match nestedSourcePlan10.expr with
+  | ExprPlan.local name =>
+      require (name == "__proof_forge_array_other_1_0") "Lower nested fixed-array assignment source plan local"
+  | _ => throw <| IO.userError "Lower nested fixed-array assignment source plan must use planned local expression"
+  let nestedPlanStmt ← requireOk
+    (ProofForge.Backend.Evm.ToYul.wholeNestedFixedArrayAssignStmtFromPlan
+      (lowerExprPlanExpr ProofForge.IR.Examples.EvmArrayValueProbe.module nestedAssignEnv)
+      "matrix"
+      nestedSourcePlans)
+    "nested fixed-array assignment source plan ToYul helper"
+  match nestedPlanStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 8) "nested fixed-array assignment source plan ToYul statement count"
+      match block.statements[7]! with
+      | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident valueName) => do
+          require (names == #["__proof_forge_array_matrix_1_1"]) "nested fixed-array assignment source plan ToYul final target"
+          require (valueName == "__proof_forge_assign_array_matrix_1_1") "nested fixed-array assignment source plan ToYul final snapshot"
+      | _ => throw <| IO.userError "nested fixed-array assignment source plan ToYul final statement must assign snapshot"
+  | _ => throw <| IO.userError "nested fixed-array assignment source plan ToYul helper must produce block"
+  let nestedAssignStmts ← requireOk
+    (lowerAssignStmt
+      ProofForge.IR.Examples.EvmArrayValueProbe.module
+      nestedAssignEnv
+      (.local "matrix")
+      (.local "other"))
+    "whole nested local fixed-array assignment integration"
+  require (nestedAssignStmts.size == 1) "whole nested local fixed-array assignment integration statement count"
+  match nestedAssignStmts[0]! with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 8) "whole nested local fixed-array assignment integration block count"
+      match block.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.ident sourceName)) => do
+          let firstVar ← requireAt vars 0 "whole nested local fixed-array assignment integration missing temp"
+          require (firstVar.name == "__proof_forge_assign_array_matrix_0_0") "whole nested local fixed-array assignment integration temp"
+          require (sourceName == "__proof_forge_array_other_0_0") "whole nested local fixed-array assignment integration source"
+      | _ => throw <| IO.userError "whole nested local fixed-array assignment integration must snapshot source first"
+  | _ => throw <| IO.userError "whole nested local fixed-array assignment integration must lower to ToYul block"
   let structAssignEnv : TypeEnv := #[
     { name := "p", type := .structType "Point", isMutable := true },
     { name := "q", type := .structType "Point", isMutable := false },

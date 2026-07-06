@@ -1448,6 +1448,148 @@ def fixedArrayAssignmentSourcePlans
   | _ =>
       .error { message := s!"assignment target `{name}` fixed-array whole assignment supports local fixed-array values or array literals in IR EVM v0" }
 
+partial def nestedFixedArrayValueFieldPlans
+    (module : Module)
+    (env : TypeEnv)
+    (context typeName : String)
+    (value : Expr) : Except LowerError (Array (String × ExprPlan)) := do
+  let decl ← ensureLocalFlatStructType module context typeName
+  match value with
+  | .local sourceName => do
+      let some binding := findLocal? env sourceName
+        | .error { message := s!"unknown local `{sourceName}`" }
+      ensureType context (.structType typeName) binding.type
+      let mut fields : Array (String × ExprPlan) := #[]
+      for fieldDecl in decl.fields do
+        fields := fields.push (fieldDecl.id, .local (structLocalFieldName sourceName fieldDecl.id))
+      .ok fields
+  | .structLit literalTypeName fields => do
+      if literalTypeName != typeName then
+        .error { message := s!"{context} expected struct `{typeName}`, got `{literalTypeName}`" }
+      let mut fieldPlans : Array (String × ExprPlan) := #[]
+      for fieldDecl in decl.fields do
+        let some field := fields.find? fun field => field.fst == fieldDecl.id
+          | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
+        fieldPlans := fieldPlans.push (fieldDecl.id, ← buildExprPlan module env field.snd)
+      .ok fieldPlans
+  | .effect (.storageScalarRead stateId) => do
+      let (slot, stateTypeName, _) ← lowerPlan <| ProofForge.Backend.Evm.Plan.requireStructState module stateId
+      ensureType context (.structType typeName) (.structType stateTypeName)
+      let mut fieldPlans : Array (String × ExprPlan) := #[]
+      for h : idx in [0:decl.fields.size] do
+        let fieldDecl := decl.fields[idx]
+        ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+        fieldPlans := fieldPlans.push (fieldDecl.id, .storageLoad (.scalarSlot (slot + idx)))
+      .ok fieldPlans
+  | _ =>
+      .error {
+        message := s!"{context} supports local struct values, struct literals, or storage scalar struct reads in IR EVM v0"
+      }
+
+partial def nestedFixedArrayLocalSourcePlansAt
+    (module : Module)
+    (sourceName : String)
+    (path : Array Nat) : ValueType → Except LowerError (Array NestedFixedArrayAssignmentSourcePlan)
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
+      let localName :=
+        if path.isEmpty then
+          sourceName
+        else
+          arrayLocalPathName sourceName path
+      .ok #[{ path := path, fieldName? := none, expr := .local localName }]
+  | .structType typeName => do
+      let decl ← ensureLocalFlatStructType module s!"assignment value `{sourceName}` nested fixed-array leaf" typeName
+      let mut sources : Array NestedFixedArrayAssignmentSourcePlan := #[]
+      for fieldDecl in decl.fields do
+        let fieldName :=
+          if path.isEmpty then
+            structLocalFieldName sourceName fieldDecl.id
+          else
+            arrayStructLocalPathFieldName sourceName path fieldDecl.id
+        sources := sources.push {
+          path := path,
+          fieldName? := some fieldDecl.id,
+          expr := .local fieldName
+        }
+      .ok sources
+  | .fixedArray elementType length => do
+      ensureLocalNestedFixedArrayValueType module "assignment value" sourceName elementType
+      let mut sources : Array NestedFixedArrayAssignmentSourcePlan := #[]
+      for _h : idx in [0:length] do
+        sources := sources ++ (← nestedFixedArrayLocalSourcePlansAt module sourceName (path.push idx) elementType)
+      .ok sources
+  | .unit | .bytes | .string | .array _ =>
+      .error {
+        message := s!"assignment value `{sourceName}` has unsupported EVM IR v0 nested fixed-array leaf type `Unit`; nested local fixed arrays support U32, U64, Bool, Hash, Address, or flat struct leaves"
+      }
+
+partial def nestedFixedArrayLiteralSourcePlansAt
+    (module : Module)
+    (env : TypeEnv)
+    (name : String)
+    (path : Array Nat)
+    (expectedType : ValueType)
+    (value : Expr) : Except LowerError (Array NestedFixedArrayAssignmentSourcePlan) := do
+  match expectedType with
+  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
+      .ok #[{ path := path, fieldName? := none, expr := ← buildExprPlan module env value }]
+  | .structType typeName => do
+      let fields ←
+        nestedFixedArrayValueFieldPlans
+          module
+          env
+          s!"assignment target `{name}` nested fixed-array leaf"
+          typeName
+          value
+      let mut sources : Array NestedFixedArrayAssignmentSourcePlan := #[]
+      for field in fields do
+        sources := sources.push {
+          path := path,
+          fieldName? := some field.fst,
+          expr := field.snd
+        }
+      .ok sources
+  | .fixedArray elementType length => do
+      ensureLocalNestedFixedArrayValueType module "assignment target" name elementType
+      match value with
+      | .arrayLit literalElementType values => do
+          ensureType s!"assignment target `{name}` fixed-array element type" elementType literalElementType
+          if values.size != length then
+            .error { message := s!"assignment target `{name}` expected fixed array length {length}, got {values.size}" }
+          let mut sources : Array NestedFixedArrayAssignmentSourcePlan := #[]
+          for h : idx in [0:values.size] do
+            sources := sources ++
+              (← nestedFixedArrayLiteralSourcePlansAt module env name (path.push idx) elementType values[idx])
+          .ok sources
+      | _ =>
+          .error {
+            message := s!"assignment target `{name}` fixed-array whole assignment supports local fixed-array values or array literals in IR EVM v0"
+          }
+  | .unit | .bytes | .string | .array _ =>
+      .error {
+        message := s!"assignment target `{name}` has unsupported EVM IR v0 nested fixed-array leaf type `{expectedType.name}`; nested local fixed arrays support U32, U64, Bool, Hash, Address, or flat struct leaves"
+      }
+
+def nestedFixedArrayAssignmentSourcePlans
+    (module : Module)
+    (env : TypeEnv)
+    (name : String)
+    (expectedType : ValueType)
+    (value : Expr) : Except LowerError (Array NestedFixedArrayAssignmentSourcePlan) := do
+  ensureLocalNestedFixedArrayValueType module "assignment target" name expectedType
+  match value with
+  | .local sourceName => do
+      let some binding := findLocal? env sourceName
+        | .error { message := s!"unknown local `{sourceName}`" }
+      ensureType s!"assignment target `{name}` fixed-array type" expectedType binding.type
+      nestedFixedArrayLocalSourcePlansAt module sourceName #[] expectedType
+  | .arrayLit _ _ =>
+      nestedFixedArrayLiteralSourcePlansAt module env name #[] expectedType value
+  | _ =>
+      .error {
+        message := s!"assignment target `{name}` fixed-array whole assignment supports local fixed-array values or array literals in IR EVM v0"
+      }
+
 def structAssignmentSourcePlans
     (module : Module)
     (env : TypeEnv)

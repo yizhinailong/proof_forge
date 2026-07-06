@@ -805,6 +805,12 @@ mutual
     expr : ExprPlan
     deriving Repr
 
+  structure NestedFixedArrayAssignmentSourcePlan where
+    path : Array Nat
+    fieldName? : Option String
+    expr : ExprPlan
+    deriving Repr
+
   structure StructAssignmentSourcePlan where
     fieldName : String
     expr : ExprPlan

@@ -17,6 +17,44 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Nested Fixed-Array Assignment Source Plans
+
+Work range: nested fixed-array assignment Lower migration
+
+Summary:
+
+- Added `NestedFixedArrayAssignmentSourcePlan` so nested local fixed-array whole
+  assignment sources can be represented as semantic `ExprPlan`s before Yul
+  emission.
+- Added `Lower.nestedFixedArrayAssignmentSourcePlans` for local and array-literal
+  nested fixed-array sources, including flat-struct leaves at nested paths.
+- Added `ToYul.wholeNestedFixedArrayAssignStmtFromPlan`, then routed the active
+  nested fixed-array whole-assignment path through `Lower -> Plan -> ToYul`.
+- Removed the IR-local nested fixed-array assignment source expansion helpers and
+  `NestedFixedArraySourceExpr`.
+- Added semantic-plan coverage for Lower source plans, ToYul snapshot blocks, and
+  whole nested local fixed-array assignment integration.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+scripts/evm/array-value-ir-smoke.sh
+```
+
+Known limitations:
+
+- Struct-array and whole-struct assignment source expansion still lives in
+  `IR.lean` before delegating final block assembly to `ToYul`.
+
+Next step:
+
+- Move struct-array whole-assignment source expansion into `Lower`, or continue
+  shrinking remaining storage write fallback surfaces.
+
 ### EVM Crosscall Provider Surface Retirement
 
 Work range: crosscall provider helper removal

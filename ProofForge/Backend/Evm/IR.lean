@@ -3220,14 +3220,6 @@ def lowerStructValueFieldExprs
         message := s!"{context} supports local struct values, struct literals, or storage scalar struct reads in IR EVM v0"
       }
 
-structure NestedFixedArraySourceExpr where
-  path : Array Nat
-  fieldName? : Option String
-  expr : Lean.Compiler.Yul.Expr
-
-def nestedFixedArrayTargetName (name : String) (source : NestedFixedArraySourceExpr) : String :=
-  ProofForge.Backend.Evm.ToYul.nestedFixedArrayTargetName name source.path source.fieldName?
-
 partial def lowerNestedFixedArrayLetBindings
     (module : Module)
     (env : TypeEnv)
@@ -3418,9 +3410,6 @@ def aggregateAssignStructTempName (name fieldName : String) : String :=
 def aggregateAssignStructArrayTempName (name : String) (index : Nat) (fieldName : String) : String :=
   ProofForge.Backend.Evm.ToYul.aggregateAssignStructArrayTempName name index fieldName
 
-def aggregateAssignNestedFixedArrayTempName (name : String) (source : NestedFixedArraySourceExpr) : String :=
-  ProofForge.Backend.Evm.ToYul.aggregateAssignNestedFixedArrayTempName name source.path source.fieldName?
-
 def lowerFixedArrayAssignmentSourcePlans
     (module : Module)
     (env : TypeEnv)
@@ -3452,85 +3441,20 @@ def lowerStructAssignmentSourcePlans
       typeName
       value
 
-partial def lowerNestedFixedArrayLocalSourceExprs
-    (module : Module)
-    (sourceName : String)
-    (path : Array Nat) : ValueType → Except LowerError (Array NestedFixedArraySourceExpr)
-  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
-      .ok #[{ path := path, fieldName? := none, expr := Lean.Compiler.Yul.Expr.id (arrayLocalPathName sourceName path) }]
-  | .structType typeName => do
-      let decl ← ensureLocalFlatStructType module s!"assignment value `{sourceName}` nested fixed-array leaf" typeName
-      let mut values : Array NestedFixedArraySourceExpr := #[]
-      for fieldDecl in decl.fields do
-        values := values.push {
-          path := path,
-          fieldName? := some fieldDecl.id,
-          expr := Lean.Compiler.Yul.Expr.id (arrayStructLocalPathFieldName sourceName path fieldDecl.id)
-        }
-      .ok values
-  | .fixedArray elementType length => do
-      ensureLocalNestedFixedArrayValueType module "assignment value" sourceName elementType
-      let mut values : Array NestedFixedArraySourceExpr := #[]
-      for _h : idx in [0:length] do
-        values := values ++ (← lowerNestedFixedArrayLocalSourceExprs module sourceName (path.push idx) elementType)
-      .ok values
-  | .unit | .bytes | .string | .array _ =>
-      .error {
-        message := s!"assignment value `{sourceName}` has unsupported EVM IR v0 nested fixed-array leaf type `Unit`; nested local fixed arrays support U32, U64, Bool, Hash, or flat struct leaves"
-      }
-
-partial def lowerNestedFixedArrayLiteralSourceExprs
-    (module : Module)
-    (env : TypeEnv)
-    (name : String)
-    (path : Array Nat)
-    (expectedType : ValueType)
-    (value : ProofForge.IR.Expr) : Except LowerError (Array NestedFixedArraySourceExpr) := do
-  match expectedType with
-  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
-      .ok #[{ path := path, fieldName? := none, expr := ← lowerExpr module env value }]
-  | .structType typeName => do
-      let fields ← lowerStructValueFieldExprs module env s!"assignment target `{name}` nested fixed-array leaf" typeName value
-      let mut values : Array NestedFixedArraySourceExpr := #[]
-      for field in fields do
-        values := values.push { path := path, fieldName? := some field.fst, expr := field.snd }
-      .ok values
-  | .fixedArray elementType length => do
-      ensureLocalNestedFixedArrayValueType module "assignment target" name elementType
-      match value with
-      | .arrayLit literalElementType values => do
-          ensureType s!"assignment target `{name}` fixed-array element type" elementType literalElementType
-          if values.size != length then
-            .error { message := s!"assignment target `{name}` expected fixed array length {length}, got {values.size}" }
-          let mut lowered : Array NestedFixedArraySourceExpr := #[]
-          for h : idx in [0:values.size] do
-            lowered := lowered ++
-              (← lowerNestedFixedArrayLiteralSourceExprs module env name (path.push idx) elementType values[idx])
-          .ok lowered
-      | _ =>
-          .error { message := s!"assignment target `{name}` fixed-array whole assignment supports local fixed-array values or array literals in IR EVM v0" }
-  | .unit | .bytes | .string | .array _ =>
-      .error {
-        message := s!"assignment target `{name}` has unsupported EVM IR v0 nested fixed-array leaf type `{expectedType.name}`; nested local fixed arrays support U32, U64, Bool, Hash, or flat struct leaves"
-      }
-
-def lowerNestedFixedArrayAssignmentSourceExprs
+def lowerNestedFixedArrayAssignmentSourcePlans
     (module : Module)
     (env : TypeEnv)
     (name : String)
     (expectedType : ValueType)
-    (value : ProofForge.IR.Expr) : Except LowerError (Array NestedFixedArraySourceExpr) := do
-  ensureLocalNestedFixedArrayValueType module "assignment target" name expectedType
-  match value with
-  | .local sourceName => do
-      let some binding := findLocal? env sourceName
-        | .error { message := s!"unknown local `{sourceName}`" }
-      ensureType s!"assignment target `{name}` fixed-array type" expectedType binding.type
-      lowerNestedFixedArrayLocalSourceExprs module sourceName #[] expectedType
-  | .arrayLit _ _ =>
-      lowerNestedFixedArrayLiteralSourceExprs module env name #[] expectedType value
-  | _ =>
-      .error { message := s!"assignment target `{name}` fixed-array whole assignment supports local fixed-array values or array literals in IR EVM v0" }
+    (value : ProofForge.IR.Expr) :
+    Except LowerError (Array ProofForge.Backend.Evm.Plan.NestedFixedArrayAssignmentSourcePlan) :=
+  lowerValidate <|
+    ProofForge.Backend.Evm.Lower.nestedFixedArrayAssignmentSourcePlans
+      module
+      (toValidateTypeEnv env)
+      name
+      expectedType
+      value
 
 def lowerStructArrayAssignmentSourceExprs
     (module : Module)
@@ -3598,11 +3522,11 @@ def lowerWholeFixedArrayAssignStmt
       lowerWholeStructArrayAssignStmt module env name typeName length value
   | .fixedArray _ _ => do
       let expectedType := ValueType.fixedArray elementType length
-      let sourceExprs ← lowerNestedFixedArrayAssignmentSourceExprs module env name expectedType value
-      let sources := sourceExprs.map fun source =>
-        ({ path := source.path, fieldName? := source.fieldName?, expr := source.expr } :
-          ProofForge.Backend.Evm.ToYul.NestedFixedArrayAssignmentSource)
-      .ok (ProofForge.Backend.Evm.ToYul.wholeNestedFixedArrayAssignStmt name sources)
+      let sourcePlans ← lowerNestedFixedArrayAssignmentSourcePlans module env name expectedType value
+      ProofForge.Backend.Evm.ToYul.wholeNestedFixedArrayAssignStmtFromPlan
+        (lowerExprPlanExpr module env)
+        name
+        sourcePlans
   | _ => do
       let sourcePlans ← lowerFixedArrayAssignmentSourcePlans module env name elementType length value
       if sourcePlans.size != length then

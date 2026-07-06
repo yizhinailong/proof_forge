@@ -2663,6 +2663,25 @@ def wholeNestedFixedArrayAssignStmt
     (sources : Array NestedFixedArrayAssignmentSource) : Lean.Compiler.Yul.Statement :=
   .block { statements := nestedFixedArrayAssignmentStatements name sources }
 
+def nestedFixedArrayAssignmentSourceFromPlan
+    {ε : Type}
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (source : NestedFixedArrayAssignmentSourcePlan) :
+    Except ε NestedFixedArrayAssignmentSource := do
+  .ok {
+    path := source.path,
+    fieldName? := source.fieldName?,
+    expr := ← lowerPlanExpr source.expr
+  }
+
+def wholeNestedFixedArrayAssignStmtFromPlan
+    {ε : Type}
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (name : String)
+    (sources : Array NestedFixedArrayAssignmentSourcePlan) :
+    Except ε Lean.Compiler.Yul.Statement := do
+  .ok <| wholeNestedFixedArrayAssignStmt name (← sources.mapM (nestedFixedArrayAssignmentSourceFromPlan lowerPlanExpr))
+
 def structAssignmentStatements
     (name : String)
     (sources : Array StructAssignmentSource) : Array Lean.Compiler.Yul.Statement :=
