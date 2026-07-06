@@ -17,6 +17,54 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Storage-Path Expr-Target Plan Closure
+
+Work range: `codex/evm-dynamic-array-target-plan`
+
+Summary:
+
+- Routed statement-position `storagePathWrite` and `storagePathAssignOp`
+  unconditionally through `Lower.buildEffectPlan` and the
+  `StoragePathWriteExprTargetPlan -> ToYul` boundary.
+- Removed the IR compatibility helpers that still chose fallback storage-path
+  targets and scalar RHS expressions:
+  `lowerStoragePathWriteTarget`, `lowerStoragePathWriteStmt`, and
+  `lowerStoragePathAssignOpStmt`.
+- Removed the raw storage-path write/assign-op ToYul callback surface:
+  `storagePathWriteEffectPlanStatements`,
+  `storagePathWriteEffectStmtPlanStatements`,
+  `storagePathAssignOpEffectPlanStatements`, and
+  `storagePathAssignOpEffectStmtPlanStatements`.
+- Updated semantic-plan tests so storage-path write/assign-op helper coverage
+  uses expr-target plans directly.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+! rg -n "storagePathWriteEffectStmtPlanStatements|storagePathWriteEffectPlanStatements|storagePathAssignOpEffectStmtPlanStatements|storagePathAssignOpEffectPlanStatements|lowerStoragePathWriteStmt\\b|lowerStoragePathAssignOpStmt\\b|lowerStoragePathWriteTarget\\b|lowerStoragePathAssignOpTargetStatement|lowerStoragePathWriteStmtPlanOrFallback|lowerStoragePathAssignOpStmtPlanOrFallback" ProofForge Tests
+lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.ToYul
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-plan
+just evm-semantic-plan
+just evm-all
+scripts/i18n/check-sync.sh
+git diff --check
+just ci
+```
+
+Known limitations:
+
+- Struct-valued scalar storage writes still keep compatibility field expansion
+  in `IR.lean`.
+- Other non-storage-path write helpers still retain `PlanOrFallback` naming
+  until their unsupported aggregate/diagnostic paths are narrowed.
+
+Next step:
+
+- Continue shrinking remaining storage write fallback surfaces or move the next
+  recursive body lowering gap behind `StmtPlan -> ToYul`.
+
 ### EVM Dynamic-Array Target-Plan Closure
 
 Work range: `codex/evm-dynamic-array-target-plan`

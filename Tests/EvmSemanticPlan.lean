@@ -8691,17 +8691,23 @@ def testStoragePathWritePlanToYul : IO Unit := do
       require (name == "outer") "typed map storage path plan key lhs"
       require (value == 1) "typed map storage path plan key rhs"
   | _ => throw <| IO.userError "typed map storage path plan key must be checked add"
-  let compatMapTarget ← requireOk
-    (lowerStoragePathWriteTarget
-      ProofForge.IR.Examples.EvmMapProbe.module
-      mapEnv
-      "balances"
-      #[.mapKey (.add (.local "outer") (.literal (.u64 1)))])
-    "compat map storage path target typed plan-to-yul"
-  match compatMapTarget with
+  let typedMapTargetPlan ← requireOk
+    (lowerPlan <|
+      ProofForge.Backend.Evm.Plan.storagePathWriteExprTargetPlan
+        ProofForge.IR.Examples.EvmMapProbe.module
+        "balances"
+        typedMapPath)
+    "typed map storage path expr-target plan"
+  let typedMapTarget ← requireOk
+    (ProofForge.Backend.Evm.ToYul.storagePathWriteExprTargetFromPlan
+      toYulError
+      (lowerExprPlanExpr ProofForge.IR.Examples.EvmMapProbe.module mapEnv)
+      typedMapTargetPlan)
+    "typed map storage path target plan-to-yul"
+  match typedMapTarget with
   | ProofForge.Backend.Evm.ToYul.StoragePathWriteTarget.mapWrite _ key => do
-      requireCallExpr key "__pf_checked_add" 2 "compat map storage path target typed key"
-  | _ => throw <| IO.userError "compat map storage path target must lower through typed mapWrite"
+      requireCallExpr key "__pf_checked_add" 2 "typed map storage path target key"
+  | _ => throw <| IO.userError "typed map storage path target must lower through typed mapWrite"
   let arrayTargetPlan ← requireOk
     (lowerPlan <|
       ProofForge.Backend.Evm.Plan.storagePathWriteTargetPlan
@@ -8815,31 +8821,31 @@ def testStoragePathWritePlanToYul : IO Unit := do
       require (value == 1) "Lower storage path assign_op target value"
   | _ => throw <| IO.userError "Lower storage path assign_op must produce storagePathAssignOpExprTarget"
   let directWriteStmts ← requireOk
-    (ProofForge.Backend.Evm.ToYul.storagePathWriteEffectStmtPlanStatements
+    (ProofForge.Backend.Evm.ToYul.storagePathWriteExprTargetEffectStmtPlanStatements
       toYulError
       (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module arrayEnv expr)
       (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module arrayEnv)
-      (fun _ _ => .ok (.singleSlot (Lean.Compiler.Yul.Expr.num 9)))
+      (lowerExprPlanExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module arrayEnv)
       (ProofForge.Backend.Evm.Plan.StmtPlan.effect
-        (.storagePathWrite
-          "values"
-          #[.index (.literal (.u64 0))]
+        (.storagePathWriteExprTarget
+          (.singleSlot (.arraySlot 0 3 (.local "value")))
           (.checkedArith .add (.local "value") (.literalWord 4)))))
-    "storage path write StmtPlan-to-Yul helper"
-  require (directWriteStmts.size == 1) "storage path write StmtPlan-to-Yul helper statement count"
+    "storage path write expr-target StmtPlan-to-Yul helper"
+  require (directWriteStmts.size == 1) "storage path write expr-target StmtPlan-to-Yul helper statement count"
   match directWriteStmts[0]! with
   | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
-      require (args.size == 2) "storage path write StmtPlan-to-Yul helper arg count"
+      require (args.size == 2) "storage path write expr-target StmtPlan-to-Yul helper arg count"
       match args[0]! with
-      | Lean.Compiler.Yul.Expr.lit lit =>
-          require (lit.value == "9") "storage path write StmtPlan-to-Yul helper slot"
-      | _ => throw <| IO.userError "storage path write StmtPlan-to-Yul helper slot must be literal"
+      | Lean.Compiler.Yul.Expr.call slotName slotArgs => do
+          require (slotName == (Helper.arraySlot).name) "storage path write expr-target helper slot"
+          require (slotArgs.size == 3) "storage path write expr-target helper slot arg count"
+      | _ => throw <| IO.userError "storage path write expr-target helper slot must use array helper"
       match args[1]! with
       | Lean.Compiler.Yul.Expr.call addName addArgs => do
-          require (addName == "__pf_checked_add") "storage path write StmtPlan-to-Yul helper checked add"
-          require (addArgs.size == 2) "storage path write StmtPlan-to-Yul helper checked add arg count"
-      | _ => throw <| IO.userError "storage path write StmtPlan-to-Yul helper value must be checked add"
-  | _ => throw <| IO.userError "storage path write StmtPlan-to-Yul helper must lower to sstore"
+          require (addName == "__pf_checked_add") "storage path write expr-target StmtPlan-to-Yul helper checked add"
+          require (addArgs.size == 2) "storage path write expr-target StmtPlan-to-Yul helper checked add arg count"
+      | _ => throw <| IO.userError "storage path write expr-target StmtPlan-to-Yul helper value must be checked add"
+  | _ => throw <| IO.userError "storage path write expr-target StmtPlan-to-Yul helper must lower to sstore"
   let directPlannedWriteStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.storagePathWriteTargetEffectStmtPlanStatements
       toYulError
@@ -8929,24 +8935,32 @@ def testStoragePathWritePlanToYul : IO Unit := do
       require foundCheckedValue "nested storage path write value must lower through checked add plan"
   | _ => throw <| IO.userError "nested storage path write plan-to-yul must lower to block"
   let directAssignOpStmts ← requireOk
-    (ProofForge.Backend.Evm.ToYul.storagePathAssignOpEffectStmtPlanStatements
+    (ProofForge.Backend.Evm.ToYul.storagePathAssignOpExprTargetEffectStmtPlanStatements
       toYulError
       (fun expr => lowerExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module arrayEnv expr)
       (lowerPlanEffectExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module arrayEnv)
-      (fun _ _ => .ok (.singleSlot (Lean.Compiler.Yul.Expr.num 9)))
+      (lowerExprPlanExpr ProofForge.IR.Examples.EvmStorageArrayProbe.module arrayEnv)
       (ProofForge.Backend.Evm.Plan.StmtPlan.effect
-        (.storagePathAssignOp
-          "values"
-          #[.index (.literal (.u64 0))]
+        (.storagePathAssignOpExprTarget
+          (.singleSlot (.arraySlot 0 3 (.literalWord 0)))
           .add
           (.effect (.storageScalarRead "before")))))
-    "storage path assign_op StmtPlan-to-Yul helper"
-  require (directAssignOpStmts.size == 1) "storage path assign_op StmtPlan-to-Yul helper statement count"
+    "storage path assign_op expr-target StmtPlan-to-Yul helper"
+  require (directAssignOpStmts.size == 1) "storage path assign_op expr-target StmtPlan-to-Yul helper statement count"
   match directAssignOpStmts[0]! with
   | Lean.Compiler.Yul.Statement.block block => do
       let mut foundStorageReadValue := false
+      let mut foundPlannedSlot := false
       for stmt in block.statements do
         match stmt with
+        | Lean.Compiler.Yul.Statement.varDecl names (some slot) => do
+            let slotTempName ← requireAt names 0 "storage path assign_op expr-target slot temp name"
+            foundPlannedSlot := foundPlannedSlot ||
+              (names.size == 1 && slotTempName.name == "_slot" &&
+                match slot with
+                | Lean.Compiler.Yul.Expr.call slotName slotArgs =>
+                    slotName == (Helper.arraySlot).name && slotArgs.size == 3
+                | _ => false)
         | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
             if args.size == 2 then
               match args[1]! with
@@ -8959,8 +8973,9 @@ def testStoragePathWritePlanToYul : IO Unit := do
                     | _ => pure ()
               | _ => pure ()
         | _ => pure ()
-      require foundStorageReadValue "storage path assign_op StmtPlan-to-Yul helper value must lower storage read through plan"
-  | _ => throw <| IO.userError "storage path assign_op StmtPlan-to-Yul helper must lower to block"
+      require foundPlannedSlot "storage path assign_op expr-target helper must use planned slot"
+      require foundStorageReadValue "storage path assign_op expr-target StmtPlan-to-Yul helper value must lower storage read through plan"
+  | _ => throw <| IO.userError "storage path assign_op expr-target StmtPlan-to-Yul helper must lower to block"
   let directPlannedAssignOpStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.storagePathAssignOpTargetEffectStmtPlanStatements
       toYulError

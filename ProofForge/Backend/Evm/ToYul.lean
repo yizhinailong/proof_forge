@@ -3574,32 +3574,6 @@ def storagePathWriteTargetStatements
         ]}
       ]
 
-def storagePathWriteEffectPlanStatements
-    {ε : Type}
-    (mkError : String → ε)
-    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
-    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
-    (storagePathTargetFor : String → Array StoragePathSegment → Except ε StoragePathWriteTarget) :
-    EffectPlan → Except ε (Array Lean.Compiler.Yul.Statement)
-  | .storagePathWrite stateId path value => do
-      .ok <| storagePathWriteTargetStatements
-        (← exprPlanExpr mkError lowerExpr lowerEffect value)
-        (← storagePathTargetFor stateId path)
-  | _ =>
-      .error (mkError "EVM EffectPlan-to-Yul storage path write lowering expected storagePathWrite")
-
-def storagePathWriteEffectStmtPlanStatements
-    {ε : Type}
-    (mkError : String → ε)
-    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
-    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
-    (storagePathTargetFor : String → Array StoragePathSegment → Except ε StoragePathWriteTarget) :
-    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
-  | .effect effect =>
-      storagePathWriteEffectPlanStatements mkError lowerExpr lowerEffect storagePathTargetFor effect
-  | _ =>
-      .error (mkError "EVM StmtPlan-to-Yul storage path write lowering expected effect")
-
 def storagePathWriteTargetEffectPlanStatements
     {ε : Type}
     (mkError : String → ε)
@@ -3687,32 +3661,6 @@ def storagePathAssignOpTargetStatements
           ])
         ]}
       ]
-
-def storagePathAssignOpEffectPlanStatements
-    {ε : Type}
-    (mkError : String → ε)
-    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
-    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
-    (storagePathTargetFor : String → Array StoragePathSegment → Except ε StoragePathWriteTarget) :
-    EffectPlan → Except ε (Array Lean.Compiler.Yul.Statement)
-  | .storagePathAssignOp stateId path op value => do
-      .ok <| storagePathAssignOpTargetStatements op
-        (← exprPlanExpr mkError lowerExpr lowerEffect value)
-        (← storagePathTargetFor stateId path)
-  | _ =>
-      .error (mkError "EVM EffectPlan-to-Yul storage path assign_op lowering expected storagePathAssignOp")
-
-def storagePathAssignOpEffectStmtPlanStatements
-    {ε : Type}
-    (mkError : String → ε)
-    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
-    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
-    (storagePathTargetFor : String → Array StoragePathSegment → Except ε StoragePathWriteTarget) :
-    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
-  | .effect effect =>
-      storagePathAssignOpEffectPlanStatements mkError lowerExpr lowerEffect storagePathTargetFor effect
-  | _ =>
-      .error (mkError "EVM StmtPlan-to-Yul storage path assign_op lowering expected effect")
 
 def storagePathAssignOpTargetEffectPlanStatements
     {ε : Type}
