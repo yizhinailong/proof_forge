@@ -2873,66 +2873,6 @@ def lowerStorageStructWriteSourceExprs
         message := s!"storage scalar struct write `{stateId}` supports local struct values, struct literals, or storage scalar struct reads in IR EVM v0"
       }
 
-def lowerStorageStructWriteSourcePlanExprs
-    (module : Module)
-    (env : TypeEnv)
-    (stateId typeName : String)
-    (value : ProofForge.Backend.Evm.Plan.ExprPlan) :
-    Except LowerError (Array (Nat × String × Lean.Compiler.Yul.Expr)) := do
-  let some decl := findStruct? module typeName
-    | .error { message := s!"storage scalar struct write `{stateId}` uses unknown struct `{typeName}`" }
-  match value with
-  | .local sourceName => do
-      let some binding := findLocal? env sourceName
-        | .error { message := s!"unknown local `{sourceName}`" }
-      ensureType s!"storage scalar struct write `{stateId}` source type" (.structType typeName) binding.type
-      let mut values : Array (Nat × String × Lean.Compiler.Yul.Expr) := #[]
-      for h : idx in [0:decl.fields.size] do
-        let fieldDecl := decl.fields[idx]
-        ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
-        values := values.push (idx, fieldDecl.id, Lean.Compiler.Yul.Expr.id (structLocalFieldName sourceName fieldDecl.id))
-      .ok values
-  | .structLit literalTypeName fields => do
-      if literalTypeName != typeName then
-        .error { message := s!"storage scalar struct write `{stateId}` expected struct `{typeName}`, got `{literalTypeName}`" }
-      let mut values : Array (Nat × String × Lean.Compiler.Yul.Expr) := #[]
-      for h : idx in [0:decl.fields.size] do
-        let fieldDecl := decl.fields[idx]
-        ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
-        let some field := fields.find? fun field => field.fst == fieldDecl.id
-          | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
-        values := values.push (idx, fieldDecl.id, ← lowerExprPlanExpr module env field.snd)
-      .ok values
-  | .effect (.storageScalarRead sourceStateId) => do
-      let fields ← lowerStructStorageReadFields module s!"storage scalar struct write `{stateId}` source type" typeName sourceStateId
-      let mut values : Array (Nat × String × Lean.Compiler.Yul.Expr) := #[]
-      for h : idx in [0:fields.size] do
-        let field := fields[idx]
-        values := values.push (idx, field.fst, field.snd)
-      .ok values
-  | _ =>
-      .error {
-        message := s!"storage scalar struct write `{stateId}` supports local struct values, struct literals, or storage scalar struct reads in IR EVM v0"
-      }
-
-def lowerStorageStructWriteFields
-    (module : Module)
-    (env : TypeEnv)
-    (stateId : String)
-    (value : ProofForge.Backend.Evm.Plan.ExprPlan) :
-    Except LowerError (Array ProofForge.Backend.Evm.ToYul.StorageStructWriteField) := do
-  let (slot, typeName, _) ← requireStructState module stateId
-  let sourceExprs ← lowerStorageStructWriteSourcePlanExprs module env stateId typeName value
-  let mut fields : Array ProofForge.Backend.Evm.ToYul.StorageStructWriteField := #[]
-  for source in sourceExprs do
-    let (idx, fieldName, expr) := source
-    fields := fields.push {
-      slot := slotExpr (slot + idx)
-      fieldName
-      value := expr
-    }
-  .ok fields
-
 def lowerStorageStructWriteStmt
     (module : Module)
     (env : TypeEnv)
@@ -2966,11 +2906,20 @@ partial def lowerStorageStructWriteStmtPlanOrFallback
       | .error err => .error { message := err.message }
     let statements ←
       match effectPlan with
-      | .storageScalarWrite .. =>
-          ProofForge.Backend.Evm.ToYul.storageStructWriteEffectStmtPlanStatements
+      | .storageScalarWrite stateId valuePlan =>
+          let fields ←
+            lowerValidate <|
+              ProofForge.Backend.Evm.Lower.storageStructWriteFieldPlans
+                module
+                (toValidateTypeEnv env)
+                stateId
+                valuePlan
+          ProofForge.Backend.Evm.ToYul.storageStructWriteFieldPlanStatements
             toYulError
-            (fun stateId value => lowerStorageStructWriteFields module env stateId value)
-            (.effect effectPlan)
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            stateId
+            fields
       | _ =>
           .error { message := "EVM Lower.buildEffectPlan storage struct write did not produce storageScalarWrite" }
     match statements[0]? with
@@ -4799,10 +4748,19 @@ def lowerPlannedBodyEffectPlan
   | .storageScalarWrite stateId value => do
       match ← scalarStateType module stateId with
       | .structType _ =>
-          ProofForge.Backend.Evm.ToYul.storageStructWriteEffectStmtPlanStatements
+          let fields ←
+            lowerValidate <|
+              ProofForge.Backend.Evm.Lower.storageStructWriteFieldPlans
+                module
+                (toValidateTypeEnv env)
+                stateId
+                value
+          ProofForge.Backend.Evm.ToYul.storageStructWriteFieldPlanStatements
             toYulError
-            (fun stateId value => lowerStorageStructWriteFields module env stateId value)
-            (.effect effect)
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            stateId
+            fields
       | _ =>
           match ProofForge.Backend.Evm.Lower.scalarStorageTargetPlan? module stateId with
           | some target =>

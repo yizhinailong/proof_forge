@@ -3527,27 +3527,33 @@ def storageStructWriteStatements
         ])
     pure statements
 
-def storageStructWriteEffectPlanStatements
+def storageStructWriteFieldFromPlan
     {ε : Type}
     (mkError : String → ε)
-    (storageStructFieldsFor : String → ExprPlan → Except ε (Array StorageStructWriteField)) :
-    EffectPlan → Except ε (Array Lean.Compiler.Yul.Statement)
-  | .storageScalarWrite stateId value => do
-      .ok #[
-        .block { statements := storageStructWriteStatements stateId (← storageStructFieldsFor stateId value) }
-      ]
-  | _ =>
-      .error (mkError "EVM EffectPlan-to-Yul storage struct write lowering expected storageScalarWrite")
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (field : StorageStructWriteFieldPlan) : Except ε StorageStructWriteField := do
+  .ok {
+    slot := slotExpr field.slot
+    fieldName := field.fieldName
+    value := ← exprPlanExpr mkError lowerExpr lowerEffect field.value
+  }
 
-def storageStructWriteEffectStmtPlanStatements
+def storageStructWriteFieldPlanStatements
     {ε : Type}
     (mkError : String → ε)
-    (storageStructFieldsFor : String → ExprPlan → Except ε (Array StorageStructWriteField)) :
-    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
-  | .effect effect =>
-      storageStructWriteEffectPlanStatements mkError storageStructFieldsFor effect
-  | _ =>
-      .error (mkError "EVM StmtPlan-to-Yul storage struct write lowering expected effect")
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (stateId : String)
+    (fields : Array StorageStructWriteFieldPlan) :
+    Except ε (Array Lean.Compiler.Yul.Statement) := do
+  .ok #[
+    .block {
+      statements :=
+        storageStructWriteStatements stateId
+          (← fields.mapM (storageStructWriteFieldFromPlan mkError lowerExpr lowerEffect))
+    }
+  ]
 
 inductive StoragePathWriteTarget where
   | mapWrite (rootSlot key : Lean.Compiler.Yul.Expr)

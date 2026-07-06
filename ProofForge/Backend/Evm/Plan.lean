@@ -810,6 +810,12 @@ mutual
     expr : ExprPlan
     deriving Repr
 
+  structure StorageStructWriteFieldPlan where
+    slot : Nat
+    fieldName : String
+    value : ExprPlan
+    deriving Repr
+
   inductive AbiValuePlan where
     | expr (value : ExprPlan)
     | local (name : String) (type : ValueType)

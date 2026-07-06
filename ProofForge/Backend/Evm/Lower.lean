@@ -1493,6 +1493,63 @@ def structAssignmentSourcePlans
   | _ =>
       .error { message := s!"assignment target `{name}` struct whole assignment supports local struct values, struct literals, or storage scalar struct reads in IR EVM v0" }
 
+def storageStructWriteFieldPlans
+    (module : Module)
+    (env : TypeEnv)
+    (stateId : String)
+    (value : ExprPlan) : Except LowerError (Array StorageStructWriteFieldPlan) := do
+  let (slot, typeName, decl) ← requireStructState module stateId
+  match value with
+  | .local sourceName => do
+      let some binding := findLocal? env sourceName
+        | .error { message := s!"unknown local `{sourceName}`" }
+      ensureType s!"storage scalar struct write `{stateId}` source type" (.structType typeName) binding.type
+      let mut fields : Array StorageStructWriteFieldPlan := #[]
+      for h : idx in [0:decl.fields.size] do
+        let fieldDecl := decl.fields[idx]
+        ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+        fields := fields.push {
+          slot := slot + idx
+          fieldName := fieldDecl.id
+          value := .local (structLocalFieldName sourceName fieldDecl.id)
+        }
+      .ok fields
+  | .structLit literalTypeName sourceFields => do
+      if literalTypeName != typeName then
+        .error { message := s!"storage scalar struct write `{stateId}` expected struct `{typeName}`, got `{literalTypeName}`" }
+      let mut fields : Array StorageStructWriteFieldPlan := #[]
+      for h : idx in [0:decl.fields.size] do
+        let fieldDecl := decl.fields[idx]
+        ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+        let some field := sourceFields.find? fun field => field.fst == fieldDecl.id
+          | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
+        fields := fields.push {
+          slot := slot + idx
+          fieldName := fieldDecl.id
+          value := field.snd
+        }
+      .ok fields
+  | .effect (.storageScalarRead sourceStateId) => do
+      let (sourceSlot, sourceTypeName, sourceDecl) ← requireStructState module sourceStateId
+      ensureType
+        s!"storage scalar struct write `{stateId}` source type"
+        (.structType typeName)
+        (.structType sourceTypeName)
+      let mut fields : Array StorageStructWriteFieldPlan := #[]
+      for h : idx in [0:sourceDecl.fields.size] do
+        let fieldDecl := sourceDecl.fields[idx]
+        ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
+        fields := fields.push {
+          slot := slot + idx
+          fieldName := fieldDecl.id
+          value := .storageLoad (.scalarSlot (sourceSlot + idx))
+        }
+      .ok fields
+  | _ =>
+      .error {
+        message := s!"storage scalar struct write `{stateId}` supports local struct values, struct literals, or storage scalar struct reads in IR EVM v0"
+      }
+
 def crosscallModeArgContext : CrosscallMode → String
   | .call => "typed crosscall argument"
   | .callValue => "value crosscall argument"
