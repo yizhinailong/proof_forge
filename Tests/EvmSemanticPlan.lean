@@ -4242,7 +4242,7 @@ def testScalarFallbackGateAggregateLiteralPlanToYul : IO Unit := do
     (exprSupportsPlanScalarYul arrayExpr)
     "array literal read must be accepted by scalar plan gate"
   let arrayReturnStmts ← requireOk
-    (lowerScalarReturnStmtPlanOrFallback
+    (lowerReturnStmtPlan
       ProofForge.IR.Examples.Counter.module
       arrayEnv
       "scalar_array_literal_return"
@@ -4272,7 +4272,7 @@ def testScalarFallbackGateAggregateLiteralPlanToYul : IO Unit := do
     (exprSupportsPlanScalarYul structExpr)
     "struct literal field read must be accepted by scalar plan gate"
   let structReturnStmts ← requireOk
-    (lowerScalarReturnStmtPlanOrFallback
+    (lowerReturnStmtPlan
       ProofForge.IR.Examples.EvmStructValueProbe.module
       structEnv
       "scalar_struct_literal_return"
@@ -4299,7 +4299,7 @@ def testScalarFallbackGateLocalAggregatePlanToYul : IO Unit := do
     (exprSupportsPlanScalarYul arrayExpr)
     "local array read must be accepted by scalar plan gate"
   let arrayReturnStmts ← requireOk
-    (lowerScalarReturnStmtPlanOrFallback
+    (lowerReturnStmtPlan
       ProofForge.IR.Examples.EvmArrayValueProbe.module
       arrayEnv
       "scalar_local_array_return"
@@ -4323,7 +4323,7 @@ def testScalarFallbackGateLocalAggregatePlanToYul : IO Unit := do
     (exprSupportsPlanScalarYul structExpr)
     "local struct field read must be accepted by scalar plan gate"
   let structBindingStmts ← requireOk
-    (lowerScalarBindingStmtPlanOrFallback
+    (lowerScalarBindingStmtPlan
       ProofForge.IR.Examples.EvmStructValueProbe.module
       structEnv
       "head"
@@ -4348,7 +4348,7 @@ def testScalarFallbackGateLocalAggregatePlanToYul : IO Unit := do
     (exprSupportsPlanScalarYul structArrayExpr)
     "local struct-array field read must be accepted by scalar plan gate"
   let structArrayAssertStmts ← requireOk
-    (lowerScalarAssertStmtPlanOrFallback
+    (lowerScalarAssertStmtPlan
       ProofForge.IR.Examples.EvmStructArrayValueProbe.module
       structArrayEnv
       (.assert structArrayExpr "enabled" none))
@@ -4374,7 +4374,7 @@ def testScalarFallbackGateMemoryArrayPlanToYul : IO Unit := do
     (exprSupportsPlanScalarYul lengthExpr)
     "memory array length over new array must be accepted by scalar plan gate"
   let lengthBindingStmts ← requireOk
-    (lowerScalarBindingStmtPlanOrFallback
+    (lowerScalarBindingStmtPlan
       ProofForge.IR.Examples.Counter.module
       memoryEnv
       "len"
@@ -4396,7 +4396,7 @@ def testScalarFallbackGateMemoryArrayPlanToYul : IO Unit := do
     (exprSupportsPlanScalarYul getExpr)
     "memory array get over local array must be accepted by scalar plan gate"
   let getReturnStmts ← requireOk
-    (lowerScalarReturnStmtPlanOrFallback
+    (lowerReturnStmtPlan
       ProofForge.IR.Examples.Counter.module
       memoryEnv
       "memory_array_get_return"
@@ -4429,7 +4429,7 @@ def testScalarFallbackGateCrosscallCreatePlanToYul : IO Unit := do
     (exprSupportsPlanScalarYul scalarCrosscallExpr)
     "scalar crosscall return must be accepted by scalar plan gate"
   let crosscallBindingStmts ← requireOk
-    (lowerScalarBindingStmtPlanOrFallback
+    (lowerScalarBindingStmtPlan
       ProofForge.IR.Examples.EvmCrosscallProbe.module
       crosscallEnv
       "remote"
@@ -4468,7 +4468,7 @@ def testScalarFallbackGateCrosscallCreatePlanToYul : IO Unit := do
     (exprSupportsPlanScalarYul aggregateArgExpr)
     "aggregate crosscall argument with scalar return must be accepted by scalar plan gate"
   let aggregateArgBindingStmts ← requireOk
-    (lowerScalarBindingStmtPlanOrFallback
+    (lowerScalarBindingStmtPlan
       ProofForge.IR.Examples.EvmStructValueProbe.module
       crosscallEnv
       "remote_pair"
@@ -4501,7 +4501,7 @@ def testScalarFallbackGateCrosscallCreatePlanToYul : IO Unit := do
     (exprSupportsPlanScalarYul createExpr)
     "create expression must be accepted by scalar plan gate"
   let createReturnStmts ← requireOk
-    (lowerScalarReturnStmtPlanOrFallback
+    (lowerReturnStmtPlan
       ProofForge.IR.Examples.EvmCrosscallProbe.module
       createEnv
       "scalar_create_return"
@@ -4526,7 +4526,7 @@ def testScalarFallbackGateCrosscallCreatePlanToYul : IO Unit := do
     (exprSupportsPlanScalarYul create2Expr)
     "create2 expression must be accepted by scalar plan gate"
   let create2BindingStmts ← requireOk
-    (lowerScalarBindingStmtPlanOrFallback
+    (lowerScalarBindingStmtPlan
       ProofForge.IR.Examples.EvmCrosscallProbe.module
       createEnv
       "deployed2"

@@ -143,12 +143,6 @@ def errorRefRevertStmts (ref : ProofForge.IR.ErrorRef) : Array Lean.Compiler.Yul
     .exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num totalSize])
   ]
 
-def lowerAssertStmt (condition : Lean.Compiler.Yul.Expr) (errorRef? : Option ProofForge.IR.ErrorRef) : Lean.Compiler.Yul.Statement :=
-  let revertStatements := match errorRef? with
-    | none => #[revertStmt]
-    | some ref => errorRefRevertStmts ref
-  ProofForge.Backend.Evm.ToYul.assertStatementFromCondition condition revertStatements
-
 def calldataWordExpr (paramIndex : Nat) : Lean.Compiler.Yul.Expr :=
   ProofForge.Backend.Evm.ToYul.calldataWordExpr paramIndex
 
@@ -2436,79 +2430,62 @@ partial def lowerScalarPlanExprOrFallback
       else
         lowerExpr module env expr
 
-partial def lowerScalarBindingStmtPlanOrFallback
+partial def lowerScalarBindingStmtPlan
     (module : Module)
     (env : TypeEnv)
     (name : String)
     (type : ValueType)
     (isMutable : Bool)
     (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  if exprSupportsPlanScalarYul value then
-    let valuePlan ←
-      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
-      | .ok plan => .ok plan
-      | .error err => .error { message := err.message }
-    let stmtPlan :=
-      if isMutable then
-        ProofForge.Backend.Evm.Plan.StmtPlan.letMutBind name type valuePlan
-      else
-        ProofForge.Backend.Evm.Plan.StmtPlan.letBind name type valuePlan
-    ProofForge.Backend.Evm.ToYul.scalarBindingStmtPlanStatements
-      toYulError
-      (fun expr => lowerExpr module env expr)
-      (lowerPlanEffectExpr module env)
-      stmtPlan
-  else
-    .ok #[
-      .varDecl
-        #[({ name := name } : Lean.Compiler.Yul.TypedName)]
-        (some (← lowerExpr module env value))
-    ]
+  let valuePlan ←
+    match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+    | .ok plan => .ok plan
+    | .error err => .error { message := err.message }
+  let stmtPlan :=
+    if isMutable then
+      ProofForge.Backend.Evm.Plan.StmtPlan.letMutBind name type valuePlan
+    else
+      ProofForge.Backend.Evm.Plan.StmtPlan.letBind name type valuePlan
+  ProofForge.Backend.Evm.ToYul.scalarBindingStmtPlanStatements
+    toYulError
+    (fun expr => lowerExpr module env expr)
+    (lowerPlanEffectExpr module env)
+    stmtPlan
 
-partial def lowerScalarAssertStmtPlanOrFallback
+partial def lowerScalarAssertStmtPlan
     (module : Module)
     (env : TypeEnv) :
     ProofForge.IR.Statement → Except LowerError (Array Lean.Compiler.Yul.Statement)
   | .assert condition message errorRef? => do
-      if exprSupportsPlanScalarYul condition then
-        let conditionPlan ←
-          match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) condition with
-          | .ok plan => .ok plan
-          | .error err => .error { message := err.message }
-        ProofForge.Backend.Evm.ToYul.scalarAssertStmtPlanStatements
-          toYulError
-          (fun expr => lowerExpr module env expr)
-          (lowerPlanEffectExpr module env)
-          (fun
-            | none => #[revertStmt]
-            | some ref => errorRefRevertStmts ref)
-          (.assert conditionPlan message errorRef?)
-      else
-        .ok #[lowerAssertStmt (← lowerScalarPlanExprOrFallback module env condition) errorRef?]
+      let conditionPlan ←
+        match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) condition with
+        | .ok plan => .ok plan
+        | .error err => .error { message := err.message }
+      ProofForge.Backend.Evm.ToYul.scalarAssertStmtPlanStatements
+        toYulError
+        (fun expr => lowerExpr module env expr)
+        (lowerPlanEffectExpr module env)
+        (fun
+          | none => #[revertStmt]
+          | some ref => errorRefRevertStmts ref)
+        (.assert conditionPlan message errorRef?)
   | .assertEq lhs rhs message errorRef? => do
-      if exprSupportsPlanScalarYul lhs && exprSupportsPlanScalarYul rhs then
-        let lhsPlan ←
-          match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) lhs with
-          | .ok plan => .ok plan
-          | .error err => .error { message := err.message }
-        let rhsPlan ←
-          match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) rhs with
-          | .ok plan => .ok plan
-          | .error err => .error { message := err.message }
-        ProofForge.Backend.Evm.ToYul.scalarAssertStmtPlanStatements
-          toYulError
-          (fun expr => lowerExpr module env expr)
-          (lowerPlanEffectExpr module env)
-          (fun
-            | none => #[revertStmt]
-            | some ref => errorRefRevertStmts ref)
-          (.assertEq lhsPlan rhsPlan message errorRef?)
-      else
-        let condition := Lean.Compiler.Yul.builtin "eq" #[
-          ← lowerScalarPlanExprOrFallback module env lhs,
-          ← lowerScalarPlanExprOrFallback module env rhs
-        ]
-        .ok #[lowerAssertStmt condition errorRef?]
+      let lhsPlan ←
+        match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) lhs with
+        | .ok plan => .ok plan
+        | .error err => .error { message := err.message }
+      let rhsPlan ←
+        match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) rhs with
+        | .ok plan => .ok plan
+        | .error err => .error { message := err.message }
+      ProofForge.Backend.Evm.ToYul.scalarAssertStmtPlanStatements
+        toYulError
+        (fun expr => lowerExpr module env expr)
+        (lowerPlanEffectExpr module env)
+        (fun
+          | none => #[revertStmt]
+          | some ref => errorRefRevertStmts ref)
+        (.assertEq lhsPlan rhsPlan message errorRef?)
   | _ =>
       .error { message := "EVM StmtPlan-to-Yul scalar assertion lowering expected assert/assertEq" }
 
@@ -3935,36 +3912,7 @@ def lowerReturnAssignments
             statements := statements.push (.assignment #[names[idx]] word)
           .ok statements
 
-partial def lowerScalarReturnStmtPlanOrFallback
-    (module : Module)
-    (env : TypeEnv)
-    (entrypointName : String)
-    (returnType : ValueType)
-    (value : ProofForge.IR.Expr)
-    (leaveAfterReturn : Bool) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  if returnTypeSupportsScalarStmtPlan returnType && exprSupportsPlanScalarYul value then
-    let valuePlan ←
-      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
-      | .ok plan => .ok plan
-      | .error err => .error { message := err.message }
-    let returns ←
-      match ProofForge.Backend.Evm.Lower.returnPlan module s!"entrypoint `{entrypointName}`" returnType with
-      | .ok plan => .ok plan
-      | .error err => .error { message := err.message }
-    ProofForge.Backend.Evm.ToYul.scalarReturnExprPlanStatements
-      toYulError
-      (lowerExprPlanExpr module env)
-      returns.localNames
-      leaveAfterReturn
-      (.return valuePlan)
-  else
-    let statements ← lowerReturnAssignments module env entrypointName returnType value
-    if leaveAfterReturn then
-      .ok (statements.push .leave)
-    else
-      .ok statements
-
-partial def lowerReturnStmtPlanOrFallback
+partial def lowerReturnStmtPlan
     (module : Module)
     (env : TypeEnv)
     (entrypointName : String)
@@ -3988,9 +3936,32 @@ partial def lowerReturnStmtPlanOrFallback
           leaveAfterReturn
           (.return valuePlan)
     | _ =>
-        lowerScalarReturnStmtPlanOrFallback module env entrypointName returnType value leaveAfterReturn
+        .error {
+          message := s!"entrypoint `{entrypointName}` dynamic returns in IR EVM v0 support local references only"
+        }
+  else if returnTypeSupportsAggregateStmtPlan returnType then
+    let statements ← lowerReturnAssignments module env entrypointName returnType value
+    if leaveAfterReturn then
+      .ok (statements.push .leave)
+    else
+      .ok statements
+  else if returnTypeSupportsScalarStmtPlan returnType then
+    let valuePlan ←
+      match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
+    let returns ←
+      match ProofForge.Backend.Evm.Lower.returnPlan module s!"entrypoint `{entrypointName}`" returnType with
+      | .ok plan => .ok plan
+      | .error err => .error { message := err.message }
+    ProofForge.Backend.Evm.ToYul.scalarReturnExprPlanStatements
+      toYulError
+      (lowerExprPlanExpr module env)
+      returns.localNames
+      leaveAfterReturn
+      (.return valuePlan)
   else
-    lowerScalarReturnStmtPlanOrFallback module env entrypointName returnType value leaveAfterReturn
+    .error { message := s!"entrypoint `{entrypointName}` has unsupported return type `{returnType.name}` in IR EVM v0" }
 
 def lowerReturnStmt
     (module : Module)
@@ -3999,7 +3970,7 @@ def lowerReturnStmt
     (returnType : ValueType)
     (value : ProofForge.IR.Expr)
     (leaveAfterReturn : Bool) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  lowerReturnStmtPlanOrFallback module env entrypointName returnType value leaveAfterReturn
+  lowerReturnStmtPlan module env entrypointName returnType value leaveAfterReturn
 
 def plannedBodyScalarTypeSupported : ValueType → Bool
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
@@ -4845,7 +4816,7 @@ mutual
     | .letBind name type value => do
         ensureLocalScalarType "let binding" name type
         let nextEnv ← addLocal env name type false
-        .ok (← lowerScalarBindingStmtPlanOrFallback module env name type false value, nextEnv)
+        .ok (← lowerScalarBindingStmtPlan module env name type false value, nextEnv)
     | .letMutBind name (.fixedArray elementType length) value => do
         let lowered ← lowerFixedArrayLetBinding module env name elementType length value
         let nextEnv ← addLocal env name (.fixedArray elementType length) true
@@ -4861,7 +4832,7 @@ mutual
     | .letMutBind name type value => do
         ensureLocalScalarType "mutable let binding" name type
         let nextEnv ← addLocal env name type true
-        .ok (← lowerScalarBindingStmtPlanOrFallback module env name type true value, nextEnv)
+        .ok (← lowerScalarBindingStmtPlan module env name type true value, nextEnv)
     | .assign target value => do
         .ok (← lowerAssignStmt module env target value, env)
     | .assignOp target op value => do
@@ -4869,9 +4840,9 @@ mutual
     | .effect effect => do
         .ok (#[← lowerEffectStmt module env effect], env)
     | .assert condition message errorRef? => do
-        .ok (← lowerScalarAssertStmtPlanOrFallback module env (.assert condition message errorRef?), env)
+        .ok (← lowerScalarAssertStmtPlan module env (.assert condition message errorRef?), env)
     | .assertEq lhs rhs message errorRef? => do
-        .ok (← lowerScalarAssertStmtPlanOrFallback module env (.assertEq lhs rhs message errorRef?), env)
+        .ok (← lowerScalarAssertStmtPlan module env (.assertEq lhs rhs message errorRef?), env)
     | .release _ =>
         .error { message := "release statements are not supported by IR EVM v0" }
     | .revert message => do

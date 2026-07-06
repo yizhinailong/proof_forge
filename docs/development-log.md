@@ -17,6 +17,48 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Binding/Assert/Return Fallback Retirement
+
+Work range: binding/assert/return PlanOrFallback removal
+
+Summary:
+
+- Made scalar `let`/`let mut` bindings always route through
+  `Lower.buildExprPlan -> ToYul.scalarBindingStmtPlanStatements`.
+- Made scalar `assert`/`assertEq` statements always route through
+  `Lower.buildExprPlan -> ToYul.scalarAssertStmtPlanStatements`.
+- Restructured return lowering into unconditional `lowerReturnStmtPlan`:
+  local dynamic returns use `dynamicReturnStmtPlanStatements`, aggregate returns
+  keep `lowerReturnAssignments`, scalar returns always use
+  `scalarReturnExprPlanStatements`, and non-local dynamic returns fail
+  explicitly.
+- Removed the now-unused `lowerAssertStmt` compatibility helper and renamed
+  active helpers to drop the `PlanOrFallback` suffix.
+- Updated semantic-plan gate tests to call the renamed helpers.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+! rg -n "lowerScalarBindingStmtPlanOrFallback|lowerScalarAssertStmtPlanOrFallback|lowerScalarReturnStmtPlanOrFallback|lowerReturnStmtPlanOrFallback|lowerAssertStmt\\b" ProofForge Tests
+lake build ProofForge.Backend.Evm.IR
+just evm-smoke ir-counter assert struct-value array-value crosscall abi-aggregate storage-struct assignment
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Scalar assignment/control-flow `ifElse` fallback branches still use
+  `lowerScalarPlanExprOrFallback` when planned-body construction is unavailable.
+- Aggregate return assignment still uses `lowerReturnAssignments` as the active
+  aggregate path rather than a dedicated `StmtPlan.return` ExprPlan surface.
+
+Next step:
+
+- Continue shrinking assignment/control-flow fallback surfaces or move the next
+  recursive body lowering gap behind `StmtPlan -> ToYul`.
+
 ### EVM Storage Write Fallback Retirement
 
 Work range: storage write PlanOrFallback removal
