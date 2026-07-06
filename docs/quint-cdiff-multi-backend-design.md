@@ -1,6 +1,6 @@
 # Quint C-diff multi-backend — feasibility assessment and design
 
-Status: **Draft (research + design; minimal additive stub only)**
+Status: **Draft (research + design; additive stub landed for NEAR and Solana)**
 
 Date: 2026-07-07
 
@@ -25,11 +25,13 @@ those traces are replayed against each backend's *actual emitted artifact*
 between the IR's formal semantics and what the backend actually emits — a pragmatic
 substitute for a full target-chain formal semantics (Tier C-proof).
 
-Today C-diff covers **EVM only** (`just quint-evm-backend-replay-gate`,
-`Tests/Quint/CounterEvmReplay.lean`, `ProofForge.Backend.Quint.EvmReplay.lean`). This
-document audits every other backend for C-diff feasibility, picks the easiest next
-candidate, specifies the abstract replay interface and the field-level design for the
-chosen candidate's replay shim, and records what is deferred and why.
+Today C-diff covers **EVM** (`just quint-evm-backend-replay-gate`,
+`Tests/Quint/CounterEvmReplay.lean`, `ProofForge.Backend.Quint.EvmReplay.lean`), plus
+additive type-only stubs for **NEAR** (`NearReplay.lean`) and **Solana**
+(`SolanaReplay.lean`). This document audits every other backend for C-diff
+feasibility, picks the easiest next candidate, specifies the abstract replay
+interface and the field-level design for the chosen candidate's replay shim,
+and records what is deferred and why.
 
 This is a **research + design** step. The only implementation artifact (optional,
 additive) is a type-only `NearReplay.lean` stub that does not touch any existing replay
@@ -149,7 +151,7 @@ For each target backend we ask:
 |---|---|---|---|---|---|---|
 | **EVM** ✅ | Runtime bytecode (hex) | Foundry `forge test` (etched bytecode) | Render Foundry `.t.sol`; `forge` executes | ABI selector via `abi.encodeWithSignature` | Done | — |
 | **NEAR (WasmNear)** | WAT → `.wasm` (via `wat2wasm`) | `runtime/offline-host` (wasmtime, in-tree) — runs WAT exports directly, no external RPC | Render offline-host CLI args (`run <wat> <exports...> --inputs-hex <...>`); offline-host executes | Wasm export name = entrypoint name; args = little-endian bytes (matches `portable_input_bytes_le`) | **Easy** | **1st** |
-| **Solana** | sBPF ELF `.so` (via `sbpf build`) | Mollusk (Rust crate, in `testkit/harness-solana`) — local sim, no network; needs `sbpf` + `solana-keygen` (installed here) | Render Mollusk invocation as a Rust test OR render a testkit scenario TOML; Mollusk executes | Instruction discriminator (1-byte tag from manifest) + account meta + instruction-data byte stream | **Medium** | 2nd |
+| **Solana** | sBPF ELF `.so` (via `sbpf build`) | Mollusk (Rust crate, in `testkit/harness-solana`) — local sim, no network; needs `sbpf` + `solana-keygen` (installed here) | Render Rust Mollusk test file (mirrors EVM's Foundry test rendering); `cargo test` executes | Instruction discriminator (1-byte tag from manifest) + account meta + instruction-data byte stream | **Medium** | **2nd** (stub landed) |
 | **Psy** | Psy module (executed by `dargo`) | `dargo execute` — **not installed here** per AGENTS.md | Render `dargo execute` invocation script | Psy entrypoint → dargo call | **Medium** (blocked on tool) | 3rd (deferred) |
 | **Move-Sui** | Move source module | `sui` CLI (installed here) — but no real lowering; Counter MVP template only | n/a — no real artifact to replay against | n/a | **Hard** (no real lowering) | Deferred |
 | **Aleo** | Leo program | `leo` CLI (installed here) — but research spike only | Render `leo run` invocation | Leo transition → entrypoint | **Hard** (research spike) | Deferred |
@@ -365,25 +367,147 @@ behavior changes), this step delivers a minimal type-only stub:
 The stub is **not** wired into any `*-backend-replay-gate.sh`. It only proves the shim
 types can be built and the arg-list renderer is deterministic.
 
+## 8.1 Field-level design: `SolanaReplay` (stub landed)
+
+Solana is the 2nd C-diff candidate. Unlike NEAR (whose executor is a CLI arg
+list), Solana's executable artifact is an sBPF ELF (`.so`) driven by
+**Mollusk** — a Rust crate (`mollusk_svm`) invoked as a Rust test harness
+(there is no Mollusk CLI). The shim therefore renders a **Rust test file**
+that calls `Mollusk::new(&pid, "<elf>")` and `m.process_instruction(...)` per
+trace step, mirroring the in-tree template `Tests/solana/counter_mollusk.rs.tpl`
+and the testkit harness (`testkit/harness-solana/src/lib.rs`). This is the
+EVM-shim shape (render a test file the target toolchain — here `cargo test` —
+executes) rather than the NEAR-shim shape (render a CLI arg list).
+
+### 8.1.1 Config
+
+```lean
+structure SolanaReplayConfig where
+  programPath : String          -- path to the emitted sBPF ELF (`.so`), passed to `Mollusk::new`
+  keypairPath : String          -- program keypair JSON; program id = first 32 bytes
+  stateAccountDataLen : Nat     -- byte length of the state account data (e.g. 8 for Counter's u64)
+  primaryStateVar : String      -- ITF/IR state variable name being checked (e.g. `count`)
+  primaryStateByteSize : Nat    -- byte size of the primary scalar (e.g. 8 for u64)
+```
+
+This mirrors `EvmReplayConfig` (`bytecodeHex` / `readSignature` /
+`primaryStateVar`) but with Solana artifact paths and an account-data length
+instead of a Solidity getter signature. The `primaryStateByteSize` is used to
+render the expected little-endian byte array (`renderLeBytes`) and to slice
+return data.
+
+### 8.1.2 Account-model translation
+
+IR flat state vs Solana's account model (one account per state field group,
+with the program as owner) is bridged by the shim as follows:
+
+- `program_id` is the first 32 bytes of the keypair JSON (rendered as a
+  `program_id()` fn, identical to the in-tree Mollusk template and the testkit
+  harness).
+- `accounts` is a single writable state account owned by the program (v1
+  scalar-state shape, matching `SolanaModulePlan.accounts[0]` for the
+  Counter). Multi-account / PDA / CPI translation is deferred — v1 covers the
+  same scalar-state subset as EVM/NEAR v1.
+- `instruction_data` is the entrypoint discriminator (1-byte internal tag or
+  8-byte external selector parsed from `Entrypoint.selector?`) followed by the
+  little-endian encoding of the IR arguments. The shim reuses
+  `Manifest.externalDiscriminatorBytes?` so the discriminator it renders
+  matches what `Manifest.buildInstructions` and the sBPF dispatch prologue
+  emit, without requiring a full `SolanaModulePlan` build at replay time.
+
+The IR → artifact call mapping for each ITF state after the first:
+
+1. `actionName ← resolveActionName module state.actionTaken state.nondetPicks`
+   (shared `Replay`). The Quint `init` action is mapped to the IR
+   `initialize` entrypoint (mirroring NearReplay's init handling).
+2. `entrypoint ← entrypointMap module |>.get? resolvedName` (shared `Replay`).
+3. `args ← buildArgs entrypoint state.nondetPicks` (shared `Replay`) — `Array
+   IR.Semantics.Value`.
+4. `instructionData ← discriminatorBytes ep tag ++ encodeArgsLe args` — the
+   Solana-specific step. `encodeArgLe` encodes each scalar arg as
+   little-endian bytes (`u8`/`u32`/`u64`/`u128`/`bool`), matching the
+   `le-u64`/`le-u32`/`u8-bool` encodings in `Manifest.instructionParamEncoding`
+   and `portable_input_bytes_le` in the testkit core.
+5. The rendered `#[test] fn test_step_<idx>()` seeds the state account with the
+   previous step's primary value, issues the instruction, and asserts.
+
+### 8.1.3 Observation and comparison
+
+Two assertion shapes, depending on whether the entrypoint is a read or a
+mutating call:
+
+- **Read entrypoint** (`ep.returns != .unit`): the primary value comes back as
+  return data. The test asserts `result.return_data == vec![<expected le
+  bytes>]`.
+- **Mutating entrypoint**: the primary value is written to the account data.
+  The test fetches `result.get_account(&counter)` and asserts
+  `after.data == vec![<expected le bytes>]`.
+
+This is the v1 single-scalar shape (mirrors EVM v1's `assertEq(readState...)`
+after each step). Full state-diff comparison (v2) is deferred.
+
+### 8.1.4 Rendering shape
+
+```lean
+def renderReplayHarness (module : IR.Module) (trace : ITF.Trace)
+    (cfg : SolanaReplayConfig) : Except SolanaReplayError String := do
+  -- produces a self-contained Rust test file:
+  --   #![cfg(test)]
+  --   use { mollusk_svm::Mollusk, ... };
+  --   fn program_id() -> Address { ... }
+  --   fn mollusk() -> Mollusk { ... }
+  --   fn ix(pid, data, counter) -> Instruction { ... }
+  --   #[test] fn test_step_<idx>() { ... }   -- one per trace step
+```
+
+The wrapping test (Step B, follow-up) would: emit the Quint model, run
+`quint run --mbt --out-itf`; emit the ELF (`proof-forge emit --target
+solana-sbpf-asm` + `sbpf build` + `solana-keygen`); call
+`SolanaReplay.renderReplayHarness` to get the Rust test source; scaffold a
+Mollusk-bearing Cargo crate (mirroring `testkit/harness-solana` /
+`Tests/solana/counter_mollusk.rs.tpl`); run `cargo test`; parse the result and
+print `PASS`/`FAIL`.
+
+### 8.1.5 What is NOT in the stub (this step)
+
+The stub delivered here contains only the **type definitions** and the full
+`renderReplayHarness` string renderer (one `#[test]` per trace step). It does
+*not*:
+
+- emit the ELF or scaffold the Cargo crate,
+- spawn `cargo test`, `sbpf`, `solana-keygen`, or `quint`,
+- wire into CI / `just check`,
+- touch `Replay.lean`, `EvmReplay.lean`, or `NearReplay.lean`,
+- handle multi-account / PDA / CPI translation (v1 scalar-state only).
+
+Those are follow-ups (Step B), gated on the stub compiling cleanly and the SBF
+platform-tools being available in the run environment.
+
 ## 9. Migration / growth path
 
 ```text
-EVM (done)  ->  NEAR (this step, stub)  ->  Solana  ->  Psy  ->  (research spikes)
+EVM (done)  ->  NEAR (stub landed)  ->  Solana (stub landed)  ->  Psy  ->  (research spikes)
 ```
 
 - **NEAR (Step B, follow-up):** implement the full `renderOfflineHostArgs` + the
   `CounterNearReplay.lean` test that spawns `quint` + offline-host, add
   `scripts/quint/near-backend-replay-gate.sh` + `just quint-near-backend-replay-gate`,
   wire into `just quint-ir-model-gate` after parity.
-- **Solana (2nd):** `SolanaReplay.lean` renders a Mollusk invocation. Two sub-options:
-  (a) render a Rust test file that calls `mollusk_svm::Mollusk` directly (mirrors EVM's
-  Solidity test rendering), or (b) render a testkit scenario TOML and reuse the existing
-  `testkit/harness-solana` Mollusk path. Option (b) is more reusable but couples the
-  shim to the testkit scenario format; option (a) is more self-contained. The
-  account-model translation (instruction discriminator from manifest + account meta +
-  instruction-data bytes) is the main extra work vs NEAR. The `SolanaModulePlan`
-  (Phase 2, landed) already exposes the discriminator/account schema, so the shim can
-  read the plan instead of re-deriving.
+- **Solana (2nd, stub landed):** `SolanaReplay.lean` renders a Rust Mollusk
+  test file (option (a) from the original design: render a Rust test that calls
+  `mollusk_svm::Mollusk` directly, mirroring EVM's Solidity test rendering).
+  Option (b) (testkit scenario TOML) was rejected for v1 as more coupling for
+  less self-containment. The account-model translation (instruction
+  discriminator from `Entrypoint.selector?` + single writable state account +
+  instruction-data bytes) is the main extra work vs NEAR. The
+  `SolanaModulePlan` (Phase 2, landed) already exposes the
+  discriminator/account schema; the shim re-derives the discriminator via
+  `Manifest.externalDiscriminatorBytes?` to avoid requiring a full plan build
+  at replay time. The stub (`ProofForge/Backend/Quint/SolanaReplay.lean` +
+  `Tests/Quint/SolanaReplaySmoke.lean` + `just quint-solana-replay-smoke`) is
+  **not** wired into `just check` (running end-to-end needs SBF platform-tools
+  not installed here per AGENTS.md). Step B (emit the ELF + `cargo test` +
+  gate script + `just quint-solana-backend-replay-gate`) is a follow-up.
 - **Psy (3rd, deferred on tool):** `PsyReplay.lean` renders a `dargo execute` script.
   Blocked on `dargo` not being installed here per AGENTS.md. Design-only until the tool
   is available; the shim shape is straightforward (Psy entrypoint → dargo call).
@@ -406,15 +530,22 @@ feasible, but the execution environment is not available here. A `PsyReplay.lean
 could be written design-only, but unlike NEAR there is no in-tree executor to validate
 even the stub against. Deferred until `dargo` is installable or a parity host exists.
 
-### 10.2 Solana (deferred to 2nd, not this step)
+### 10.2 Solana (stub landed — 2nd)
 
 Solana is feasible (Mollusk is in-tree as a Rust crate, `sbpf` + `solana-keygen` are
-installed). It is **not** chosen as the *first* follow-up only because the
-account-model translation adds meaningful complexity (instruction discriminator,
-account meta list, instruction-data byte layout) that NEAR avoids (NEAR exports map
-1:1 to entrypoints and inputs are a flat byte stream). The `SolanaModulePlan` already
-exposes the discriminator and account schema, so a `SolanaReplay` shim can read the plan
-— this is the recommended 2nd step.
+installed). It was the 2nd C-diff candidate (after NEAR) and its additive type-only
+stub has now landed: `ProofForge/Backend/Quint/SolanaReplay.lean` +
+`Tests/Quint/SolanaReplaySmoke.lean` + `just quint-solana-replay-smoke` (not wired
+into `just check`). The account-model translation (instruction discriminator,
+account meta list, instruction-data byte layout) is the main extra work vs NEAR
+(NEAR exports map 1:1 to entrypoints and inputs are a flat byte stream). The
+`SolanaModulePlan` already exposes the discriminator and account schema; the
+shim re-derives the discriminator from `Entrypoint.selector?` via
+`Manifest.externalDiscriminatorBytes?` to avoid requiring a full plan build at
+replay time. The full end-to-end gate (Step B: emit the ELF via `sbpf build`,
+spawn `cargo test`, parse results) is a follow-up gated on the SBF
+platform-tools being available in the run environment. See §8.1 for the
+field-level design.
 
 ### 10.3 Move-Sui (deferred — research spike)
 
@@ -447,16 +578,17 @@ executor exists.
 
 RFC 0014 Tier C-diff (en + zh) is updated to:
 
-- Record the audit results: EVM is the only backend with C-diff coverage today; NEAR
-  is the chosen next candidate; Solana is 2nd; Psy is 3rd (tool-blocked); Move-Sui /
-  Aleo / Cloudflare are deferred (research spikes / no real lowering).
+- Record the audit results: EVM has C-diff coverage; NEAR is the chosen next
+  candidate (stub landed); Solana is 2nd (stub landed); Psy is 3rd
+  (tool-blocked); Move-Sui / Aleo / Cloudflare are deferred (research spikes /
+  no real lowering).
 - Record the abstract replay interface (config + `renderReplayHarness` + observation),
   generalizing from `EvmReplay`, and note that the shared `Replay.lean` is the
   chain-neutral trace interpreter every shim reuses.
 - Point to this document for the per-backend feasibility table and the field-level
-  `NearReplay` design.
-- Note the minimal additive stub (`NearReplay.lean` + smoke) and that it is not wired
-  into CI.
+  `NearReplay` (§7) and `SolanaReplay` (§8.1) designs.
+- Note the minimal additive stubs (`NearReplay.lean` + smoke, `SolanaReplay.lean`
+  + smoke) and that neither is wired into CI.
 - Keep Phase 5 Path 5a scope as a *plan + stub*, not a full implementation.
 
 ## 12. Open questions
@@ -468,8 +600,10 @@ RFC 0014 Tier C-diff (en + zh) is updated to:
   (closer to EVM's in-test `assertEq`) rather than the Lean test parsing stdout?
   Recommendation: keep stdout parsing for v1 (no offline-host changes); revisit in v2.
 - Should `SolanaReplay` render a Rust test (option a) or a testkit scenario TOML
-  (option b)? Recommendation: option (a) for self-containment, revisit if the testkit
-  scenario path proves reusable.
+  (option b)? **Resolved:** option (a) — render a Rust Mollusk test file
+  (mirrors EVM's Solidity test rendering and the in-tree
+  `Tests/solana/counter_mollusk.rs.tpl` template). Landed in the stub; revisit
+  if the testkit scenario path proves reusable.
 - Should the abstract replay interface become a Lean typeclass? Inherited open
   question from RFC 0014 Phase 7; the per-backend harness shapes differ enough that a
   typeclass is not obviously worth it yet.

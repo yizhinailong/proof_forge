@@ -617,11 +617,11 @@ Summary:
   into CI. Step B (full `renderOfflineHostArgs`, the wrapping test that spawns
   `quint` + offline-host, the gate script, `just
   quint-near-backend-replay-gate`) is a follow-up.
-- **Recommended order:** EVM (done) → NEAR (this step, stub) → Solana (2nd;
-  Mollusk is in-tree as a Rust crate, `SolanaModulePlan` exposes the
-  discriminator/account schema) → Psy (3rd, blocked on `dargo` not installed
-  here) → Move-Sui / Aleo / Cloudflare (deferred, research spikes with no real
-  lowering).
+- **Recommended order:** EVM (done) → NEAR (stub landed) → Solana (stub
+  landed; Mollusk is in-tree as a Rust crate, `SolanaModulePlan` exposes the
+  discriminator/account schema; the shim renders a Rust Mollusk test file) → Psy
+  (3rd, blocked on `dargo` not installed here) → Move-Sui / Aleo / Cloudflare
+  (deferred, research spikes with no real lowering).
 - Mirror the existing `just quint-evm-backend-replay-gate` pattern on every
   backend once its `*ModulePlan` lands in Phase 2/4:
   - Solana: `just quint-solana-backend-replay-gate` — Quint MBT ITF trace →
@@ -727,7 +727,17 @@ A full feasibility assessment has been completed and is recorded in
   existing `EvmReplay.lean`), `justfile` recipes. **Landed in this step
   (additive stub):** `ProofForge/Backend/Quint/NearReplay.lean`,
   `Tests/Quint/NearReplaySmoke.lean`, `just quint-near-replay-smoke` (not wired
-  into `just check`). See [`docs/quint-cdiff-multi-backend-design.md`](../quint-cdiff-multi-backend-design.md).
+  into `just check`). **Landed 2026-07-07 (Solana stub):**
+  `ProofForge/Backend/Quint/SolanaReplay.lean`,
+  `Tests/Quint/SolanaReplaySmoke.lean`, `just quint-solana-replay-smoke` (not
+  wired into `just check` — running end-to-end needs SBF platform-tools not
+  installed here per AGENTS.md). The Solana shim renders a Rust Mollusk test
+  file (option (a) from the design doc — mirrors EVM's Solidity test rendering
+  and the in-tree `Tests/solana/counter_mollusk.rs.tpl` template); the
+  account-model translation (instruction discriminator via
+  `Manifest.externalDiscriminatorBytes?` + single writable state account +
+  little-endian instruction-data bytes) is the main extra work vs NEAR. See
+  [`docs/quint-cdiff-multi-backend-design.md`](../quint-cdiff-multi-backend-design.md).
 - Path 5b: `docs/tier-c-proof-feasibility.md` (new — landed this step).
   **Landed 2026-07-07 (Phase 6a):** `ProofForge/IR/StepSemantics.lean`,
   `Tests/IRStepSemantics.lean`, `just ir-step-semantics-smoke` (wired into `just check`),
@@ -871,12 +881,15 @@ deferred pending formal target semantics; they stay in Tier C-diff. Full
   [`docs/quint-cdiff-multi-backend-design.md`](../quint-cdiff-multi-backend-design.md). A per-backend
   feasibility audit and the abstract replay interface are recorded in
   [`docs/quint-cdiff-multi-backend-design.md`](../quint-cdiff-multi-backend-design.md);
-  NEAR is the chosen next candidate (stub landed), Solana is 2nd, Psy is 3rd
+  NEAR is the chosen next candidate (stub landed), Solana is 2nd (stub landed,
+  Rust Mollusk test rendering), Psy is 3rd
   (tool-blocked), Move-Sui/Aleo/Cloudflare are deferred (research spikes). Audit (2026-07-07)
   chose NEAR as the next candidate; a type-only `NearReplay.lean` stub landed.
+  A type-only `SolanaReplay.lean` stub (rendering a Rust Mollusk test file,
+  option (a)) landed 2026-07-07.
   See [`docs/quint-cdiff-multi-backend-design.md`](../quint-cdiff-multi-backend-design.md)
   for the per-backend feasibility table, the abstract replay interface, and the
-  field-level `NearReplay` design.
+  field-level `NearReplay` (§7) and `SolanaReplay` (§8.1) designs.
 - **Tier C-proof:** deepen `Evm.Refinement` and `WasmNear.Refinement`; add
   `Solana.Refinement` beyond the Phase 5 Counter seam toward syscall-aware
   obligations. Evaluate integrating an external Lean EVM semantics such as

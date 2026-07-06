@@ -436,6 +436,13 @@ quint-near-replay-smoke:
     lake build ProofForge.Backend.Quint.NearReplay
     lake env lean --run Tests/Quint/NearReplaySmoke.lean
 
+# SolanaReplay shim smoke: pure Lean string-render check (no mollusk/sbpf/quint spawn).
+# Not wired into `just check` — running end-to-end needs SBF platform-tools not
+# installed here per AGENTS.md; the smoke is a pure-Lean string check.
+quint-solana-replay-smoke:
+    lake build ProofForge.Backend.Quint.SolanaReplay
+    lake env lean --run Tests/Quint/SolanaReplaySmoke.lean
+
 # Unified Quint IR model gate: emit, verify, MBT, IR replay, and Counter EVM backend replay.
 quint-ir-model-gate:
     scripts/quint/ir-model-gate.sh
