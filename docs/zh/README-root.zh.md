@@ -32,12 +32,15 @@ ProofForge 的目标是：一份经过验证的 Lean 合约代码库，可以在
 
 | Target id | 管线 | 阶段 | 本地验证 |
 |---|---|---|---|
-| `evm` | Lean / portable IR → Yul → `solc` → bytecode | 基线（成熟） | golden Yul、诊断、Foundry 运行时冒烟、Anvil 部署 |
-| `solana-sbpf-asm` | portable IR → sBPF assembly → `sbpf` → ELF | Experimental | Mollusk 测试、Surfpool/Web3.js live 冒烟、Pinocchio 等价性门禁、Memo CPI、Token-2022 扩展（transfer_fee/non_transferable/metadata_pointer/default_account_state/immutable_owner/permanent_delegate/interest_bearing/memo_transfer/transfer_hook_init/pausable） |
+| `evm` | Lean / portable IR → Yul → `solc` → bytecode | Experimental（生产级门禁） | golden Yul、诊断、Foundry 运行时冒烟、Anvil 部署 |
+| `solana-sbpf-asm` | portable IR → sBPF assembly → `sbpf` → ELF | Experimental | Mollusk 测试、Surfpool/Web3.js live 冒烟、Pinocchio 等价性门禁、Memo CPI、Token-2022 扩展 |
 | `wasm-near` | portable IR → `EmitWat`（Wasm AST → WAT）→ `wat2wasm` | Experimental | 诊断、IR 覆盖清单、形式化 trace obligation、target-first 冒烟、离线宿主冒烟、artifact/deploy metadata |
+| `wasm-cosmwasm` | portable IR → EmitWat → WAT → `wat2wasm` | Spike | Counter golden WAT、`just cosmwasm-counter-smoke`（可选 CI） |
+| `move-aptos` | portable IR → Aptos Move 包 | Spike | Counter golden Move、`just aptos-counter-smoke`（可选 CI） |
+| `move-sui` | portable IR → Sui Move 包 | Counter MVP | 本地 `sui move build/test`、`just sui-counter-smoke` 等 |
 | `psy-dpn` | portable IR → `.psy` → Dargo → DPN circuit JSON | Experimental（受限子集） | golden source、诊断、`dargo` execute 冒烟 |
-| `aleo-leo` | portable IR → Leo package → `leo build`/`leo test` | Research spike | Counter/PureMath golden fixture 与冒烟 |
-| `wasm-cloudflare-workers` | portable IR → TypeScript Worker | Research（链下宿主，D-033） | `tsc` 类型检查、`wrangler` dry-run |
+| `aleo-leo` | portable IR → Leo package → `leo build`/`leo test` | Research spike（仅 CLI） | Counter/PureMath golden fixture 与冒烟 |
+| `wasm-cloudflare-workers` | portable IR → TypeScript Worker | Research spike | `tsc` 类型检查、`wrangler` dry-run |
 
 多链 Token SDK（`TokenSpec`，[RFC 0006](../rfcs/0006-multichain-token-sdk.md)）
 把同一份 token 意图在 EVM 上路由为 ERC-20 bytecode，在 Solana 上路由为

@@ -405,6 +405,10 @@ solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-s
 docs-check:
     scripts/i18n/check-sync.sh
 
+# Mechanical doc↔code drift report (advisory; see docs/doc-code-sync-audit-2026-07.md).
+doc-sync-audit:
+    scripts/docs/audit-doc-code-sync.sh
+
 # Emit Counter .qnt model and run `quint verify`. Skips if Java < 17.
 quint-model-gate:
     scripts/quint/model-check-gate.sh
