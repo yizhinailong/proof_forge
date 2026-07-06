@@ -371,12 +371,19 @@ Tasks:
     paths must now pass through `ReturnValueWordPlan` or aggregate crosscall
     return planning.
   - Started: direct scalar local assignment and compound-assignment statement
-    assembly now consumes a narrow `StmtPlan -> ToYul` helper when the RHS is in
-    the supported scalar plan subset. Static local fixed-array element
+    assembly now always consumes `Lower.buildExprPlan` before
+    `ToYul.scalarAssignmentStmtPlanStatements`. Static local fixed-array element
     assignment, static local struct-field assignment, and static local
-    struct-array field assignment targets now also use the same
+    struct-array field assignment targets use the same
     `StmtPlan.assign`/`StmtPlan.assignOp -> ToYul` helper through
-    `ExprPlan.localArrayGet` and `ExprPlan.structField`. Whole-aggregate
+    `ExprPlan.localArrayGet` and `ExprPlan.structField`, with RHS lowering via
+    `lowerAssignmentValueExpr`. The scalar-local `lowerExpr` assignment fallback
+    and `exprSupportsPlanScalarYul` gate in
+    `lowerStaticAggregateScalarAssignmentPlan?` have been removed.
+  - Started: scalar `ifElse` compatibility lowering now always routes condition
+    expressions through `Lower.buildExprPlan` before
+    `ToYul.ifElseStmtPlanStatements`; the old `switchStmt` fallback over
+    `lowerScalarPlanExprOrFallback` has been removed. Whole-aggregate
     assignment, dynamic aggregate helper snapshots, and non-scalar storage
     effect writes remain on their existing compatibility paths until their own
     migration slices add coverage.

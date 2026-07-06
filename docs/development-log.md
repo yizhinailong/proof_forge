@@ -17,6 +17,45 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Assignment/Control-Flow Fallback Retirement
+
+Work range: assignment/control-flow fallback removal
+
+Summary:
+
+- Made scalar local `assign`/`assignOp` always route through
+  `Lower.buildExprPlan -> ToYul.scalarAssignmentStmtPlanStatements`.
+- Replaced static aggregate assignment RHS fallback lowering with
+  `lowerAssignmentValueExpr` (`buildExprPlan -> lowerExprPlanExpr`).
+- Removed the `exprSupportsPlanScalarYul` gate from
+  `lowerStaticAggregateScalarAssignmentPlan?`.
+- Removed the `ifElse` compatibility `switchStmt` fallback; unsupported
+  condition shapes now fail through `Lower.buildExprPlan` instead of
+  `lowerScalarPlanExprOrFallback`.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+! rg -n "lowerExpr module env value\\)|switchStmt \\(← lowerScalarPlanExprOrFallback|exprSupportsPlanScalarYul value then" ProofForge/Backend/Evm/IR.lean
+lake build ProofForge.Backend.Evm.IR
+just evm-smoke assignment assign-op conditional loop array-value struct-value
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- `lowerScalarPlanExprOrFallback` remains only for `lowerReturnWords` scalar
+  return-word compatibility.
+- Whole-aggregate local assignment snapshots still use dedicated IR-local helpers
+  outside the scalar assignment StmtPlan surface.
+
+Next step:
+
+- Continue moving recursive body lowering gaps behind `StmtPlan -> ToYul` or
+  retire the remaining `lowerReturnWords` scalar compatibility path.
+
 ### EVM Binding/Assert/Return Fallback Retirement
 
 Work range: binding/assert/return PlanOrFallback removal
