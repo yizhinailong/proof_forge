@@ -144,6 +144,52 @@ Concretely, the pieces are:
 
 ### Phase 6a — Tighten `Evm.Refinement` toward a real simulation (internal, no new dep)
 
+**Status:** Landed (2026-07-07).
+
+**What was delivered:**
+
+- `ProofForge/IR/StepSemantics.lean` (new) defines a generic inductive
+  `IRTraceMatches step : State → List Call → Array Obs → Prop` predicate,
+  structurally recursive over the call list (two constructors: `nil` for
+  the empty trace, `cons` for one atomic `step` call followed by the rest).
+  It is parameterized by an atomic per-call step function
+  `step : State → Call → Except String (State × Obs)` so it stays
+  EVM-agnostic; `Evm.Refinement.lean` instantiates it with the existing
+  `runEntrypointObservable` to recover the IR trace semantics.
+- A generic executable runner `runTraceListGen step` mirrors
+  `Evm.Refinement.runTraceList` and is proven *sound* against
+  `IRTraceMatches` by `theorem runTraceListGen_sound` discharged with
+  `induction calls generalizing s` — NOT `native_decide`. This is the first
+  universally-quantified IR-side trace lemma in the Tier C-proof chain:
+  for ALL states `s` and ALL call lists, the executable runner agrees with
+  the inductive predicate (on `.ok`; `.error` is `True`). A completeness
+  lemma and an `iff` bridge are also provided.
+- A `Decidable` instance on `IRTraceMatches` computes `runTraceListGen`
+  and compares the observable array, letting `native_decide` re-prove the
+  fixed-scenario theorems as `IRTraceMatches` instances without changing
+  their truth values.
+- `Evm.Refinement.lean` adds `counter_ir_trace_matches_inductive` and
+  `value_vault_ir_trace_matches_inductive` — the Counter and ValueVault
+  observable traces restated as inductive `IRTraceMatches` propositions,
+  discharged via the `Decidable` bridge + `native_decide` on the fixed
+  scenarios. The existing `counter_ir_observable_trace_ok` and
+  `value_vault_ir_observable_trace_ok` `native_decide` theorems are
+  preserved as regression smoke.
+- `Tests/IRStepSemantics.lean` (new) `#check`s the soundness theorem,
+  the inductive bridge theorems, and the preserved `native_decide`
+  theorems, plus two sanity-check theorems that the generic runner and the
+  inductive predicate agree with the existing `runTrace` on the Counter
+  scenario. `just ir-step-semantics-smoke` runs it and is wired into
+  `just check` (Lean-only, ~2.5s).
+
+**Design choice (b) — big-step induction over the call list.** We keep the
+existing big-step interpreter `IR.Semantics.runEntrypointWithArgs` as the
+atomic step and layer the inductive predicate on top, rather than
+reframing the IR semantics as a small-step `step : State → Option State`
+relation. This is the minimal change that enables induction over the trace
+without refactoring the whole IR interpreter. A small-step relation (the
+Phase 6c simulation-prerequisite) is left to Phase 6b+.
+
 - Introduce a small-step `step : IR.Semantics.State → Option IR.Semantics.State`
   relation (or a big-step `evalStmt : State → Stmt → State`) in a new
   `ProofForge/IR/StepSemantics.lean`.

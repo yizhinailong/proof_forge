@@ -669,6 +669,20 @@ A full feasibility assessment has been completed and is recorded in
   reformulate `irTraceOk` as an inductive `IRTraceMatches` predicate; prove soundness by
   induction (not `native_decide`). Keep existing `native_decide` theorems as regression smoke.
   Deliverable: first universally-quantified IR-side trace lemmas.
+  **Status (2026-07-07): landed.** `ProofForge/IR/StepSemantics.lean` defines the generic
+  inductive `IRTraceMatches` predicate (structurally recursive over the call list), a
+  generic `runTraceListGen` runner, and `runTraceListGen_sound` discharged by
+  `induction calls generalizing s` (NOT `native_decide`) — the first universally-quantified
+  IR-side trace lemma. A `Decidable` instance on `IRTraceMatches` (via the iff bridge to
+  `runTraceListGen`) lets `native_decide` re-prove the fixed-scenario theorems. Design
+  choice (b): big-step induction over the call list (keep the existing big-step interpreter
+  `runEntrypointWithArgs` as the atomic step; small-step `step` relation deferred to 6b+).
+  `Evm.Refinement.lean` adds `counter_ir_trace_matches_inductive` and
+  `value_vault_ir_trace_matches_inductive`, preserving the existing
+  `counter_ir_observable_trace_ok` / `value_vault_ir_observable_trace_ok` as regression
+  smoke. `Tests/IRStepSemantics.lean` + `just ir-step-semantics-smoke` (wired into
+  `just check`) anchor the layer. See the Phase 6a "landed" note in
+  [`docs/tier-c-proof-feasibility.md`](../tier-c-proof-feasibility.md).
 - **Phase 6b — Integrate `EVMYulLean` EVM bytecode semantics as a lake dependency.**
   Add `leonardoalt/EVMYulLean` as a `require` in `lakefile.lean`; pull `EthereumTests`
   submodule for CI-only conformance. Provide a thin adapter
@@ -699,8 +713,11 @@ A full feasibility assessment has been completed and is recorded in
   `Tests/Quint/NearReplaySmoke.lean`, `just quint-near-replay-smoke` (not wired
   into `just check`). See [`docs/quint-cdiff-multi-backend-design.md`](../quint-cdiff-multi-backend-design.md).
 - Path 5b: `docs/tier-c-proof-feasibility.md` (new — landed this step).
-  Future: `ProofForge/IR/StepSemantics.lean` (6a),
-  `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` (6b),
+  **Landed 2026-07-07 (Phase 6a):** `ProofForge/IR/StepSemantics.lean`,
+  `Tests/IRStepSemantics.lean`, `just ir-step-semantics-smoke` (wired into `just check`),
+  `ProofForge/Backend/Evm/Refinement.lean` bridge theorems
+  (`counter_ir_trace_matches_inductive`, `value_vault_ir_trace_matches_inductive`).
+  Future: `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` (6b),
   `lakefile.lean` `EVMYulLean` dependency (6b).
 
 **Risks:** overstating what is "proven" — Path 5a is differential testing

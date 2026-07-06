@@ -110,6 +110,11 @@ diagnostic-smoke:
     lake build ProofForge.Backend.Diagnostic
     lake env lean --run Tests/Diagnostic.lean
 
+# Check RFC 0014 Phase 6a inductive IR trace semantics (IRTraceMatches + soundness by induction).
+ir-step-semantics-smoke:
+    lake build ProofForge.IR.StepSemantics ProofForge.Backend.Evm.Refinement
+    lake env lean --run Tests/IRStepSemantics.lean
+
 # Check that executable scripts/testkit callers use target-first CLI commands.
 cli-target-first:
     python3 scripts/cli/check-target-first-migration.py
@@ -453,7 +458,7 @@ testkit-budget-gate:
     CAST="${CAST:-$HOME/.foundry/bin/cast}" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault
 
 # Run the fast local baseline used before broader target smokes.
-check: build target-registry contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke diagnostic-smoke solana-light portable-counter-multi-target cli-target-first contract-source-diagnostics near-target-first wasm-near-plan near-plan-smoke wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli quint-mbt-gate quint-ir-model-gate
+check: build target-registry contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke diagnostic-smoke ir-step-semantics-smoke solana-light portable-counter-multi-target cli-target-first contract-source-diagnostics near-target-first wasm-near-plan near-plan-smoke wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli quint-mbt-gate quint-ir-model-gate
 
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:
