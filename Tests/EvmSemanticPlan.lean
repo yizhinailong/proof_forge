@@ -5014,6 +5014,21 @@ def testReturnValueWordPlanToYul : IO Unit := do
       require (length == 3) "Lower storage fixed-array ABI word length"
       require (index == 0) "Lower storage fixed-array ABI word index"
   | _ => throw <| IO.userError "Lower storage fixed-array ABI first word must use array storageLoad plan"
+  let storageArrayFacadeWords ← requireOk
+    (lowerStorageArrayAbiWords
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      "entrypoint `return_values` return value"
+      "values"
+      .u64
+      3)
+    "planned storage fixed-array ABI words ToYul facade"
+  require (storageArrayFacadeWords.size == 3) "planned storage fixed-array ABI facade word count"
+  match storageArrayFacadeWords[0]! with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "planned storage fixed-array ABI facade sload arg count"
+      requireCallExpr args[0]! "__proof_forge_array_slot" 3
+        "planned storage fixed-array ABI facade slot helper"
+  | _ => throw <| IO.userError "planned storage fixed-array ABI facade word must be sload"
   let storageArrayAssignments ← requireOk
     (lowerReturnValueWordPlan
       ProofForge.IR.Examples.EvmStorageArrayProbe.module
@@ -5065,6 +5080,21 @@ def testReturnValueWordPlanToYul : IO Unit := do
       require (fieldOffset == 1) "Lower storage struct-array ABI word field offset"
       require (index == 1) "Lower storage struct-array ABI word index"
   | _ => throw <| IO.userError "Lower storage struct-array ABI last word must use struct-array storageLoad plan"
+  let storageStructArrayFacadeWords ← requireOk
+    (lowerStorageArrayAbiWords
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      "entrypoint `return_points` return value"
+      "points"
+      (.structType "Point")
+      2)
+    "planned storage struct-array ABI words ToYul facade"
+  require (storageStructArrayFacadeWords.size == 4) "planned storage struct-array ABI facade word count"
+  match storageStructArrayFacadeWords[3]! with
+  | Lean.Compiler.Yul.Expr.builtin "sload" args => do
+      require (args.size == 1) "planned storage struct-array ABI facade sload arg count"
+      requireCallExpr args[0]! "__proof_forge_struct_array_slot" 5
+        "planned storage struct-array ABI facade slot helper"
+  | _ => throw <| IO.userError "planned storage struct-array ABI facade word must be sload"
   let storageStructArrayAssignments ← requireOk
     (lowerReturnValueWordPlan
       ProofForge.IR.Examples.EvmStorageStructProbe.module
