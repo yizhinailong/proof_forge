@@ -17,6 +17,51 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Dynamic Aggregate Assignment Compatibility Retirement
+
+Work range: dynamic aggregate field assignment IR-local helper removal
+
+Summary:
+
+- Added `ToYul.dynamicAggregateScalarAssignmentStmtPlanStatements` so dynamic
+  local fixed-array and struct-array field assignment targets lower through
+  `buildStaticAggregateScalarTargetPlan? -> StmtPlan.assign/assignOp -> ToYul`.
+- Unified static and dynamic aggregate scalar assignment behind
+  `lowerAggregateScalarAssignmentStmt` in `IR.lean`.
+- Simplified `lowerAssignStmt` and `lowerAssignOpStmt` aggregate-target dispatch
+  to a single planned path for non-whole-local targets.
+- Removed IR-local dynamic assignment helpers:
+  `lowerDynamicLocalExprPlanExpr`, `lowerDynamicLocalFixedArrayAssignStmt`,
+  `lowerDynamicLocalFixedArrayAssignOpStmt`,
+  `lowerDynamicLocalStructArrayFieldAssignStmt`,
+  `lowerDynamicLocalStructArrayFieldAssignOpStmt`,
+  `lowerDynamicLocalFixedArrayPathAssignBody`,
+  `lowerDynamicLocalFixedArrayPathAssignStmt`,
+  `lowerDynamicLocalFixedArrayPathFieldAssignBody`, and
+  `lowerDynamicLocalFixedArrayPathFieldAssignStmt`.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+! rg -n "lowerDynamicLocal|lowerStaticAggregateScalarAssignmentStmt" ProofForge
+lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.ToYul
+just evm-smoke array-value struct-array-value assignment assign-op
+just evm-semantic-plan
+just evm-diagnostics
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Whole-aggregate compound assignment on local fixed-array/struct bindings still
+  uses `lowerAssignTargetName` outside the scalar `StmtPlan.assign` surface.
+
+Next step:
+
+- Continue moving whole-aggregate compound assignment behind `StmtPlan -> ToYul`.
+
 ### EVM Static Aggregate Assignment Target Fallback Retirement
 
 Work range: `lowerAssignStmt` static aggregate target fallback removal
@@ -46,12 +91,10 @@ Known limitations:
 
 - Whole-aggregate compound assignment on local fixed-array/struct bindings still
   uses `lowerAssignTargetName` outside the scalar `StmtPlan.assign` surface.
-- Dynamic aggregate field assignment frames still use dedicated IR-local helpers.
 
 Next step:
 
-- Continue moving whole-aggregate compound assignment behind `StmtPlan -> ToYul`
-  or shrink dynamic aggregate field assignment compatibility helpers.
+- Continue moving whole-aggregate compound assignment behind `StmtPlan -> ToYul`.
 
 ### EVM Whole-Aggregate Local Assignment Fallback Retirement
 

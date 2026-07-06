@@ -3338,207 +3338,6 @@ def lowerWholeLocalAssignStmt
   | _ =>
       .error { message := s!"assignment target local `{name}` is not an aggregate value" }
 
-def dynamicArrayIndexLocalName : String :=
-  ProofForge.Backend.Evm.ToYul.dynamicArrayIndexLocalName
-
-def dynamicArrayValueLocalName : String :=
-  ProofForge.Backend.Evm.ToYul.dynamicArrayValueLocalName
-
-def dynamicArrayIndexPathLocalName (depth : Nat) : String :=
-  ProofForge.Backend.Evm.ToYul.dynamicArrayIndexPathLocalName depth
-
-def dynamicLocalFixedArraySwitchCases
-    (length : Nat)
-    (bodyForIndex : Nat → Array Lean.Compiler.Yul.Statement) : Array Lean.Compiler.Yul.Case :=
-  ProofForge.Backend.Evm.ToYul.dynamicLocalFixedArraySwitchCases length bodyForIndex
-
-partial def lowerDynamicLocalExprPlanExpr
-    (module : Module)
-    (env : TypeEnv)
-    (expr : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-  let plan ←
-    match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) expr with
-    | .ok plan => .ok plan
-    | .error err => .error { message := err.message }
-  lowerExprPlanExpr module env plan
-
-def lowerDynamicLocalFixedArrayAssignStmt
-    (module : Module)
-    (env : TypeEnv)
-    (name : String)
-    (length : Nat)
-    (index value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let valueExpr ← lowerDynamicLocalExprPlanExpr module env value
-  let indexExpr ← lowerDynamicLocalExprPlanExpr module env index
-  .ok (ProofForge.Backend.Evm.ToYul.dynamicLocalValueSwitchBlock
-    indexExpr
-    valueExpr
-    length
-    (fun idx =>
-      #[ProofForge.Backend.Evm.ToYul.dynamicAssignmentStatement
-        (arrayLocalElementName name idx)
-        none]))
-
-partial def lowerDynamicLocalFixedArrayPathAssignBody
-    (module : Module)
-    (env : TypeEnv)
-    (name : String)
-    (type : ValueType)
-    (pathPrefix : Array Nat)
-    (path : Array ProofForge.IR.Expr)
-    (op? : Option AssignOp) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  match path.toList with
-  | [] =>
-      let targetName := arrayLocalPathName name pathPrefix
-      .ok #[ProofForge.Backend.Evm.ToYul.dynamicAssignmentStatement targetName op?]
-  | index :: rest =>
-      match type with
-      | .fixedArray elementType length =>
-          match literalArrayIndex? index with
-          | some indexValue => do
-              ensureFixedArrayIndexInBounds "assignment target fixed-array index" indexValue length
-              lowerDynamicLocalFixedArrayPathAssignBody module env name elementType (pathPrefix.push indexValue) rest.toArray op?
-          | none => do
-              let indexExpr ← lowerDynamicLocalExprPlanExpr module env index
-              let mut cases : Array Lean.Compiler.Yul.Case := #[]
-              for _h : idx in [0:length] do
-                cases := cases.push <|
-                  ProofForge.Backend.Evm.ToYul.dynamicLocalSwitchCase idx
-                    (← lowerDynamicLocalFixedArrayPathAssignBody module env name elementType (pathPrefix.push idx) rest.toArray op?)
-              cases := cases.push ProofForge.Backend.Evm.ToYul.dynamicLocalSwitchDefaultCase
-              .ok #[
-                ProofForge.Backend.Evm.ToYul.dynamicLocalPathSwitchBlock
-                  pathPrefix.size
-                  indexExpr
-                  cases
-              ]
-      | other =>
-          .error { message := s!"assignment target fixed-array path expected `Array`, got `{other.name}`" }
-
-def lowerDynamicLocalFixedArrayPathAssignStmt
-    (module : Module)
-    (env : TypeEnv)
-    (name : String)
-    (binding : LocalBinding)
-    (path : Array ProofForge.IR.Expr)
-    (op? : Option AssignOp)
-    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let valueExpr ← lowerDynamicLocalExprPlanExpr module env value
-  let body ← lowerDynamicLocalFixedArrayPathAssignBody module env name binding.type #[] path op?
-  .ok (ProofForge.Backend.Evm.ToYul.dynamicLocalValueBlock valueExpr body)
-
-partial def lowerDynamicLocalFixedArrayPathFieldAssignBody
-    (module : Module)
-    (env : TypeEnv)
-    (name : String)
-    (type : ValueType)
-    (pathPrefix : Array Nat)
-    (path : Array ProofForge.IR.Expr)
-    (fieldName : String)
-    (op? : Option AssignOp) : Except LowerError (Array Lean.Compiler.Yul.Statement) := do
-  match path.toList with
-  | [] =>
-      match type with
-      | .structType typeName => do
-          discard <| ensureLocalFlatStructType module s!"assignment target local `{name}` fixed-array leaf" typeName
-          let fieldType ← structFieldType module typeName fieldName
-          ensureStructLocalFieldType typeName fieldName fieldType
-          let targetName := arrayStructLocalPathFieldName name pathPrefix fieldName
-          .ok #[ProofForge.Backend.Evm.ToYul.dynamicAssignmentStatement targetName op?]
-      | other =>
-          .error { message := s!"assignment target fixed-array path field expected flat struct leaf, got `{other.name}`" }
-  | index :: rest =>
-      match type with
-      | .fixedArray elementType length =>
-          match literalArrayIndex? index with
-          | some indexValue => do
-              ensureFixedArrayIndexInBounds "assignment target fixed-array index" indexValue length
-              lowerDynamicLocalFixedArrayPathFieldAssignBody module env name elementType (pathPrefix.push indexValue) rest.toArray fieldName op?
-          | none => do
-              let indexExpr ← lowerDynamicLocalExprPlanExpr module env index
-              let mut cases : Array Lean.Compiler.Yul.Case := #[]
-              for _h : idx in [0:length] do
-                cases := cases.push <|
-                  ProofForge.Backend.Evm.ToYul.dynamicLocalSwitchCase idx
-                    (← lowerDynamicLocalFixedArrayPathFieldAssignBody module env name elementType (pathPrefix.push idx) rest.toArray fieldName op?)
-              cases := cases.push ProofForge.Backend.Evm.ToYul.dynamicLocalSwitchDefaultCase
-              .ok #[
-                ProofForge.Backend.Evm.ToYul.dynamicLocalPathSwitchBlock
-                  pathPrefix.size
-                  indexExpr
-                  cases
-              ]
-      | other =>
-          .error { message := s!"assignment target fixed-array path expected `Array`, got `{other.name}`" }
-
-def lowerDynamicLocalFixedArrayPathFieldAssignStmt
-    (module : Module)
-    (env : TypeEnv)
-    (name : String)
-    (binding : LocalBinding)
-    (path : Array ProofForge.IR.Expr)
-    (fieldName : String)
-    (op? : Option AssignOp)
-    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let valueExpr ← lowerDynamicLocalExprPlanExpr module env value
-  let body ← lowerDynamicLocalFixedArrayPathFieldAssignBody module env name binding.type #[] path fieldName op?
-  .ok (ProofForge.Backend.Evm.ToYul.dynamicLocalValueBlock valueExpr body)
-
-def lowerDynamicLocalFixedArrayAssignOpStmt
-    (module : Module)
-    (env : TypeEnv)
-    (name : String)
-    (length : Nat)
-    (index : ProofForge.IR.Expr)
-    (op : AssignOp)
-    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let valueExpr ← lowerDynamicLocalExprPlanExpr module env value
-  let indexExpr ← lowerDynamicLocalExprPlanExpr module env index
-  .ok (ProofForge.Backend.Evm.ToYul.dynamicLocalValueSwitchBlock
-    indexExpr
-    valueExpr
-    length
-    (fun idx =>
-      #[ProofForge.Backend.Evm.ToYul.dynamicAssignmentStatement
-        (arrayLocalElementName name idx)
-        (some op)]))
-
-def lowerDynamicLocalStructArrayFieldAssignStmt
-    (module : Module)
-    (env : TypeEnv)
-    (name fieldName : String)
-    (length : Nat)
-    (index value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let valueExpr ← lowerDynamicLocalExprPlanExpr module env value
-  let indexExpr ← lowerDynamicLocalExprPlanExpr module env index
-  .ok (ProofForge.Backend.Evm.ToYul.dynamicLocalValueSwitchBlock
-    indexExpr
-    valueExpr
-    length
-    (fun idx =>
-      #[ProofForge.Backend.Evm.ToYul.dynamicAssignmentStatement
-        (arrayStructLocalFieldName name idx fieldName)
-        none]))
-
-def lowerDynamicLocalStructArrayFieldAssignOpStmt
-    (module : Module)
-    (env : TypeEnv)
-    (name fieldName : String)
-    (length : Nat)
-    (index : ProofForge.IR.Expr)
-    (op : AssignOp)
-    (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let valueExpr ← lowerDynamicLocalExprPlanExpr module env value
-  let indexExpr ← lowerDynamicLocalExprPlanExpr module env index
-  .ok (ProofForge.Backend.Evm.ToYul.dynamicLocalValueSwitchBlock
-    indexExpr
-    valueExpr
-    length
-    (fun idx =>
-      #[ProofForge.Backend.Evm.ToYul.dynamicAssignmentStatement
-        (arrayStructLocalFieldName name idx fieldName)
-        (some op)]))
-
 def exprPlanIsStaticAggregateScalarTarget : ProofForge.Backend.Evm.Plan.ExprPlan → Bool
   | .localArrayGet _ path _ =>
       match ProofForge.Backend.Evm.ToYul.localArrayStaticPath? path with
@@ -3589,7 +3388,7 @@ def buildStaticAggregateScalarTargetPlan?
           | none =>
               .ok none
 
-def lowerStaticAggregateScalarAssignmentStmt
+def lowerAggregateScalarAssignmentStmt
     (module : Module)
     (env : TypeEnv)
     (context : String)
@@ -3602,10 +3401,6 @@ def lowerStaticAggregateScalarAssignmentStmt
         message := s!"{context} must be a mutable local, mutable local fixed-array element, mutable local struct field, or mutable local struct-array field in IR EVM v0"
       }
   | some targetPlan =>
-      if !exprPlanIsStaticAggregateScalarTarget targetPlan then
-        .error {
-          message := s!"{context} must use static literal indices for local fixed-array assignment targets in IR EVM v0"
-        }
       let valuePlan ←
         match ProofForge.Backend.Evm.Lower.buildExprPlan module (toValidateTypeEnv env) value with
         | .ok plan => .ok plan
@@ -3614,11 +3409,18 @@ def lowerStaticAggregateScalarAssignmentStmt
         match op? with
         | none => ProofForge.Backend.Evm.Plan.StmtPlan.assign targetPlan valuePlan
         | some op => ProofForge.Backend.Evm.Plan.StmtPlan.assignOp targetPlan op valuePlan
-      ProofForge.Backend.Evm.ToYul.scalarAssignmentStmtPlanStatements
-        toYulError
-        (fun expr => lowerExpr module env expr)
-        (lowerPlanEffectExpr module env)
-        stmtPlan
+      if exprPlanIsStaticAggregateScalarTarget targetPlan then
+        ProofForge.Backend.Evm.ToYul.scalarAssignmentStmtPlanStatements
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          (lowerPlanEffectExpr module env)
+          stmtPlan
+      else
+        ProofForge.Backend.Evm.ToYul.dynamicAggregateScalarAssignmentStmtPlanStatements
+          toYulError
+          (fun expr => lowerExpr module env expr)
+          (lowerPlanEffectExpr module env)
+          stmtPlan
 
 def lowerAssignStmt
     (module : Module)
@@ -3633,38 +3435,8 @@ def lowerAssignStmt
           .ok #[← lowerWholeLocalAssignStmt module env name binding value]
       | _ =>
           lowerScalarLocalAssignmentStmt module env name none value
-  | .arrayGet (.local name) index =>
-      match literalArrayIndex? index with
-      | some _ =>
-          lowerStaticAggregateScalarAssignmentStmt module env "assignment target" target value none
-      | none => do
-          let (_, length) ← requireLocalFixedArray "assignment target" env name
-          .ok #[← lowerDynamicLocalFixedArrayAssignStmt module env name length index value]
-  | .field (.arrayGet (.local name) index) fieldName =>
-      match literalArrayIndex? index with
-      | some _ =>
-          lowerStaticAggregateScalarAssignmentStmt module env "assignment target" target value none
-      | none => do
-          let (_, length, _) ← requireLocalFixedStructArrayField module env "assignment target" name fieldName
-          .ok #[← lowerDynamicLocalStructArrayFieldAssignStmt module env name fieldName length index value]
-  | _ => do
-      match collectLocalArrayFieldGetPath target with
-      | some (name, path, fieldName) =>
-          if path.size > 1 && arrayIndexPathHasDynamic path then
-            let binding ← requireMutableLocal env "assignment target" name
-            .ok #[← lowerDynamicLocalFixedArrayPathFieldAssignStmt module env name binding path fieldName none value]
-          else
-            lowerStaticAggregateScalarAssignmentStmt module env "assignment target" target value none
-      | none =>
-          match collectLocalArrayGetPath target with
-          | some (name, path) =>
-              if path.size > 1 && arrayIndexPathHasDynamic path then
-                let binding ← requireMutableLocal env "assignment target" name
-                .ok #[← lowerDynamicLocalFixedArrayPathAssignStmt module env name binding path none value]
-              else
-                lowerStaticAggregateScalarAssignmentStmt module env "assignment target" target value none
-          | none =>
-              lowerStaticAggregateScalarAssignmentStmt module env "assignment target" target value none
+  | _ =>
+      lowerAggregateScalarAssignmentStmt module env "assignment target" target value none
 
 def lowerAssignOpStmt
     (module : Module)
@@ -3682,38 +3454,8 @@ def lowerAssignOpStmt
           .ok #[.assignment #[targetName] (lowerAssignOpExpr op (Lean.Compiler.Yul.Expr.id targetName) (← lowerAssignmentValueExpr module env value))]
       | _ =>
           lowerScalarLocalAssignmentStmt module env name (some op) value
-  | .arrayGet (.local name) index =>
-      match literalArrayIndex? index with
-      | some _ =>
-          lowerStaticAggregateScalarAssignmentStmt module env "compound assignment target" target value (some op)
-      | none => do
-          let (_, length) ← requireLocalFixedArray "compound assignment target" env name
-          .ok #[← lowerDynamicLocalFixedArrayAssignOpStmt module env name length index op value]
-  | .field (.arrayGet (.local name) index) fieldName =>
-      match literalArrayIndex? index with
-      | some _ =>
-          lowerStaticAggregateScalarAssignmentStmt module env "compound assignment target" target value (some op)
-      | none => do
-          let (_, length, _) ← requireLocalFixedStructArrayField module env "compound assignment target" name fieldName
-          .ok #[← lowerDynamicLocalStructArrayFieldAssignOpStmt module env name fieldName length index op value]
-  | _ => do
-      match collectLocalArrayFieldGetPath target with
-      | some (name, path, fieldName) =>
-          if path.size > 1 && arrayIndexPathHasDynamic path then
-            let binding ← requireMutableLocal env "compound assignment target" name
-            .ok #[← lowerDynamicLocalFixedArrayPathFieldAssignStmt module env name binding path fieldName (some op) value]
-          else
-            lowerStaticAggregateScalarAssignmentStmt module env "compound assignment target" target value (some op)
-      | none =>
-          match collectLocalArrayGetPath target with
-          | some (name, path) =>
-              if path.size > 1 && arrayIndexPathHasDynamic path then
-                let binding ← requireMutableLocal env "compound assignment target" name
-                .ok #[← lowerDynamicLocalFixedArrayPathAssignStmt module env name binding path (some op) value]
-              else
-                lowerStaticAggregateScalarAssignmentStmt module env "compound assignment target" target value (some op)
-          | none =>
-              lowerStaticAggregateScalarAssignmentStmt module env "compound assignment target" target value (some op)
+  | _ =>
+      lowerAggregateScalarAssignmentStmt module env "compound assignment target" target value (some op)
 
 mutual
   partial def statementAlwaysReturns : Statement → Bool

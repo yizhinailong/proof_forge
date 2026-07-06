@@ -395,6 +395,14 @@ Tasks:
     -> StmtPlan.assign/assignOp -> ToYul`). The `lowerAssignTargetName` +
     `lowerAssignmentValueExpr` fallbacks for static aggregate assignment targets
     have been removed; unsupported targets now fail explicitly.
+  - Started: dynamic local fixed-array element and struct-array field assignment
+    targets now lower through `lowerAggregateScalarAssignmentStmt` and
+    `ToYul.dynamicAggregateScalarAssignmentStmtPlanStatements`
+    (`buildStaticAggregateScalarTargetPlan? -> StmtPlan.assign/assignOp -> ToYul`).
+    The IR-local dynamic assignment helpers for one-dimensional and nested path
+    switch-frame assembly have been removed; `lowerAssignStmt` and
+    `lowerAssignOpStmt` now route non-whole-local aggregate targets through the
+    unified planned path.
   - Started: scalar `ifElse` compatibility lowering now always routes condition
     expressions through `Lower.buildExprPlan` before
     `ToYul.ifElseStmtPlanStatements`; the old `switchStmt` fallback over

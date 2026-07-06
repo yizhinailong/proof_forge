@@ -2818,6 +2818,141 @@ def dynamicLocalValueBlock
     ] ++ body
   }
 
+def dynamicAggregateAssignmentLeafName
+    (name : String) (pathPrefix : Array Nat) (fieldName? : Option String) : String :=
+  match fieldName? with
+  | some fieldName => arrayStructLocalPathFieldName name pathPrefix fieldName
+  | none => arrayLocalPathName name pathPrefix
+
+def dynamicAggregateScalarAssignmentTarget?
+    (target : ExprPlan) : Option (String × Array ExprPlan × Array Nat × Option String) :=
+  match target with
+  | .localArrayGet name path lengths =>
+      some (name, path, lengths, none)
+  | .structField (.localArrayGet name path lengths) fieldName =>
+      some (name, path, lengths, some fieldName)
+  | _ =>
+      none
+
+partial def dynamicAggregateAssignmentPathBody
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerPlan : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (name : String)
+    (pathPlans : Array ExprPlan)
+    (lengths : Array Nat)
+    (pathPrefix : Array Nat)
+    (fieldName? : Option String)
+    (op? : Option AssignOp) :
+    Except ε (Array Lean.Compiler.Yul.Statement) := do
+  if pathPrefix.size == pathPlans.size then
+    let targetName := dynamicAggregateAssignmentLeafName name pathPrefix fieldName?
+    .ok #[dynamicAssignmentStatement targetName op?]
+  else
+    let depth := pathPrefix.size
+    let some length := lengths[depth]?
+      | .error (mkError s!"EVM StmtPlan-to-Yul dynamic aggregate assignment missing length at path depth {depth}")
+    let some indexPlan := pathPlans[depth]?
+      | .error (mkError s!"EVM StmtPlan-to-Yul dynamic aggregate assignment missing path index at depth {depth}")
+    match indexPlan with
+    | .literalWord indexValue =>
+        if indexValue >= length then
+          .error (mkError s!"EVM StmtPlan-to-Yul dynamic aggregate assignment index {indexValue} is out of bounds for length {length}")
+        else
+          dynamicAggregateAssignmentPathBody
+            mkError
+            lowerPlan
+            name
+            pathPlans
+            lengths
+            (pathPrefix.push indexValue)
+            fieldName?
+            op?
+    | _ =>
+        let indexExpr ← lowerPlan indexPlan
+        let mut cases : Array Lean.Compiler.Yul.Case := #[]
+        for _h : idx in [0:length] do
+          cases := cases.push <|
+            dynamicLocalSwitchCase idx
+              (← dynamicAggregateAssignmentPathBody
+                mkError
+                lowerPlan
+                name
+                pathPlans
+                lengths
+                (pathPrefix.push idx)
+                fieldName?
+                op?)
+        cases := cases.push dynamicLocalSwitchDefaultCase
+        .ok #[dynamicLocalPathSwitchBlock depth indexExpr cases]
+
+def dynamicAggregateScalarAssignmentFromTarget
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr)
+    (target value : ExprPlan)
+    (op? : Option AssignOp) : Except ε (Array Lean.Compiler.Yul.Statement) := do
+  let some (name, pathPlans, lengths, fieldName?) := dynamicAggregateScalarAssignmentTarget? target
+    | .error (mkError "EVM StmtPlan-to-Yul dynamic aggregate assignment lowering expected a dynamic local-array or struct-array field target")
+  if (localArrayStaticPath? pathPlans).isSome then
+    .error (mkError "EVM StmtPlan-to-Yul dynamic aggregate assignment lowering expected a dynamic local-array path")
+  let lowerPlan := fun plan => exprPlanExpr mkError lowerExpr lowerEffect plan
+  let valueExpr ← lowerPlan value
+  match pathPlans with
+  | #[indexPlan] =>
+      match indexPlan with
+      | .literalWord _ =>
+          let body ←
+            dynamicAggregateAssignmentPathBody
+              mkError
+              lowerPlan
+              name
+              pathPlans
+              lengths
+              #[]
+              fieldName?
+              op?
+          .ok #[dynamicLocalValueBlock valueExpr body]
+      | _ => do
+          let indexExpr ← lowerPlan indexPlan
+          let some length := lengths[0]?
+            | .error (mkError "EVM StmtPlan-to-Yul dynamic aggregate assignment missing array length")
+          .ok #[
+            dynamicLocalValueSwitchBlock
+              indexExpr
+              valueExpr
+              length
+              (fun idx =>
+                #[dynamicAssignmentStatement (dynamicAggregateAssignmentLeafName name #[idx] fieldName?) op?])
+          ]
+  | _ =>
+    do
+      let body ←
+        dynamicAggregateAssignmentPathBody
+          mkError
+          lowerPlan
+          name
+          pathPlans
+          lengths
+          #[]
+          fieldName?
+          op?
+      .ok #[dynamicLocalValueBlock valueExpr body]
+
+def dynamicAggregateScalarAssignmentStmtPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
+    (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr) :
+    StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .assign target value =>
+      dynamicAggregateScalarAssignmentFromTarget mkError lowerExpr lowerEffect target value none
+  | .assignOp target op value =>
+      dynamicAggregateScalarAssignmentFromTarget mkError lowerExpr lowerEffect target value (some op)
+  | _ =>
+      .error (mkError "EVM StmtPlan-to-Yul dynamic aggregate assignment lowering expected assign/assignOp")
+
 def ifElseStmtPlanStatements
     {ε : Type}
     (mkError : String → ε)
