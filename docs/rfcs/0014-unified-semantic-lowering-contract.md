@@ -86,7 +86,7 @@ Unifying the *contract* (not the plan algebra) makes three things possible:
 |---|---|---|---|
 | **A** | Shared IR operational semantics (`IR/Semantics.lean`) is the ground truth; every backend passes shared-scenario trace obligations for the IR subset semantics currently covers. | Medium — semantics exists but must grow (FV-2/FV-3). | **No** (acknowledged dependency; tracked by FV workstream). |
 | **B** | Shared lowering *contract*: per-backend `validateModule*` + `*ModulePlan` + `lowerToAst` + plan-driven metadata + golden `*-semantic-plan` smokes. | EVM done; Solana done; NEAR easy–medium (Phase 4 chosen first); Psy easy (deferred); Move-Sui hard (deferred). | **Yes.** |
-| **C-diff** | Differential trace replay: the Quint MBT backend generates ITF traces from `IR.Semantics` and replays them against each backend's actual emitted artifact (bytecode via Foundry for EVM; Mollusk for Solana; offline-host for NEAR). Acts as a pragmatic substitute for a full target-chain formal semantics. | EVM landed (`just quint-evm-backend-replay-gate`); portable to any backend once its `*ModulePlan` exists. | **Partial.** RFC 0014 consumes the Quint backend's traces for end-to-end smoke; it does not redesign the Quint backend itself. |
+| **C-diff** | Differential trace replay: the Quint MBT backend generates ITF traces from `IR.Semantics` and replays them against each backend's actual emitted artifact (bytecode via Foundry for EVM; Mollusk for Solana; offline-host for NEAR). Acts as a pragmatic substitute for a full target-chain formal semantics. | EVM landed (`just quint-evm-backend-replay-gate`); portable to any backend once its `*ModulePlan` exists. 2026-07-07 audit selected NEAR as the next candidate (see `docs/quint-cdiff-multi-backend-design.md`). | **Partial.** RFC 0014 consumes the Quint backend's traces for end-to-end smoke; it does not redesign the Quint backend itself. |
 | **C-proof** | Machine-checked end-to-end refinement: Lean IR-semantics ⟷ formal target-chain execution model. | Hard. EVM can lean on `powdr-labs/evm-semantics` (a Lean EVM semantics passing `ethereum/tests`). Solana is research (FV-4): no off-the-shelf sBPF Lean semantics exists. | **No** (explicit non-goal). |
 
 **Splitting the old Tier C into C-diff and C-proof is load-bearing.** It separates
@@ -594,6 +594,34 @@ exists as a Tier C-diff vehicle.
 
 **Path 5a — Tier C-diff cross-backend rollout (engineering).**
 
+A full per-backend feasibility audit, the abstract replay interface (generalizing
+from `EvmReplay`), the field-level design for the chosen next candidate (NEAR), and
+the deferred backends with rationale are in
+[`docs/quint-cdiff-multi-backend-design.md`](../quint-cdiff-multi-backend-design.md).
+Summary:
+
+- **Current coverage (2026-07-07 audit):** EVM only (`EvmReplay.lean`,
+  `just quint-evm-backend-replay-gate`). The replay interface is a pure Lean
+  trace → harness renderer (`renderFoundryTest`) that lowers an ITF trace to a
+  Solidity/Foundry test; the target toolchain (`forge`) executes it. The
+  chain-neutral trace interpretation (`resolveActionName`, `buildArgs`,
+  `entrypointMap`, `buildInitialState`, `compareStates`, `itfValueToIr`) lives
+  in `Replay.lean` and is reused by every shim.
+- **Chosen next candidate: NEAR.** The `runtime/offline-host` (wasmtime) is
+  in-tree, needs no external RPC, and its CLI is a flat arg list
+  (`run <wat> <exports...> --inputs-hex <...>`). A `NearReplay.lean` shim renders
+  that arg list from the same ITF trace; the offline-host executes it. This is
+  simpler than EVM (which renders a Solidity test file). A minimal type-only stub
+  (`ProofForge/Backend/Quint/NearReplay.lean` + `Tests/Quint/NearReplaySmoke.lean`
+  + `just quint-near-replay-smoke`) is landed in this step; it is **not** wired
+  into CI. Step B (full `renderOfflineHostArgs`, the wrapping test that spawns
+  `quint` + offline-host, the gate script, `just
+  quint-near-backend-replay-gate`) is a follow-up.
+- **Recommended order:** EVM (done) → NEAR (this step, stub) → Solana (2nd;
+  Mollusk is in-tree as a Rust crate, `SolanaModulePlan` exposes the
+  discriminator/account schema) → Psy (3rd, blocked on `dargo` not installed
+  here) → Move-Sui / Aleo / Cloudflare (deferred, research spikes with no real
+  lowering).
 - Mirror the existing `just quint-evm-backend-replay-gate` pattern on every
   backend once its `*ModulePlan` lands in Phase 2/4:
   - Solana: `just quint-solana-backend-replay-gate` — Quint MBT ITF trace →
@@ -625,7 +653,10 @@ exists as a Tier C-diff vehicle.
 
 - Path 5a: `scripts/quint/*-backend-replay-gate.sh` (new per backend),
   `ProofForge/Backend/Quint/{Solana,Near,Psy}Replay.lean` (new, mirroring
-  existing `EvmReplay.lean`), `justfile` recipes.
+  existing `EvmReplay.lean`), `justfile` recipes. **Landed in this step
+  (additive stub):** `ProofForge/Backend/Quint/NearReplay.lean`,
+  `Tests/Quint/NearReplaySmoke.lean`, `just quint-near-replay-smoke` (not wired
+  into `just check`). See [`docs/quint-cdiff-multi-backend-design.md`](../quint-cdiff-multi-backend-design.md).
 - Path 5b: `ProofForge/Backend/Solana/Refinement.lean` (new),
   `Tests/NearWasmFormal.lean`,
   `ProofForge/Contract/Examples/ValueVaultInvariant.lean`.
@@ -753,7 +784,18 @@ shape), not Tier C-proof completeness.
 - **Tier C-diff:** generalize the Quint backend replay harness beyond EVM
   (Solana via Mollusk, NEAR via offline-host, Psy via `dargo execute`) as each
   backend's `*ModulePlan` lands. Long-term goal: one
-  `just quint-<target>-backend-replay-gate` per primary backend.
+  `just quint-<target>-backend-replay-gate` per primary backend. Audit +
+  abstract replay interface + field-level `NearReplay` design + minimal
+  additive stub landed 2026-07-07; see
+  [`docs/quint-cdiff-multi-backend-design.md`](../quint-cdiff-multi-backend-design.md). A per-backend
+  feasibility audit and the abstract replay interface are recorded in
+  [`docs/quint-cdiff-multi-backend-design.md`](../quint-cdiff-multi-backend-design.md);
+  NEAR is the chosen next candidate (stub landed), Solana is 2nd, Psy is 3rd
+  (tool-blocked), Move-Sui/Aleo/Cloudflare are deferred (research spikes). Audit (2026-07-07)
+  chose NEAR as the next candidate; a type-only `NearReplay.lean` stub landed.
+  See [`docs/quint-cdiff-multi-backend-design.md`](../quint-cdiff-multi-backend-design.md)
+  for the per-backend feasibility table, the abstract replay interface, and the
+  field-level `NearReplay` design.
 - **Tier C-proof:** deepen `Evm.Refinement` and `WasmNear.Refinement`; add
   `Solana.Refinement` beyond the Phase 5 Counter seam toward syscall-aware
   obligations. Evaluate integrating an external Lean EVM semantics such as

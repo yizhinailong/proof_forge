@@ -426,6 +426,11 @@ quint-mbt-gate:
 quint-evm-backend-replay-gate:
     scripts/quint/evm-backend-replay-gate.sh
 
+# NearReplay shim smoke: pure Lean string-render check (no quint/offline-host spawn).
+quint-near-replay-smoke:
+    lake build ProofForge.Backend.Quint.NearReplay
+    lake env lean --run Tests/Quint/NearReplaySmoke.lean
+
 # Unified Quint IR model gate: emit, verify, MBT, IR replay, and Counter EVM backend replay.
 quint-ir-model-gate:
     scripts/quint/ir-model-gate.sh
