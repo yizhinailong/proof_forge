@@ -389,6 +389,12 @@ Tasks:
     duplicated planned source expansion with `lowerExpr` fallbacks has been
     removed. Whole-aggregate fixed-array and struct-array assignment already
     used the planned source path only.
+  - Started: static local fixed-array element, struct-field, and struct-array field
+    assignment targets in `lowerAssignStmt`/`lowerAssignOpStmt` now always consume
+    `lowerStaticAggregateScalarAssignmentStmt` (`buildStaticAggregateScalarTargetPlan?
+    -> StmtPlan.assign/assignOp -> ToYul`). The `lowerAssignTargetName` +
+    `lowerAssignmentValueExpr` fallbacks for static aggregate assignment targets
+    have been removed; unsupported targets now fail explicitly.
   - Started: scalar `ifElse` compatibility lowering now always routes condition
     expressions through `Lower.buildExprPlan` before
     `ToYul.ifElseStmtPlanStatements`; the old `switchStmt` fallback over

@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Static Aggregate Assignment Target Fallback Retirement
+
+Work range: `lowerAssignStmt` static aggregate target fallback removal
+
+Summary:
+
+- Renamed `lowerStaticAggregateScalarAssignmentPlan?` to unconditional
+  `lowerStaticAggregateScalarAssignmentStmt`.
+- Removed `lowerAssignTargetName` + `lowerAssignmentValueExpr` fallbacks from
+  `lowerAssignStmt` and `lowerAssignOpStmt` static aggregate target branches.
+- Unsupported static aggregate assignment targets now fail explicitly when
+  target planning or static index validation does not apply.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+! rg -n "lowerStaticAggregateScalarAssignmentPlan\\?|lowerAssignTargetName \"assignment target\" target" ProofForge/Backend/Evm/IR.lean
+lake build ProofForge.Backend.Evm.IR
+just evm-smoke assignment assign-op struct-value struct-array-value array-value
+just evm-semantic-plan
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Whole-aggregate compound assignment on local fixed-array/struct bindings still
+  uses `lowerAssignTargetName` outside the scalar `StmtPlan.assign` surface.
+- Dynamic aggregate field assignment frames still use dedicated IR-local helpers.
+
+Next step:
+
+- Continue moving whole-aggregate compound assignment behind `StmtPlan -> ToYul`
+  or shrink dynamic aggregate field assignment compatibility helpers.
+
 ### EVM Whole-Aggregate Local Assignment Fallback Retirement
 
 Work range: whole-aggregate struct assignment expr fallback removal
@@ -49,8 +85,8 @@ Known limitations:
 
 Next step:
 
-- Continue moving whole-aggregate assignment behind `StmtPlan -> ToYul` or shrink
-  static aggregate assignment target fallbacks in `lowerAssignStmt`.
+- Continue moving whole-aggregate compound assignment behind `StmtPlan -> ToYul`
+  or shrink dynamic aggregate field assignment compatibility helpers.
 
 ### EVM Return-Word Scalar Fallback Retirement
 
