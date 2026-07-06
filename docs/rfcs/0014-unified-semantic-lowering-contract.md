@@ -634,22 +634,63 @@ Summary:
   harness differs per backend. The `*ModulePlan` is what makes the emitted
   artifact stable enough for trace-level differential testing.
 
-**Path 5b — Tier C-proof seam (research).**
+**Path 5b — Tier C-proof feasibility (assessed 2026-07-07).**
 
-- Add `ProofForge/Backend/Solana/Refinement.lean` skeleton: Counter IR trace
-  obligation against the selector-dispatched asm surface (no full sBPF
-  semantics).
-- Wire `Tests/NearWasmFormal.lean` to import Solana obligations when non-empty
-  (CI build-gated).
-- EVM: investigate projecting `Evm.Refinement.TraceObligation` onto an
-  external Lean EVM semantics (e.g. `powdr-labs/evm-semantics`, which passes
-  the official `ethereum/tests` conformance suites) instead of
-  `Evm.YulSemantics`'s in-tree executable Yul subset. This is a research
-  integration; the seam is sketched here, not delivered.
-- Link [`docs/formal-verification.md`](../formal-verification.md) FV-8
-  (ValueVault invariants) to per-backend obligations.
+A full feasibility assessment has been completed and is recorded in
+[`docs/tier-c-proof-feasibility.md`](../tier-c-proof-feasibility.md). Summary of findings:
 
-**Touch list:**
+- **Current state is *not* a machine-checked refinement.** `Evm.Refinement.lean`
+  and `ValueVaultInvariant.lean` discharge `native_decide` executable trace-equivalence
+  checks on *fixed* scenarios (Counter, ValueVault, etc.), not universally-quantified
+  simulation proofs. `ValueVaultInvariant.lean` checks the accounting invariant for the
+  *default* inputs only, not for all `ScenarioInputs`.
+- **Target semantics.** The Lean 4 EVM+Yul formal model is
+  [`leonardoalt/EVMYulLean`](https://github.com/leonardoalt/EVMYulLean) (Nethermind-maintained,
+  referenced by the powdr ecosystem). It is Lean 4, passes 22,330/22,332 (99.99%) of the
+  official `ethereum/tests` Cancun suite, models EVM bytecode at the opcode level
+  (`EVM.State`, `step`), and also covers Yul. It is a standalone semantics, not a
+  refinement framework — the simulation obligation is ProofForge's. Note: `powdr-labs/powdr`
+  is a *separate* Rust zkVM toolkit and is *not* the EVM semantics dependency.
+- **Biggest blocker (IR side).** `IR.Semantics` is an interpreter
+  (`runEntrypointWithArgs`), not a small-step `step : State → Option State` relation. A
+  simulation proof requires an explicit step relation + induction principle. This is the
+  first prerequisite and needs no new dependency.
+- **Second blocker (target side).** The in-tree `Evm.YulSemantics` is a *pseudo*-Yul
+  semantics (pseudo-keccak, simplified storage) not conformance-tested. A real Tier
+  C-proof wants the `EVMYulLean` bytecode `step`, which means adding a `lake` dependency.
+- **Storage layout bridging.** IR flat `State` vs EVM 256-bit storage slots is currently
+  encoded only implicitly in the lowering; `Evm.Plan.ModulePlan` storage layout is the
+  right place to make it explicit (a side-benefit of the Tier B work).
+
+**Phased roadmap (replaces the previous "research seam" sketch):**
+
+- **Phase 6a — Tighten `Evm.Refinement` to a real simulation (internal, no new dep).**
+  Introduce `ProofForge/IR/StepSemantics.lean` with a small-step `step` relation;
+  reformulate `irTraceOk` as an inductive `IRTraceMatches` predicate; prove soundness by
+  induction (not `native_decide`). Keep existing `native_decide` theorems as regression smoke.
+  Deliverable: first universally-quantified IR-side trace lemmas.
+- **Phase 6b — Integrate `EVMYulLean` EVM bytecode semantics as a lake dependency.**
+  Add `leonardoalt/EVMYulLean` as a `require` in `lakefile.lean`; pull `EthereumTests`
+  submodule for CI-only conformance. Provide a thin adapter
+  `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` exposing `EVM.state`/`step` aligned
+  with `ObservableStep`. Deliverable: a conformance-tested EVM bytecode semantics callable
+  from Lean proofs.
+- **Phase 6c — Prove IR → bytecode refinement for Counter.** Define the simulation relation
+  `R : IR.State ↔ EVM.State` for the Counter module (single U64 scalar → one storage slot);
+  prove `R`-simulation for `initialize`/`increment`/`get`; lift to a trace theorem by
+  induction over the call list. Deliverable: first end-to-end machine-checked refinement.
+- **Phase 6d — Extend to ValueVault (storage map + events).** Extend `R` to map IR map
+  state to EVM storage slot prefixes (using `Evm.Plan.ModulePlan`); prove refinement for
+  all seven entrypoints including event emission; prove
+  `value_vault_accounting_invariant` universally quantified over `ScenarioInputs`.
+  Deliverable: a universally-quantified contract invariant carried from IR to bytecode.
+- **Phase 6e — Generalize the simulation framework.** Extract a reusable
+  parametric `SimulationFramework` so the same pattern can in principle target Solana
+  (Mollusk/Pinocchio) or NEAR (offline-host wasm). Note: Tier C-proof for non-EVM chains
+  requires a formal target semantics for each, which does not exist today; this phase is
+  exploratory and non-EVM chains remain in Tier C-diff until such semantics exist.
+
+**Touch list (updated):**
 
 - Path 5a: `scripts/quint/*-backend-replay-gate.sh` (new per backend),
   `ProofForge/Backend/Quint/{Solana,Near,Psy}Replay.lean` (new, mirroring
@@ -657,15 +698,22 @@ Summary:
   (additive stub):** `ProofForge/Backend/Quint/NearReplay.lean`,
   `Tests/Quint/NearReplaySmoke.lean`, `just quint-near-replay-smoke` (not wired
   into `just check`). See [`docs/quint-cdiff-multi-backend-design.md`](../quint-cdiff-multi-backend-design.md).
-- Path 5b: `ProofForge/Backend/Solana/Refinement.lean` (new),
-  `Tests/NearWasmFormal.lean`,
-  `ProofForge/Contract/Examples/ValueVaultInvariant.lean`.
+- Path 5b: `docs/tier-c-proof-feasibility.md` (new — landed this step).
+  Future: `ProofForge/IR/StepSemantics.lean` (6a),
+  `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` (6b),
+  `lakefile.lean` `EVMYulLean` dependency (6b).
 
 **Risks:** overstating what is "proven" — Path 5a is differential testing
-(Tier C-diff), not a proof; Path 5b remains a seam (Counter/ValueVault trace
-shape), not Tier C-proof completeness.
+(Tier C-diff), not a proof; Path 5b's current `Evm.Refinement`/`ValueVaultInvariant`
+are `native_decide` executable checks, not machine-checked refinement. The phased
+roadmap (6a–6e) is the concrete path to a real Tier C-proof, with 6a as the
+no-new-dependency first step.
 
-**Scope cut:** Tier C-proof for Solana (full syscall semantics in Lean).
+**Scope cut:** Tier C-proof for Solana (full syscall semantics in Lean — no
+off-the-shelf formal sBPF semantics exists). Tier C-proof for NEAR/Psy likewise
+deferred pending formal target semantics; they stay in Tier C-diff. Full
+`ethereum/tests` coverage and all EVM opcodes are out of scope — conformance is
+`EVMYulLean`'s job; ProofForge only needs its adapter to be correct.
 
 ### Phase 6–7 (stretch)
 
