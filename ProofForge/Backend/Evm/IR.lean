@@ -2482,6 +2482,12 @@ partial def exprSupportsPlanScalarYul : ProofForge.IR.Expr → Bool
   | .nativeValue => true
   | .effect (.storageScalarRead _) => true
   | .effect (.contextRead _) => true
+  | .arrayGet (.arrayLit _ values) index =>
+      !values.isEmpty &&
+        values.all exprSupportsPlanScalarYul &&
+        exprSupportsPlanScalarYul index
+  | .field (.structLit _ fields) _ =>
+      fields.all fun field => exprSupportsPlanScalarYul field.snd
   | .arrayLit _ _
   | .arrayGet _ _
   | .memoryArrayNew _ _

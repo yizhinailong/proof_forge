@@ -4180,6 +4180,64 @@ def testAggregateLiteralEntrypointPlannedBody : IO Unit := do
     "direct_literal_field"
     6
 
+def testScalarFallbackGateAggregateLiteralPlanToYul : IO Unit := do
+  let arrayEnv : TypeEnv := #[
+    { name := "idx", type := .u64, isMutable := false }
+  ]
+  let arrayExpr : Expr :=
+    .arrayGet
+      (.arrayLit .u64 #[.literal (.u64 5), .literal (.u64 8)])
+      (.add (.local "idx") (.literal (.u64 0)))
+  require
+    (exprSupportsPlanScalarYul arrayExpr)
+    "array literal read must be accepted by scalar plan gate"
+  let arrayReturnStmts ← requireOk
+    (lowerScalarReturnStmtPlanOrFallback
+      ProofForge.IR.Examples.Counter.module
+      arrayEnv
+      "scalar_array_literal_return"
+      .u64
+      arrayExpr
+      false)
+    "array literal scalar return plan-to-yul"
+  require (arrayReturnStmts.size == 1) "array literal scalar return statement count"
+  match arrayReturnStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["result"]) "array literal scalar return target"
+      require (name == "__proof_forge_local_array_get_2") "array literal scalar return helper"
+      require (args.size == 3) "array literal scalar return helper arg count"
+      requireCallExpr args[0]! "__pf_checked_add" 2 "array literal scalar return planned index"
+  | _ => throw <| IO.userError "array literal scalar return must use planned helper assignment"
+  let structEnv : TypeEnv := #[
+    { name := "n", type := .u64, isMutable := false }
+  ]
+  let structExpr : Expr :=
+    .field
+      (.structLit "Point" #[
+        ("x", .literal (.u64 4)),
+        ("y", .add (.local "n") (.literal (.u64 2)))
+      ])
+      "y"
+  require
+    (exprSupportsPlanScalarYul structExpr)
+    "struct literal field read must be accepted by scalar plan gate"
+  let structReturnStmts ← requireOk
+    (lowerScalarReturnStmtPlanOrFallback
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      structEnv
+      "scalar_struct_literal_return"
+      .u64
+      structExpr
+      false)
+    "struct literal scalar return plan-to-yul"
+  require (structReturnStmts.size == 1) "struct literal scalar return statement count"
+  match structReturnStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["result"]) "struct literal scalar return target"
+      require (name == "__pf_checked_add") "struct literal scalar return planned field"
+      require (args.size == 2) "struct literal scalar return checked add arg count"
+  | _ => throw <| IO.userError "struct literal scalar return must use planned field assignment"
+
 def testLocalCrosscallWordsToYul : IO Unit := do
   let simpleStructFields (typeName : String) : Except LowerError (Array String) :=
     if typeName == "Point" then
@@ -9458,6 +9516,7 @@ def main : IO UInt32 := do
   testStorageFixedArrayCrosscallWordPlans
   testArrayLiteralDirectExprPlanToYul
   testAggregateLiteralEntrypointPlannedBody
+  testScalarFallbackGateAggregateLiteralPlanToYul
   testLocalAbiWordsToYul
   testLocalCrosscallWordsToYul
   testReturnValueWordPlanToYul
