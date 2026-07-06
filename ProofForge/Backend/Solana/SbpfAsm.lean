@@ -1587,21 +1587,14 @@ def lowerInstructionDataPointerSetup (accountCount : Nat) : Array AstNode :=
     .instruction { opcode := .stxdw, dst := some .r10, off := some (.num entryInstructionDataSaveOffset), src := some entryInstructionDataReg }
   ]
 
-partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions) :
+/-- Core lowering body once the account schema, input layout, and lowering
+context have been derived. Exposed so the plan-driven path
+(`ProofForge.Backend.Solana.Plan.lowerModuleFromPlan`) can reuse the exact same
+body without re-deriving the schema from the IR module. -/
+partial def lowerModuleCoreWithSeed (module : IR.Module)
+    (accounts : Array AccountEntry) (inputLayout : InputLayout)
+    (extensions : ProgramExtensions) (ctx : LowerCtx) :
     Except LowerError (Array AstNode) := do
-  validateCapabilities module
-  let schema := buildModuleInputSchema module extensions
-  let accounts := schema.accounts
-  let inputLayout := schema.inputLayout
-  let stateDataOff ←
-    if module.state.isEmpty then
-      .ok 0
-    else
-      match inputLayout.accounts[0]? with
-      | some accountLayout => .ok accountLayout.dataStart
-      | none => .error { message := "Solana account schema must contain at least one state account" }
-  let ctx ← buildCtx module stateDataOff
-
   let mut nodes := #[
     .comment s!"ProofForge generated sBPF — {module.name} (Phase 1)",
     .comment "Target: solana-sbpf-asm (D-026)",
@@ -1694,6 +1687,20 @@ partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions
       .instruction { opcode := .exit }
     ]
   .ok nodes
+
+partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions) :
+    Except LowerError (Array AstNode) := do
+  validateCapabilities module
+  let schema := buildModuleInputSchema module extensions
+  let stateDataOff ←
+    if module.state.isEmpty then
+      .ok 0
+    else
+      match schema.inputLayout.accounts[0]? with
+      | some accountLayout => .ok accountLayout.dataStart
+      | none => .error { message := "Solana account schema must contain at least one state account" }
+  let ctx ← buildCtx module stateDataOff
+  lowerModuleCoreWithSeed module schema.accounts schema.inputLayout extensions ctx
 
 partial def lowerModule (module : IR.Module) : Except LowerError (Array AstNode) :=
   lowerModuleCore module {}

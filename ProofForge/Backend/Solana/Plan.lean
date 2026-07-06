@@ -38,6 +38,8 @@ open ProofForge.Backend.Solana.Extension
 open ProofForge.Backend.Solana.Manifest
 open ProofForge.Backend.Solana.StateLayout
 open ProofForge.Backend.Solana.SbpfAsm
+open ProofForge.Backend.Solana.Asm
+open ProofForge.Backend.Solana.Register
 
 -- ============================================================================
 -- Plan types
@@ -99,6 +101,20 @@ structure SolanaExtensionPlan where
 def SolanaExtensionPlan.empty : SolanaExtensionPlan :=
   { cpis := #[], syscalls := #[], memoryOps := #[], pdas := #[] }
 
+/-- The lowering-seed fields the assembly backend needs to reconstruct
+`LowerCtx` and the account-validation prologue without re-deriving them from
+the IR module. These are intentionally kept separate from the human-readable
+plan fields above because they are large structural objects, but they are
+part of the frozen plan so the lowering is a pure function of the plan. -/
+structure SolanaLowerCtxSeed where
+  stateFieldOffsets : Array (String × Nat)
+  structs : Array StructDecl
+  stateDecls : Array StateDecl
+  inputLayout : InputLayout
+  manifestAccounts : Array AccountEntry
+  extensions : ProgramExtensions
+  deriving Inhabited
+
 /-- The semantic plan artifact for a Solana sBPF program. -/
 structure SolanaModulePlan where
   targetId : String
@@ -111,7 +127,8 @@ structure SolanaModulePlan where
   accounts : Array SolanaAccountPlan
   entrypoints : Array SolanaEntrypointPlan
   extensions : SolanaExtensionPlan
-  deriving Repr, Inhabited, BEq
+  lowerCtxSeed : SolanaLowerCtxSeed
+  deriving Inhabited
 
 -- ============================================================================
 -- Error type
@@ -229,6 +246,16 @@ def buildSolanaModulePlan (module : Module) (capPlan? : Option ProofForge.Target
   for ep in module.entrypoints do
     entrypointPlans := entrypointPlans.push (← buildEntrypointPlan ep tag)
     tag := tag + 1
+  let stateFieldOffsets := buildStateOffsetsAtBase module stateDataOff
+                     |>.map (fun f => (f.id, f.absOff))
+  let lowerCtxSeed := {
+    stateFieldOffsets
+    structs := module.structs
+    stateDecls := module.state
+    inputLayout
+    manifestAccounts := accounts
+    extensions
+  }
   return {
     targetId := "solana-sbpf-asm"
     artifactKind := "solana-elf"
@@ -240,6 +267,7 @@ def buildSolanaModulePlan (module : Module) (capPlan? : Option ProofForge.Target
     accounts := buildAccountPlan module extensions accounts specs
     entrypoints := entrypointPlans
     extensions := buildExtensionPlan extensions
+    lowerCtxSeed
   }
 
 -- ============================================================================
@@ -311,5 +339,39 @@ def SolanaModulePlan.render (plan : SolanaModulePlan) : String :=
     renderExtensionPlan plan.extensions
   ]
   String.intercalate "\n" (lines.toList.filter (!·.isEmpty))
+
+-- ============================================================================
+-- Plan-driven lowering (Tier B contract)
+-- ============================================================================
+
+/-- Build a `LowerCtx` from the plan's lowering seed, without re-deriving state
+offsets or account layout from the IR module. -/
+def LowerCtx.fromSeed (seed : SolanaLowerCtxSeed) : SbpfAsm.LowerCtx :=
+  { stateFieldOffsets := seed.stateFieldOffsets
+    structs := seed.structs
+    stateDecls := seed.stateDecls
+    locals := #[]
+    nextLocalOffset := 8
+    scratchOffset := 8
+    nextLabel := 0
+    allocator := Allocator.new }
+
+/-- Lower a module using a pre-built `SolanaModulePlan`. This is the Tier B
+contract entry point: the lowering is a pure function of the plan (plus the IR
+module's statement bodies). The capability check is re-run here because it is
+a read-only validation gate, not a lowering decision. -/
+def lowerModuleFromPlan (module : IR.Module) (plan : SolanaModulePlan) :
+    Except SbpfAsm.LowerError (Array AstNode) := do
+  SbpfAsm.validateCapabilities module
+  let seed := plan.lowerCtxSeed
+  let ctx := LowerCtx.fromSeed seed
+  SbpfAsm.lowerModuleCoreWithSeed module seed.manifestAccounts seed.inputLayout
+    seed.extensions ctx
+
+/-- Render a module to sBPF assembly text via the plan-driven path. -/
+def renderModuleFromPlan (module : IR.Module) (plan : SolanaModulePlan) :
+    Except SbpfAsm.LowerError String := do
+  let nodes ← lowerModuleFromPlan module plan
+  .ok (renderNodes nodes)
 
 end ProofForge.Backend.Solana.Plan
