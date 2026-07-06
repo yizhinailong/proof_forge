@@ -2486,8 +2486,16 @@ partial def exprSupportsPlanScalarYul : ProofForge.IR.Expr → Bool
       !values.isEmpty &&
         values.all exprSupportsPlanScalarYul &&
         exprSupportsPlanScalarYul index
+  | .arrayGet (.local _) index =>
+      exprSupportsPlanScalarYul index
+  | .arrayGet (.arrayGet array index) nextIndex =>
+      exprSupportsPlanScalarYul (.arrayGet array index) &&
+        exprSupportsPlanScalarYul nextIndex
   | .field (.structLit _ fields) _ =>
       fields.all fun field => exprSupportsPlanScalarYul field.snd
+  | .field (.local _) _ => true
+  | .field (.arrayGet array index) _ =>
+      exprSupportsPlanScalarYul (.arrayGet array index)
   | .arrayLit _ _
   | .arrayGet _ _
   | .memoryArrayNew _ _

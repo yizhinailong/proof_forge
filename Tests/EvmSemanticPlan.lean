@@ -4238,6 +4238,78 @@ def testScalarFallbackGateAggregateLiteralPlanToYul : IO Unit := do
       require (args.size == 2) "struct literal scalar return checked add arg count"
   | _ => throw <| IO.userError "struct literal scalar return must use planned field assignment"
 
+def testScalarFallbackGateLocalAggregatePlanToYul : IO Unit := do
+  let arrayEnv : TypeEnv := #[
+    { name := "xs", type := .fixedArray .u64 3, isMutable := false },
+    { name := "idx", type := .u64, isMutable := false }
+  ]
+  let arrayExpr : Expr :=
+    .arrayGet (.local "xs") (.add (.local "idx") (.literal (.u64 0)))
+  require
+    (exprSupportsPlanScalarYul arrayExpr)
+    "local array read must be accepted by scalar plan gate"
+  let arrayReturnStmts ← requireOk
+    (lowerScalarReturnStmtPlanOrFallback
+      ProofForge.IR.Examples.EvmArrayValueProbe.module
+      arrayEnv
+      "scalar_local_array_return"
+      .u64
+      arrayExpr
+      false)
+    "local array scalar return plan-to-yul"
+  require (arrayReturnStmts.size == 1) "local array scalar return statement count"
+  match arrayReturnStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["result"]) "local array scalar return target"
+      require (name == "__proof_forge_local_array_get_3") "local array scalar return helper"
+      require (args.size == 4) "local array scalar return helper arg count"
+      requireCallExpr args[0]! "__pf_checked_add" 2 "local array scalar return planned index"
+  | _ => throw <| IO.userError "local array scalar return must use planned helper assignment"
+  let structEnv : TypeEnv := #[
+    { name := "p", type := .structType "Point", isMutable := false }
+  ]
+  let structExpr : Expr := .field (.local "p") "y"
+  require
+    (exprSupportsPlanScalarYul structExpr)
+    "local struct field read must be accepted by scalar plan gate"
+  let structBindingStmts ← requireOk
+    (lowerScalarBindingStmtPlanOrFallback
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      structEnv
+      "head"
+      .u64
+      false
+      structExpr)
+    "local struct field scalar binding plan-to-yul"
+  require (structBindingStmts.size == 1) "local struct field scalar binding statement count"
+  match structBindingStmts[0]! with
+  | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.ident sourceName)) => do
+      let typedName ← requireAt vars 0 "local struct field scalar binding var"
+      require (typedName.name == "head") "local struct field scalar binding target"
+      require (sourceName == "__proof_forge_struct_p_y") "local struct field scalar binding source"
+  | _ => throw <| IO.userError "local struct field scalar binding must use planned local field"
+  let structArrayEnv : TypeEnv := #[
+    { name := "rows", type := .fixedArray (.structType "Mixed") 2, isMutable := false },
+    { name := "idx", type := .u64, isMutable := false }
+  ]
+  let structArrayExpr : Expr :=
+    .field (.arrayGet (.local "rows") (.local "idx")) "enabled"
+  require
+    (exprSupportsPlanScalarYul structArrayExpr)
+    "local struct-array field read must be accepted by scalar plan gate"
+  let structArrayAssertStmts ← requireOk
+    (lowerScalarAssertStmtPlanOrFallback
+      ProofForge.IR.Examples.EvmStructArrayValueProbe.module
+      structArrayEnv
+      (.assert structArrayExpr "enabled" none))
+    "local struct-array field assert plan-to-yul"
+  require (structArrayAssertStmts.size == 1) "local struct-array field assert statement count"
+  match structArrayAssertStmts[0]! with
+  | Lean.Compiler.Yul.Statement.ifStmt (Lean.Compiler.Yul.Expr.builtin "iszero" args) _ => do
+      let guard ← requireAt args 0 "local struct-array field assert guard"
+      requireCallExpr guard "__proof_forge_local_array_get_2" 3 "local struct-array field assert planned guard"
+  | _ => throw <| IO.userError "local struct-array field assert must use planned helper guard"
+
 def testLocalCrosscallWordsToYul : IO Unit := do
   let simpleStructFields (typeName : String) : Except LowerError (Array String) :=
     if typeName == "Point" then
@@ -9517,6 +9589,7 @@ def main : IO UInt32 := do
   testArrayLiteralDirectExprPlanToYul
   testAggregateLiteralEntrypointPlannedBody
   testScalarFallbackGateAggregateLiteralPlanToYul
+  testScalarFallbackGateLocalAggregatePlanToYul
   testLocalAbiWordsToYul
   testLocalCrosscallWordsToYul
   testReturnValueWordPlanToYul
