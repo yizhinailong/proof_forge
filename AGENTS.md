@@ -22,9 +22,15 @@ Solana live-network/Pinocchio gates and `just psy-all` need extra tools (see bel
   to `PATH`. `sui`, `leo`, `wrangler`, and Solana SBF/Surfpool tooling are NOT installed
   here; gates that need them skip or live in separate CI jobs.
 
+### Codeberg remote and CI
+- Git remote: `git@codeberg.org:davirain/proof_forge.git` (`codeberg`).
+- Hosted CI uses Codeberg Woodpecker (`ci.codeberg.org`); pipeline config is `.woodpecker.yml`
+  and runs `just check` after `scripts/ci/woodpecker-setup.sh`. Enable the repo once at
+  https://ci.codeberg.org/repos/add after Woodpecker access is approved.
+
 ### Build / lint / test / run
 The root `justfile` is the canonical command catalog (`just --list`). It is also the CI
-entrypoint (see `.github/workflows/ci.yml`). Key commands:
+entrypoint (see `.woodpecker.yml` on Codeberg and `.github/workflows/ci.yml` on GitHub). Key commands:
 - Build: `just build` (`lake build`).
 - Fast baseline (Lean + EVM + Solana-light + NEAR + Psy static gates + testkit + docs
   + SDK schema + CLI gates): `just check`. This is the closest local mirror of the
