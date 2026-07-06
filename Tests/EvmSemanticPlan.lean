@@ -9853,6 +9853,129 @@ def testStoragePathWritePlanToYul : IO Unit := do
       require foundStorageReadValue "struct-array field storage path assign_op value must lower storage read through plan"
   | _ => throw <| IO.userError "struct-array field storage path assign_op plan-to-yul must lower to block"
 
+def testLegacyWriteEffectFacadePlanToYul : IO Unit := do
+  let scalarEnv : TypeEnv := #[{ name := "n", type := .u64, isMutable := false }]
+  let scalarWriteResult :=
+    lowerPlannedBodyEffectPlan
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.storageScalarWrite
+        "count"
+        (.checkedArith .add (.local "n") (.literalWord 1)))
+  let scalarWriteStmts ←
+    requireOk scalarWriteResult "legacy scalar write planned-body target facade"
+  require (scalarWriteStmts.size == 1) "legacy scalar write planned-body target facade statement count"
+  match scalarWriteStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "legacy scalar write planned-body target facade arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.builtin "or" packedArgs =>
+          require (packedArgs.size == 2) "legacy scalar write planned-body target facade packed arg count"
+      | _ => throw <| IO.userError "legacy scalar write planned-body target facade value must be packed"
+  | _ => throw <| IO.userError "legacy scalar write planned-body target facade must lower to sstore"
+  let scalarAssignResult :=
+    lowerPlannedBodyEffectPlan
+      ProofForge.IR.Examples.Counter.module
+      scalarEnv
+      (.storageScalarAssignOp
+        "count"
+        .add
+        (.effect (.storageScalarRead "count")))
+  let scalarAssignStmts ←
+    requireOk scalarAssignResult "legacy scalar assign_op planned-body target facade"
+  require (scalarAssignStmts.size == 1) "legacy scalar assign_op planned-body target facade statement count"
+  match scalarAssignStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "legacy scalar assign_op planned-body target facade arg count"
+      match args[1]! with
+      | Lean.Compiler.Yul.Expr.builtin "or" packedArgs =>
+          require (packedArgs.size == 2) "legacy scalar assign_op planned-body target facade packed arg count"
+      | _ => throw <| IO.userError "legacy scalar assign_op planned-body target facade value must be packed"
+  | _ => throw <| IO.userError "legacy scalar assign_op planned-body target facade must lower to sstore"
+  let mapEnv : TypeEnv := #[
+    { name := "key", type := .u64, isMutable := false },
+    { name := "value", type := .u64, isMutable := false }
+  ]
+  let mapWriteResult :=
+    lowerPlannedBodyEffectPlan
+      ProofForge.IR.Examples.EvmMapProbe.module
+      mapEnv
+      (.storageMapSet
+        "balances"
+        (.checkedArith .add (.local "key") (.literalWord 1))
+        (.local "value"))
+  let mapWriteStmts ←
+    requireOk mapWriteResult "legacy map write planned-body target facade"
+  require (mapWriteStmts.size == 1) "legacy map write planned-body target facade statement count"
+  match mapWriteStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.call name args) => do
+      require (name == (Helper.mapWrite).name) "legacy map write planned-body target facade helper"
+      require (args.size == 3) "legacy map write planned-body target facade arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.lit literal =>
+          require (literal.value == "1") "legacy map write planned-body target facade root slot"
+      | _ => throw <| IO.userError "legacy map write planned-body target facade root slot must be literal"
+      requireCallExpr args[1]! "__pf_checked_add" 2 "legacy map write planned-body target facade key"
+  | _ => throw <| IO.userError "legacy map write planned-body target facade must lower to helper call"
+  let arrayEnv : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
+  let arrayWriteResult :=
+    lowerPlannedBodyEffectPlan
+      ProofForge.IR.Examples.EvmStorageArrayProbe.module
+      arrayEnv
+      (.storageArrayWrite
+        "values"
+        (.checkedArith .add (.literalWord 1) (.literalWord 1))
+        (.checkedArith .add (.local "value") (.literalWord 5)))
+  let arrayWriteStmts ←
+    requireOk arrayWriteResult "legacy array write planned-body target facade"
+  require (arrayWriteStmts.size == 1) "legacy array write planned-body target facade statement count"
+  match arrayWriteStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "legacy array write planned-body target facade arg count"
+      requireCallExpr args[0]! (Helper.arraySlot).name 3 "legacy array write planned-body target facade slot"
+      requireCallExpr args[1]! "__pf_checked_add" 2 "legacy array write planned-body target facade value"
+  | _ => throw <| IO.userError "legacy array write planned-body target facade must lower to sstore"
+  let structEnv : TypeEnv := #[{ name := "value", type := .u64, isMutable := false }]
+  let structFieldResult :=
+    lowerPlannedBodyEffectPlan
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      structEnv
+      (.storageStructFieldWrite
+        "current"
+        "x"
+        (.checkedArith .add (.local "value") (.literalWord 5)))
+  let structFieldStmts ←
+    requireOk structFieldResult "legacy struct field write planned-body target facade"
+  require (structFieldStmts.size == 1) "legacy struct field write planned-body target facade statement count"
+  match structFieldStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "legacy struct field write planned-body target facade arg count"
+      match args[0]! with
+      | Lean.Compiler.Yul.Expr.lit literal =>
+          require (literal.value == "1") "legacy struct field write planned-body target facade slot"
+      | _ => throw <| IO.userError "legacy struct field write planned-body target facade slot must be literal"
+      requireCallExpr args[1]! "__pf_checked_add" 2 "legacy struct field write planned-body target facade value"
+  | _ => throw <| IO.userError "legacy struct field write planned-body target facade must lower to sstore"
+  let structArrayResult :=
+    lowerPlannedBodyEffectPlan
+      ProofForge.IR.Examples.EvmStorageStructProbe.module
+      structEnv
+      (.storageArrayStructFieldWrite
+        "points"
+        (.checkedArith .add (.literalWord 0) (.literalWord 1))
+        "y"
+        (.checkedArith .add (.local "value") (.literalWord 7)))
+  let structArrayStmts ←
+    requireOk structArrayResult "legacy struct-array field write planned-body target facade"
+  require (structArrayStmts.size == 1) "legacy struct-array field write planned-body target facade statement count"
+  match structArrayStmts[0]! with
+  | Lean.Compiler.Yul.Statement.exprStmt (Lean.Compiler.Yul.Expr.builtin "sstore" args) => do
+      require (args.size == 2) "legacy struct-array field write planned-body target facade arg count"
+      requireCallExpr args[0]! (Helper.structArraySlot).name 5
+        "legacy struct-array field write planned-body target facade slot"
+      requireCallExpr args[1]! "__pf_checked_add" 2 "legacy struct-array field write planned-body target facade value"
+  | _ => throw <| IO.userError "legacy struct-array field write planned-body target facade must lower to sstore"
+
 def testContextPlanToYul : IO Unit := do
   let env : TypeEnv := #[
     { name := "block_number", type := .u64, isMutable := false }
@@ -9946,6 +10069,7 @@ def main : IO UInt32 := do
   testWholeStructStorageWritePlanToYul
   testStoragePathReadPlanToYul
   testStoragePathWritePlanToYul
+  testLegacyWriteEffectFacadePlanToYul
   testContextPlanToYul
   IO.println "evm-semantic-plan: ok"
   return 0

@@ -4796,7 +4796,7 @@ def lowerPlannedBodyEffectPlan
         (fun expr => lowerExpr module env expr)
         (lowerPlanEffectExpr module env)
         (.effect effect)
-  | .storageScalarWrite stateId _ => do
+  | .storageScalarWrite stateId value => do
       match ← scalarStateType module stateId with
       | .structType _ =>
           ProofForge.Backend.Evm.ToYul.storageStructWriteEffectStmtPlanStatements
@@ -4804,53 +4804,102 @@ def lowerPlannedBodyEffectPlan
             (fun stateId value => lowerStorageStructWriteFields module env stateId value)
             (.effect effect)
       | _ =>
-          ProofForge.Backend.Evm.ToYul.scalarStorageEffectStmtPlanStatements
-            toYulError
-            (fun expr => lowerExpr module env expr)
-            (lowerPlanEffectExpr module env)
-            (lowerScalarStorageSlotExpr module env)
-            (scalarStatePacking module)
-            (.effect effect)
-  | .storageScalarAssignOp stateId _ _ => do
+          match ProofForge.Backend.Evm.Lower.scalarStorageTargetPlan? module stateId with
+          | some target =>
+              ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
+                toYulError
+                (fun expr => lowerExpr module env expr)
+                (lowerPlanEffectExpr module env)
+                (.effect (.storageScalarWriteTarget target value))
+          | none =>
+              ProofForge.Backend.Evm.ToYul.scalarStorageEffectStmtPlanStatements
+                toYulError
+                (fun expr => lowerExpr module env expr)
+                (lowerPlanEffectExpr module env)
+                (lowerScalarStorageSlotExpr module env)
+                (scalarStatePacking module)
+                (.effect effect)
+  | .storageScalarAssignOp stateId op value => do
       match ← scalarStateType module stateId with
       | .structType _ =>
           .error { message := s!"storage.scalar.assign_op does not support struct state `{stateId}` in planned body lowering yet" }
       | _ =>
-          ProofForge.Backend.Evm.ToYul.scalarStorageEffectStmtPlanStatements
-            toYulError
-            (fun expr => lowerExpr module env expr)
-            (lowerPlanEffectExpr module env)
-            (lowerScalarStorageSlotExpr module env)
-            (scalarStatePacking module)
-            (.effect effect)
+          match ProofForge.Backend.Evm.Lower.scalarStorageTargetPlan? module stateId with
+          | some target =>
+              ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
+                toYulError
+                (fun expr => lowerExpr module env expr)
+                (lowerPlanEffectExpr module env)
+                (.effect (.storageScalarAssignOpTarget target op value))
+          | none =>
+              ProofForge.Backend.Evm.ToYul.scalarStorageEffectStmtPlanStatements
+                toYulError
+                (fun expr => lowerExpr module env expr)
+                (lowerPlanEffectExpr module env)
+                (lowerScalarStorageSlotExpr module env)
+                (scalarStatePacking module)
+                (.effect effect)
   | .storageMapInsertTarget .. | .storageMapSetTarget .. =>
       ProofForge.Backend.Evm.ToYul.mapWriteTargetEffectStmtPlanStatements
         toYulError
         (fun expr => lowerExpr module env expr)
         (lowerPlanEffectExpr module env)
         (.effect effect)
-  | .storageMapInsert .. | .storageMapSet .. =>
-      ProofForge.Backend.Evm.ToYul.mapWriteEffectStmtPlanStatements
-        toYulError
-        (fun expr => lowerExpr module env expr)
-        (lowerPlanEffectExpr module env)
-        (fun stateId => do
-          let (slot, _, _) ← requireStorageMapState module stateId
-          .ok (slotExpr slot))
-        (.effect effect)
-  | .storageArrayWrite .. =>
-      ProofForge.Backend.Evm.ToYul.arrayWriteEffectStmtPlanStatements
-        toYulError
-        (fun expr => lowerExpr module env expr)
-        (lowerPlanEffectExpr module env)
-        (fun stateId indexPlan => do
-          let (slot, length, _) ← requireStorageArrayState module stateId
-          .ok (ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.arraySlot #[
-            slotExpr slot,
-            Lean.Compiler.Yul.Expr.num length,
-            ← lowerExprPlanExpr module env indexPlan
-          ]))
-        (.effect effect)
+  | .storageMapInsert stateId key value =>
+      match ProofForge.Backend.Evm.Lower.mapWriteTargetPlan? module stateId with
+      | some target =>
+          ProofForge.Backend.Evm.ToYul.mapWriteTargetEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (.effect (.storageMapInsertTarget target key value))
+      | none =>
+          ProofForge.Backend.Evm.ToYul.mapWriteEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (fun stateId => do
+              let (slot, _, _) ← requireStorageMapState module stateId
+              .ok (slotExpr slot))
+            (.effect effect)
+  | .storageMapSet stateId key value =>
+      match ProofForge.Backend.Evm.Lower.mapWriteTargetPlan? module stateId with
+      | some target =>
+          ProofForge.Backend.Evm.ToYul.mapWriteTargetEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (.effect (.storageMapSetTarget target key value))
+      | none =>
+          ProofForge.Backend.Evm.ToYul.mapWriteEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (fun stateId => do
+              let (slot, _, _) ← requireStorageMapState module stateId
+              .ok (slotExpr slot))
+            (.effect effect)
+  | .storageArrayWrite stateId index value =>
+      match ProofForge.Backend.Evm.Lower.arrayWriteTargetPlan? module stateId with
+      | some target =>
+          ProofForge.Backend.Evm.ToYul.arrayWriteTargetEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (.effect (.storageArrayWriteTarget target index value))
+      | none =>
+          ProofForge.Backend.Evm.ToYul.arrayWriteEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (fun stateId indexPlan => do
+              let (slot, length, _) ← requireStorageArrayState module stateId
+              .ok (ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.arraySlot #[
+                slotExpr slot,
+                Lean.Compiler.Yul.Expr.num length,
+                ← lowerExprPlanExpr module env indexPlan
+              ]))
+            (.effect effect)
   | .storageArrayWriteTarget .. =>
       ProofForge.Backend.Evm.ToYul.arrayWriteTargetEffectStmtPlanStatements
         toYulError
@@ -4885,22 +4934,54 @@ def lowerPlannedBodyEffectPlan
         (fun expr => lowerExpr module env expr)
         (lowerPlanEffectExpr module env)
         (.effect effect)
-  | .storageStructFieldWrite .. | .storageArrayStructFieldWrite .. =>
-      ProofForge.Backend.Evm.ToYul.structFieldWriteEffectStmtPlanStatements
-        toYulError
-        (fun expr => lowerExpr module env expr)
-        (lowerPlanEffectExpr module env)
-        (fun stateId fieldName => lowerStructFieldSlotExpr module stateId fieldName)
-        (fun stateId indexPlan fieldName => do
-          let (slot, length, fieldCount, fieldOffset, _) ← requireStructArrayStateField module stateId fieldName
-          .ok (ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.structArraySlot #[
-            slotExpr slot,
-            Lean.Compiler.Yul.Expr.num length,
-            Lean.Compiler.Yul.Expr.num fieldCount,
-            Lean.Compiler.Yul.Expr.num fieldOffset,
-            ← lowerExprPlanExpr module env indexPlan
-          ]))
-        (.effect effect)
+  | .storageStructFieldWrite stateId fieldName value =>
+      match ProofForge.Backend.Evm.Lower.structFieldWriteTargetPlan? module stateId fieldName with
+      | some target =>
+          ProofForge.Backend.Evm.ToYul.structFieldWriteTargetEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (.effect (.storageStructFieldWriteTarget target value))
+      | none =>
+          ProofForge.Backend.Evm.ToYul.structFieldWriteEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (fun stateId fieldName => lowerStructFieldSlotExpr module stateId fieldName)
+            (fun stateId indexPlan fieldName => do
+              let (slot, length, fieldCount, fieldOffset, _) ← requireStructArrayStateField module stateId fieldName
+              .ok (ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.structArraySlot #[
+                slotExpr slot,
+                Lean.Compiler.Yul.Expr.num length,
+                Lean.Compiler.Yul.Expr.num fieldCount,
+                Lean.Compiler.Yul.Expr.num fieldOffset,
+                ← lowerExprPlanExpr module env indexPlan
+              ]))
+            (.effect effect)
+  | .storageArrayStructFieldWrite stateId index fieldName value =>
+      match ProofForge.Backend.Evm.Lower.structArrayFieldWriteTargetPlan? module stateId fieldName with
+      | some target =>
+          ProofForge.Backend.Evm.ToYul.structArrayFieldWriteTargetEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (.effect (.storageArrayStructFieldWriteTarget target index value))
+      | none =>
+          ProofForge.Backend.Evm.ToYul.structFieldWriteEffectStmtPlanStatements
+            toYulError
+            (fun expr => lowerExpr module env expr)
+            (lowerPlanEffectExpr module env)
+            (fun stateId fieldName => lowerStructFieldSlotExpr module stateId fieldName)
+            (fun stateId indexPlan fieldName => do
+              let (slot, length, fieldCount, fieldOffset, _) ← requireStructArrayStateField module stateId fieldName
+              .ok (ProofForge.Backend.Evm.ToYul.helperCall ProofForge.Backend.Evm.Plan.Helper.structArraySlot #[
+                slotExpr slot,
+                Lean.Compiler.Yul.Expr.num length,
+                Lean.Compiler.Yul.Expr.num fieldCount,
+                Lean.Compiler.Yul.Expr.num fieldOffset,
+                ← lowerExprPlanExpr module env indexPlan
+              ]))
+            (.effect effect)
   | .storagePathWriteTarget .. =>
       ProofForge.Backend.Evm.ToYul.storagePathWriteTargetEffectStmtPlanStatements
         toYulError
