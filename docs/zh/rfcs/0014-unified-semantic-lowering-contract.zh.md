@@ -180,14 +180,47 @@ Body planning（针对 Solana instruction 的 `ExprPlan`/`StmtPlan`）**推迟**
 
 ### 共享 validate 子集
 
-新模块：`ProofForge/Backend/SharedValidate.lean`（或 `ProofForge/IR/Validate.lean`）。包含：
+新模块：`ProofForge/Backend/SharedValidate.lean`（Phase 1 已落地）。
 
-- 标识符合法性（跨链共享的 Lean / 目标标识符规则）。
-- 入口返回路径检查（非 unit 返回必须以 `return` 等价物结尾）。
-- 按 profile 不支持的类型：委托给 `Target.resolveModule` / `TargetProfile`，使每个后端仍拥有自己的类型白名单。
-- Ownership hook：对降级已拥有堆的后端（NEAR、CosmWasm 已有；EVM/Psy/Solana 按 Phase 1 opt-in）可选地调用 `IR.Ownership.checkModule`。
+**Phase 1（已落地）—— 真正 byte-identical 的纯 helper。** 对 EVM 与 NEAR 的
+validate 盘点发现，只有四个 helper 是真正重复（签名、规则、diagnostic 字符串
+一致）的，已抽取：
 
-EVM 的 `Evm.Validate.lean` 和 NEAR 的 `WasmNear/IR.validateModule` 委托共享检查；Solana 的 `validateCapabilities` 被*保留*并在 Phase 2 中用共享子集*增强*（它不替代 capability 检查）。
+- `SharedValidate.ensureType` —— 类型不匹配格式化
+  （`{context} expected \`{expected}\`, got \`{actual}\``），原在 `Evm.Validate`、
+  `Evm.IR`、`WasmNear.IR`、`Psy.IR` 中 byte-identical。
+- `SharedValidate.sharedParamBindings` —— 支撑每个后端的
+  `entrypointTypeEnv`。
+- `SharedValidate.statementAlwaysReturns` / `statementsAlwaysReturn` ——
+  控制流返回路径谓词（原本在 EVM 内部 `Validate.lean` 与 `IR.lean` 之间重复）。
+- `SharedValidate.checkOwnership` —— 包装 `IR.Ownership.checkModule` 的 opt-in
+  stub。未新接入任何后端；NEAR/CosmWasm 继续直接调用 `IR.Ownership.checkModule`。
+
+EVM（`Validate.lean`、`IR.lean`）与 NEAR（`WasmNear/IR.lean`）现已委托
+`SharedValidate`。diagnostic 字符串与抽取前 byte-identical（由
+`Tests/SharedValidate.lean` 钉死）。
+
+**Phase 1 发现 —— 当前不可安全抽取的内容。** 本节早先草稿将「标识符合法性、
+入口返回路径检查、按 profile 不支持的类型、ownership hook」列为共享子集。实现
+盘点表明这些**并非**真正跨后端重复——它们的签名、规则、消息各异：
+
+- `validateCapabilities` —— EVM 调 `Target.resolveModule Target.evm`（返回
+  `CapabilityPlan`）；NEAR 调 `requireCapabilities Target.wasmNear`（返回
+  `Unit`）。签名与错误包装不同。
+- **返回路径检查** —— EVM 分析每条控制流路径（`statementsAlwaysReturn`，
+  消息 `"does not return on every control-flow path"`）；NEAR 用
+  `bodyEndsWithReturn`（语法上检查最后一条语句，消息 `"does not end with a
+  return statement"`）。规则与消息都不同——强行统一会改动 NEAR diagnostic。
+- 标识符合法性 —— NEAR 专属（Rust 标识符规则）；EVM 无对应检查。
+- `ensureNumericType` —— EVM 返回 `ValueType`（支持 U8）；NEAR 返回 `Unit`
+  （仅 U32/U64）。不同构。
+
+统一这些需要先引入共享 `Diagnostic` 类型并对齐跨后端返回路径语义。该重构归为
+**Phase 2+ 前置项**（见 Open questions），不属于 Phase 1。Phase 1 按现状抽取
+真正的重复，其余保留在各后端——这是 diagnostic 稳定性约束下的保守结果。
+
+Solana 的 `validateCapabilities` 在 Phase 2 保留，并在适用处用共享 helper
+增强；它不替代 capability 检查。
 
 ### Smoke gate 模式
 
@@ -225,27 +258,34 @@ Golden plan 快照（Phase 6 stretch）会将 plan 序列化为 JSON 供人工 r
 
 **范围裁剪：** Lean typeclass 编码（待定问题）。
 
-### Phase 1 —— 共享 validate 子集（6–10 周）
+### Phase 1 —— 共享 validate 子集（2026-07-06 已落地）
 
-**里程碑：**
+**状态：** 已落地。Build 通过，测试通过，diagnostic byte-identical。
 
-- 落地 `ProofForge/Backend/SharedValidate.lean`。
-- EVM `Validate.lean` 调用共享 + EVM 专用（slot、ABI、crosscall 模式）。
-- NEAR `WasmNear/IR.validateModule` 委托重复的检查。
-- 从共享 validate 到 `Tests/IROwnership.lean` 的可选 ownership hook。
+**已抽取的内容（真正重复的纯 helper）：**
 
-**改动清单：**
+- `ProofForge/Backend/SharedValidate.lean`（新）—— `ensureType`、
+  `sharedParamBindings`、`statementAlwaysReturns`/`statementsAlwaysReturn`，
+  以及 `checkOwnership` opt-in stub。
+- EVM `Validate.lean` + `IR.lean` 与 NEAR `WasmNear/IR.lean` 委托
+  `SharedValidate` 处理这四个 helper。
+- `Tests/SharedValidate.lean`（12 例）钉死行为与 `ensureType` 的精确
+  diagnostic。
+- `justfile`：`shared-validate-smoke` recipe 加入 `check`。
 
-- `ProofForge/Backend/Evm/Validate.lean`
-- `ProofForge/Backend/WasmNear/IR.lean`
-- `ProofForge/IR/Ownership.lean`（仅签收 hook）
-- `Tests/IROwnership.lean`
+**未抽取的内容（各后端签名/规则/消息不同）：**
 
-**新 recipe：** `just shared-validate-smoke` → 新 `Tests/SharedValidate.lean`；加入 `just check`。
+- `validateCapabilities`、返回路径检查、标识符合法性、`ensureNumericType`
+  —— 详见上文「共享 validate 子集」对每项为何不可安全抽取的完整盘点。
 
-**风险：** diagnostic-message 变更——golden diagnostic 测试（`Tests/SolanaDiagnostics.lean`、EVM diagnostic）必须同步更新。
+**Diagnostic 稳定性：** 不变。`Tests/SharedValidate.lean` 的
+`testEnsureTypeMismatchMessage` 钉死 `"probe expected \`U64\`, got \`U32\`"`。
+无需更新任何 golden diagnostic 测试。
 
-**范围裁剪：** Solana 完整的 `validateModule` 留在 Phase 2。
+**延后至 Phase 2+ 前置项：** 引入共享 `Diagnostic` 类型并对齐跨后端返回路径
+语义，使 `validateCapabilities` 与返回路径检查可在不改动 NEAR diagnostic 的
+前提下统一。已登记为 Open question；它不是 Phase 2（SolanaModulePlan）的工作，
+也不阻塞 Phase 2。
 
 ### Phase 2 —— `SolanaModulePlan` + semantic-plan smoke（10–16 周）
 
@@ -350,6 +390,13 @@ Golden plan 快照（Phase 6 stretch）会将 plan 序列化为 JSON 供人工 r
 - CosmWasm 现在就跟随 NEAR 拆分，还是在 Phase 3 落地之后？
 - Lowering 契约是否应编码为 Lean typeclass？若是，在哪个阶段（Phase 0 桩 vs Phase 6 稳定形状）？
 - `just semantic-plan-matrix` 应该属于 `just check`、`just ci`，还是一个独立的仅 reviewer 入口？
+- **Phase 2+ 前置项 —— 共享 Diagnostic 类型。** Phase 1 盘点表明
+  `validateCapabilities`、返回路径检查、标识符合法性、`ensureNumericType`
+  当前不可安全统一，因为 EVM 与 NEAR 的签名、规则、diagnostic 字符串不同。
+  是否应引入共享 `Diagnostic` 类型（带各后端 wrapper），使这些检查能在后续
+  阶段统一而不改动现有 golden diagnostic 输出？这不阻塞 Phase 2
+  （SolanaModulePlan）或 Phase 3（NEAR plan），但共享 validate 面要超越
+  Phase 1 落地的四个纯 helper 的话，必须先做这一步。
 
 ## 后续工作
 

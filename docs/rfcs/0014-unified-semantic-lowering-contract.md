@@ -265,20 +265,55 @@ plans; initial scope keeps the existing metadata-only plan and aligns the
 
 ### Shared validate subset
 
-New module: `ProofForge/Backend/SharedValidate.lean` (or `ProofForge/IR/Validate.lean`).
-Contains:
+New module: `ProofForge/Backend/SharedValidate.lean` (landed in Phase 1).
 
-- Identifier validity ( Lean / target identifier rules shared across chains).
-- Entrypoint return-path checks (non-unit returns must end in `return`-equivalent).
-- Unsupported-type-by-profile: delegate to `Target.resolveModule` /
-  `TargetProfile` so each backend still owns its type whitelist.
-- Ownership hook: optional call into `IR.Ownership.checkModule` for backends
-  that lower owned heap (NEAR, CosmWasm already do; EVM/Psy/Solana opt-in per
-  Phase 1).
+**Phase 1 (landed) — genuinely byte-identical pure helpers.** Inventory of
+EVM and NEAR validation found that only four helpers are truly duplicated with
+identical signatures, rules, and diagnostic strings. These were extracted:
 
-EVM `Evm.Validate.lean` and NEAR `WasmNear/IR.validateModule` delegate the
-shared checks; Solana's `validateCapabilities` is *retained* and *augmented*
-with the shared subset in Phase 2 (it does not replace capability checking).
+- `SharedValidate.ensureType` — type-mismatch formatter
+  (`{context} expected \`{expected}\`, got \`{actual}\``). Was byte-identical
+  across `Evm.Validate`, `Evm.IR`, `WasmNear.IR`, and `Psy.IR`.
+- `SharedValidate.sharedParamBindings` — backs every backend's
+  `entrypointTypeEnv` (param name → `LocalBinding`).
+- `SharedValidate.statementAlwaysReturns` / `statementsAlwaysReturn` —
+  control-flow return-path predicate (was duplicated *within* EVM between
+  `Validate.lean` and `IR.lean`).
+- `SharedValidate.checkOwnership` — documented opt-in stub wrapping
+  `IR.Ownership.checkModule`. Not newly wired into any backend; NEAR/CosmWasm
+  continue to call `IR.Ownership.checkModule` directly.
+
+EVM (`Validate.lean`, `IR.lean`) and NEAR (`WasmNear/IR.lean`) now delegate to
+`SharedValidate` for those helpers. Diagnostic strings are byte-identical to
+pre-extraction behavior (pinned by `Tests/SharedValidate.lean`).
+
+**Phase 1 finding — what is NOT safely extractable today.** The earlier prose
+draft of this section listed "identifier validity, entrypoint return-path
+checks, unsupported-type-by-profile, ownership hook" as the shared subset.
+Implementation inventory showed these are **not** genuinely duplicated across
+backends — they have per-backend signatures, rules, and messages:
+
+- `validateCapabilities` — EVM calls `Target.resolveModule Target.evm`
+  (returns `CapabilityPlan`); NEAR calls `requireCapabilities Target.wasmNear`
+  (returns `Unit`). Different signatures and error-wrapping.
+- **Return-path check** — EVM analyzes every control-flow path
+  (`statementsAlwaysReturn`, message `"does not return on every control-flow
+  path"`); NEAR uses `bodyEndsWithReturn` (syntactic last-statement check,
+  message `"does not end with a return statement"`). Different rules and
+  messages — unifying would churn NEAR diagnostics.
+- Identifier validity — NEAR has Rust-identifier rules; EVM has no equivalent
+  check.
+- `ensureNumericType` — EVM returns a `ValueType` (supports U8); NEAR returns
+  `Unit` (U32/U64 only). Not isomorphic.
+
+Unifying these requires introducing a shared `Diagnostic` type and aligning
+return-path semantics across backends first. That refactor is scoped to a
+**Phase 2+ prerequisite** (see Open questions), not Phase 1. Phase 1 as landed
+extracts the real duplication and leaves the rest per-backend — the conservative
+outcome the diagnostic-stability constraint mandates.
+
+Solana's `validateCapabilities` is retained in Phase 2 and augmented with the
+shared helpers where they apply; it does not replace capability checking.
 
 ### Smoke gate pattern
 
@@ -323,29 +358,37 @@ Tier B; Phase 4 begins the Tier C seam without delivering full proofs.
 
 **Scope cut:** Lean typeclass encoding (open question).
 
-### Phase 1 — Shared validate subset (6–10 weeks)
+### Phase 1 — Shared validate subset (landed 2026-07-06)
 
-**Milestones:**
+**Status:** Landed. Build green, tests green, diagnostics byte-identical.
 
-- Land `ProofForge/Backend/SharedValidate.lean`.
-- EVM `Validate.lean` calls shared + EVM-only (slots, ABI, crosscall modes).
-- NEAR `WasmNear/IR.validateModule` delegates the duplicated checks.
-- Optional ownership hook from shared validate into `Tests/IROwnership.lean`.
+**What was extracted (the genuinely duplicated pure helpers):**
 
-**Touch list:**
+- `ProofForge/Backend/SharedValidate.lean` (new) — `ensureType`,
+  `sharedParamBindings`, `statementAlwaysReturns`/`statementsAlwaysReturn`,
+  and a `checkOwnership` opt-in stub.
+- EVM `Validate.lean` + `IR.lean` and NEAR `WasmNear/IR.lean` delegate to
+  `SharedValidate` for those four helpers.
+- `Tests/SharedValidate.lean` (12 cases) pins behavior and the exact
+  `ensureType` diagnostic.
+- `justfile`: `shared-validate-smoke` recipe added to `check`.
 
-- `ProofForge/Backend/Evm/Validate.lean`
-- `ProofForge/Backend/WasmNear/IR.lean`
-- `ProofForge/IR/Ownership.lean` (sign-off hook only)
-- `Tests/IROwnership.lean`
+**What was NOT extracted (per-backend signatures/rules/messages differ):**
 
-**New recipes:** `just shared-validate-smoke` → new `Tests/SharedValidate.lean`;
-added to `just check`.
+- `validateCapabilities`, return-path check, identifier validity,
+  `ensureNumericType` — see "Shared validate subset" above for the full
+  inventory of why each is not safely extractable without a shared
+  `Diagnostic` type and return-path semantic alignment.
 
-**Risks:** diagnostic-message churn — golden diagnostic tests
-(`Tests/SolanaDiagnostics.lean`, EVM diagnostics) must update in lockstep.
+**Diagnostic stability:** unchanged. `Tests/SharedValidate.lean`'s
+`testEnsureTypeMismatchMessage` pins `"probe expected \`U64\`, got \`U32\`"`.
+No golden diagnostic test needed updating.
 
-**Scope cut:** Solana full `validateModule` stays in Phase 2.
+**Deferred to Phase 2+ prerequisite:** introduce a shared `Diagnostic` type
+and align return-path semantics across backends so `validateCapabilities` and
+the return-path check can be unified without churning NEAR diagnostics. This
+is tracked as an Open question; it is not Phase 2 (SolanaModulePlan) work and
+does not block it.
 
 ### Phase 2 — `SolanaModulePlan` + semantic-plan smoke (10–16 weeks)
 
@@ -498,6 +541,15 @@ feature-flag strategy as Phase 2.
   which stage (Phase 0 stub vs Phase 6 stable shape)?
 - Should `just semantic-plan-matrix` be part of `just check`, `just ci`, or a
   separate reviewer-only entry?
+- **Phase 2+ prerequisite — shared Diagnostic type.** Phase 1 inventory showed
+  that `validateCapabilities`, the return-path check, identifier validity, and
+  `ensureNumericType` cannot be safely unified today because EVM and NEAR use
+  different signatures, rules, and diagnostic strings. Should a shared
+  `Diagnostic` type be introduced (with per-backend wrappers) so these checks
+  can be unified in a later phase without churning existing golden diagnostic
+  output? This does not block Phase 2 (SolanaModulePlan) or Phase 3 (NEAR plan)
+  but is required before the "shared validate" surface can grow beyond the four
+  pure helpers landed in Phase 1.
 
 ## Future work
 

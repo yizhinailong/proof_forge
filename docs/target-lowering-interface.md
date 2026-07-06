@@ -271,27 +271,40 @@ rewrite.
 
 ## Shared validate subset
 
-The shared layer (`ProofForge/Backend/SharedValidate.lean`, to land in
-Phase 1) owns checks that every primary backend currently duplicates or
-ought to enforce:
+Phase 1 landed `ProofForge/Backend/SharedValidate.lean` with the **four
+genuinely byte-identical pure helpers** that EVM and NEAR duplicate today:
 
-- **Identifier validity** — Lean/target identifier rules shared across
-  chains (today duplicated between `Evm.Validate.lean` and
-  `WasmNear/IR.validateIdentifiers`).
-- **Entrypoint return-path checks** — non-unit returns must end in a
-  `return`-equivalent (today only `WasmNear/IR.validateModule` enforces this
-  via `bodyEndsWithReturn`; EVM/Psy/Solana rely on the body lowering to
-  trap).
-- **Unsupported-type-by-profile** — delegates to
-  `Target.resolveModule` / `TargetProfile` so each backend still owns its
-  type whitelist (e.g. `wasm-near IR v0 does not support U128/Bytes/String`
-  in `WasmNear/IR.lean`, ZK capability rejection in `solana-sbpf-asm`).
-- **Ownership hook** — optional call into
-  `ProofForge/IR/Ownership.lean` `checkModule` for backends that lower
-  owned heap (NEAR/CosmWasm already call it from `EmitWat.renderCheckedModule`;
-  EVM/Psy/Solana opt in per Phase 1).
+- `SharedValidate.ensureType` — type-mismatch formatter (was duplicated across
+  `Evm.Validate`, `Evm.IR`, `WasmNear.IR`, `Psy.IR`).
+- `SharedValidate.sharedParamBindings` — backs every backend's
+  `entrypointTypeEnv`.
+- `SharedValidate.statementAlwaysReturns` / `statementsAlwaysReturn` —
+  control-flow return-path predicate (was duplicated within EVM).
+- `SharedValidate.checkOwnership` — opt-in stub wrapping
+  `ProofForge/IR/Ownership.lean` `checkModule`. NEAR/CosmWasm continue to call
+  `checkModule` directly; not newly wired into EVM/Psy/Solana.
 
-What stays **per-backend**:
+**Phase 1 finding (important):** the checks that this document's earlier draft
+listed as the shared subset — *identifier validity, entrypoint return-path,
+unsupported-type-by-profile, ownership hook* — are **not** safely extractable
+today. They have per-backend signatures, rules, and diagnostic strings:
+
+- `validateCapabilities` differs in signature (EVM returns `CapabilityPlan`,
+  NEAR returns `Unit`).
+- The return-path check differs in both rule and message: EVM analyzes every
+  control-flow path (`"does not return on every control-flow path"`); NEAR
+  checks the last statement syntactically (`"does not end with a return
+  statement"`). Unifying would churn NEAR diagnostics.
+- Identifier validity is NEAR-only (Rust identifier rules); EVM has no
+  equivalent.
+- `ensureNumericType` returns `ValueType` on EVM (supports U8) vs `Unit` on
+  NEAR (U32/U64 only).
+
+Unifying these requires a shared `Diagnostic` type and return-path semantic
+alignment, tracked as a Phase 2+ prerequisite in RFC 0014 Open questions. It
+does not block Phase 2 (SolanaModulePlan) or Phase 3 (NEAR plan).
+
+What stays **per-backend** regardless:
 
 - EVM: storage slot uniqueness, ABI param/return type restrictions,
   crosscall/create modes, checked-arithmetic detection
