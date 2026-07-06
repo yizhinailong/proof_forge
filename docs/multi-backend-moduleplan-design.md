@@ -1,6 +1,6 @@
 # Multi-backend ModulePlan — feasibility assessment and design
 
-Status: **Draft (design only — not implemented)**
+Status: **Phase 4 Step A + Step B landed** (plan-driven NEAR lowering, dual-path parity green)
 
 Date: 2026-07-07
 
@@ -257,22 +257,29 @@ Three steps, each behind the existing `renderModule` / `renderModuleWithPlan` se
 No feature flag is needed initially because the change is additive (the inline `Ctx`
 construction is replaced by `Ctx.fromSeed`, which produces the same fields).
 
-**Step A — Types only (no behavior).**
+**Step A — Types only (no behavior). — LANDED (commit 61cfa7a9).**
 - Add `ProofForge/Backend/WasmNear/NearModulePlan.lean` with the struct definitions
   above (no construction, no consumers).
 - `NearModulePlan` is buildable but unused; EmitWat path unchanged.
 - CI stays green by construction. *(This is the optional stub this step delivers.)*
 
-**Step B — Plan construction + `Ctx.fromSeed` (additive).**
+**Step B — Plan construction + `Ctx.fromSeed` (additive). — LANDED (2026-07-07).**
 - Implement `buildNearModulePlan : IR.Module → Except PlanError NearModulePlan` by
   calling `WasmNear.Plan.buildModulePlan` for the `surface` and the existing
   `stateLayout` / `mapLayout` / `stringPool` / `panicPool` / `crosscallStringInfos`
   for the `layout`.
-- In `EmitWat.lowerModule`, add a `--near-plan=v2` branch: build `NearModulePlan`,
-  derive `Ctx` via `Ctx.fromSeed plan.lowerCtxSeed plan.layout`, and proceed. The v1
-  path (inline `Ctx`) is preserved.
-- Add a CI-only gate that runs BOTH paths for the probe set (`Counter`,
-  `ValueVault`, `NearCrosscallProbe`) and asserts byte-equality of the WAT output.
+- Implement `Ctx.fromPlanSeed : NearLowerCtxSeed → NearLayoutPlan → EmitWat.Ctx`
+  (the whole `Ctx` is plan-derived; no lowering-local mutable state) and
+  `lowerModuleFromPlan : IR.Module → NearModulePlan → Except EmitError Wasm.Module`.
+  The plan-driven path reconstructs the `Ctx` and hands it to a shared
+  `EmitWat.lowerModuleCoreWithCtx` body extracted from the inline `lowerModule`
+  (mirroring Solana's `lowerModuleCoreWithSeed`). The inline `Ctx` construction
+  in `EmitWat.lowerModule` is kept (dual-path) until Step C.
+- The `just near-plan-smoke` gate now runs a dual-path parity check (the existing
+  golden plan diff plus a `--parity` flag that asserts plan-driven WAT == inline
+  WAT). Current coverage: `Counter: MATCH 2228 chars`. `ValueVault` and
+  `NearCrosscallProbe` are deferred to a later Step B.2 (they need their own
+  fixture wiring in `Tests/NearModulePlan.moduleFor`).
 
 **Step C — Switch default.**
 - After parity holds over N consecutive CI runs, flip the default to v2 and delete
@@ -282,8 +289,10 @@ construction is replaced by `Ctx.fromSeed`, which produces the same fields).
 
 **Byte-stability guard.** The existing `Examples/WasmNear/Counter.golden.wat` and
 `ValueVault.golden.wat` pin the WAT output. The `just wasm-near-plan` smoke pins the
-host-import/helper surface. The new `just near-plan-smoke` (Step A) pins the layout
-plan as a golden text artifact, mirroring `solana-plan-smoke`.
+host-import/helper surface. `just near-plan-smoke` pins the layout plan as a golden
+text artifact (Step A) AND asserts dual-path WAT parity (Step B), mirroring
+`solana-plan-smoke`. Step B's extraction is purely additive to the lowering body,
+so the inline path and the frozen WAT goldens are unchanged.
 
 ## 7. Deferred backends
 
@@ -324,10 +333,13 @@ backend is correctly listed in RFC 0014 non-goals ("extending the contract to ..
 Move (Sui/Aptos) ... in the initial scope. Those may follow once the four primary
 backends are aligned").
 
-## 8. Optional stub: `NearModulePlan.lean` (this step)
+## 8. Landed stub + Step B wiring: `NearModulePlan.lean`
 
 Because NEAR is confirmed easy and the stub is purely additive (no lowering-path
-changes), this step delivers a minimal type-only stub:
+changes), Step A delivered a minimal type-only stub, and Step B wired it into
+lowering:
+
+Step A (commit 61cfa7a9):
 
 - `ProofForge/Backend/WasmNear/NearModulePlan.lean` — the struct definitions from §5
   plus a `buildNearModulePlan` that constructs a plan for
@@ -341,8 +353,18 @@ changes), this step delivers a minimal type-only stub:
 - `scripts/near/plan-smoke.sh` — mirrors `scripts/solana/plan-smoke.sh`.
 - `justfile` recipe `near-plan-smoke`, wired into `just check`.
 
-The stub is **not** wired into `EmitWat.lowerModule`. It only proves the plan can be
-built and rendered deterministically. Step B (wiring) is a follow-up.
+Step B (2026-07-07):
+
+- `Ctx.fromPlanSeed` + `lowerModuleFromPlan` + `renderModuleFromPlan` in
+  `NearModulePlan.lean` (the plan-driven path).
+- `EmitWat.lowerModuleCoreWithCtx` extracted from `lowerModule` (the shared body
+  both paths use), breaking the import cycle without changing the inline path's
+  output.
+- `Tests/NearModulePlan.lean` extended with a dual-path parity check
+  (plan-driven WAT vs inline WAT, byte-identical); `scripts/near/plan-smoke.sh`
+  runs it via `--parity`.
+- Result: `Counter: MATCH 2228 chars`. The inline `Ctx` construction is kept
+  (dual-path) until Step C.
 
 ## 9. RFC 0014 Phase 4 update summary
 

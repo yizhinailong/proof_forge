@@ -198,8 +198,8 @@ wasm-near-plan:
     lake build proof-forge ProofForge.IR.Examples.NearCrosscallProbe
     lake env lean --run Tests/WasmNearPlan.lean
 
-# Run the NearModulePlan golden smoke for the Counter fixture (Tier B gate, Step A).
-# The plan is built but NOT wired into EmitWat; this only verifies determinism.
+# Run the NearModulePlan golden + dual-path parity smoke (Tier B gate, Step B).
+# Builds the plan, diffs against golden, and asserts plan-driven WAT == inline WAT.
 near-plan-smoke:
     scripts/near/plan-smoke.sh
 

@@ -417,17 +417,22 @@ spike、没有真正的 lowering（`SuiModulePlan` 需要先于真正的 Move lo
 
 **里程碑：**
 
-- Step A（仅类型，增量）：添加 `ProofForge/Backend/WasmNear/NearModulePlan.lean`，
-  包含 `NearModulePlan`、`NearLayoutPlan`、`NearLowerCtxSeed`，以及一个针对
+- Step A（仅类型，增量）—— **已落地（commit 61cfa7a9）。** 添加了
+  `ProofForge/Backend/WasmNear/NearModulePlan.lean`，包含 `NearModulePlan`、
+  `NearLayoutPlan`、`NearLowerCtxSeed`，以及一个针对
   `ProofForge.IR.Examples.Counter.module` 的 `buildNearModulePlan`。不接入 EmitWat。
-  添加 `Tests/NearModulePlan.lean`、`Examples/WasmNear/Counter/golden/plan.txt`、
+  添加了 `Tests/NearModulePlan.lean`、`Examples/WasmNear/Counter/golden/plan.txt`、
   `just near-plan-smoke`（镜像 `solana-plan-smoke`）。
-- Step B（plan 构建 + `Ctx.fromSeed`，增量）：完整实现 `buildNearModulePlan`
-  （`surface` 复用 `WasmNear.Plan.buildModulePlan`，`layout` 复用现有
-  `stateLayout`/`mapLayout`/`stringPool`/`panicPool`/`crosscallStringInfos`），
-  在 `EmitWat.lowerModule` 中添加 `--near-plan=v2` 分支，通过
-  `Ctx.fromSeed plan.lowerCtxSeed plan.layout` 派生 `Ctx`，并在 CI 中同时运行两条路径、
-  断言 WAT 输出字节相等。
+- Step B（plan 构建 + `Ctx.fromSeed`，增量）—— **已落地（2026-07-07）。**
+  实现了 `Ctx.fromPlanSeed`（从 plan 的 seed + layout 重建 `EmitWat.Ctx`；整个
+  `Ctx` 都是 plan 派生的，因为 NEAR 没有 lowering-local 可变状态，不同于 Solana 的
+  `locals`/`nextLabel`/`allocator`），以及 `lowerModuleFromPlan`（将重建的 `Ctx`
+  交给从内联路径抽出的共享 `EmitWat.lowerModuleCoreWithCtx` 体，镜像 Solana 的
+  `lowerModuleCoreWithSeed`）。`EmitWat.lowerModule` 中的内联 `Ctx` 构建保留
+  （双路径），直到 Step C。`near-plan-smoke` gate 现在还运行双路径 parity 检查：
+  对 `Counter`，plan 驱动 WAT 与内联 WAT 必须字节一致（断言为 `MATCH N chars`）。
+  结果：`Counter: MATCH 2228 chars`。`lake build`、`just wasm-near-plan` 及冻结的
+  `Counter.golden.wat` 均不受影响。
 - Step C（切换默认）：parity 稳定后，将默认切到 v2，删除内联 `Ctx` 构建，并让
   `WasmNear/Refinement.lean` 从重新推导 export/import 改为读取
   `NearModulePlan.surface` + `NearModulePlan.layout`。
@@ -437,7 +442,13 @@ spike、没有真正的 lowering（`SuiModulePlan` 需要先于真正的 Move lo
 - Step A：`ProofForge/Backend/WasmNear/NearModulePlan.lean`（新增）、
   `Tests/NearModulePlan.lean`（新增）、`Examples/WasmNear/Counter/golden/plan.txt`
   （新增）、`scripts/near/plan-smoke.sh`（新增）、`justfile`。
-- Steps B–C：`ProofForge/Backend/WasmNear/EmitWat.lean`、
+- Step B：`ProofForge/Backend/WasmNear/NearModulePlan.lean`（`Ctx.fromPlanSeed`、
+  `lowerModuleFromPlan`、`renderModuleFromPlan`；`NearStatePlan`/`NearMapPlan` 现在
+  携带 `ValueType`，使 seed 能重建 `StateInfo`/`MapInfo`）、
+  `ProofForge/Backend/WasmNear/EmitWat.lean`（从 `lowerModule` 抽出
+  `lowerModuleCoreWithCtx` 以打破 import 环）、`Tests/NearModulePlan.lean`（双路径
+  parity 检查）、`scripts/near/plan-smoke.sh`（`--parity`）、`justfile`。
+- Step C：`ProofForge/Backend/WasmNear/EmitWat.lean`、
   `ProofForge/Backend/WasmNear/Refinement.lean`。
 
 **风险：** WAT golden 变更；离线宿主 smoke 必须保持字节稳定。与 Phase 2 相同的

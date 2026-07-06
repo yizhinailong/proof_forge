@@ -2562,28 +2562,17 @@ def lowerEntrypoint (ctx : Ctx) (ep : Entrypoint) : Except EmitError Func := do
     else #[]
   .ok { name := ep.name, locals := locals, body := { insns := resetPrefix ++ paramPrologue ++ bodyInsns }, exportName := ep.name }
 
-def lowerModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBridge := ProofForge.Target.HostBridge.near) : Except EmitError ProofForge.Compiler.Wasm.Module := do
-  if bridge == ProofForge.Target.HostBridge.cosmWasm then
-    err "EmitWat: CosmWasm bridge lowering is implemented in Backend.CosmWasm.EmitWat; use that module for wasm-cosmwasm"
-  if mod.allocator.isCosmWasmRegion then
-    err "EmitWat: alloc.cosmwasm_region is for the CosmWasm adapter, not wasm-near EmitWat"
-  let modulePlan ←
-    match buildModulePlan mod with
-    | .ok plan => pure plan
-    | .error planErr => err s!"EmitWat: {planErr.message}"
-  let scalars := stateLayout mod
-  let maps := mapLayout mod
-  let strs := stringPool mod
-  let stringPoolEnd := stringInfoEnd STRING_BASE strs
-  let panics := panicPool mod stringPoolEnd
-  let crosscallStrs := crosscallStringInfos mod.nearCrosscallStrings CROSSCALL_STRING_BASE
-  validateScratchCapacities mod strs panics crosscallStrs
-  let ctx := {
-    scalars := scalars, maps := maps, strings := strs, panics := panics,
-    crosscallStrings := crosscallStrs, structs := mod.structs, allocator := mod.allocator : Ctx }
+/- Core lowering body once the surface `ModulePlan` and the data-layout `Ctx`
+have been derived. Exposed so the plan-driven path
+(`ProofForge.Backend.WasmNear.NearModulePlan.lowerModuleFromPlan`) can reuse the
+exact same body without re-deriving the layout inline. This mirrors Solana's
+`lowerModuleCoreWithSeed` extraction in `SbpfAsm.lean`. The body is a pure
+function of `(mod, modulePlan, ctx)` — it does not re-derive any layout. -/
+def lowerModuleCoreWithCtx (mod : ProofForge.IR.Module) (modulePlan : ModulePlan)
+    (ctx : Ctx) : Except EmitError ProofForge.Compiler.Wasm.Module := do
   let entryFuncs ← mod.entrypoints.mapM (lowerEntrypoint ctx)
-  let scalarData := scalars.map fun s => { offset := s.keyPtr, bytes := s.id : DataSegment }
-  let mapData := maps.map fun m => { offset := m.prefixPtr, bytes := m.id ++ ":" : DataSegment }
+  let scalarData := ctx.scalars.map fun s => { offset := s.keyPtr, bytes := s.id : DataSegment }
+  let mapData := ctx.maps.map fun m => { offset := m.prefixPtr, bytes := m.id ++ ":" : DataSegment }
   let boolData : Array DataSegment :=
     #[{ offset := TRUE_PTR, bytes := "true" },
       { offset := FALSE_PTR, bytes := "false" },
@@ -2595,11 +2584,11 @@ def lowerModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBri
   let usesCrosscallStrings := modulePlan.usesPromiseCreate || modulePlan.usesPromiseThen
   let crosscallStringData :=
     if usesCrosscallStrings then
-      crosscallStrs.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
+      ctx.crosscallStrings.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
     else #[]
-  let stringData := strs.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
-  let panicData := panics.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
-  let hasPanic := !panics.isEmpty
+  let stringData := ctx.strings.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
+  let panicData := ctx.panics.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
+  let hasPanic := !ctx.panics.isEmpty
   let sha256Imports := if modulePlanUsesSha256 modulePlan then #[sha256Import] else #[]
   let baseImportsCore :=
     (nearImportsForModulePlan modulePlan ++ sha256Imports).push inputImport
@@ -2622,7 +2611,7 @@ def lowerModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBri
     hashStorageHelperFuncsForModulePlan modulePlan ++ ctxHelperFuncsForModulePlan modulePlan ++
     evtHelperFuncsForModulePlan modulePlan ++ crosscallArgsHelperFuncsForModulePlan modulePlan ++
     promiseHelperFuncsForModulePlan modulePlan ++
-    crosscallPoolHelperFuncs crosscallStrs ++
+    crosscallPoolHelperFuncs ctx.crosscallStrings ++
     mapHelperFuncsForModulePlan modulePlan ++
     mapHashHelperFuncsForModulePlan modulePlan ++ aggregateHelperFuncsForModulePlan modulePlan mod ++ entryFuncs
   let arrPtrDecls :=
@@ -2637,6 +2626,27 @@ def lowerModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBri
         memory := some { min := 1 },
         dataSegments := scalarData ++ mapData ++ boolData ++ evtKeySegments ++ stringData ++
           crosscallStringData ++ crosscallArgsData ++ (if hasPanic then panicData else #[]) }
+
+def lowerModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBridge := ProofForge.Target.HostBridge.near) : Except EmitError ProofForge.Compiler.Wasm.Module := do
+  if bridge == ProofForge.Target.HostBridge.cosmWasm then
+    err "EmitWat: CosmWasm bridge lowering is implemented in Backend.CosmWasm.EmitWat; use that module for wasm-cosmwasm"
+  if mod.allocator.isCosmWasmRegion then
+    err "EmitWat: alloc.cosmwasm_region is for the CosmWasm adapter, not wasm-near EmitWat"
+  let modulePlan ←
+    match buildModulePlan mod with
+    | .ok plan => pure plan
+    | .error planErr => err s!"EmitWat: {planErr.message}"
+  let scalars := stateLayout mod
+  let maps := mapLayout mod
+  let strs := stringPool mod
+  let stringPoolEnd := stringInfoEnd STRING_BASE strs
+  let panics := panicPool mod stringPoolEnd
+  let crosscallStrs := crosscallStringInfos mod.nearCrosscallStrings CROSSCALL_STRING_BASE
+  validateScratchCapacities mod strs panics crosscallStrs
+  let ctx := {
+    scalars := scalars, maps := maps, strings := strs, panics := panics,
+    crosscallStrings := crosscallStrs, structs := mod.structs, allocator := mod.allocator : Ctx }
+  lowerModuleCoreWithCtx mod modulePlan ctx
 
 /-! EmitWat supports the same capability surface as the `wasmNear` target profile,
     plus `controlConditional` and `controlBoundedLoop` (if/else + boundedFor are

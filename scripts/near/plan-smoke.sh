@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
-# V-GATE-NEAR-06: NearModulePlan golden smoke.
+# V-GATE-NEAR-06: NearModulePlan golden + dual-path parity smoke.
 #
-# Builds the NearModulePlan for each fixture and compares it to the golden copy
-# at Examples/WasmNear/<Fixture>/golden/plan.txt.
+# Builds the NearModulePlan for each fixture, compares it to the golden copy
+# at Examples/WasmNear/<Fixture>/golden/plan.txt, AND (Step B) runs the
+# dual-path parity check: plan-driven WAT vs inline EmitWat WAT must be
+# byte-identical.
 #
-# Fixtures (RFC 0014 Phase 4 — Step A type-only stub):
+# Fixtures (RFC 0014 Phase 4 — Step B plan-driven lowering):
 #   Counter — scalar state (the original MVP)
 #
-# This is the Tier B gate for the NEAR backend's data-layout plan: it validates
-# that the plan artifact is stable and deterministic before EmitWat wiring (Step B).
-# The plan is NOT wired into EmitWat.lowerModule; it only proves the plan can be
-# built deterministically and rendered as a stable text artifact.
+# This is the Tier B gate for the NEAR backend's data-layout plan. Step B
+# wires the plan into lowering via NearModulePlan.lowerModuleFromPlan, which
+# reuses EmitWat.lowerModuleCoreWithCtx (the shared body extracted from the
+# inline path). The inline Ctx construction in EmitWat.lowerModule is kept
+# (dual-path) until Step C.
 
 set -euo pipefail
 
@@ -23,7 +26,7 @@ FIXTURES=(
 
 mkdir -p build/wasm-near
 
-echo "=== V-GATE-NEAR-06: NearModulePlan golden smoke ==="
+echo "=== V-GATE-NEAR-06: NearModulePlan golden + parity smoke ==="
 
 total=${#FIXTURES[@]}
 step=0
@@ -40,14 +43,14 @@ for fixture in "${FIXTURES[@]}"; do
     continue
   fi
 
-  echo "[${step}/${total}] generating ${fixture} NearModulePlan..."
-  if ! lake env lean --run Tests/NearModulePlan.lean "$fixture" "$OUTPUT"; then
-    echo "FAIL: plan generation failed for ${fixture}" >&2
+  echo "[${step}/${total}] generating ${fixture} NearModulePlan + parity check..."
+  if ! lake env lean --run Tests/NearModulePlan.lean "$fixture" "$OUTPUT" --parity; then
+    echo "FAIL: plan generation / parity failed for ${fixture}" >&2
     fail=$((fail + 1))
     continue
   fi
 
-  echo "  diff against golden..."
+  echo "  diff plan against golden..."
   if ! diff -u "$GOLDEN" "$OUTPUT"; then
     echo "FAIL: generated plan differs from golden for ${fixture}" >&2
     fail=$((fail + 1))

@@ -547,17 +547,23 @@ real lowering (a `SuiModulePlan` would have to precede building one).
 
 **Milestones:**
 
-- Step A (types only, additive): add `ProofForge/Backend/WasmNear/NearModulePlan.lean`
-  with `NearModulePlan`, `NearLayoutPlan`, `NearLowerCtxSeed`, and a
-  `buildNearModulePlan` for `ProofForge.IR.Examples.Counter.module`. Not wired into
-  EmitWat. Add `Tests/NearModulePlan.lean`, `Examples/WasmNear/Counter/golden/plan.txt`,
+- Step A (types only, additive) — **LANDED (commit 61cfa7a9).** Added
+  `ProofForge/Backend/WasmNear/NearModulePlan.lean` with `NearModulePlan`,
+  `NearLayoutPlan`, `NearLowerCtxSeed`, and a `buildNearModulePlan` for
+  `ProofForge.IR.Examples.Counter.module`. Not wired into EmitWat. Added
+  `Tests/NearModulePlan.lean`, `Examples/WasmNear/Counter/golden/plan.txt`,
   and `just near-plan-smoke` (mirroring `solana-plan-smoke`).
-- Step B (plan construction + `Ctx.fromSeed`, additive): implement
-  `buildNearModulePlan` fully (reusing `WasmNear.Plan.buildModulePlan` for the
-  `surface` and the existing `stateLayout`/`mapLayout`/`stringPool`/`panicPool`/
-  `crosscallStringInfos` for the `layout`), add a `--near-plan=v2` branch in
-  `EmitWat.lowerModule` that derives `Ctx` via `Ctx.fromSeed plan.lowerCtxSeed
-  plan.layout`, and run both paths in CI asserting byte-equality of WAT output.
+- Step B (plan construction + `Ctx.fromSeed`, additive) — **LANDED (2026-07-07).**
+  Implemented `Ctx.fromPlanSeed` (reconstructs `EmitWat.Ctx` from the plan's seed +
+  layout; the whole `Ctx` is plan-derived since NEAR has no lowering-local mutable
+  state) and `lowerModuleFromPlan` (drives lowering by handing the reconstructed
+  `Ctx` to a shared `EmitWat.lowerModuleCoreWithCtx` body extracted from the
+  inline path, mirroring Solana's `lowerModuleCoreWithSeed`). The inline `Ctx`
+  construction in `EmitWat.lowerModule` is kept (dual-path) until Step C. The
+  `near-plan-smoke` gate now also runs a dual-path parity check: for `Counter`,
+  plan-driven WAT and inline WAT must be byte-identical (asserted as `MATCH N
+  chars`). Result: `Counter: MATCH 2228 chars`. `lake build`, `just
+  wasm-near-plan`, and the frozen `Counter.golden.wat` are unaffected.
 - Step C (switch default): after parity holds, flip the default to v2, delete the
   inline `Ctx` construction, and switch `WasmNear/Refinement.lean` from re-deriving
   exports/imports to reading `NearModulePlan.surface` + `NearModulePlan.layout`.
@@ -567,7 +573,14 @@ real lowering (a `SuiModulePlan` would have to precede building one).
 - Step A: `ProofForge/Backend/WasmNear/NearModulePlan.lean` (new),
   `Tests/NearModulePlan.lean` (new), `Examples/WasmNear/Counter/golden/plan.txt`
   (new), `scripts/near/plan-smoke.sh` (new), `justfile`.
-- Steps B–C: `ProofForge/Backend/WasmNear/EmitWat.lean`,
+- Step B: `ProofForge/Backend/WasmNear/NearModulePlan.lean` (`Ctx.fromPlanSeed`,
+  `lowerModuleFromPlan`, `renderModuleFromPlan`; `NearStatePlan`/`NearMapPlan`
+  now carry `ValueType` so the seed can rebuild `StateInfo`/`MapInfo`),
+  `ProofForge/Backend/WasmNear/EmitWat.lean` (`lowerModuleCoreWithCtx` extracted
+  from `lowerModule` to break the import cycle),
+  `Tests/NearModulePlan.lean` (dual-path parity check), `scripts/near/plan-smoke.sh`
+  (`--parity`), `justfile`.
+- Step C: `ProofForge/Backend/WasmNear/EmitWat.lean`,
   `ProofForge/Backend/WasmNear/Refinement.lean`.
 
 **Risks:** WAT golden churn; offline-host smokes must remain byte-stable. Same

@@ -4,24 +4,31 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 # NearModulePlan — Tier B data-layout plan for the NEAR (WasmNear) backend
 
-This is the Step A type-only stub from RFC 0014 Phase 4
+This is the Step B plan-driven lowering from RFC 0014 Phase 4
 (see `docs/multi-backend-moduleplan-design.md`). It defines the field-level
 `NearModulePlan` that *extends* the existing `WasmNear.Plan.ModulePlan` (the
 host-import/helper-discovery surface already consumed by `EmitWat.lowerModule`)
 with the data-layout surface (scalar key pointers, map prefix pointers, string
-pool, panic pool, crosscall string pool) that `EmitWat` currently builds inline
+pool, panic pool, crosscall string pool) that `EmitWat` previously built inline
 as `Ctx`.
 
-The stub is **not** wired into `EmitWat.lowerModule`. It only proves the plan can
-be built deterministically and rendered as a golden text artifact, mirroring
-`SolanaModulePlan` / `scripts/solana/plan-smoke.sh`. Wiring (`Ctx.fromSeed`,
-the `--near-plan=v2` branch) is Step B, a follow-up.
+Step B fills in the plan-driven lowering path:
+- `NearLowerCtxSeed` carries the frozen scratch base addresses and read-only
+  type metadata needed to reconstruct `EmitWat.Ctx`.
+- `Ctx.fromPlanSeed` rebuilds an `EmitWat.Ctx` from the plan's seed + layout.
+- `lowerModuleFromPlan` drives lowering by handing the reconstructed `Ctx` to
+  the shared `EmitWat.lowerModuleCoreWithCtx` body (the same body the inline
+  path uses), so the plan-driven output is byte-identical to the inline path.
+
+The inline `Ctx` construction in `EmitWat.lowerModule` is kept (dual-path) until
+Step C, mirroring how Solana coexisted before the default switch.
 -/
 
 import ProofForge.IR.Contract
 import ProofForge.IR.Allocator
 import ProofForge.Backend.WasmNear.Plan
 import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Compiler.Wasm.Printer
 
 namespace ProofForge.Backend.WasmNear.NearModulePlan
 
@@ -29,19 +36,22 @@ open ProofForge.IR
 open ProofForge.Backend.WasmNear.Plan
 open ProofForge.Backend.WasmNear.EmitWat
 
-/-- One scalar state slot's plan: the storage key pointer in linear memory. -/
+/-- One scalar state slot's plan: the storage key pointer in linear memory.
+Carries the `ValueType` so `Ctx.fromPlanSeed` can rebuild `StateInfo.type`
+(which drives `readName`/`readHashName` dispatch). -/
 structure NearStatePlan where
   id : String
-  typeName : String
+  type : ValueType
   keyPtr : Nat
   keyLen : Nat
   deriving Repr, BEq
 
-/-- One map/array state slot's plan: the `id ++ ":"` prefix pointer. -/
+/-- One map/array state slot's plan: the `id ++ ":"` prefix pointer. Carries
+the key/value `ValueType`s so `Ctx.fromPlanSeed` can rebuild `MapInfo`. -/
 structure NearMapPlan where
   id : String
-  keyType : String
-  valueType : String
+  keyType : ValueType
+  valueType : ValueType
   prefixPtr : Nat
   prefixLen : Nat
   isArray : Bool
@@ -100,13 +110,13 @@ def renderValueType (vt : ValueType) : String := vt.name
 pointers are byte-identical to the current inline computation. -/
 def buildScalars (mod : Module) : Array NearStatePlan :=
   (stateLayout mod).map fun s =>
-    { id := s.id, typeName := renderValueType s.type, keyPtr := s.keyPtr, keyLen := s.keyLen }
+    { id := s.id, type := s.type, keyPtr := s.keyPtr, keyLen := s.keyLen }
 
 /-- Project the map/array-state subset of `mod.state` into plan entries, reusing
 `EmitWat.mapLayout`. -/
 def buildMaps (mod : Module) : Array NearMapPlan :=
   (mapLayout mod).map fun m =>
-    { id := m.id, keyType := renderValueType m.keyType, valueType := renderValueType m.valueType,
+    { id := m.id, keyType := m.keyType, valueType := m.valueType,
       prefixPtr := m.prefixPtr, prefixLen := m.prefixLen, isArray := m.isArray }
 
 /-- Project the event/field-name string pool, reusing `EmitWat.stringPool`.
@@ -171,10 +181,10 @@ def renderNat (n : Nat) : String := toString n
 def renderBool (b : Bool) : String := if b then "true" else "false"
 
 def renderScalar (s : NearStatePlan) : String :=
-  s!"  {s.id}: type={s.typeName} keyPtr={renderNat s.keyPtr} keyLen={renderNat s.keyLen}"
+  s!"  {s.id}: type={renderValueType s.type} keyPtr={renderNat s.keyPtr} keyLen={renderNat s.keyLen}"
 
 def renderMap (m : NearMapPlan) : String :=
-  s!"  {m.id}: keyType={m.keyType} valueType={m.valueType} prefixPtr={renderNat m.prefixPtr} prefixLen={renderNat m.prefixLen} isArray={renderBool m.isArray}"
+  s!"  {m.id}: keyType={renderValueType m.keyType} valueType={renderValueType m.valueType} prefixPtr={renderNat m.prefixPtr} prefixLen={renderNat m.prefixLen} isArray={renderBool m.isArray}"
 
 def renderStringEntry (e : NearStringPoolEntry) : String :=
   s!"  \"{e.str}\": ptr={renderNat e.ptr} len={renderNat e.len}"
@@ -244,5 +254,48 @@ def NearModulePlan.render (plan : NearModulePlan) : String :=
     s!"  structs: [{String.intercalate ", " (plan.lowerCtxSeed.structs.toList.map (fun s => s.name))}]"
   ]
   String.intercalate "\n" (lines.toList.filter (!·.isEmpty))
+
+-- ============================================================================
+-- Plan-driven lowering (Tier B contract) — Step B
+-- ============================================================================
+
+/-- Reconstruct an `EmitWat.Ctx` from the plan's seed + layout, mirroring
+`Solana.Plan.LowerCtx.fromSeed`. Every `Ctx` field is plan-derived: the layout
+arrays are projected back to `StateInfo`/`MapInfo`/`StringInfo`, and the
+read-only `structs`/`allocator` come from the seed. There is no lowering-local
+mutable state in `Ctx` (unlike Solana's `locals`/`nextLabel`), so the whole
+`Ctx` is reconstructable from the plan. -/
+def Ctx.fromPlanSeed (seed : NearLowerCtxSeed) (layout : NearLayoutPlan) : EmitWat.Ctx :=
+  { scalars := layout.scalars.map fun s =>
+      { id := s.id, type := s.type, keyPtr := s.keyPtr, keyLen := s.keyLen : EmitWat.StateInfo }
+    maps := layout.maps.map fun m =>
+      { id := m.id, keyType := m.keyType, valueType := m.valueType,
+        prefixPtr := m.prefixPtr, prefixLen := m.prefixLen, isArray := m.isArray : EmitWat.MapInfo }
+    strings := layout.strings.map fun e =>
+      { str := e.str, ptr := e.ptr, len := e.len : EmitWat.StringInfo }
+    panics := layout.panics.map fun e =>
+      { str := e.str, ptr := e.ptr, len := e.len : EmitWat.StringInfo }
+    crosscallStrings := layout.crosscallStrings.map fun e =>
+      { str := e.str, ptr := e.ptr, len := e.len : EmitWat.StringInfo }
+    structs := seed.structs
+    allocator := seed.allocator }
+
+/-- Lower a module using a pre-built `NearModulePlan`. This is the Tier B
+contract entry point: the lowering is a pure function of the plan (plus the IR
+module's statement bodies). The reconstructed `Ctx` is handed to the shared
+`EmitWat.lowerModuleCoreWithCtx` body — the exact same body the inline path in
+`EmitWat.lowerModule` uses — so the plan-driven output is byte-identical to
+the inline path. The surface `ModulePlan` is taken from the plan's `surface`
+field (it was built by the same `buildModulePlan` the inline path calls). -/
+def lowerModuleFromPlan (mod : Module) (plan : NearModulePlan) :
+    Except EmitWat.EmitError ProofForge.Compiler.Wasm.Module :=
+  let ctx := Ctx.fromPlanSeed plan.lowerCtxSeed plan.layout
+  EmitWat.lowerModuleCoreWithCtx mod plan.surface ctx
+
+/-- Render a module to WAT text via the plan-driven path. -/
+def renderModuleFromPlan (mod : Module) (plan : NearModulePlan) :
+    Except EmitWat.EmitError String := do
+  let m ← lowerModuleFromPlan mod plan
+  .ok (ProofForge.Compiler.Wasm.Printer.render m)
 
 end ProofForge.Backend.WasmNear.NearModulePlan
