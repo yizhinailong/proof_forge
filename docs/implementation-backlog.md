@@ -369,7 +369,10 @@ Tasks:
     through their own plan-level slices. The old IR-local fixed-array/struct
     return word fallback helpers have been removed; aggregate return success
     paths must now pass through `ReturnValueWordPlan` or aggregate crosscall
-    return planning.
+    return planning. The remaining scalar return-word fallback in
+    `lowerReturnWords` and the last `lowerScalarPlanExprOrFallback` helper have
+    been removed; `lowerReturnAssignments` now fails explicitly when neither
+    aggregate crosscall return planning nor `ReturnValueWordPlan` applies.
   - Started: direct scalar local assignment and compound-assignment statement
     assembly now always consumes `Lower.buildExprPlan` before
     `ToYul.scalarAssignmentStmtPlanStatements`. Static local fixed-array element

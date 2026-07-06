@@ -17,6 +17,41 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Return-Word Scalar Fallback Retirement
+
+Work range: `lowerReturnWords` scalar compatibility path removal
+
+Summary:
+
+- Removed `lowerReturnWords` and the last `lowerScalarPlanExprOrFallback` helper.
+- Made `lowerReturnAssignments` fail explicitly when neither aggregate crosscall
+  return planning nor `ReturnValueWordPlan` applies.
+- Updated the nested dynamic local-array semantic-plan integration test to use
+  `lowerAssignmentValueExpr`.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+! rg -n "lowerReturnWords|lowerScalarPlanExprOrFallback" ProofForge Tests
+lake build ProofForge.Backend.Evm.IR
+just evm-smoke abi-aggregate crosscall struct-value array-value ir-counter
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Whole-aggregate local assignment snapshots still use dedicated IR-local helpers
+  outside the scalar assignment StmtPlan surface.
+- `exprSupportsPlanScalarYul` remains for planned-body capability gating and
+  semantic-plan gate tests.
+
+Next step:
+
+- Continue moving recursive body lowering gaps behind `StmtPlan -> ToYul` or shrink
+  whole-aggregate local assignment compatibility helpers.
+
 ### EVM Assignment/Control-Flow Fallback Retirement
 
 Work range: assignment/control-flow fallback removal
@@ -46,15 +81,13 @@ git diff --check
 
 Known limitations:
 
-- `lowerScalarPlanExprOrFallback` remains only for `lowerReturnWords` scalar
-  return-word compatibility.
 - Whole-aggregate local assignment snapshots still use dedicated IR-local helpers
   outside the scalar assignment StmtPlan surface.
 
 Next step:
 
-- Continue moving recursive body lowering gaps behind `StmtPlan -> ToYul` or
-  retire the remaining `lowerReturnWords` scalar compatibility path.
+- Continue moving recursive body lowering gaps behind `StmtPlan -> ToYul` or shrink
+  whole-aggregate local assignment compatibility helpers.
 
 ### EVM Binding/Assert/Return Fallback Retirement
 

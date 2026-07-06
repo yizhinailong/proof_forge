@@ -2415,21 +2415,6 @@ partial def lowerExprViaPlan
     (expr : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr :=
   lowerExprThroughPlan module env expr
 
-partial def lowerScalarPlanExprOrFallback
-    (module : Module)
-    (env : TypeEnv)
-    (expr : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Expr := do
-  match expr with
-  | .arrayGet _ _ =>
-      match lowerExprViaPlan module env expr with
-      | .ok lowered => .ok lowered
-      | .error _ => lowerExpr module env expr
-  | _ =>
-      if exprSupportsPlanScalarYul expr then
-        lowerExprViaPlan module env expr
-      else
-        lowerExpr module env expr
-
 def lowerAssignmentValueExpr
     (module : Module)
     (env : TypeEnv)
@@ -3838,26 +3823,6 @@ def abiReturnTypedNames (module : Module) (entrypoint : Entrypoint) : Except Low
     | .error err => .error { message := err.message }
   .ok (ProofForge.Backend.Evm.ToYul.returnTypedNames plan)
 
-def lowerReturnWords
-    (module : Module)
-    (env : TypeEnv)
-    (entrypointName : String)
-    (returnType : ValueType)
-    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) :=
-  match returnType with
-  | .unit =>
-      .error { message := s!"entrypoint `{entrypointName}` has Unit return type and cannot return a value" }
-  | .bytes | .string | .array _ =>
-      .error {
-        message := s!"entrypoint `{entrypointName}` dynamic returns must be consumed by dynamic return planning in IR EVM v0"
-      }
-  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => do
-      .ok #[← lowerScalarPlanExprOrFallback module env value]
-  | .fixedArray _ _ | .structType _ =>
-      .error {
-        message := s!"entrypoint `{entrypointName}` aggregate returns must be consumed by return value planning in IR EVM v0"
-      }
-
 def returnTypeSupportsScalarStmtPlan : ValueType → Bool
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
   | .unit | .bytes | .string | .array _ | .fixedArray _ _ | .structType _ => false
@@ -3903,17 +3868,10 @@ def lowerReturnAssignments
       match returnValuePlan? with
       | some plan =>
           lowerReturnValueWordPlan module env entrypointName plan
-      | none => do
-          let names ← abiReturnNames module entrypointName returnType
-          let words ← lowerReturnWords module env entrypointName returnType value
-          if names.size != words.size then
-            .error { message := s!"entrypoint `{entrypointName}` return lowering produced {words.size} word(s), expected {names.size}" }
-          let mut statements : Array Lean.Compiler.Yul.Statement := #[]
-          for h : idx in [0:names.size] do
-            let some word := words[idx]?
-              | .error { message := s!"entrypoint `{entrypointName}` return lowering is missing word {idx}" }
-            statements := statements.push (.assignment #[names[idx]] word)
-          .ok statements
+      | none =>
+          .error {
+            message := s!"entrypoint `{entrypointName}` aggregate return must be consumed by ReturnValueWordPlan or aggregate crosscall return planning in IR EVM v0"
+          }
 
 partial def lowerReturnStmtPlan
     (module : Module)

@@ -3992,7 +3992,7 @@ def testScalarExprPlanToYul : IO Unit := do
     { name := "col", type := .u64, isMutable := false }
   ]
   let nestedDynamicLocalArrayExpr ← requireOk
-    (lowerScalarPlanExprOrFallback
+    (lowerAssignmentValueExpr
       ProofForge.IR.Examples.EvmArrayValueProbe.module
       matrixEnv
       (.arrayGet (.arrayGet (.local "matrix") (.local "row")) (.local "col")))
