@@ -4850,6 +4850,82 @@ def testAggregateAssignmentPlanToYul : IO Unit := do
           require (sourceName == "__proof_forge_array_ys_0") "whole local fixed-array assignment integration source"
       | _ => throw <| IO.userError "whole local fixed-array assignment integration must snapshot source first"
   | _ => throw <| IO.userError "whole local fixed-array assignment integration must lower to ToYul block"
+  let structAssignEnv : TypeEnv := #[
+    { name := "p", type := .structType "Point", isMutable := true },
+    { name := "q", type := .structType "Point", isMutable := false },
+    { name := "n", type := .u64, isMutable := false }
+  ]
+  let structSourcePlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.structAssignmentSourcePlans
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      (toValidateTypeEnv structAssignEnv)
+      "p"
+      "Point"
+      (.local "q"))
+    "Lower struct assignment source plans"
+  require (structSourcePlans.size == 2) "Lower struct assignment source plan count"
+  let structSourcePlan1 ← requireAt structSourcePlans 1 "Lower struct assignment source plan missing field y"
+  require (structSourcePlan1.fieldName == "y") "Lower struct assignment source plan field"
+  match structSourcePlan1.expr with
+  | ExprPlan.local name =>
+      require (name == "__proof_forge_struct_q_y") "Lower struct assignment source plan local"
+  | _ => throw <| IO.userError "Lower struct assignment source plan must use planned local expression"
+  let structLiteralSourcePlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.structAssignmentSourcePlans
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      (toValidateTypeEnv structAssignEnv)
+      "p"
+      "Point"
+      (.structLit "Point" #[
+        ("x", .add (.local "n") (.literal (.u64 1))),
+        ("y", .field (.local "q") "x")
+      ]))
+    "Lower struct literal assignment source plans"
+  require (structLiteralSourcePlans.size == 2) "Lower struct literal assignment source plan count"
+  let structPlanStmt ← requireOk
+    (ProofForge.Backend.Evm.ToYul.wholeStructAssignStmtFromPlan
+      (lowerExprPlanExpr ProofForge.IR.Examples.EvmStructValueProbe.module structAssignEnv)
+      "p"
+      structLiteralSourcePlans)
+    "struct assignment source plan ToYul helper"
+  match structPlanStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 4) "struct assignment source plan ToYul statement count"
+      match block.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.call name args)) => do
+          let firstVar ← requireAt vars 0 "struct assignment source plan ToYul missing first snapshot var"
+          require (firstVar.name == "__proof_forge_assign_struct_p_x") "struct assignment source plan ToYul first snapshot"
+          require (name == "__pf_checked_add") "struct assignment source plan ToYul planned expression helper"
+          require (args.size == 2) "struct assignment source plan ToYul helper arg count"
+      | _ => throw <| IO.userError "struct assignment source plan ToYul first statement must snapshot planned expression"
+      match block.statements[3]! with
+      | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident valueName) => do
+          require (names == #["__proof_forge_struct_p_y"]) "struct assignment source plan ToYul final target"
+          require (valueName == "__proof_forge_assign_struct_p_y") "struct assignment source plan ToYul final snapshot"
+      | _ => throw <| IO.userError "struct assignment source plan ToYul final statement must assign snapshot"
+  | _ => throw <| IO.userError "struct assignment source plan ToYul helper must produce block"
+  let structAssignStmts ← requireOk
+    (lowerAssignStmt
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      structAssignEnv
+      (.local "p")
+      (.structLit "Point" #[
+        ("x", .add (.local "n") (.literal (.u64 1))),
+        ("y", .field (.local "q") "x")
+      ]))
+    "whole local struct assignment integration"
+  require (structAssignStmts.size == 1) "whole local struct assignment integration statement count"
+  match structAssignStmts[0]! with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 4) "whole local struct assignment integration block count"
+      match block.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.call name args)) => do
+          let firstVar ← requireAt vars 0 "whole local struct assignment integration missing temp"
+          require (firstVar.name == "__proof_forge_assign_struct_p_x") "whole local struct assignment integration temp"
+          require (name == "__pf_checked_add") "whole local struct assignment integration planned expression helper"
+          require (args.size == 2) "whole local struct assignment integration helper arg count"
+      | _ => throw <| IO.userError "whole local struct assignment integration must snapshot planned expression first"
+  | _ => throw <| IO.userError "whole local struct assignment integration must lower to ToYul block"
   let dynamicStmts ← requireOk
     (lowerAssignStmt
       ProofForge.IR.Examples.Counter.module

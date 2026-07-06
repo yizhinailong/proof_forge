@@ -3522,6 +3522,20 @@ def lowerFixedArrayAssignmentSourcePlans
       length
       value
 
+def lowerStructAssignmentSourcePlans
+    (module : Module)
+    (env : TypeEnv)
+    (name typeName : String)
+    (value : ProofForge.IR.Expr) :
+    Except LowerError (Array ProofForge.Backend.Evm.Plan.StructAssignmentSourcePlan) :=
+  lowerValidate <|
+    ProofForge.Backend.Evm.Lower.structAssignmentSourcePlans
+      module
+      (toValidateTypeEnv env)
+      name
+      typeName
+      value
+
 partial def lowerNestedFixedArrayLocalSourceExprs
     (module : Module)
     (sourceName : String)
@@ -3719,12 +3733,20 @@ def lowerWholeStructAssignStmt
     (env : TypeEnv)
     (name typeName : String)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let sourceExprs ← lowerStructAssignmentSourceExprs module env name typeName value
-  let sources := sourceExprs.map fun field =>
-    let (fieldName, expr) := field
-    ({ fieldName := fieldName, expr := expr } :
-      ProofForge.Backend.Evm.ToYul.StructAssignmentSource)
-  .ok (ProofForge.Backend.Evm.ToYul.wholeStructAssignStmt name sources)
+  match value with
+  | .local _ | .structLit _ _ => do
+      let sourcePlans ← lowerStructAssignmentSourcePlans module env name typeName value
+      ProofForge.Backend.Evm.ToYul.wholeStructAssignStmtFromPlan
+        (lowerExprPlanExpr module env)
+        name
+        sourcePlans
+  | _ => do
+      let sourceExprs ← lowerStructAssignmentSourceExprs module env name typeName value
+      let sources := sourceExprs.map fun field =>
+        let (fieldName, expr) := field
+        ({ fieldName := fieldName, expr := expr } :
+          ProofForge.Backend.Evm.ToYul.StructAssignmentSource)
+      .ok (ProofForge.Backend.Evm.ToYul.wholeStructAssignStmt name sources)
 
 def lowerWholeLocalAssignStmt
     (module : Module)
