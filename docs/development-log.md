@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Struct-Array Assignment Source Plans
+
+Work range: struct-array assignment Lower migration
+
+Summary:
+
+- Added `StructArrayAssignmentSourcePlan` so whole local struct-array assignment
+  sources can be represented as semantic `ExprPlan`s before Yul emission.
+- Added `Lower.structArrayAssignmentSourcePlans` for local and array-literal
+  struct-array sources.
+- Added `ToYul.wholeStructArrayAssignStmtFromPlan`, then routed the active
+  struct-array whole-assignment path through `Lower -> Plan -> ToYul`.
+- Removed the IR-local `lowerStructArrayAssignmentSourceExprs` helper.
+- Added semantic-plan coverage for Lower source plans, ToYul snapshot blocks, and
+  whole local struct-array assignment integration.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+scripts/evm/struct-array-value-ir-smoke.sh
+```
+
+Known limitations:
+
+- Whole-struct assignment and remaining storage write fallback surfaces still
+  retain IR-local expansion or fallback selection before `ToYul`.
+
+Next step:
+
+- Continue shrinking remaining storage write fallback surfaces or move the next
+  recursive body lowering gap behind `StmtPlan -> ToYul`.
+
 ### EVM Nested Fixed-Array Assignment Source Plans
 
 Work range: nested fixed-array assignment Lower migration

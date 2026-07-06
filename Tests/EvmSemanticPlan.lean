@@ -5294,6 +5294,64 @@ def testAggregateAssignmentPlanToYul : IO Unit := do
           require (sourceName == "__proof_forge_array_other_0_0") "whole nested local fixed-array assignment integration source"
       | _ => throw <| IO.userError "whole nested local fixed-array assignment integration must snapshot source first"
   | _ => throw <| IO.userError "whole nested local fixed-array assignment integration must lower to ToYul block"
+  let structArrayAssignEnv : TypeEnv := #[
+    { name := "people", type := .fixedArray (.structType "Person") 2, isMutable := true },
+    { name := "next", type := .fixedArray (.structType "Person") 2, isMutable := false }
+  ]
+  let structArraySourcePlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.structArrayAssignmentSourcePlans
+      ProofForge.IR.Examples.EvmStructArrayValueProbe.module
+      (toValidateTypeEnv structArrayAssignEnv)
+      "people"
+      "Person"
+      2
+      (.local "next"))
+    "Lower struct-array assignment source plans"
+  require (structArraySourcePlans.size == 4) "Lower struct-array assignment source plan count"
+  let structArraySourcePlan01 ← requireAt structArraySourcePlans 1 "Lower struct-array assignment source plan missing index 0 score"
+  require (structArraySourcePlan01.index == 0) "Lower struct-array assignment source plan index"
+  require (structArraySourcePlan01.fieldName == "score") "Lower struct-array assignment source plan field"
+  match structArraySourcePlan01.expr with
+  | ExprPlan.local name =>
+      require (name == "__proof_forge_array_struct_next_0_score") "Lower struct-array assignment source plan local"
+  | _ => throw <| IO.userError "Lower struct-array assignment source plan must use planned local expression"
+  let structArrayPlanStmt ← requireOk
+    (ProofForge.Backend.Evm.ToYul.wholeStructArrayAssignStmtFromPlan
+      (lowerExprPlanExpr ProofForge.IR.Examples.EvmStructArrayValueProbe.module structArrayAssignEnv)
+      "people"
+      structArraySourcePlans)
+    "struct-array assignment source plan ToYul helper"
+  match structArrayPlanStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 8) "struct-array assignment source plan ToYul statement count"
+      match block.statements[7]! with
+      | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident valueName) => do
+          require (names == #["__proof_forge_array_struct_people_1_score"])
+            "struct-array assignment source plan ToYul final target"
+          require (valueName == "__proof_forge_assign_array_struct_people_1_score")
+            "struct-array assignment source plan ToYul final snapshot"
+      | _ => throw <| IO.userError "struct-array assignment source plan ToYul final statement must assign snapshot"
+  | _ => throw <| IO.userError "struct-array assignment source plan ToYul helper must produce block"
+  let structArrayAssignStmts ← requireOk
+    (lowerAssignStmt
+      ProofForge.IR.Examples.EvmStructArrayValueProbe.module
+      structArrayAssignEnv
+      (.local "people")
+      (.local "next"))
+    "whole local struct-array assignment integration"
+  require (structArrayAssignStmts.size == 1) "whole local struct-array assignment integration statement count"
+  match structArrayAssignStmts[0]! with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 8) "whole local struct-array assignment integration block count"
+      match block.statements[0]! with
+      | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.ident sourceName)) => do
+          let firstVar ← requireAt vars 0 "whole local struct-array assignment integration missing temp"
+          require (firstVar.name == "__proof_forge_assign_array_struct_people_0_age")
+            "whole local struct-array assignment integration temp"
+          require (sourceName == "__proof_forge_array_struct_next_0_age")
+            "whole local struct-array assignment integration source"
+      | _ => throw <| IO.userError "whole local struct-array assignment integration must snapshot source first"
+  | _ => throw <| IO.userError "whole local struct-array assignment integration must lower to ToYul block"
   let structAssignEnv : TypeEnv := #[
     { name := "p", type := .structType "Point", isMutable := true },
     { name := "q", type := .structType "Point", isMutable := false },

@@ -1590,6 +1590,57 @@ def nestedFixedArrayAssignmentSourcePlans
         message := s!"assignment target `{name}` fixed-array whole assignment supports local fixed-array values or array literals in IR EVM v0"
       }
 
+def structArrayAssignmentSourcePlans
+    (module : Module)
+    (env : TypeEnv)
+    (name typeName : String)
+    (length : Nat)
+    (value : Expr) : Except LowerError (Array StructArrayAssignmentSourcePlan) := do
+  let decl ← ensureLocalFlatStructType module s!"assignment target `{name}` fixed-array element" typeName
+  match value with
+  | .local sourceName => do
+      let (sourceElementType, sourceLength) ← requireLocalFixedArray "assignment value" env sourceName
+      ensureType s!"assignment target `{name}` fixed-array element type" (.structType typeName) sourceElementType
+      if sourceLength != length then
+        .error { message := s!"assignment target `{name}` expected fixed array length {length}, got {sourceLength}" }
+      let mut sources : Array StructArrayAssignmentSourcePlan := #[]
+      for _h : idx in [0:length] do
+        for fieldDecl in decl.fields do
+          sources := sources.push {
+            index := idx,
+            fieldName := fieldDecl.id,
+            expr := .local (arrayStructLocalFieldName sourceName idx fieldDecl.id)
+          }
+      .ok sources
+  | .arrayLit literalElementType literalValues => do
+      ensureType s!"assignment target `{name}` fixed-array element type" (.structType typeName) literalElementType
+      if literalValues.size != length then
+        .error { message := s!"assignment target `{name}` expected fixed array length {length}, got {literalValues.size}" }
+      let mut sources : Array StructArrayAssignmentSourcePlan := #[]
+      for h : idx in [0:literalValues.size] do
+        match literalValues[idx] with
+        | .structLit literalTypeName fields => do
+            if literalTypeName != typeName then
+              .error { message := s!"assignment target `{name}` expected struct `{typeName}`, got `{literalTypeName}`" }
+            for fieldDecl in decl.fields do
+              let some field := fields.find? fun field => field.fst == fieldDecl.id
+                | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
+              sources := sources.push {
+                index := idx,
+                fieldName := fieldDecl.id,
+                expr := ← buildExprPlan module env field.snd
+              }
+        | other =>
+            let actualType ← inferExprType module env other
+            .error {
+              message := s!"assignment target `{name}` fixed-array element {idx} expected struct literal `{typeName}`, got `{actualType.name}`"
+            }
+      .ok sources
+  | _ =>
+      .error {
+        message := s!"assignment target `{name}` struct-array whole assignment supports local fixed-array values or array literals in IR EVM v0"
+      }
+
 def structAssignmentSourcePlans
     (module : Module)
     (env : TypeEnv)

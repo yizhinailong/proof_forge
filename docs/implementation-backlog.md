@@ -775,8 +775,11 @@ Tasks:
     sources now enter `Lower.nestedFixedArrayAssignmentSourcePlans` and lower
     through `ToYul.wholeNestedFixedArrayAssignStmtFromPlan`; the IR-local
     `NestedFixedArraySourceExpr` expansion helpers have been removed.
-    `IR.lean` still validates and expands struct-array assignment sources, but
-    final temp declarations, target local names, and assignment block
+    Struct-array whole-assignment sources now enter
+    `Lower.structArrayAssignmentSourcePlans` and lower through
+    `ToYul.wholeStructArrayAssignStmtFromPlan`; the IR-local
+    `lowerStructArrayAssignmentSourceExprs` helper has been removed.
+    Final temp declarations, target local names, and assignment block
     construction are delegated to `ToYul` helpers so the compatibility facade
     no longer owns the final Yul statement frame for supported whole local
     aggregate sources.

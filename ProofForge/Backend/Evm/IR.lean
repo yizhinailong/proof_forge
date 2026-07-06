@@ -3456,46 +3456,21 @@ def lowerNestedFixedArrayAssignmentSourcePlans
       expectedType
       value
 
-def lowerStructArrayAssignmentSourceExprs
+def lowerStructArrayAssignmentSourcePlans
     (module : Module)
     (env : TypeEnv)
     (name typeName : String)
     (length : Nat)
-    (value : ProofForge.IR.Expr) : Except LowerError (Array (Nat × String × Lean.Compiler.Yul.Expr)) := do
-  let decl ← ensureLocalFlatStructType module s!"assignment target `{name}` fixed-array element" typeName
-  match value with
-  | .local sourceName => do
-      let (sourceElementType, sourceLength) ← requireLocalFixedArray "assignment value" env sourceName
-      ensureType s!"assignment target `{name}` fixed-array element type" (.structType typeName) sourceElementType
-      if sourceLength != length then
-        .error { message := s!"assignment target `{name}` expected fixed array length {length}, got {sourceLength}" }
-      let mut values : Array (Nat × String × Lean.Compiler.Yul.Expr) := #[]
-      for _h : idx in [0:length] do
-        for fieldDecl in decl.fields do
-          values := values.push (idx, fieldDecl.id, Lean.Compiler.Yul.Expr.id (arrayStructLocalFieldName sourceName idx fieldDecl.id))
-      .ok values
-  | .arrayLit literalElementType literalValues => do
-      ensureType s!"assignment target `{name}` fixed-array element type" (.structType typeName) literalElementType
-      if literalValues.size != length then
-        .error { message := s!"assignment target `{name}` expected fixed array length {length}, got {literalValues.size}" }
-      let mut values : Array (Nat × String × Lean.Compiler.Yul.Expr) := #[]
-      for h : idx in [0:literalValues.size] do
-        match literalValues[idx] with
-        | .structLit literalTypeName fields => do
-            if literalTypeName != typeName then
-              .error { message := s!"assignment target `{name}` expected struct `{typeName}`, got `{literalTypeName}`" }
-            for fieldDecl in decl.fields do
-              let some field := fields.find? fun field => field.fst == fieldDecl.id
-                | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
-              values := values.push (idx, fieldDecl.id, ← lowerExpr module env field.snd)
-        | other =>
-            let actualType ← inferExprType module env other
-            .error {
-              message := s!"assignment target `{name}` fixed-array element {idx} expected struct literal `{typeName}`, got `{actualType.name}`"
-            }
-      .ok values
-  | _ =>
-      .error { message := s!"assignment target `{name}` struct-array whole assignment supports local fixed-array values or array literals in IR EVM v0" }
+    (value : ProofForge.IR.Expr) :
+    Except LowerError (Array ProofForge.Backend.Evm.Plan.StructArrayAssignmentSourcePlan) :=
+  lowerValidate <|
+    ProofForge.Backend.Evm.Lower.structArrayAssignmentSourcePlans
+      module
+      (toValidateTypeEnv env)
+      name
+      typeName
+      length
+      value
 
 def lowerWholeStructArrayAssignStmt
     (module : Module)
@@ -3503,12 +3478,11 @@ def lowerWholeStructArrayAssignStmt
     (name typeName : String)
     (length : Nat)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  let sourceExprs ← lowerStructArrayAssignmentSourceExprs module env name typeName length value
-  let sources := sourceExprs.map fun source =>
-    let (idx, fieldName, expr) := source
-    ({ index := idx, fieldName := fieldName, expr := expr } :
-      ProofForge.Backend.Evm.ToYul.StructArrayAssignmentSource)
-  .ok (ProofForge.Backend.Evm.ToYul.wholeStructArrayAssignStmt name sources)
+  let sourcePlans ← lowerStructArrayAssignmentSourcePlans module env name typeName length value
+  ProofForge.Backend.Evm.ToYul.wholeStructArrayAssignStmtFromPlan
+    (lowerExprPlanExpr module env)
+    name
+    sourcePlans
 
 def lowerWholeFixedArrayAssignStmt
     (module : Module)

@@ -816,6 +816,12 @@ mutual
     expr : ExprPlan
     deriving Repr
 
+  structure StructArrayAssignmentSourcePlan where
+    index : Nat
+    fieldName : String
+    expr : ExprPlan
+    deriving Repr
+
   structure StorageStructWriteFieldPlan where
     slot : Nat
     fieldName : String
