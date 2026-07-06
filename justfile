@@ -388,8 +388,12 @@ solana-return-data-compute-web3:
 solana-emit-asm:
     scripts/solana/emit-asm-smoke.sh
 
+# Run the SolanaModulePlan golden smoke for the Counter fixture (Tier B gate).
+solana-plan-smoke:
+    scripts/solana/plan-smoke.sh
+
 # Run all Solana gates that are safe for default CI.
-solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke portable-value-vault solana-emit-asm solana-pinocchio-reference-equivalence
+solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke portable-value-vault solana-emit-asm solana-plan-smoke solana-pinocchio-reference-equivalence
 
 # Check translated documentation freshness.
 docs-check:
