@@ -85,7 +85,7 @@ Unifying the *contract* (not the plan algebra) makes three things possible:
 | Tier | Meaning | Cost | In scope for this RFC? |
 |---|---|---|---|
 | **A** | Shared IR operational semantics (`IR/Semantics.lean`) is the ground truth; every backend passes shared-scenario trace obligations for the IR subset semantics currently covers. | Medium — semantics exists but must grow (FV-2/FV-3). | **No** (acknowledged dependency; tracked by FV workstream). |
-| **B** | Shared lowering *contract*: per-backend `validateModule*` + `*ModulePlan` + `lowerToAst` + plan-driven metadata + golden `*-semantic-plan` smokes. | EVM done; Psy easy–medium; NEAR medium; Solana medium–hard. | **Yes.** |
+| **B** | Shared lowering *contract*: per-backend `validateModule*` + `*ModulePlan` + `lowerToAst` + plan-driven metadata + golden `*-semantic-plan` smokes. | EVM done; Solana done; NEAR easy–medium (Phase 4 chosen first); Psy easy (deferred); Move-Sui hard (deferred). | **Yes.** |
 | **C-diff** | Differential trace replay: the Quint MBT backend generates ITF traces from `IR.Semantics` and replays them against each backend's actual emitted artifact (bytecode via Foundry for EVM; Mollusk for Solana; offline-host for NEAR). Acts as a pragmatic substitute for a full target-chain formal semantics. | EVM landed (`just quint-evm-backend-replay-gate`); portable to any backend once its `*ModulePlan` exists. | **Partial.** RFC 0014 consumes the Quint backend's traces for end-to-end smoke; it does not redesign the Quint backend itself. |
 | **C-proof** | Machine-checked end-to-end refinement: Lean IR-semantics ⟷ formal target-chain execution model. | Hard. EVM can lean on `powdr-labs/evm-semantics` (a Lean EVM semantics passing `ethereum/tests`). Solana is research (FV-4): no off-the-shelf sBPF Lean semantics exists. | **No** (explicit non-goal). |
 
@@ -527,24 +527,65 @@ error type; unifying the per-backend validation rules. Both are follow-ups.
 
 ### Phase 4 — NEAR plan layer (8–12 weeks)
 
+**Audit finding (2026-07-07).** An audit of the three candidate backends (NEAR, Psy,
+Move-Sui) corrected the earlier "No `WasmNear/Plan.lean`" claim: `WasmNear.Plan.lean`
+already exists and defines `ModulePlan` + `buildModulePlan` + `ModuleSurface`, and
+`EmitWat.lowerModule` already consumes it to drive host imports and helper-function
+pruning (gated by `Tests/WasmNearPlan.lean` / `just wasm-near-plan`). The remaining gap
+is narrower than Solana's was: the data-layout `Ctx` (scalar key pointers, map prefix
+pointers, string pool, panic pool, crosscall string pool) is still built inline at the
+top of `EmitWat.lowerModule` rather than plan-derived. The full audit, per-backend
+feasibility table, field-level design, and migration path are in
+[`docs/multi-backend-moduleplan-design.md`](../multi-backend-moduleplan-design.md).
+
+**Chosen first candidate: NEAR.** The whole `Ctx` is plan-derived (no lowering-local
+mutable state to split out, unlike Solana's `locals`/`nextLabel`/`allocator`), so the
+migration is smaller than Phase 2 was. Psy and Move-Sui are deferred: Psy's
+`PsyModulePlan` is already consumed and metadata-only (low payoff without body
+planning, a Phase 6 product question), and Move-Sui is a Counter MVP spike with no
+real lowering (a `SuiModulePlan` would have to precede building one).
+
 **Milestones:**
 
-- Add `ProofForge/Backend/WasmNear/Plan.lean` (`NearModulePlan`).
-- `EmitWat` consumes the plan: `validateModule` → `buildModulePlan` →
-  `lowerToAst` (mirroring EVM's `lowerModuleWithPlan`).
-- Add `Tests/NearSemanticPlan.lean` and `just near-semantic-plan`.
-- `WasmNear/Refinement.lean` consumes the plan where it currently re-derives
-  exports/imports.
+- Step A (types only, additive): add `ProofForge/Backend/WasmNear/NearModulePlan.lean`
+  with `NearModulePlan`, `NearLayoutPlan`, `NearLowerCtxSeed`, and a
+  `buildNearModulePlan` for `ProofForge.IR.Examples.Counter.module`. Not wired into
+  EmitWat. Add `Tests/NearModulePlan.lean`, `Examples/WasmNear/Counter/golden/plan.txt`,
+  and `just near-plan-smoke` (mirroring `solana-plan-smoke`).
+- Step B (plan construction + `Ctx.fromSeed`, additive): implement
+  `buildNearModulePlan` fully (reusing `WasmNear.Plan.buildModulePlan` for the
+  `surface` and the existing `stateLayout`/`mapLayout`/`stringPool`/`panicPool`/
+  `crosscallStringInfos` for the `layout`), add a `--near-plan=v2` branch in
+  `EmitWat.lowerModule` that derives `Ctx` via `Ctx.fromSeed plan.lowerCtxSeed
+  plan.layout`, and run both paths in CI asserting byte-equality of WAT output.
+- Step C (switch default): after parity holds, flip the default to v2, delete the
+  inline `Ctx` construction, and switch `WasmNear/Refinement.lean` from re-deriving
+  exports/imports to reading `NearModulePlan.surface` + `NearModulePlan.layout`.
 
 **Touch list:**
 
-- `ProofForge/Backend/WasmNear/Plan.lean` (new), `EmitWat.lean`, `IR.lean`
-- `ProofForge/Backend/WasmNear/Refinement.lean`
+- Step A: `ProofForge/Backend/WasmNear/NearModulePlan.lean` (new),
+  `Tests/NearModulePlan.lean` (new), `Examples/WasmNear/Counter/golden/plan.txt`
+  (new), `scripts/near/plan-smoke.sh` (new), `justfile`.
+- Steps B–C: `ProofForge/Backend/WasmNear/EmitWat.lean`,
+  `ProofForge/Backend/WasmNear/Refinement.lean`.
 
 **Risks:** WAT golden churn; offline-host smokes must remain byte-stable. Same
-feature-flag strategy as Phase 2.
+feature-flag strategy as Phase 2 (run both paths in CI, flip default after parity).
 
-**Scope cut:** full Wasm instruction semantics in Lean (Tier C, deferred).
+**Scope cut:** full Wasm instruction semantics in Lean (Tier C, deferred); the Rust
+sourcegen path (`WasmNear/IR.lean`) is out of scope (a parallel lowering with no
+`Ctx`); `ExportPlan` (one entry per entrypoint) deferred to Phase 4.2.
+
+**Deferred backends:**
+
+- **Psy** — `PsyModulePlan` already exists and is consumed by `Psy/IR.lean` via
+  `BuildContext`; there is no `LowerCtx` to split. Extending the plan to cover
+  entrypoint/body shapes (`ExprPlan`/`StmtPlan`) is a Phase 6 product decision, not a
+  Phase 4 refactor.
+- **Move-Sui** — a Counter MVP spike with no real lowering. A `SuiModulePlan` would
+  have to precede building a real Move lowering (struct/entrypoint/state/capability
+  plans), which is a Phase 6+ research item, not Phase 4.
 
 ### Phase 5 — Refinement seam (ongoing)
 
@@ -608,9 +649,10 @@ shape), not Tier C-proof completeness.
 | Backend | Tier B difficulty | Why | Reuse from EVM? |
 |---|---|---|---|
 | EVM | Done | Reference stack. | N/A |
-| Psy | Easy–medium | `PsyModulePlan` exists; extend + align seam. | Metadata + storage-shape plan ideas. |
-| NEAR | Medium | Strong `validateModule` already; refactor is about extracting plan from `EmitWat`/`IR`. | Plan-driven metadata pattern. |
-| Solana | Medium–hard | New `AccountPlan`/`InstructionDataPlan`/`CpiPlan`; `LowerCtx` → plan-derived refactor in a ~1.7k-LOC module with byte-stable golden gates. | Helper/event plan *patterns*; account/syscall plans are new. |
+| Solana | Medium–hard (landed on `main`) | New `AccountPlan`/`InstructionDataPlan`/`CpiPlan`; `LowerCtx` → plan-derived refactor in a ~1.7k-LOC module with byte-stable golden gates. | Helper/event plan *patterns*; account/syscall plans are new. |
+| NEAR | Easy–medium (Phase 4 first candidate) | `WasmNear.Plan.ModulePlan` already exists and is consumed by `EmitWat` (drives host imports/helpers); the remaining gap is externalizing the data-layout `Ctx` into plan fields, and the whole `Ctx` is plan-derivable with no lowering-local mutable state to split. See `docs/multi-backend-moduleplan-design.md`. | Plan-driven metadata + helper-discovery pattern. |
+| Psy | Easy (seam alignment; deferred) | `PsyModulePlan` exists and is consumed; no `LowerCtx` to split. Extending to body planning is a Phase 6 product decision. | Metadata + storage-shape plan ideas. |
+| Move-Sui | Hard (research; deferred) | Counter MVP spike with no real lowering; a `SuiModulePlan` must precede building a real Move lowering, a Phase 6+ item. | None. |
 | CosmWasm | Medium (later) | Clone NEAR split. | NEAR > EVM. |
 
 **Dependencies:**
