@@ -127,7 +127,10 @@ inductive EmitMode where
   | solanaSplTokenOpsCpiSbpf
   | solanaSplTokenCloseAccountCpiSbpf
   | solanaSplTokenAuthorityCpiSbpf
+  | solanaAssociatedTokenCpiSbpf
   | solanaSplToken2022CpiSbpf
+  | solanaSplToken2022PausableCpiSbpf
+  | solanaSplToken2022TransferHookSbpf
   | solanaElf
   | valueVaultSolanaElf
   | solanaSystemCpiElf
@@ -136,7 +139,10 @@ inductive EmitMode where
   | solanaSplTokenOpsCpiElf
   | solanaSplTokenCloseAccountCpiElf
   | solanaSplTokenAuthorityCpiElf
+  | solanaAssociatedTokenCpiElf
   | solanaSplToken2022CpiElf
+  | solanaSplToken2022PausableCpiElf
+  | solanaSplToken2022TransferHookElf
   | solanaLogEventElf
   | solanaClockSysvarElf
   | solanaRentSysvarElf
@@ -299,7 +305,10 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .solanaSplTokenOpsCpiSbpf
   | .solanaSplTokenCloseAccountCpiSbpf
   | .solanaSplTokenAuthorityCpiSbpf
+  | .solanaAssociatedTokenCpiSbpf
   | .solanaSplToken2022CpiSbpf
+  | .solanaSplToken2022PausableCpiSbpf
+  | .solanaSplToken2022TransferHookSbpf
   | .solanaElf
   | .valueVaultSolanaElf
   | .solanaSystemCpiElf
@@ -308,7 +317,10 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .solanaSplTokenOpsCpiElf
   | .solanaSplTokenCloseAccountCpiElf
   | .solanaSplTokenAuthorityCpiElf
+  | .solanaAssociatedTokenCpiElf
   | .solanaSplToken2022CpiElf
+  | .solanaSplToken2022PausableCpiElf
+  | .solanaSplToken2022TransferHookElf
   | .solanaLogEventElf
   | .solanaClockSysvarElf
   | .solanaRentSysvarElf

@@ -1962,8 +1962,13 @@ Completed developer-surface slices:
   CPI data length, and the generated CPI helper call. The fixture is available
   through target-first CLI as `emit --target solana-sbpf-asm --fixture
   spl-token-close-account-cpi --format s|elf` and through the matching legacy
-  compatibility flags. Live Surfpool/Pinocchio equivalence for this specific
-  SPL helper remains a follow-up gate.
+  compatibility flags. `scripts/solana/spl-token-close-account-cpi-web3-smoke.sh`
+  adds the live Surfpool/Web3.js behavior gate: it deploys the generated
+  program, creates an empty SPL Token account, invokes the generated
+  `close_account` CPI path, proves the token account is removed, verifies the
+  rent lamports moved to the destination account, and checks the marker state
+  write. Pinocchio equivalence for this specific SPL helper remains a
+  reference-breadth follow-up.
 - Target-stage ABI selector hydration:
   the Learn/ValueVault CLI emit paths derive EVM selectors from each
   entrypoint's Solidity ABI signature with `cast sig` immediately before EVM
@@ -2026,10 +2031,12 @@ Remaining priority slices:
    module-wide fixed schema with runtime account parsing before dispatch, so
    instruction-data offsets no longer depend on every entrypoint sharing the
    same account list.
-5. Token-2022 and richer SPL coverage (3-5 days per iteration): add checked
-   Token-2022 extension routes, associated-token account setup flows, and
-   remaining SPL variants beyond the covered mint-authority `set_authority`
-   path without moving those details into portable IR.
+5. Token-2022 and richer SPL coverage (3-5 days per iteration): continue
+   checked Token-2022 extension routes and remaining SPL variants beyond the
+   covered mint-authority `set_authority` path. Associated Token account setup
+   now has `create_idempotent` builder/surface/source syntax, sBPF packing,
+   target-first fixture routing, and a Surfpool/Web3.js behavior gate, without
+   moving those details into portable IR.
 6. Developer ergonomics and framework surface (3-5 days per iteration): extend
    the new surface layer toward Lean `.lean`/Lean SDK contract syntax with richer
    typed account/data wrappers, richer generated client APIs, broader
@@ -3427,22 +3434,47 @@ land in `contract_source` / Token SDK syntax, not Builder fixtures.
   `contract_source` syntax, legacy Learn syntax, manifest/artifact metadata,
   and sBPF instruction-data packing for tag `9`, covered by
   `Tests/SolanaCpiPacking.lean`, `Tests/LearnSource.lean`, and
-  `Tests/CliTargetFirst.lean`. A live Surfpool/Pinocchio equivalence gate for
-  close-account is still tracked as a validation expansion rather than a
-  blocker for the source/lowering surface.
+  `Tests/CliTargetFirst.lean`. `just solana-spl-token-close-account-cpi-web3`
+  now covers the live Surfpool/Web3.js validation path for closing an empty SPL
+  Token account through CPI, destination rent lamport recovery, and marker
+  state recording. Pinocchio equivalence for close-account remains a
+  reference-breadth follow-up.
 - ✅ P0: ComputeBudgetInstruction (set compute unit limit, priority fees)
   landed as transaction-side compute-budget advice in Solana manifests, IDL,
   generated TypeScript clients, and package metadata. The helper emits
   `ComputeBudgetProgram` pre-instructions from the selected entrypoint; it is
   intentionally not lowered as an in-program syscall.
-- ✅ P0: Token-2022 direct sBPF CPI lowering now covers transfer-fee and
-  non-transferable instruction layouts in the Solana builder API, typed
-  `Surface` wrappers, manifest/IDL metadata, and sBPF instruction-data
-  packing. Covered layouts include `initialize_transfer_fee_config`,
-  `transfer_checked_with_fee`, withdraw/harvest fee collection,
-  `set_transfer_fee`, and `initialize_non_transferable_mint`. A live
-  generated-program Token-2022 direct-CPI gate remains a validation expansion.
-- P1: Memo/Stake/Vote CPI, confidential_transfer, transfer_hook,
+- ✅ P0: Token-2022 direct sBPF CPI lowering now covers transfer-fee,
+  non-transferable, metadata-pointer, default-account-state, immutable-owner,
+  permanent-delegate, interest-bearing, memo-transfer, transfer-hook
+  initialization, and pausable instruction layouts
+  in the Solana builder API, typed `Surface` wrappers, manifest/IDL metadata,
+  and sBPF instruction-data packing. Covered layouts include
+  `initialize_transfer_fee_config`, `transfer_checked_with_fee`,
+  withdraw/harvest fee collection, `set_transfer_fee`,
+  `initialize_non_transferable_mint`, `initialize_metadata_pointer`,
+  `initialize_default_account_state`, `initialize_immutable_owner`,
+  `initialize_permanent_delegate`, `initialize_interest_bearing_mint`, and
+  `enable_required_memo_transfers`, `initialize_transfer_hook`,
+  `initialize_pausable_config`, `pause`, and `resume`; generated-program
+  Token-2022 direct-CPI Surfpool/Web3.js gates verify the initialized extension
+  state and Pausable pause/resume transitions.
+- ✅ P1: Token-2022 transfer-hook execute/extra-account-meta routing now has a
+  generated hook-program fixture with external `Execute` discriminator
+  dispatch, per-entrypoint account constraints, PDA signer seeds for the
+  validation account, static extra-account-meta TLV serialization, manifest/IDL
+  metadata, target-first fixture routing, and
+  `just solana-spl-token-2022-transfer-hook-web3` Surfpool/Web3.js validation
+  for initializing the validation PDA, routing two static extra accounts through
+  Web3.js, accepting an allowed transfer, and rejecting an over-limit transfer.
+- ✅ P1: Associated Token `create_idempotent` CPI now has builder helpers,
+  typed `Surface` wrappers, `contract_source` syntax, target-first fixture
+  routing, manifest/IDL/artifact metadata including the selected token program,
+  sBPF data packing for `associated-token.create_idempotent`, a separated
+  6-account CPI account-meta frame, and `just solana-associated-token-cpi-web3`
+  Surfpool/Web3.js validation that creates the canonical ATA and re-invokes the
+  idempotent path.
+- P1: Memo/Stake/Vote CPI, confidential_transfer,
   Pinocchio reference ≥10, Metaplex NFT, Anchor-style derive macro,
   address lookup tables
 

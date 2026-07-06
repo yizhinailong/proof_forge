@@ -184,11 +184,23 @@ def cpiJson (cpi : CpiInvoke) : String :=
     cpiMetadataJson cpi "solana.cpi.decimals" "decimals",
     cpiMetadataJson cpi "solana.cpi.authority_type" "authorityType",
     cpiMetadataJson cpi "solana.cpi.new_authority" "newAuthority",
+    cpiMetadataJson cpi "solana.cpi.token_program" "tokenProgram",
     cpiMetadataJson cpi "solana.cpi.transfer_fee_config_authority" "transferFeeConfigAuthority",
     cpiMetadataJson cpi "solana.cpi.withdraw_withheld_authority" "withdrawWithheldAuthority",
     cpiMetadataJson cpi "solana.cpi.transfer_fee_basis_points" "transferFeeBasisPoints",
     cpiMetadataJson cpi "solana.cpi.maximum_fee" "maximumFee",
     cpiMetadataJson cpi "solana.cpi.num_token_accounts" "numTokenAccounts",
+    cpiMetadataJson cpi "solana.cpi.memo_source" "memoSource",
+    cpiMetadataJson cpi "solana.cpi.metadata_pointer_authority" "metadataPointerAuthority",
+    cpiMetadataJson cpi "solana.cpi.metadata_address" "metadataAddress",
+    cpiMetadataJson cpi "solana.cpi.default_account_state" "defaultAccountState",
+    cpiMetadataJson cpi "solana.cpi.permanent_delegate" "permanentDelegate",
+    cpiMetadataJson cpi "solana.cpi.interest_rate_authority" "interestRateAuthority",
+    cpiMetadataJson cpi "solana.cpi.interest_rate" "interestRate",
+    cpiMetadataJson cpi "solana.cpi.memo_transfer_required" "memoTransferRequired",
+    cpiMetadataJson cpi "solana.cpi.transfer_hook_authority" "transferHookAuthority",
+    cpiMetadataJson cpi "solana.cpi.transfer_hook_program" "transferHookProgram",
+    cpiMetadataJson cpi "solana.cpi.pausable_authority" "pausableAuthority",
     ("signed", jsonBool cpi.signed),
     ("entrypoint", jsonStringOption cpi.entrypoint?)
   ]
@@ -241,12 +253,26 @@ def accountReallocActionJson (action : AccountReallocAction) : String :=
       toString ProofForge.Backend.Solana.StateLayout.MAX_PERMITTED_DATA_INCREASE)
   ]
 
+def transferHookExtraAccountMetaListActionJson
+    (action : TransferHookExtraAccountMetaListAction) : String :=
+  jsonObject #[
+    ("entrypoint", jsonString action.entrypoint),
+    ("transferHookExtraMeta", jsonString action.name),
+    ("account", jsonString action.account),
+    ("extraAccounts", jsonStringArray action.extraAccounts),
+    ("executeDiscriminator", jsonString "692565c54bfb661a"),
+    ("extraAccountCount", toString action.extraAccounts.size)
+  ]
+
 def actionsJson (extensions : ProgramExtensions) : String :=
   jsonObject #[
     ("pdas", jsonArray (extensions.pdaActions.map pdaActionJson)),
     ("cpis", jsonArray (extensions.cpiActions.map cpiActionJson)),
     ("computeBudget", jsonArray (extensions.computeBudgetActions.map computeBudgetActionJson)),
-    ("accountReallocs", jsonArray (extensions.accountReallocActions.map accountReallocActionJson))
+    ("accountReallocs", jsonArray (extensions.accountReallocActions.map accountReallocActionJson)),
+    ("transferHookExtraMetas", jsonArray
+      (extensions.transferHookExtraAccountMetaListActions.map
+        transferHookExtraAccountMetaListActionJson))
   ]
 
 def capabilitiesJson (plan : CapabilityPlan) : String :=

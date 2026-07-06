@@ -251,6 +251,10 @@ solana-pda-web3:
 solana-system-cpi-web3:
     scripts/solana/system-cpi-web3-smoke.sh
 
+# Run a live Memo Program CPI smoke on Surfpool with Web3.js.
+solana-memo-cpi-web3:
+    scripts/solana/memo-cpi-web3-smoke.sh
+
 # Compare the generated System transfer CPI artifact with the Pinocchio reference contract.
 solana-pinocchio-system-transfer-equivalence:
     scripts/solana/pinocchio-system-transfer-equivalence.sh
@@ -319,9 +323,25 @@ solana-spl-token-ops-cpi-web3:
 solana-spl-token-authority-cpi-web3:
     scripts/solana/spl-token-authority-cpi-web3-smoke.sh
 
+# Run a live SPL Token close_account CPI smoke on Surfpool with Web3.js.
+solana-spl-token-close-account-cpi-web3:
+    scripts/solana/spl-token-close-account-cpi-web3-smoke.sh
+
+# Run a live Associated Token create_idempotent CPI smoke on Surfpool with Web3.js.
+solana-associated-token-cpi-web3:
+    scripts/solana/associated-token-cpi-web3-smoke.sh
+
 # Run a live Token-2022 transfer-fee direct CPI smoke on Surfpool with Web3.js.
 solana-spl-token-2022-cpi-web3:
     scripts/solana/spl-token-2022-cpi-web3-smoke.sh
+
+# Run a live Token-2022 Pausable direct CPI smoke on Surfpool with Web3.js.
+solana-spl-token-2022-pausable-cpi-web3:
+    scripts/solana/spl-token-2022-pausable-cpi-web3-smoke.sh
+
+# Run a live Token-2022 transfer-hook execute/extra-account-meta smoke on Surfpool with Web3.js.
+solana-spl-token-2022-transfer-hook-web3:
+    scripts/solana/spl-token-2022-transfer-hook-web3-smoke.sh
 
 # Run a live Solana log/event smoke on Surfpool with Web3.js.
 solana-log-event-web3:
