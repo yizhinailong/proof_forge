@@ -762,11 +762,14 @@ Tasks:
     aggregate local-array leaves still fall back through the compatibility
     facade.
   - Started: whole local aggregate assignment snapshot blocks now live behind
-    `ToYul`. `IR.lean` still validates and expands local fixed-array, nested
-    fixed-array, struct-array, and struct assignment sources, but final temp
-    declarations, target local names, and assignment block construction are
-    delegated to `ToYul` helpers so the compatibility facade no longer owns the
-    final Yul statement frame.
+    `ToYul`. Local fixed-array whole-assignment sources now enter
+    `Lower.fixedArrayAssignmentSourcePlans` first, so local-array sources and
+    array-literal element expressions are represented as `ExprPlan`s before
+    `ToYul.wholeFixedArrayAssignStmtFromPlan` emits the snapshot block.
+    `IR.lean` still validates and expands nested fixed-array, struct-array, and
+    struct assignment sources, but final temp declarations, target local names,
+    and assignment block construction are delegated to `ToYul` helpers so the
+    compatibility facade no longer owns the final Yul statement frame.
   - Started: dynamic local aggregate assignment switch frames now live behind
     `ToYul`. `IR.lean` still resolves dynamic local fixed-array and
     struct-array paths, but dynamic index/value snapshot expressions now enter

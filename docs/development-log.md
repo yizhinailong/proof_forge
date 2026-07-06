@@ -17,6 +17,42 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Fixed-Array Assignment Source Plans
+
+Work range: `codex/evm-dynamic-array-target-plan`
+
+Summary:
+
+- Added `FixedArrayAssignmentSourcePlan` so whole local fixed-array assignment
+  sources can be represented as semantic `ExprPlan`s before Yul emission.
+- Added `Lower.fixedArrayAssignmentSourcePlans` for local fixed-array sources
+  and array-literal element sources.
+- Added `ToYul.wholeFixedArrayAssignStmtFromPlan`, then routed the active
+  fixed-array whole-assignment path through `Lower -> Plan -> ToYul`.
+- Removed the now-unused IR-local
+  `lowerFixedArrayAssignmentSourceExprs` source-to-Yul helper.
+- Added semantic-plan tests that inspect the Lower source plan and the ToYul
+  snapshot block.
+
+Validation run:
+
+```sh
+lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+```
+
+Known limitations:
+
+- Nested fixed-array, struct-array, and whole-struct assignment source expansion
+  still lives in `IR.lean` before delegating final block assembly to `ToYul`.
+
+Next step:
+
+- Move the next aggregate assignment source expansion slice into `Lower`,
+  prioritizing nested fixed-array sources because the final Yul frame is
+  already behind `ToYul`.
+
 ### EVM Storage-Path Expr-Target Plan Closure
 
 Work range: `codex/evm-dynamic-array-target-plan`

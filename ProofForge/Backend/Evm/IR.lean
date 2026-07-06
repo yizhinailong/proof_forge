@@ -3505,33 +3505,22 @@ def aggregateAssignStructArrayTempName (name : String) (index : Nat) (fieldName 
 def aggregateAssignNestedFixedArrayTempName (name : String) (source : NestedFixedArraySourceExpr) : String :=
   ProofForge.Backend.Evm.ToYul.aggregateAssignNestedFixedArrayTempName name source.path source.fieldName?
 
-def lowerFixedArrayAssignmentSourceExprs
+def lowerFixedArrayAssignmentSourcePlans
     (module : Module)
     (env : TypeEnv)
     (name : String)
     (elementType : ValueType)
     (length : Nat)
-    (value : ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-  match value with
-  | .local sourceName => do
-      let (sourceElementType, sourceLength) ← requireLocalFixedArray "assignment value" env sourceName
-      ensureType s!"assignment target `{name}` fixed-array element type" elementType sourceElementType
-      if sourceLength != length then
-        .error { message := s!"assignment target `{name}` expected fixed array length {length}, got {sourceLength}" }
-      let mut values : Array Lean.Compiler.Yul.Expr := #[]
-      for _h : idx in [0:length] do
-        values := values.push (Lean.Compiler.Yul.Expr.id (arrayLocalElementName sourceName idx))
-      .ok values
-  | .arrayLit literalElementType literalValues => do
-      ensureType s!"assignment target `{name}` fixed-array element type" elementType literalElementType
-      if literalValues.size != length then
-        .error { message := s!"assignment target `{name}` expected fixed array length {length}, got {literalValues.size}" }
-      let mut values : Array Lean.Compiler.Yul.Expr := #[]
-      for h : idx in [0:literalValues.size] do
-        values := values.push (← lowerExpr module env literalValues[idx])
-      .ok values
-  | _ =>
-      .error { message := s!"assignment target `{name}` fixed-array whole assignment supports local fixed-array values or array literals in IR EVM v0" }
+    (value : ProofForge.IR.Expr) :
+    Except LowerError (Array ProofForge.Backend.Evm.Plan.FixedArrayAssignmentSourcePlan) :=
+  lowerValidate <|
+    ProofForge.Backend.Evm.Lower.fixedArrayAssignmentSourcePlans
+      module
+      (toValidateTypeEnv env)
+      name
+      elementType
+      length
+      value
 
 partial def lowerNestedFixedArrayLocalSourceExprs
     (module : Module)
@@ -3685,13 +3674,13 @@ def lowerWholeFixedArrayAssignStmt
           ProofForge.Backend.Evm.ToYul.NestedFixedArrayAssignmentSource)
       .ok (ProofForge.Backend.Evm.ToYul.wholeNestedFixedArrayAssignStmt name sources)
   | _ => do
-      let sourceExprs ← lowerFixedArrayAssignmentSourceExprs module env name elementType length value
-      if sourceExprs.size != length then
-        .error { message := s!"assignment target `{name}` lowering produced {sourceExprs.size} element(s), expected {length}" }
-      let mut sources : Array ProofForge.Backend.Evm.ToYul.FixedArrayAssignmentSource := #[]
-      for h : idx in [0:sourceExprs.size] do
-        sources := sources.push { index := idx, expr := sourceExprs[idx] }
-      .ok (ProofForge.Backend.Evm.ToYul.wholeFixedArrayAssignStmt name sources)
+      let sourcePlans ← lowerFixedArrayAssignmentSourcePlans module env name elementType length value
+      if sourcePlans.size != length then
+        .error { message := s!"assignment target `{name}` lowering produced {sourcePlans.size} element(s), expected {length}" }
+      ProofForge.Backend.Evm.ToYul.wholeFixedArrayAssignStmtFromPlan
+        (lowerExprPlanExpr module env)
+        name
+        sourcePlans
 
 def lowerStructAssignmentSourceExprs
     (module : Module)

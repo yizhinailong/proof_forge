@@ -2734,6 +2734,24 @@ def wholeFixedArrayAssignStmt
     (sources : Array FixedArrayAssignmentSource) : Lean.Compiler.Yul.Statement :=
   .block { statements := fixedArrayAssignmentStatements name sources }
 
+def fixedArrayAssignmentSourceFromPlan
+    {ε : Type}
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (source : FixedArrayAssignmentSourcePlan) :
+    Except ε FixedArrayAssignmentSource := do
+  .ok {
+    index := source.index
+    expr := ← lowerPlanExpr source.expr
+  }
+
+def wholeFixedArrayAssignStmtFromPlan
+    {ε : Type}
+    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
+    (name : String)
+    (sources : Array FixedArrayAssignmentSourcePlan) :
+    Except ε Lean.Compiler.Yul.Statement := do
+  .ok <| wholeFixedArrayAssignStmt name (← sources.mapM (fixedArrayAssignmentSourceFromPlan lowerPlanExpr))
+
 def structArrayAssignmentStatements
     (name : String)
     (sources : Array StructArrayAssignmentSource) : Array Lean.Compiler.Yul.Statement :=

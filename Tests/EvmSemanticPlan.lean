@@ -4801,6 +4801,37 @@ def testAggregateAssignmentPlanToYul : IO Unit := do
     { name := "ys", type := .fixedArray .u64 2, isMutable := false },
     { name := "idx", type := .u64, isMutable := false }
   ]
+  let fixedArraySourcePlans ← requireValidateOk
+    (ProofForge.Backend.Evm.Lower.fixedArrayAssignmentSourcePlans
+      ProofForge.IR.Examples.Counter.module
+      (toValidateTypeEnv env)
+      "xs"
+      .u64
+      2
+      (.local "ys"))
+    "Lower fixed-array assignment source plans"
+  require (fixedArraySourcePlans.size == 2) "Lower fixed-array assignment source plan count"
+  let fixedArraySourcePlan1 ← requireAt fixedArraySourcePlans 1 "Lower fixed-array assignment source plan missing index 1"
+  require (fixedArraySourcePlan1.index == 1) "Lower fixed-array assignment source plan index"
+  match fixedArraySourcePlan1.expr with
+  | ExprPlan.local name =>
+      require (name == "__proof_forge_array_ys_1") "Lower fixed-array assignment source plan local"
+  | _ => throw <| IO.userError "Lower fixed-array assignment source plan must use planned local expression"
+  let fixedArrayPlanStmt ← requireOk
+    (ProofForge.Backend.Evm.ToYul.wholeFixedArrayAssignStmtFromPlan
+      (lowerExprPlanExpr ProofForge.IR.Examples.Counter.module env)
+      "xs"
+      fixedArraySourcePlans)
+    "fixed-array assignment source plan ToYul helper"
+  match fixedArrayPlanStmt with
+  | Lean.Compiler.Yul.Statement.block block => do
+      require (block.statements.size == 4) "fixed-array assignment source plan ToYul statement count"
+      match block.statements[3]! with
+      | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.ident valueName) => do
+          require (names == #["__proof_forge_array_xs_1"]) "fixed-array assignment source plan ToYul target"
+          require (valueName == "__proof_forge_assign_array_xs_1") "fixed-array assignment source plan ToYul snapshot"
+      | _ => throw <| IO.userError "fixed-array assignment source plan ToYul final statement must assign snapshot"
+  | _ => throw <| IO.userError "fixed-array assignment source plan ToYul helper must produce block"
   let stmts ← requireOk
     (lowerAssignStmt
       ProofForge.IR.Examples.Counter.module

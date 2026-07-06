@@ -1414,6 +1414,40 @@ def buildExpressionExprPlan
   | _ => pure ()
   buildExprPlan module env expr
 
+def fixedArrayAssignmentSourcePlans
+    (module : Module)
+    (env : TypeEnv)
+    (name : String)
+    (elementType : ValueType)
+    (length : Nat)
+    (value : Expr) : Except LowerError (Array FixedArrayAssignmentSourcePlan) := do
+  match value with
+  | .local sourceName => do
+      let (sourceElementType, sourceLength) ← requireLocalFixedArray "assignment value" env sourceName
+      ensureType s!"assignment target `{name}` fixed-array element type" elementType sourceElementType
+      if sourceLength != length then
+        .error { message := s!"assignment target `{name}` expected fixed array length {length}, got {sourceLength}" }
+      let mut sources : Array FixedArrayAssignmentSourcePlan := #[]
+      for _h : idx in [0:length] do
+        sources := sources.push {
+          index := idx
+          expr := .local (arrayLocalElementName sourceName idx)
+        }
+      .ok sources
+  | .arrayLit literalElementType literalValues => do
+      ensureType s!"assignment target `{name}` fixed-array element type" elementType literalElementType
+      if literalValues.size != length then
+        .error { message := s!"assignment target `{name}` expected fixed array length {length}, got {literalValues.size}" }
+      let mut sources : Array FixedArrayAssignmentSourcePlan := #[]
+      for h : idx in [0:literalValues.size] do
+        sources := sources.push {
+          index := idx
+          expr := ← buildExprPlan module env literalValues[idx]
+        }
+      .ok sources
+  | _ =>
+      .error { message := s!"assignment target `{name}` fixed-array whole assignment supports local fixed-array values or array literals in IR EVM v0" }
+
 def crosscallModeArgContext : CrosscallMode → String
   | .call => "typed crosscall argument"
   | .callValue => "value crosscall argument"
