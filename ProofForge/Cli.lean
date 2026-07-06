@@ -700,6 +700,9 @@ def siblingPath (input : FilePath) (fileName : String) : FilePath :=
 def defaultYulOutput (input : FilePath) : FilePath :=
   siblingPath input s!".{leanBaseName input}.yul"
 
+def defaultBytecodeYulOutput (bytecodeOutput : FilePath) : FilePath :=
+  bytecodeOutput.withExtension "yul"
+
 def isHexChar (c : Char) : Bool :=
   c.isDigit || "abcdefABCDEF".contains c
 
@@ -3950,11 +3953,11 @@ unsafe def compileContractSourceEvmBytecode (opts : CliOptions) : IO UInt32 := d
   let opts ← match finalizeConstructorOptionsForSpec opts spec with
     | .ok opts => pure opts
     | .error msg => throw <| IO.userError msg
-  let yulOutput := opts.yulOutput?.getD (defaultYulOutput input)
+  let output := opts.output?.getD (input.withExtension "bin")
+  let yulOutput := opts.yulOutput?.getD (defaultBytecodeYulOutput output)
   let (yul, module) ← renderContractSourceEvmYul opts spec
   writeTextFile yulOutput yul
   let bytecode ← solcBytecode opts.solc yulOutput
-  let output := opts.output?.getD (input.withExtension "bin")
   writeTextFile output (bytecode ++ "\n")
   writeEvmContractSdkArtifactMetadata opts (leanBaseName input) spec.name spec module yulOutput output
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
