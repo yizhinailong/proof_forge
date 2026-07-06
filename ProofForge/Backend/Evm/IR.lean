@@ -3313,57 +3313,16 @@ def lowerWholeFixedArrayAssignStmt
         name
         sourcePlans
 
-def lowerStructAssignmentSourceExprs
-    (module : Module)
-    (env : TypeEnv)
-    (name typeName : String)
-    (value : ProofForge.IR.Expr) : Except LowerError (Array (String × Lean.Compiler.Yul.Expr)) := do
-  let some decl := findStruct? module typeName
-    | .error { message := s!"unknown struct `{typeName}`" }
-  match value with
-  | .local sourceName => do
-      let some binding := findLocal? env sourceName
-        | .error { message := s!"unknown local `{sourceName}`" }
-      ensureType s!"assignment target `{name}` struct type" (.structType typeName) binding.type
-      let mut values : Array (String × Lean.Compiler.Yul.Expr) := #[]
-      for fieldDecl in decl.fields do
-        ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
-        values := values.push (fieldDecl.id, Lean.Compiler.Yul.Expr.id (structLocalFieldName sourceName fieldDecl.id))
-      .ok values
-  | .structLit literalTypeName fields => do
-      if literalTypeName != typeName then
-        .error { message := s!"assignment target `{name}` expected struct `{typeName}`, got `{literalTypeName}`" }
-      let mut values : Array (String × Lean.Compiler.Yul.Expr) := #[]
-      for fieldDecl in decl.fields do
-        ensureStructLocalFieldType typeName fieldDecl.id fieldDecl.type
-        let some field := fields.find? fun field => field.fst == fieldDecl.id
-          | .error { message := s!"struct literal `{typeName}` is missing field `{fieldDecl.id}`" }
-        values := values.push (fieldDecl.id, ← lowerExpr module env field.snd)
-      .ok values
-  | .effect (.storageScalarRead stateId) =>
-      lowerStructStorageReadFields module s!"assignment target `{name}` struct type" typeName stateId
-  | _ =>
-      .error { message := s!"assignment target `{name}` struct whole assignment supports local struct values, struct literals, or storage scalar struct reads in IR EVM v0" }
-
 def lowerWholeStructAssignStmt
     (module : Module)
     (env : TypeEnv)
     (name typeName : String)
     (value : ProofForge.IR.Expr) : Except LowerError Lean.Compiler.Yul.Statement := do
-  match value with
-  | .local _ | .structLit _ _ | .effect (.storageScalarRead _) => do
-      let sourcePlans ← lowerStructAssignmentSourcePlans module env name typeName value
-      ProofForge.Backend.Evm.ToYul.wholeStructAssignStmtFromPlan
-        (lowerExprPlanExpr module env)
-        name
-        sourcePlans
-  | _ => do
-      let sourceExprs ← lowerStructAssignmentSourceExprs module env name typeName value
-      let sources := sourceExprs.map fun field =>
-        let (fieldName, expr) := field
-        ({ fieldName := fieldName, expr := expr } :
-          ProofForge.Backend.Evm.ToYul.StructAssignmentSource)
-      .ok (ProofForge.Backend.Evm.ToYul.wholeStructAssignStmt name sources)
+  let sourcePlans ← lowerStructAssignmentSourcePlans module env name typeName value
+  ProofForge.Backend.Evm.ToYul.wholeStructAssignStmtFromPlan
+    (lowerExprPlanExpr module env)
+    name
+    sourcePlans
 
 def lowerWholeLocalAssignStmt
     (module : Module)

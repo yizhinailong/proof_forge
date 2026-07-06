@@ -17,6 +17,41 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Whole-Aggregate Local Assignment Fallback Retirement
+
+Work range: whole-aggregate struct assignment expr fallback removal
+
+Summary:
+
+- Made `lowerWholeStructAssignStmt` always consume
+  `Lower.structAssignmentSourcePlans -> ToYul.wholeStructAssignStmtFromPlan`.
+- Removed the IR-local `lowerStructAssignmentSourceExprs` compatibility helper
+  that duplicated planned source expansion with `lowerExpr` fallbacks.
+- Updated backlog docs, Chinese backlog docs, and the i18n manifest.
+
+Validation run:
+
+```sh
+! rg -n "lowerStructAssignmentSourceExprs" ProofForge Tests
+lake build ProofForge.Backend.Evm.IR
+just evm-smoke struct-value struct-array-value array-value storage-struct assignment
+just evm-semantic-plan
+scripts/i18n/check-sync.sh
+git diff --check
+```
+
+Known limitations:
+
+- Whole-aggregate fixed-array/struct-array assignment still uses dedicated
+  `ToYul.whole*AssignStmtFromPlan` helpers outside the scalar `StmtPlan.assign`
+  surface.
+- Dynamic aggregate field assignment frames still use dedicated IR-local helpers.
+
+Next step:
+
+- Continue moving whole-aggregate assignment behind `StmtPlan -> ToYul` or shrink
+  static aggregate assignment target fallbacks in `lowerAssignStmt`.
+
 ### EVM Return-Word Scalar Fallback Retirement
 
 Work range: `lowerReturnWords` scalar compatibility path removal

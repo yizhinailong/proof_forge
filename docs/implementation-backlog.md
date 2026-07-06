@@ -383,6 +383,12 @@ Tasks:
     `lowerAssignmentValueExpr`. The scalar-local `lowerExpr` assignment fallback
     and `exprSupportsPlanScalarYul` gate in
     `lowerStaticAggregateScalarAssignmentPlan?` have been removed.
+  - Started: whole local struct assignment now always consumes
+    `Lower.structAssignmentSourcePlans -> ToYul.wholeStructAssignStmtFromPlan`.
+    The IR-local `lowerStructAssignmentSourceExprs` compatibility helper that
+    duplicated planned source expansion with `lowerExpr` fallbacks has been
+    removed. Whole-aggregate fixed-array and struct-array assignment already
+    used the planned source path only.
   - Started: scalar `ifElse` compatibility lowering now always routes condition
     expressions through `Lower.buildExprPlan` before
     `ToYul.ifElseStmtPlanStatements`; the old `switchStmt` fallback over
