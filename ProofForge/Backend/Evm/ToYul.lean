@@ -1400,63 +1400,6 @@ def returnValueWordPlanAssignments
     plan
   returnValueWordAssignments mkError context plan.returns words
 
-partial def localCrosscallWordsAt
-    {ε : Type}
-    (mkError : String → ε)
-    (structFieldIds : String → Except ε (Array String))
-    (context name : String)
-    (path : Array Nat) : ValueType → Except ε (Array Lean.Compiler.Yul.Expr)
-  | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address =>
-      if path.isEmpty then
-        .ok #[Lean.Compiler.Yul.Expr.id name]
-      else
-        .ok #[Lean.Compiler.Yul.Expr.id (arrayLocalPathName name path)]
-  | .unit | .bytes | .string | .array _ =>
-      .error (mkError s!"{context} uses Unit; IR EVM v0 crosscall values must use U32, U64, Bool, Hash, fixed arrays, or structs")
-  | .fixedArray elementType length => do
-      if length == 0 then
-        .error (mkError s!"{context} uses Array<{elementType.name},0>; IR EVM v0 crosscall fixed arrays must have non-zero length")
-      let mut words : Array Lean.Compiler.Yul.Expr := #[]
-      for _h : idx in [0:length] do
-        words := words ++ (← localCrosscallWordsAt mkError structFieldIds context name (path.push idx) elementType)
-      .ok words
-  | .structType typeName => do
-      let fieldIds ← structFieldIds typeName
-      let mut words : Array Lean.Compiler.Yul.Expr := #[]
-      for fieldId in fieldIds do
-        let fieldName :=
-          if path.isEmpty then
-            structLocalFieldName name fieldId
-          else
-            arrayStructLocalPathFieldName name path fieldId
-        words := words.push (Lean.Compiler.Yul.Expr.id fieldName)
-      .ok words
-
-def localCrosscallWords
-    {ε : Type}
-    (mkError : String → ε)
-    (structFieldIds : String → Except ε (Array String))
-    (context name : String)
-    (type : ValueType) : Except ε (Array Lean.Compiler.Yul.Expr) :=
-  localCrosscallWordsAt mkError structFieldIds context name #[] type
-
-partial def crosscallArgWordPlanExprs
-    {ε : Type}
-    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
-    (localWords : String → ValueType → Except ε (Array Lean.Compiler.Yul.Expr))
-    (storageWords : String → ValueType → Except ε (Array Lean.Compiler.Yul.Expr))
-    (plans : Array CrosscallArgWordPlan) : Except ε (Array Lean.Compiler.Yul.Expr) := do
-  let mut words : Array Lean.Compiler.Yul.Expr := #[]
-  for plan in plans do
-    match plan with
-    | .local name type =>
-        words := words ++ (← localWords name type)
-    | .storage stateId type =>
-        words := words ++ (← storageWords stateId type)
-    | .expr exprPlan =>
-        words := words.push (← lowerPlanExpr exprPlan)
-  .ok words
-
 partial def crosscallExpandedArgWordPlanExprs
     {ε : Type}
     (mkError : String → ε)
@@ -1470,29 +1413,6 @@ partial def crosscallExpandedArgWordPlanExprs
     | .local .. | .storage .. =>
         .error (mkError "EVM crosscall lowering expected pre-expanded argument word plans")
   .ok words
-
-def crosscallAggregateReturnAssignmentPlanStatement
-    {ε : Type}
-    (mkError : String → ε)
-    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
-    (localWords : String → ValueType → Except ε (Array Lean.Compiler.Yul.Expr))
-    (storageWords : String → ValueType → Except ε (Array Lean.Compiler.Yul.Expr))
-    (plan : CrosscallReturnAssignmentPlan) :
-    Except ε Lean.Compiler.Yul.Statement := do
-  let target ← lowerPlanExpr plan.target
-  let methodId ← lowerPlanExpr plan.methodId
-  let callValue? ← plan.callValue?.mapM lowerPlanExpr
-  let argWords ← crosscallArgWordPlanExprs lowerPlanExpr localWords storageWords plan.args
-  crosscallAggregateReturnAssignment
-    mkError
-    plan.returns.localNames
-    plan.mode
-    target
-    methodId
-    callValue?
-    argWords
-    plan.returns.returnType
-    plan.returns.wordTypes
 
 def crosscallAggregateReturnAssignmentExpandedPlanStatement
     {ε : Type}
@@ -1514,36 +1434,6 @@ def crosscallAggregateReturnAssignmentExpandedPlanStatement
     argWords
     plan.returns.returnType
     plan.returns.wordTypes
-
-partial def crosscallExprPlanExpr
-    {ε : Type}
-    (mkError : String → ε)
-    (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr)
-    (localWords : String → ValueType → Except ε (Array Lean.Compiler.Yul.Expr))
-    (storageWords : String → ValueType → Except ε (Array Lean.Compiler.Yul.Expr))
-    (mode : CrosscallMode)
-    (target methodId : ExprPlan)
-    (callValue? : Option ExprPlan)
-    (args : Array CrosscallArgWordPlan)
-    (returnType : ValueType) : Except ε Lean.Compiler.Yul.Expr := do
-  let targetExpr ← lowerPlanExpr target
-  let methodIdExpr ← lowerPlanExpr methodId
-  let callValueExpr? ← callValue?.mapM lowerPlanExpr
-  let argExprs ← crosscallArgWordPlanExprs lowerPlanExpr localWords storageWords args
-  let plainTransfer :=
-    mode == .callValue && argExprs.isEmpty &&
-      match methodId with
-      | .literalWord 0 => true
-      | _ => false
-  crosscallScalarHelperCallExpr
-    mkError
-    mode
-    targetExpr
-    methodIdExpr
-    callValueExpr?
-    argExprs
-    returnType
-    plainTransfer
 
 partial def crosscallExpandedExprPlanExpr
     {ε : Type}

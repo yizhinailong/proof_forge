@@ -17,6 +17,46 @@ Each entry should include:
 
 ## 2026-07-06
 
+### EVM Crosscall Provider Surface Retirement
+
+Work range: crosscall provider helper removal
+
+Summary:
+
+- Removed provider-backed crosscall ToYul helpers:
+  `crosscallArgWordPlanExprs`, `crosscallExprPlanExpr`,
+  `crosscallAggregateReturnAssignmentPlanStatement`, and `localCrosscallWords`.
+- Removed IR compatibility helpers that only existed for those provider
+  surfaces: `lowerLocalCrosscallWords`, `lowerStorageCrosscallWords`,
+  `lowerCrosscallArgWordPlanExprs`, and `lowerCrosscallArgWordsMany`.
+- Updated semantic-plan tests to cover only the expanded-word path through
+  `Lower.buildCrosscallArgWordPlansMany` / `Lower.localCrosscallWordPlans`
+  plus `ToYul.crosscallExpandedArgWordPlanExprs` /
+  `ToYul.crosscallExpandedExprPlanExpr`.
+- Updated backlog docs and Chinese backlog docs.
+
+Validation run:
+
+```sh
+! rg -n "crosscallArgWordPlanExprs|crosscallExprPlanExpr|crosscallAggregateReturnAssignmentPlanStatement|localCrosscallWords|lowerLocalCrosscallWords|lowerStorageCrosscallWords|lowerCrosscallArgWordPlanExprs|lowerCrosscallArgWordsMany" ProofForge Tests
+lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
+lake env lean --run Tests/EvmSemanticPlan.lean
+just evm-semantic-plan
+just evm-all
+```
+
+Known limitations:
+
+- Nested fixed-array, struct-array, and whole-struct assignment source
+  expansion still lives in `IR.lean` before delegating final block assembly to
+  `ToYul`.
+
+Next step:
+
+- Move the next aggregate assignment source expansion slice into `Lower`,
+  prioritizing nested fixed-array sources because the final Yul frame is
+  already behind `ToYul`.
+
 ### EVM Expanded Crosscall Word Plan Boundary
 
 Work range: `codex/evm-crosscall-expanded-word-plan`

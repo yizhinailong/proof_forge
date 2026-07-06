@@ -68,6 +68,31 @@ def requireValidateErrorContains {α : Type}
       require (err.message.contains expected)
         s!"{message}: expected `{expected}`, got `{err.message}`"
 
+def lowerExpandedCrosscallArgWordsMany
+    (module : Module)
+    (env : TypeEnv)
+    (context : String)
+    (args : Array Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+  let plans ←
+    match ProofForge.Backend.Evm.Lower.buildCrosscallArgWordPlansMany module (toValidateTypeEnv env) context args with
+    | .ok plans => .ok plans
+    | .error err => .error { message := err.message }
+  ProofForge.Backend.Evm.ToYul.crosscallExpandedArgWordPlanExprs
+    toYulError
+    (lowerExprPlanExpr module env)
+    plans
+
+def lowerExpandedLocalCrosscallWords
+    (module : Module)
+    (env : TypeEnv)
+    (context name : String)
+    (expectedType : ValueType) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
+  let plans ←
+    match ProofForge.Backend.Evm.Lower.localCrosscallWordPlans module (toValidateTypeEnv env) context name expectedType with
+    | .ok plans => .ok plans
+    | .error err => .error { message := err.message }
+  plans.mapM (lowerExprPlanExpr module env)
+
 def statementFunctionName? : Lean.Compiler.Yul.Statement → Option String
   | .funcDef name _ _ _ => some name
   | _ => none
@@ -4521,11 +4546,6 @@ def testScalarFallbackGateCrosscallCreatePlanToYul : IO Unit := do
   | _ => throw <| IO.userError "create2 scalar binding must use planned helper call"
 
 def testLocalCrosscallWordsToYul : IO Unit := do
-  let simpleStructFields (typeName : String) : Except LowerError (Array String) :=
-    if typeName == "Point" then
-      .ok #["x", "y"]
-    else
-      .error { message := s!"unknown struct `{typeName}`" }
   let lowerStructFields ← requireValidateOk
     (ProofForge.Backend.Evm.Lower.localCrosscallStructFieldIds
       ProofForge.IR.Examples.EvmStructValueProbe.module
@@ -4533,61 +4553,6 @@ def testLocalCrosscallWordsToYul : IO Unit := do
       "Point")
     "Lower local crosscall struct fields"
   require (lowerStructFields == #["x", "y"]) "Lower local crosscall struct field order"
-  let directStructWords ← requireOk
-    (ProofForge.Backend.Evm.ToYul.localCrosscallWords
-      toYulError
-      simpleStructFields
-      "crosscall argument"
-      "p"
-      (.structType "Point"))
-    "direct local crosscall struct words ToYul"
-  require (directStructWords.size == 2) "direct local crosscall struct words count"
-  requireIdentExpr directStructWords[0]! "__proof_forge_struct_p_x" "direct local crosscall struct word 0"
-  requireIdentExpr directStructWords[1]! "__proof_forge_struct_p_y" "direct local crosscall struct word 1"
-  let directArrayWords ← requireOk
-    (ProofForge.Backend.Evm.ToYul.localCrosscallWords
-      toYulError
-      simpleStructFields
-      "crosscall argument"
-      "xs"
-      (.fixedArray .u64 2))
-    "direct local crosscall fixed-array words ToYul"
-  require (directArrayWords.size == 2) "direct local crosscall fixed-array words count"
-  requireIdentExpr directArrayWords[0]! "__proof_forge_array_xs_0" "direct local crosscall fixed-array word 0"
-  requireIdentExpr directArrayWords[1]! "__proof_forge_array_xs_1" "direct local crosscall fixed-array word 1"
-  let directArgWords ← requireOk
-    (ProofForge.Backend.Evm.ToYul.crosscallArgWordPlanExprs
-      (fun
-        | .literalWord value => .ok (Lean.Compiler.Yul.Expr.num value)
-        | _ => .error { message := "direct crosscall arg word plan test only lowers literal scalar plans" })
-      (fun name type =>
-        ProofForge.Backend.Evm.ToYul.localCrosscallWords
-          toYulError
-          simpleStructFields
-          "crosscall argument"
-          name
-          type)
-      (fun stateId type =>
-        if stateId == "current" && type == .structType "Point" then
-          .ok #[Lean.Compiler.Yul.Expr.id "current_x", Lean.Compiler.Yul.Expr.id "current_y"]
-        else
-          .error { message := "direct crosscall arg word plan test unexpected storage plan" })
-      #[
-        CrosscallArgWordPlan.local "p" (.structType "Point"),
-        CrosscallArgWordPlan.expr (.literalWord 9),
-        CrosscallArgWordPlan.storage "current" (.structType "Point")
-      ])
-    "direct crosscall arg word plan ToYul"
-  require (directArgWords.size == 5) "direct crosscall arg word plan word count"
-  requireIdentExpr directArgWords[0]! "__proof_forge_struct_p_x" "direct crosscall arg word plan local word 0"
-  requireIdentExpr directArgWords[1]! "__proof_forge_struct_p_y" "direct crosscall arg word plan local word 1"
-  match directArgWords[2]! with
-  | Lean.Compiler.Yul.Expr.lit value =>
-      require (value.value == "9") "direct crosscall arg word plan scalar word"
-  | _ =>
-      throw <| IO.userError "direct crosscall arg word plan scalar word must be numeric"
-  requireIdentExpr directArgWords[3]! "current_x" "direct crosscall arg word plan storage word 0"
-  requireIdentExpr directArgWords[4]! "current_y" "direct crosscall arg word plan storage word 1"
   let expandedArgWords ← requireOk
     (ProofForge.Backend.Evm.ToYul.crosscallExpandedArgWordPlanExprs
       toYulError
@@ -4618,41 +4583,6 @@ def testLocalCrosscallWordsToYul : IO Unit := do
       #[CrosscallArgWordPlan.local "p" (.structType "Point")])
     "pre-expanded argument word plans"
     "expanded crosscall arg word plan rejects provider source"
-  let directCrosscallExpr ← requireOk
-    (ProofForge.Backend.Evm.ToYul.crosscallExprPlanExpr
-      toYulError
-      (fun
-        | .literalWord value => .ok (Lean.Compiler.Yul.Expr.num value)
-        | .local name => .ok (Lean.Compiler.Yul.Expr.id name)
-        | _ => .error { message := "direct crosscall expression test only lowers literal/local scalar plans" })
-      (fun name type =>
-        ProofForge.Backend.Evm.ToYul.localCrosscallWords
-          toYulError
-          simpleStructFields
-          "crosscall argument"
-          name
-          type)
-      (fun stateId type =>
-        if stateId == "current" && type == .structType "Point" then
-          .ok #[Lean.Compiler.Yul.Expr.id "current_x", Lean.Compiler.Yul.Expr.id "current_y"]
-        else
-          .error { message := "direct crosscall expression test unexpected storage plan" })
-      ProofForge.Backend.Evm.Plan.CrosscallMode.call
-      (.local "target")
-      (.literalWord 305419896)
-      none
-      #[
-        CrosscallArgWordPlan.local "p" (.structType "Point"),
-        CrosscallArgWordPlan.expr (.literalWord 9),
-        CrosscallArgWordPlan.storage "current" (.structType "Point")
-      ]
-      .u64)
-    "direct provider-backed crosscall ExprPlan-to-Yul"
-  requireCallExpr
-    directCrosscallExpr
-    "__proof_forge_crosscall_5"
-    7
-    "direct provider-backed crosscall ExprPlan-to-Yul"
   let expandedCrosscallExpr ← requireOk
     (ProofForge.Backend.Evm.ToYul.crosscallExpandedExprPlanExpr
       toYulError
@@ -4699,17 +4629,17 @@ def testLocalCrosscallWordsToYul : IO Unit := do
     "unknown local `missing`"
     "Lower local crosscall word unknown local diagnostic"
   let plannedStructArgWords ← requireOk
-    (lowerCrosscallArgWordsMany
+    (lowerExpandedCrosscallArgWordsMany
       ProofForge.IR.Examples.EvmStructValueProbe.module
       structEnv
       "typed crosscall argument"
       #[.local "p"])
-    "planned local crosscall struct words via IR facade"
+    "planned local crosscall struct words via expanded word plans"
   require (plannedStructArgWords.size == 2) "planned local crosscall struct words count"
   requireIdentExpr plannedStructArgWords[0]! "__proof_forge_struct_p_x" "planned local crosscall struct word 0"
   requireIdentExpr plannedStructArgWords[1]! "__proof_forge_struct_p_y" "planned local crosscall struct word 1"
   let loweredStructWords ← requireOk
-    (lowerLocalCrosscallWords
+    (lowerExpandedLocalCrosscallWords
       ProofForge.IR.Examples.EvmStructValueProbe.module
       structEnv
       "crosscall argument"
@@ -4719,21 +4649,11 @@ def testLocalCrosscallWordsToYul : IO Unit := do
   require (loweredStructWords.size == 2) "planned local crosscall struct words count"
   requireIdentExpr loweredStructWords[0]! "__proof_forge_struct_p_x" "planned local crosscall struct word 0"
   requireIdentExpr loweredStructWords[1]! "__proof_forge_struct_p_y" "planned local crosscall struct word 1"
-  let providerLocalStructWords ← requireOk
-    (lowerCrosscallArgWordPlanExprs
-      ProofForge.IR.Examples.EvmStructValueProbe.module
-      structEnv
-      "crosscall argument"
-      #[CrosscallArgWordPlan.local "p" (.structType "Point")])
-    "planned provider local crosscall struct words ToYul"
-  require (providerLocalStructWords.size == 2) "planned provider local crosscall struct words count"
-  requireIdentExpr providerLocalStructWords[0]! "__proof_forge_struct_p_x" "planned provider local crosscall struct word 0"
-  requireIdentExpr providerLocalStructWords[1]! "__proof_forge_struct_p_y" "planned provider local crosscall struct word 1"
   let arrayEnv : TypeEnv := #[
     { name := "xs", type := .fixedArray .u64 3, isMutable := false }
   ]
   let loweredArrayWords ← requireOk
-    (lowerLocalCrosscallWords
+    (lowerExpandedLocalCrosscallWords
       ProofForge.IR.Examples.EvmArrayValueProbe.module
       arrayEnv
       "crosscall argument"

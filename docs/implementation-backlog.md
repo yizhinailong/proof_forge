@@ -829,8 +829,7 @@ Tasks:
     The obsolete
     `ExprPlan.localAbiWords`, `ExprPlan.storageAbiWords`,
     `ExprPlan.localCrosscallWords`, and `ExprPlan.storageCrosscallWords`
-    constructors have been retired from `ExprPlan`; direct `ToYul.*Words`
-    helpers remain only as helper APIs for explicit local/source word expansion.
+    constructors have been retired from `ExprPlan`.
     `Lower.buildCrosscallArgWordPlansMany`
     now returns those source plans, while active IR lowering consumes them
     through `ToYul.crosscallExpandedArgWordPlanExprs`, which accepts only
@@ -838,18 +837,23 @@ Tasks:
     that traversal with target/method/call-value lowering and scalar helper-call
     selection. Legacy untyped scalar expression crosscall lowering now enters
     `Lower.buildExpressionExprPlan` -> `ExprPlan.crosscall` before that ToYul
-    boundary. The provider-backed `ToYul.crosscallArgWordPlanExprs` and
-    `ToYul.crosscallExprPlanExpr` helpers remain only for direct/legacy local and
-    storage crosscall source plan surfaces. The old IR-local scalar helper-call
-    branch and `lowerCrosscall*ArgWords` expansion tree have been removed.
+    boundary. The old IR-local scalar helper-call branch and
+    `lowerCrosscall*ArgWords` expansion tree have been removed.
+    Done: retired the provider-backed crosscall ToYul/IR surfaces:
+    `ToYul.crosscallArgWordPlanExprs`, `ToYul.crosscallExprPlanExpr`,
+    `ToYul.crosscallAggregateReturnAssignmentPlanStatement`,
+    `ToYul.localCrosscallWords`, and the IR compatibility helpers
+    `lowerLocalCrosscallWords`, `lowerStorageCrosscallWords`,
+    `lowerCrosscallArgWordPlanExprs`, and `lowerCrosscallArgWordsMany`.
+    Semantic-plan tests now cover only the expanded-word path through
+    `Lower.buildCrosscallArgWordPlansMany` / `Lower.localCrosscallWordPlans`
+    plus `ToYul.crosscallExpandedArgWordPlanExprs` /
+    `ToYul.crosscallExpandedExprPlanExpr`.
     Aggregate crosscall return assignment now also enters
     `ToYul.crosscallAggregateReturnAssignmentExpandedPlanStatement`, so
     target/method/call-value lowering, planned crosscall argument word traversal,
     helper-call name selection, argument ordering, and multi-return assignment
-    construction live behind the ToYul plan boundary without active provider
-    callbacks. The provider-backed
-    `ToYul.crosscallAggregateReturnAssignmentPlanStatement` helper remains only
-    for direct/legacy local and storage word-source surfaces.
+    construction live behind the ToYul plan boundary without provider callbacks.
   - Add `EntrypointPlan` for selector dispatch, calldata guards, ABI word
     flattening, return-data encoding, and metadata selector layout.
   - Add `EventPlan` for event signature topics, indexed-topic hashing,

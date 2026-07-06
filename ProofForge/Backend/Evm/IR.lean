@@ -1948,35 +1948,6 @@ mutual
           expectedType
     plans.mapM (lowerExprPlanExpr module env)
 
-  partial def lowerLocalCrosscallWords
-      (module : Module)
-      (env : TypeEnv)
-      (context name : String)
-      (expectedType : ValueType) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-    let plans ←
-      lowerValidate <|
-        ProofForge.Backend.Evm.Lower.localCrosscallWordPlans
-          module
-          (toValidateTypeEnv env)
-          context
-          name
-          expectedType
-    plans.mapM (lowerExprPlanExpr module env)
-
-  partial def lowerStorageCrosscallWords
-      (module : Module)
-      (env : TypeEnv)
-      (context stateId : String)
-      (expectedType : ValueType) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-    let plans ←
-      lowerValidate <|
-        ProofForge.Backend.Evm.Lower.storageCrosscallWordPlans
-          module
-          context
-          stateId
-          expectedType
-    plans.mapM (lowerExprPlanExpr module env)
-
   partial def lowerStorageArrayAbiWords
       (module : Module)
       (context stateId : String)
@@ -1990,23 +1961,6 @@ mutual
           stateId
           (.fixedArray elementType length)
     plans.mapM (lowerExprPlanExpr module #[])
-
-  partial def lowerCrosscallArgWordsMany
-      (module : Module)
-      (env : TypeEnv)
-      (context : String)
-      (args : Array ProofForge.IR.Expr) : Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-    let plans ←
-      lowerValidate <|
-        ProofForge.Backend.Evm.Lower.buildCrosscallArgWordPlansMany
-          module
-          (toValidateTypeEnv env)
-          context
-          args
-    ProofForge.Backend.Evm.ToYul.crosscallExpandedArgWordPlanExprs
-      toYulError
-      (lowerExprPlanExpr module env)
-      plans
 
   partial def lowerExprThroughPlan
       (module : Module)
@@ -2341,26 +2295,6 @@ mutual
           slot
     | _ =>
         .error { message := "EVM ExprPlan-to-Yul scalar lowering does not support this effect plan yet" }
-
-  partial def crosscallPlanArgContext :
-      ProofForge.Backend.Evm.Plan.CrosscallMode → String
-    | .call => "typed crosscall argument"
-    | .callValue => "value crosscall argument"
-    | .staticcall => "static crosscall argument"
-    | .delegatecall => "delegate crosscall argument"
-
-  partial def lowerCrosscallArgWordPlanExprs
-      (module : Module)
-      (env : TypeEnv)
-      (context : String)
-      (plans : Array ProofForge.Backend.Evm.Plan.CrosscallArgWordPlan) :
-      Except LowerError (Array Lean.Compiler.Yul.Expr) := do
-    ProofForge.Backend.Evm.ToYul.crosscallArgWordPlanExprs
-      (lowerExprPlanExpr module env)
-      (fun name type => lowerLocalCrosscallWords module env context name type)
-      (fun stateId type =>
-        lowerStorageCrosscallWords module env context stateId type)
-      plans
 
   partial def lowerExprPlanExpr
       (module : Module)
