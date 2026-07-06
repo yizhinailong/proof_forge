@@ -4364,6 +4364,137 @@ def testScalarFallbackGateMemoryArrayPlanToYul : IO Unit := do
       requireCallExpr args[1]! "__pf_checked_add" 2 "memory array get return planned index"
   | _ => throw <| IO.userError "memory array get return must use planned helper assignment"
 
+def testScalarFallbackGateCrosscallCreatePlanToYul : IO Unit := do
+  let crosscallEnv : TypeEnv := #[
+    { name := "target", type := .u64, isMutable := false },
+    { name := "amount", type := .u64, isMutable := false }
+  ]
+  let scalarCrosscallExpr : Expr :=
+    .crosscallInvokeTyped
+      (.local "target")
+      (.literal (.u64 305419896))
+      #[.add (.local "amount") (.literal (.u64 1))]
+      .u64
+  require
+    (exprSupportsPlanScalarYul scalarCrosscallExpr)
+    "scalar crosscall return must be accepted by scalar plan gate"
+  let crosscallBindingStmts ← requireOk
+    (lowerScalarBindingStmtPlanOrFallback
+      ProofForge.IR.Examples.EvmCrosscallProbe.module
+      crosscallEnv
+      "remote"
+      .u64
+      false
+      scalarCrosscallExpr)
+    "scalar crosscall binding plan-to-yul"
+  require (crosscallBindingStmts.size == 1) "scalar crosscall binding statement count"
+  match crosscallBindingStmts[0]! with
+  | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.call name args)) => do
+      let typedName ← requireAt vars 0 "scalar crosscall binding var"
+      require (typedName.name == "remote") "scalar crosscall binding target"
+      require (name == "__proof_forge_crosscall_1") "scalar crosscall binding helper"
+      require (args.size == 3) "scalar crosscall binding helper arg count"
+      requireCallExpr args[2]! "__pf_checked_add" 2 "scalar crosscall binding planned argument"
+  | _ => throw <| IO.userError "scalar crosscall binding must use planned helper call"
+  let aggregateReturnExpr : Expr :=
+    .crosscallInvokeTyped
+      (.local "target")
+      (.literal (.u64 305419896))
+      #[]
+      (.structType "RemotePair")
+  require
+    (!exprSupportsPlanScalarYul aggregateReturnExpr)
+    "aggregate crosscall return must stay out of scalar plan gate"
+  let aggregateArgExpr : Expr :=
+    .crosscallInvokeTyped
+      (.local "target")
+      (.literal (.u64 305419896))
+      #[.structLit "Point" #[
+        ("x", .literal (.u64 4)),
+        ("y", .add (.local "amount") (.literal (.u64 2)))
+      ]]
+      .u64
+  require
+    (exprSupportsPlanScalarYul aggregateArgExpr)
+    "aggregate crosscall argument with scalar return must be accepted by scalar plan gate"
+  let aggregateArgBindingStmts ← requireOk
+    (lowerScalarBindingStmtPlanOrFallback
+      ProofForge.IR.Examples.EvmStructValueProbe.module
+      crosscallEnv
+      "remote_pair"
+      .u64
+      false
+      aggregateArgExpr)
+    "aggregate argument scalar crosscall binding plan-to-yul"
+  require (aggregateArgBindingStmts.size == 1) "aggregate argument scalar crosscall binding statement count"
+  match aggregateArgBindingStmts[0]! with
+  | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.call name args)) => do
+      let typedName ← requireAt vars 0 "aggregate argument scalar crosscall binding var"
+      require (typedName.name == "remote_pair") "aggregate argument scalar crosscall binding target"
+      require (name == "__proof_forge_crosscall_2") "aggregate argument scalar crosscall binding helper"
+      require (args.size == 4) "aggregate argument scalar crosscall binding helper arg count"
+      requireCallExpr args[3]! "__pf_checked_add" 2 "aggregate argument scalar crosscall binding planned field"
+  | _ => throw <| IO.userError "aggregate argument scalar crosscall binding must use planned helper call"
+  let createEnv : TypeEnv := #[
+    { name := "value", type := .u64, isMutable := false },
+    { name := "salt", type := .hash, isMutable := false }
+  ]
+  let createHelperName :=
+    "__proof_forge_create_" ++ ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex
+  let create2HelperName :=
+    "__proof_forge_create2_" ++ ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex
+  let createExpr : Expr :=
+    .crosscallCreate
+      (.add (.local "value") (.literal (.u64 0)))
+      ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex
+  require
+    (exprSupportsPlanScalarYul createExpr)
+    "create expression must be accepted by scalar plan gate"
+  let createReturnStmts ← requireOk
+    (lowerScalarReturnStmtPlanOrFallback
+      ProofForge.IR.Examples.EvmCrosscallProbe.module
+      createEnv
+      "scalar_create_return"
+      .u64
+      createExpr
+      false)
+    "create scalar return plan-to-yul"
+  require (createReturnStmts.size == 1) "create scalar return statement count"
+  match createReturnStmts[0]! with
+  | Lean.Compiler.Yul.Statement.assignment names (Lean.Compiler.Yul.Expr.call name args) => do
+      require (names == #["result"]) "create scalar return target"
+      require (name == createHelperName) "create scalar return helper"
+      require (args.size == 1) "create scalar return helper arg count"
+      requireCallExpr args[0]! "__pf_checked_add" 2 "create scalar return planned call value"
+  | _ => throw <| IO.userError "create scalar return must use planned helper assignment"
+  let create2Expr : Expr :=
+    .crosscallCreate2
+      (.local "value")
+      (.local "salt")
+      ProofForge.IR.Examples.EvmCrosscallProbe.returnFortyTwoInitCodeHex
+  require
+    (exprSupportsPlanScalarYul create2Expr)
+    "create2 expression must be accepted by scalar plan gate"
+  let create2BindingStmts ← requireOk
+    (lowerScalarBindingStmtPlanOrFallback
+      ProofForge.IR.Examples.EvmCrosscallProbe.module
+      createEnv
+      "deployed2"
+      .u64
+      false
+      create2Expr)
+    "create2 scalar binding plan-to-yul"
+  require (create2BindingStmts.size == 1) "create2 scalar binding statement count"
+  match create2BindingStmts[0]! with
+  | Lean.Compiler.Yul.Statement.varDecl vars (some (Lean.Compiler.Yul.Expr.call name args)) => do
+      let typedName ← requireAt vars 0 "create2 scalar binding var"
+      require (typedName.name == "deployed2") "create2 scalar binding target"
+      require (name == create2HelperName) "create2 scalar binding helper"
+      require (args.size == 2) "create2 scalar binding helper arg count"
+      requireIdentExpr args[0]! "value" "create2 scalar binding call value"
+      requireIdentExpr args[1]! "salt" "create2 scalar binding salt"
+  | _ => throw <| IO.userError "create2 scalar binding must use planned helper call"
+
 def testLocalCrosscallWordsToYul : IO Unit := do
   let simpleStructFields (typeName : String) : Except LowerError (Array String) :=
     if typeName == "Point" then
@@ -9645,6 +9776,7 @@ def main : IO UInt32 := do
   testScalarFallbackGateAggregateLiteralPlanToYul
   testScalarFallbackGateLocalAggregatePlanToYul
   testScalarFallbackGateMemoryArrayPlanToYul
+  testScalarFallbackGateCrosscallCreatePlanToYul
   testLocalAbiWordsToYul
   testLocalCrosscallWordsToYul
   testReturnValueWordPlanToYul

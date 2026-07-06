@@ -2447,6 +2447,7 @@ def lowerReturnValueWordPlan
     plan.returns
     words
 
+mutual
 partial def exprSupportsPlanScalarYul : ProofForge.IR.Expr → Bool
   | .literal _ => true
   | .local _ => true
@@ -2504,6 +2505,36 @@ partial def exprSupportsPlanScalarYul : ProofForge.IR.Expr → Bool
   | .memoryArrayGet (.memoryArrayNew _ length) index =>
       exprSupportsPlanScalarYul length &&
         exprSupportsPlanScalarYul index
+  | .crosscallInvoke target methodId args =>
+      exprSupportsPlanScalarYul target &&
+        exprSupportsPlanScalarYul methodId &&
+        args.all exprSupportsPlanScalarYul
+  | .crosscallInvokeTyped target methodId args returnType =>
+      isCrosscallWordType returnType &&
+        exprSupportsPlanScalarYul target &&
+        exprSupportsPlanScalarYul methodId &&
+        args.all exprSupportsPlanCrosscallArgYul
+  | .crosscallInvokeValueTyped target methodId callValue args returnType =>
+      isCrosscallWordType returnType &&
+        exprSupportsPlanScalarYul target &&
+        exprSupportsPlanScalarYul methodId &&
+        exprSupportsPlanScalarYul callValue &&
+        args.all exprSupportsPlanCrosscallArgYul
+  | .crosscallInvokeStaticTyped target methodId args returnType =>
+      isCrosscallWordType returnType &&
+        exprSupportsPlanScalarYul target &&
+        exprSupportsPlanScalarYul methodId &&
+        args.all exprSupportsPlanCrosscallArgYul
+  | .crosscallInvokeDelegateTyped target methodId args returnType =>
+      isCrosscallWordType returnType &&
+        exprSupportsPlanScalarYul target &&
+        exprSupportsPlanScalarYul methodId &&
+        args.all exprSupportsPlanCrosscallArgYul
+  | .crosscallCreate callValue _ =>
+      exprSupportsPlanScalarYul callValue
+  | .crosscallCreate2 callValue salt _ =>
+      exprSupportsPlanScalarYul callValue &&
+        exprSupportsPlanScalarYul salt
   | .arrayLit _ _
   | .arrayGet _ _
   | .memoryArrayNew _ _
@@ -2511,14 +2542,17 @@ partial def exprSupportsPlanScalarYul : ProofForge.IR.Expr → Bool
   | .memoryArrayGet _ _
   | .structLit _ _
   | .field _ _
-  | .crosscallInvoke _ _ _
-  | .crosscallInvokeTyped _ _ _ _
-  | .crosscallInvokeValueTyped _ _ _ _ _
-  | .crosscallInvokeStaticTyped _ _ _ _
-  | .crosscallInvokeDelegateTyped _ _ _ _
-  | .crosscallCreate _ _
-  | .crosscallCreate2 _ _ _
   | .effect _ => false
+
+partial def exprSupportsPlanCrosscallArgYul : ProofForge.IR.Expr → Bool
+  | .arrayLit _ values =>
+      !values.isEmpty &&
+        values.all exprSupportsPlanCrosscallArgYul
+  | .structLit _ fields =>
+      !fields.isEmpty &&
+        fields.all fun field => exprSupportsPlanCrosscallArgYul field.snd
+  | expr => exprSupportsPlanScalarYul expr
+end
 
 partial def lowerExprViaPlan
     (module : Module)
