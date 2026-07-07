@@ -176,7 +176,12 @@ surface. Remaining EVM work is E3.
   IR `count` ↔ powdr `AccountMap`/`Storage` relation over `UInt256`, and proves the
   relation after writing `count`. It also defines selector calldata plus
   `prepareCounterCall`, a runtime-bytecode-parameterized powdr frame setup for Counter
-  calls, and proves that preparation preserves `CounterStorageRel`.
+  calls, and proves that preparation preserves `CounterStorageRel`. It now exposes
+  `counterPowdrTraceStep` / `counterPowdrTargetSemantics`, which run prepared Counter
+  calls through powdr `runBytecode`, project EVM results to Counter observables, and prove
+  successful trace steps are backed by powdr `Steps` with the stated observable projection;
+  the target semantics' `executableTraceOk` stays false until the real runtime artifact and
+  initial EVM state are bound.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop

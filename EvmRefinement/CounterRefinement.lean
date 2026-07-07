@@ -14,6 +14,7 @@ namespace ProofForge.Backend.Evm.CounterRefinement
 
 open ProofForge.IR
 open ProofForge.IR.Semantics
+open ProofForge.Backend.Refinement
 
 abbrev IRState := ProofForge.IR.Semantics.State
 abbrev EvmState := ProofForge.Backend.Evm.PowdrAdapter.State
@@ -169,5 +170,152 @@ theorem counterStorageRel_prepareCounterCall
   refine ⟨count, hcount, ?_⟩
   rw [counterStorageValue_prepareCounterCall]
   exact hstorage
+
+structure PowdrCounterConfig where
+  runtimeCode : ByteArray
+  fuel : Nat
+
+def counterUnitObservableFromResult (name : String) :
+    EvmSemantics.EVM.ExecutionResult → Except String ObservableReturn
+  | .success => .ok .none
+  | .returned output =>
+      if output.size == 0 then
+        .ok .none
+      else
+        .error s!"Counter.{name} returned unexpected EVM output bytes"
+  | .reverted _ => .ok (.reverted s!"Counter.{name} reverted")
+  | .exception _ => .error s!"Counter.{name} halted with an EVM exception"
+
+def counterGetObservableFromResult :
+    EvmSemantics.EVM.ExecutionResult → Except String ObservableReturn
+  | .returned output =>
+      .ok (.u64 (EvmSemantics.MachineState.readWord output 0).toNat)
+  | .success => .error "Counter.get stopped without EVM return data"
+  | .reverted _ => .ok (.reverted "Counter.get reverted")
+  | .exception _ => .error "Counter.get halted with an EVM exception"
+
+def counterObservableFromResult (call : CounterCall)
+    (result : EvmSemantics.EVM.ExecutionResult) : Except String ObservableReturn :=
+  match call with
+  | .initialize => counterUnitObservableFromResult "initialize" result
+  | .increment => counterUnitObservableFromResult "increment" result
+  | .get => counterGetObservableFromResult result
+
+def counterPowdrTraceStep (cfg : PowdrCounterConfig) (state : EvmState)
+    (call : CounterCall) : Except String (EvmState × ObservableReturn) := do
+  let (finalState, _observations) ←
+    ProofForge.Backend.Evm.PowdrAdapter.runBytecode
+      (prepareCounterCall cfg.runtimeCode call state) cfg.fuel
+  let observable ← counterObservableFromResult call finalState.toResult
+  .ok (finalState, observable)
+
+theorem counterPowdrTraceStep_steps {cfg : PowdrCounterConfig}
+    {state finalState : EvmState} {call : CounterCall}
+    {obs : ObservableReturn}
+    (h : counterPowdrTraceStep cfg state call = .ok (finalState, obs)) :
+    EvmSemantics.EVM.Steps
+      (prepareCounterCall cfg.runtimeCode call state) finalState := by
+  unfold counterPowdrTraceStep at h
+  cases hrun : ProofForge.Backend.Evm.PowdrAdapter.runBytecode
+      (prepareCounterCall cfg.runtimeCode call state) cfg.fuel with
+  | error message =>
+      rw [hrun] at h
+      change (Except.bind (Except.error message)
+        (fun result : EvmState × Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep =>
+          Except.bind (counterObservableFromResult call result.fst.toResult)
+            (fun observable : ObservableReturn =>
+              Except.ok (result.fst, observable)))) = Except.ok (finalState, obs) at h
+      simp [Except.bind] at h
+  | ok result =>
+      rcases result with ⟨runFinalState, observations⟩
+      have hsteps :=
+        ProofForge.Backend.Evm.PowdrAdapter.runBytecode_steps hrun
+      rw [hrun] at h
+      change (Except.bind (Except.ok
+        ((runFinalState, observations) :
+          EvmState × Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep))
+        (fun result : EvmState × Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep =>
+              Except.bind (counterObservableFromResult call result.fst.toResult)
+                (fun observable : ObservableReturn =>
+                  Except.ok (result.fst, observable)))) = Except.ok (finalState, obs) at h
+      change (Except.bind (counterObservableFromResult call runFinalState.toResult)
+        (fun observable : ObservableReturn =>
+          Except.ok (runFinalState, observable))) = Except.ok (finalState, obs) at h
+      cases hobs : counterObservableFromResult call runFinalState.toResult with
+      | error message =>
+          rw [hobs] at h
+          change (Except.error message : Except String (EvmState × ObservableReturn)) =
+            Except.ok (finalState, obs) at h
+          cases h
+      | ok targetObservable =>
+          rw [hobs] at h
+          change Except.ok (runFinalState, targetObservable) =
+            Except.ok (finalState, obs) at h
+          cases h
+          exact hsteps
+
+theorem counterPowdrTraceStep_observable {cfg : PowdrCounterConfig}
+    {state finalState : EvmState} {call : CounterCall}
+    {obs : ObservableReturn}
+    (h : counterPowdrTraceStep cfg state call = .ok (finalState, obs)) :
+    counterObservableFromResult call finalState.toResult = .ok obs := by
+  unfold counterPowdrTraceStep at h
+  cases hrun : ProofForge.Backend.Evm.PowdrAdapter.runBytecode
+      (prepareCounterCall cfg.runtimeCode call state) cfg.fuel with
+  | error message =>
+      rw [hrun] at h
+      change (Except.bind (Except.error message)
+        (fun result : EvmState × Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep =>
+          Except.bind (counterObservableFromResult call result.fst.toResult)
+            (fun observable : ObservableReturn =>
+              Except.ok (result.fst, observable)))) = Except.ok (finalState, obs) at h
+      simp [Except.bind] at h
+  | ok result =>
+      rcases result with ⟨runFinalState, observations⟩
+      rw [hrun] at h
+      change (Except.bind (Except.ok
+        ((runFinalState, observations) :
+          EvmState × Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep))
+        (fun result : EvmState × Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep =>
+              Except.bind (counterObservableFromResult call result.fst.toResult)
+                (fun observable : ObservableReturn =>
+                  Except.ok (result.fst, observable)))) = Except.ok (finalState, obs) at h
+      change (Except.bind (counterObservableFromResult call runFinalState.toResult)
+        (fun observable : ObservableReturn =>
+          Except.ok (runFinalState, observable))) = Except.ok (finalState, obs) at h
+      cases hobs : counterObservableFromResult call runFinalState.toResult with
+      | error message =>
+          rw [hobs] at h
+          change (Except.error message : Except String (EvmState × ObservableReturn)) =
+            Except.ok (finalState, obs) at h
+          cases h
+      | ok targetObservable =>
+          rw [hobs] at h
+          change Except.ok (runFinalState, targetObservable) =
+            Except.ok (finalState, obs) at h
+          cases h
+          exact hobs
+
+def counterPowdrRunTrace (cfg : PowdrCounterConfig) :
+    List CounterCall → EvmState → Except String (EvmState × Array ObservableReturn) :=
+  ProofForge.IR.StepSemantics.runTraceListGen (counterPowdrTraceStep cfg)
+
+theorem counterPowdrRunTrace_eq_traceStep (cfg : PowdrCounterConfig)
+    (calls : List CounterCall) (state : EvmState) :
+    counterPowdrRunTrace cfg calls state =
+      ProofForge.IR.StepSemantics.runTraceListGen
+        (counterPowdrTraceStep cfg) calls state := rfl
+
+def counterPowdrTargetSemantics (cfg : PowdrCounterConfig) : TargetSemantics := {
+  id := "evm-powdr-counter"
+  supportedFragments := #[.counter]
+  MachineState := EvmState
+  Call := CounterCall
+  Obs := ObservableReturn
+  traceStep := counterPowdrTraceStep cfg
+  runTrace := counterPowdrRunTrace cfg
+  runTrace_eq_traceStep := counterPowdrRunTrace_eq_traceStep cfg
+  executableTraceOk := fun _ => false
+}
 
 end ProofForge.Backend.Evm.CounterRefinement

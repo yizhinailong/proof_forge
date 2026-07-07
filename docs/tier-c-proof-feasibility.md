@@ -298,7 +298,10 @@ ProofForge's default build still avoids powdr/mathlib imports.
     proves `count` is EVM scalar slot 0 and relates IR `count` to powdr
     `AccountMap`/`Storage` over `UInt256`. It also prepares runtime-code
     parameterized Counter call frames and proves that preparation preserves the
-    storage relation.
+    storage relation. The module now exposes a powdr-backed Counter trace-step
+    surface and proves successful trace steps are backed by powdr `Steps` plus
+    the stated observable projection; the executable trace gate remains disabled
+    until it is bound to the real runtime artifact and initial EVM state.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
