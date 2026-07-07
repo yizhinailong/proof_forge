@@ -243,11 +243,17 @@ surface. Remaining EVM work is E3.
   64-bit count field, preserve low 192-bit padding", and
   `counterPreparedInitializePostconditionOfStorageModel` turns that storage
   model into the prepared-frame initialize postcondition.
+  `CounterPowdrPreparedStorageModels` now names that exact prepared-frame
+  storage-model surface and `counterCompiledPowdr_safe_trace_simulates_*_prepared_storage_models`
+  connect it directly to the compiled-runtime safe universal trace theorems.
+  The SSTORE-side storage projection lemma
+  `counterStorageValue_accountMap_set_storage_same` is also available for the
+  eventual opcode case proof.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
   remains an explicit trust boundary. The remaining E3 work is to discharge those
-  EVM-only powdr storage postconditions against the concrete runtime.
+  prepared-frame storage models against the concrete runtime.
 - **Acceptance:** a universally-quantified refinement theorem (IR Counter ⟷ powdr EVM
   `Step`, by `induction`, **not** `native_decide`) type-checks under the opt-in target;
   `docs/formal-verification.md` EVM Tier C-proof row updated from aspirational/blocked to

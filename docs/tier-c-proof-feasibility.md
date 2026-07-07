@@ -361,7 +361,11 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterInitializeStorageWord` models the compiled initialize body as
     high-64-bit count clear plus low-192-bit padding preservation, and
     `counterPreparedInitializePostconditionOfStorageModel` turns that model into
-    the prepared-frame initialize postcondition.
+    the prepared-frame initialize postcondition. `CounterPowdrPreparedStorageModels`
+    now names the remaining prepared-frame storage-model obligations, and the
+    compiled `counterCompiledPowdr_safe_trace_simulates_*_prepared_storage_models`
+    theorems connect those obligations directly to the safe universal trace
+    theorems.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
@@ -373,7 +377,7 @@ ProofForge's default build still avoids powdr/mathlib imports.
   dependency path and wrapper. The conformance-tested EVM bytecode semantics is
   now callable from the `EvmRefinement` target; the implementation agent's next
   step is the Counter per-entrypoint simulation proof against that powdr
-  `Step`, currently reduced to prepared-frame storage postconditions.
+  `Step`, currently reduced to prepared-frame storage models.
 
 ### Phase 6c — Prove IR → bytecode refinement for Counter
 

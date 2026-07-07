@@ -127,6 +127,17 @@ def setCounterStorageWord (address : EvmSemantics.AccountAddress)
       word := by
   simp [counterStorageValue, counterAccount, setCounterStorageWord]
 
+@[simp] theorem counterStorageValue_accountMap_set_storage_same
+    (state : EvmState) (address : EvmSemantics.AccountAddress)
+    (slot word : EvmSemantics.UInt256) :
+    counterStorageValue address slot
+      { state with
+        accountMap := state.accountMap.set address
+          { state.accountMap address with
+            storage := (state.accountMap address).storage.set slot word } } =
+      word := by
+  simp [counterStorageValue, counterAccount]
+
 def irCounterCount? (state : IRState) : Option Nat :=
   match state.read "count" with
   | some (.u64 count) => some count
@@ -940,6 +951,38 @@ structure CounterPowdrPreparedEvmPostconditions (cfg : PowdrCounterConfig) where
         CounterStorageWordRel
           (counterStorageValue counterContractAddress counterCountSlot nextEvm) count
 
+structure CounterPowdrPreparedStorageModels (cfg : PowdrCounterConfig) where
+  initialize_writes_storage_model :
+    ∀ {preparedState},
+      CounterPreparedCall cfg .initialize preparedState →
+      ∃ nextEvm,
+        counterPowdrPreparedTraceStep cfg preparedState .initialize =
+          .ok (nextEvm, .none) ∧
+        counterStorageValue counterContractAddress counterCountSlot nextEvm =
+          counterInitializeStorageWord
+            (counterStorageValue counterContractAddress counterCountSlot preparedState)
+  increment_writes_succ :
+    ∀ {preparedState count},
+      CounterPreparedCall cfg .increment preparedState →
+      count + 1 < counterU64Modulus →
+      CounterStorageWordRel
+        (counterStorageValue counterContractAddress counterCountSlot preparedState) count →
+      ∃ nextEvm,
+        counterPowdrPreparedTraceStep cfg preparedState .increment =
+          .ok (nextEvm, .none) ∧
+        CounterStorageWordRel
+          (counterStorageValue counterContractAddress counterCountSlot nextEvm) (count + 1)
+  get_returns_count :
+    ∀ {preparedState count},
+      CounterPreparedCall cfg .get preparedState →
+      count < counterU64Modulus →
+      CounterStorageWordRel
+        (counterStorageValue counterContractAddress counterCountSlot preparedState) count →
+      ∃ nextEvm,
+        counterPowdrPreparedTraceStep cfg preparedState .get = .ok (nextEvm, .u64 count) ∧
+        CounterStorageWordRel
+          (counterStorageValue counterContractAddress counterCountSlot nextEvm) count
+
 theorem counterPreparedInitializePostconditionOfStorageModel
     (cfg : PowdrCounterConfig)
     (hmodel :
@@ -964,6 +1007,15 @@ theorem counterPreparedInitializePostconditionOfStorageModel
   rw [hstorage]
   exact counterInitializeStorageWord_rel_zero
     (counterStorageValue counterContractAddress counterCountSlot preparedState)
+
+def counterPowdrPreparedEvmPostconditionsOfStorageModels
+    (cfg : PowdrCounterConfig) (models : CounterPowdrPreparedStorageModels cfg) :
+    CounterPowdrPreparedEvmPostconditions cfg where
+  initialize_writes_zero :=
+    counterPreparedInitializePostconditionOfStorageModel cfg
+      models.initialize_writes_storage_model
+  increment_writes_succ := models.increment_writes_succ
+  get_returns_count := models.get_returns_count
 
 def counterPowdrEvmPostconditionsOfPrepared
     (cfg : PowdrCounterConfig) (post : CounterPowdrPreparedEvmPostconditions cfg) :
@@ -1045,6 +1097,13 @@ def counterPowdrSafeEntrypointObligationsOfPostconditions
       post.get_returns_count hbound hstorage
     refine ⟨nextEvm, hpowdrStep, ?_⟩
     exact ⟨count, counterStateRel_irCounterCount? hcounterNext, hbound, hstorageNext⟩
+
+def counterPowdrSafeEntrypointObligationsOfPreparedStorageModels
+    (cfg : PowdrCounterConfig) (models : CounterPowdrPreparedStorageModels cfg) :
+    CounterPowdrSafeEntrypointObligations cfg :=
+  counterPowdrSafeEntrypointObligationsOfPostconditions cfg
+    (counterPowdrEvmPostconditionsOfPrepared cfg
+      (counterPowdrPreparedEvmPostconditionsOfStorageModels cfg models))
 
 theorem counterPowdr_step_simulates_from_obligations
     (cfg : PowdrCounterConfig) (obligations : CounterPowdrEntrypointObligations cfg)
@@ -1334,6 +1393,9 @@ abbrev CounterCompiledPowdrEvmPostconditions :=
 abbrev CounterCompiledPowdrPreparedEvmPostconditions :=
   CounterPowdrPreparedEvmPostconditions counterCompiledPowdrConfig
 
+abbrev CounterCompiledPowdrPreparedStorageModels :=
+  CounterPowdrPreparedStorageModels counterCompiledPowdrConfig
+
 def counterCompiledPowdrEvmPostconditionsOfPrepared
     (post : CounterCompiledPowdrPreparedEvmPostconditions) :
     CounterCompiledPowdrEvmPostconditions :=
@@ -1347,6 +1409,17 @@ def counterCompiledPowdrSafeEntrypointObligationsOfPostconditions
     CounterCompiledPowdrSafeEntrypointObligations :=
   counterPowdrSafeEntrypointObligationsOfPostconditions
     counterCompiledPowdrConfig post
+
+def counterCompiledPowdrPreparedEvmPostconditionsOfStorageModels
+    (models : CounterCompiledPowdrPreparedStorageModels) :
+    CounterCompiledPowdrPreparedEvmPostconditions :=
+  counterPowdrPreparedEvmPostconditionsOfStorageModels counterCompiledPowdrConfig models
+
+def counterCompiledPowdrSafeEntrypointObligationsOfPreparedStorageModels
+    (models : CounterCompiledPowdrPreparedStorageModels) :
+    CounterCompiledPowdrSafeEntrypointObligations :=
+  counterPowdrSafeEntrypointObligationsOfPreparedStorageModels
+    counterCompiledPowdrConfig models
 
 theorem counterCompiledPowdr_trace_simulates_after_initialize_from_obligations
     (obligations : CounterCompiledPowdrEntrypointObligations)
@@ -1389,6 +1462,28 @@ theorem counterCompiledPowdr_safe_trace_simulates_after_initialize_from_obligati
   counterPowdr_safe_trace_simulates_after_initialize_from_obligations
     counterCompiledPowdrConfig obligations calls irState evmState hsafe
 
+theorem counterCompiledPowdr_safe_trace_simulates_after_initialize_from_prepared_storage_models
+    (models : CounterCompiledPowdrPreparedStorageModels)
+    (calls : List CounterCall) (irState : IRState) (evmState : EvmState)
+    (hsafe : counterTraceSafeAfterInitialize calls = true) :
+    ∃ finalIr finalEvm observables,
+      ProofForge.IR.StepSemantics.runTraceListGen counterIRStep
+          (.initialize :: calls) irState =
+        .ok (finalIr, observables) ∧
+      ProofForge.IR.StepSemantics.runTraceListGen
+          (counterPowdrTraceStep counterCompiledPowdrConfig)
+          (.initialize :: calls) evmState =
+        .ok (finalEvm, observables) ∧
+      CounterStorageRel finalIr finalEvm ∧
+      ProofForge.IR.StepSemantics.IRTraceMatches counterIRStep
+        irState (.initialize :: calls) observables ∧
+      ProofForge.IR.StepSemantics.IRTraceMatches
+        (counterPowdrTraceStep counterCompiledPowdrConfig)
+        evmState (.initialize :: calls) observables :=
+  counterCompiledPowdr_safe_trace_simulates_after_initialize_from_obligations
+    (counterCompiledPowdrSafeEntrypointObligationsOfPreparedStorageModels models)
+    calls irState evmState hsafe
+
 theorem counterCompiledPowdr_safe_trace_simulates_from_state_safe_obligations
     (obligations : CounterCompiledPowdrSafeEntrypointObligations)
     (calls : List CounterCall) {irState : IRState} {evmState : EvmState}
@@ -1408,5 +1503,26 @@ theorem counterCompiledPowdr_safe_trace_simulates_from_state_safe_obligations
         evmState calls observables :=
   counterPowdr_safe_trace_simulates_from_state_safe_obligations
     counterCompiledPowdrConfig obligations calls hrel hsafe
+
+theorem counterCompiledPowdr_safe_trace_simulates_from_state_safe_prepared_storage_models
+    (models : CounterCompiledPowdrPreparedStorageModels)
+    (calls : List CounterCall) {irState : IRState} {evmState : EvmState}
+    (hrel : CounterStorageRel irState evmState)
+    (hsafe : CounterTraceSafeAtState irState calls) :
+    ∃ finalIr finalEvm observables,
+      ProofForge.IR.StepSemantics.runTraceListGen counterIRStep calls irState =
+        .ok (finalIr, observables) ∧
+      ProofForge.IR.StepSemantics.runTraceListGen
+          (counterPowdrTraceStep counterCompiledPowdrConfig) calls evmState =
+        .ok (finalEvm, observables) ∧
+      CounterStorageRel finalIr finalEvm ∧
+      ProofForge.IR.StepSemantics.IRTraceMatches counterIRStep
+        irState calls observables ∧
+      ProofForge.IR.StepSemantics.IRTraceMatches
+        (counterPowdrTraceStep counterCompiledPowdrConfig)
+        evmState calls observables :=
+  counterCompiledPowdr_safe_trace_simulates_from_state_safe_obligations
+    (counterCompiledPowdrSafeEntrypointObligationsOfPreparedStorageModels models)
+    calls hrel hsafe
 
 end ProofForge.Backend.Evm.CounterRefinement
