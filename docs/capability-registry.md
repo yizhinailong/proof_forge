@@ -89,10 +89,21 @@ mode. Today the lowering is target-driven and **differs silently**:
 This is the single most material cross-target semantic divergence in the
 platform: the same `a.add(b)` expression reverts on EVM but silently produces a
 wrapped value on Solana/NEAR. The `arith.checked` capability makes this
-divergence visible at the profile and artifact-metadata layer. A future
-AST-level `OverflowMode` (planned) will let contract authors opt into wrapping
-semantics explicitly; until then, contracts relying on checked-overflow
-reverts must restrict to EVM-only targets.
+divergence visible at the profile and artifact-metadata layer.
+
+A contract author declares the checked-overflow intent by setting
+`Module.overflowChecked := true`. This makes the module declare the
+`arith.checked` capability, and the capability gate in `Target.defaultResolve`
+**rejects** such a module on any target profile that does not declare
+`arith.checked` (currently Solana and NEAR). The default is `false` (portable
+wrapping arithmetic), which is the safe cross-target default and routes to all
+targets. Per-target lowering still follows each backend's native behavior
+(EVM always lowers to checked arithmetic regardless of the flag, matching
+Solidity 0.8); the flag + gate make the *intent-vs-target* mismatch a
+rejected resolution rather than a silent behavioral difference. FV-5 tracks
+deepening this to width-aware IR reference semantics (overflow as an
+observable trace outcome inside `evalNumericBinary`); see
+[formal-verification.md](formal-verification.md) FV-5.
 
 ## Candidate Capabilities Not Yet Registered
 
