@@ -252,12 +252,16 @@ surface. Remaining EVM work is E3.
   `counterInitializeStorageValue_of_sstore_stackMemFlow_ok` proves that a
   successful powdr `SSTORE` helper step with the initialize model value on top
   of the stack writes exactly that model into Counter slot 0.
+  `counterStack_of_initialize_sload_and_or_ok` composes the powdr `SLOAD`,
+  `AND`, and `OR` helper steps and proves the value presented to SSTORE is
+  `lor (land oldWord mask) setValue`, matching the initialize-body shape.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
   remains an explicit trust boundary. The remaining E3 work is to discharge those
   prepared-frame storage models against the concrete runtime by proving the
-  dispatcher/body path reaches the SSTORE stack shape.
+  dispatcher/body path reaches the SLOAD/AND/OR/SSTORE stack shape and that the
+  concrete mask/set value equal the initialize storage model.
 - **Acceptance:** a universally-quantified refinement theorem (IR Counter ⟷ powdr EVM
   `Step`, by `induction`, **not** `native_decide`) type-checks under the opt-in target;
   `docs/formal-verification.md` EVM Tier C-proof row updated from aspirational/blocked to

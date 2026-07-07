@@ -368,7 +368,9 @@ ProofForge's default build still avoids powdr/mathlib imports.
     theorems. `counterInitializeStorageValue_of_sstore_stackMemFlow_ok` proves
     the final powdr `SSTORE` helper step writes the initialize model value into
     Counter slot 0 once the dispatcher/body proof establishes the required stack
-    shape.
+    shape. `counterStack_of_initialize_sload_and_or_ok` composes the preceding
+    powdr `SLOAD`, `AND`, and `OR` helper steps into the value shape consumed by
+    that SSTORE proof.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).

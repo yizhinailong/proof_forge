@@ -138,6 +138,85 @@ def setCounterStorageWord (address : EvmSemantics.AccountAddress)
       word := by
   simp [counterStorageValue, counterAccount]
 
+theorem counterStack_of_sload_stackMemFlow_ok
+    {state gasState nextState : EvmState} {slot : EvmSemantics.UInt256}
+    {rest : List EvmSemantics.UInt256}
+    (haddr : state.executionEnv.address = counterContractAddress)
+    (hstack : state.stack = slot :: rest)
+    (hslot : slot = counterCountSlot)
+    (hstep :
+      EvmSemantics.EVM.stepF.stackMemFlow state gasState
+        (.SLOAD : EvmSemantics.Operation.StackMemFlowOps) = .ok nextState) :
+    nextState.stack =
+      counterStorageValue counterContractAddress counterCountSlot state :: rest := by
+  unfold EvmSemantics.EVM.stepF.stackMemFlow at hstep
+  simp [hstack] at hstep
+  by_cases hgas : EvmSemantics.EVM.Gas.sloadTotal state slot ≤ state.gasAvailable
+  · simp [hgas] at hstep
+    cases hstep
+    simp [counterStorageValue, counterAccount,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC, haddr, hslot]
+  · simp [hgas] at hstep
+
+theorem counterStack_of_compBit_and_ok
+    {state gasState nextState : EvmState} {a b : EvmSemantics.UInt256}
+    {rest : List EvmSemantics.UInt256}
+    (hstack : state.stack = a :: b :: rest)
+    (hstep :
+      EvmSemantics.EVM.stepF.compBit state gasState
+        (.AND : EvmSemantics.Operation.CompareBitwiseOps) = .ok nextState) :
+    nextState.stack = EvmSemantics.UInt256.land a b :: rest := by
+  unfold EvmSemantics.EVM.stepF.compBit at hstep
+  simp [hstack] at hstep
+  cases hstep
+  simp [EvmSemantics.EVM.State.replaceStackAndIncrPC]
+
+theorem counterStack_of_compBit_or_ok
+    {state gasState nextState : EvmState} {a b : EvmSemantics.UInt256}
+    {rest : List EvmSemantics.UInt256}
+    (hstack : state.stack = a :: b :: rest)
+    (hstep :
+      EvmSemantics.EVM.stepF.compBit state gasState
+        (.OR : EvmSemantics.Operation.CompareBitwiseOps) = .ok nextState) :
+    nextState.stack = EvmSemantics.UInt256.lor a b :: rest := by
+  unfold EvmSemantics.EVM.stepF.compBit at hstep
+  simp [hstack] at hstep
+  cases hstep
+  simp [EvmSemantics.EVM.State.replaceStackAndIncrPC]
+
+theorem counterStack_of_initialize_sload_and_or_ok
+    {sloadState sloadGas afterSload andGas afterAnd orGas afterOr : EvmState}
+    {mask setValue : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
+    (haddr : sloadState.executionEnv.address = counterContractAddress)
+    (hstack : sloadState.stack = counterCountSlot :: mask :: setValue :: rest)
+    (hsload :
+      EvmSemantics.EVM.stepF.stackMemFlow sloadState sloadGas
+        (.SLOAD : EvmSemantics.Operation.StackMemFlowOps) = .ok afterSload)
+    (hand :
+      EvmSemantics.EVM.stepF.compBit afterSload andGas
+        (.AND : EvmSemantics.Operation.CompareBitwiseOps) = .ok afterAnd)
+    (hor :
+      EvmSemantics.EVM.stepF.compBit afterAnd orGas
+        (.OR : EvmSemantics.Operation.CompareBitwiseOps) = .ok afterOr) :
+    afterOr.stack =
+      EvmSemantics.UInt256.lor
+        (EvmSemantics.UInt256.land
+          (counterStorageValue counterContractAddress counterCountSlot sloadState)
+          mask)
+        setValue :: rest := by
+  have hsloadStack :
+      afterSload.stack =
+        counterStorageValue counterContractAddress counterCountSlot sloadState ::
+          mask :: setValue :: rest :=
+    counterStack_of_sload_stackMemFlow_ok haddr hstack rfl hsload
+  have handStack :
+      afterAnd.stack =
+        EvmSemantics.UInt256.land
+          (counterStorageValue counterContractAddress counterCountSlot sloadState)
+          mask :: setValue :: rest :=
+    counterStack_of_compBit_and_ok hsloadStack hand
+  exact counterStack_of_compBit_or_ok handStack hor
+
 theorem counterStorageValue_of_sstore_stackMemFlow_ok
     {state gasState nextState : EvmState} {slot value : EvmSemantics.UInt256}
     {rest : List EvmSemantics.UInt256}
