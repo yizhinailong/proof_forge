@@ -453,8 +453,12 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterCompiledStateAt_of_initialize_sstore_stepFE_ok` feeds that fact
     back into the 22-fuel bridge. The body-return-jump `counterCompiledStateAt`
     fact is now derived internally rather than passed as an explicit premise;
-    the remaining step is to prepend the dispatcher/trampoline path and connect
-    the composed result to `counterPowdrPreparedTraceStep`.
+    `counterRunBytecode_initialize_dispatcher_body_and_return_ok` now prepends
+    the initialize selector dispatcher and trampoline, yielding a 36-fuel
+    `runBytecode` bridge from PC0 to the halted `.none` result. The remaining
+    step is to lift that bridge through the compiled config's 5000-fuel
+    `counterPowdrPreparedTraceStep` and instantiate the prepared-frame
+    initialize storage model.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).

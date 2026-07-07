@@ -465,6 +465,11 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   `lake build EvmRefinement`; the composed tail/body path now exposes the
   pre-SSTORE stack shape needed by the SSTORE PC bridge, removing the explicit
   post-SSTORE `counterCompiledStateAt` premise from the 22-fuel bridge.
+- `counterRunBytecode_initialize_dispatcher_body_and_return_ok` — green under
+  `lake build EvmRefinement`; the initialize selector dispatcher and trampoline
+  are now prepended to the body+return bridge, giving a 36-fuel `runBytecode`
+  proof from PC0 to the halted `.none` result while preserving the initialize
+  storage model.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 

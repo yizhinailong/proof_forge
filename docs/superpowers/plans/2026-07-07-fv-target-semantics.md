@@ -378,9 +378,14 @@ surface. Remaining EVM work is E3.
   pre-SSTORE stack shape consumed by
   `counterCompiledStateAt_of_initialize_sstore_stepFE_ok`, so the 22-fuel body
   bridge derives the body-return-jump `counterCompiledStateAt` fact internally
-  instead of carrying it as an explicit premise. The next slice should prepend
-  the dispatcher/trampoline path and connect this body+return bridge to the
-  prepared-frame `counterPowdrPreparedTraceStep` result. The pinned
+  instead of carrying it as an explicit premise.
+  `counterRunBytecode_initialize_dispatcher_body_and_return_ok` now prepends
+  the initialize selector dispatcher plus trampoline path to that body+return
+  bridge, proving a 36-fuel `runBytecode` path from PC0 to the halted `.none`
+  result while preserving the initialize storage model. The next slice should
+  lift that exact 36-step path through the compiled config's 5000-fuel
+  `counterPowdrPreparedTraceStep` and instantiate the prepared-frame initialize
+  storage model. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
   remains an explicit trust boundary. The remaining E3 work is to discharge those
   prepared-frame storage models against the concrete runtime by connecting the
