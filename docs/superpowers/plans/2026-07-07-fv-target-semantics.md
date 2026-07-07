@@ -386,12 +386,20 @@ surface. Remaining EVM work is E3.
   `counterRunBytecode_initialize_dispatcher_body_and_return_ok` now prepends
   the initialize selector dispatcher plus trampoline path to that body+return
   bridge through `StepFEPath`, proving a 36-fuel `runBytecode` path from PC0 to
-  the halted `.none` result while preserving the initialize storage model.
+  the halted `.none` result while preserving the initialize storage model. The
+  return-path proof now also carries call-stack preservation through that
+  36-step theorem, so the final frame's `callStack` is known equal to the
+  body-return-jump frame's `callStack`.
   `runBytecode_halted`, `runBytecode_extend_halted`,
   `counterRunBytecode_extend_to_compiled_fuel`, and
   `counterPowdrPreparedTraceStep_initialize_of_run36_ok` now lift any such
   36-fuel initialize run to the compiled config's 5000-fuel
   `counterPowdrPreparedTraceStep`, once the final state is proven `isDone`.
+  `counterPowdrAdapter_isHalted_of_returned_top_level` and
+  `counterPowdrPreparedTraceStep_initialize_of_run36_returned_top_level_ok`
+  reduce that `isDone` premise to returned halt plus an empty top-level
+  `callStack`; `counterCompiledPreparedInitialize_entry_facts` now exposes the
+  prepared frame's initial empty `callStack`.
   The shared safe trace layer is green once
   `CounterCompiledPowdrPreparedStorageModels` is supplied; the hard remaining
   work is target-specific prepared-storage-model discharge. Do not widen by

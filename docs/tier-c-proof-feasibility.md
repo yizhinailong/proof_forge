@@ -463,12 +463,19 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterRunBytecode_initialize_dispatcher_body_and_return_ok` now prepends
     the initialize selector dispatcher and trampoline through `StepFEPath`,
     yielding a 36-fuel `runBytecode` bridge from PC0 to the halted `.none`
-    result.
+    result. The return-path bridge now carries call-stack preservation through
+    the 36-step theorem, proving the final frame's `callStack` equals the
+    body-return-jump frame's `callStack`.
     `runBytecode_halted`, `runBytecode_extend_halted`,
     `counterRunBytecode_extend_to_compiled_fuel`, and
     `counterPowdrPreparedTraceStep_initialize_of_run36_ok` lift a 36-fuel
     initialize run through the compiled config's 5000-fuel
     `counterPowdrPreparedTraceStep` when the final state is known to be done.
+    `counterPowdrAdapter_isHalted_of_returned_top_level` and
+    `counterPowdrPreparedTraceStep_initialize_of_run36_returned_top_level_ok`
+    now reduce that side condition to returned halt plus an empty top-level
+    `callStack`; `counterCompiledPreparedInitialize_entry_facts` exposes the
+    prepared frame's initial empty `callStack`.
     The safe universal trace layer is green once
     `CounterCompiledPowdrPreparedStorageModels` is supplied; the scaling
     boundary is now the target-specific discharge of those prepared storage

@@ -1234,6 +1234,7 @@ theorem counterState_of_system_return_empty_ok
     nextState.halt = .Returned ∧
       nextState.hReturn = ByteArray.empty ∧
       nextState.stack = rest ∧
+      nextState.callStack = gasState.callStack ∧
       counterStorageValue counterContractAddress counterCountSlot nextState =
         counterStorageValue counterContractAddress counterCountSlot gasState := by
   have hzero : (EvmSemantics.UInt256.ofNat 0).toNat = 0 := by
@@ -1277,6 +1278,7 @@ theorem counterState_of_stepFE_system_return_empty_ok
     nextState.halt = .Returned ∧
       nextState.hReturn = ByteArray.empty ∧
       nextState.stack = rest ∧
+      nextState.callStack = state.callStack ∧
       counterStorageValue counterContractAddress counterCountSlot nextState =
         counterStorageValue counterContractAddress counterCountSlot state := by
   unfold EvmSemantics.EVM.stepFE at hstep
@@ -1287,11 +1289,12 @@ theorem counterState_of_stepFE_system_return_empty_ok
       rw [hprecompile] at hprecompileActual
       contradiction
     · simp [hdecoded, hstackOk, hgas] at hstep
-      obtain ⟨hhalt, hreturn, hstackNext, hstorage⟩ :=
+      obtain ⟨hhalt, hreturn, hstackNext, hcallStack, hstorage⟩ :=
         counterState_of_system_return_empty_ok hstack hstep
-      refine ⟨hhalt, hreturn, hstackNext, ?_⟩
-      simpa [counterStorageValue, counterAccount,
-        EvmSemantics.EVM.State.consumeGas] using hstorage
+      refine ⟨hhalt, hreturn, hstackNext, ?_, ?_⟩
+      · simpa [EvmSemantics.EVM.State.consumeGas] using hcallStack
+      · simpa [counterStorageValue, counterAccount,
+          EvmSemantics.EVM.State.consumeGas] using hstorage
   · rename_i hnotRunning
     rw [hrunning] at hnotRunning
     contradiction
@@ -3648,6 +3651,7 @@ theorem counterState_of_initialize_return_stepFE_to_returned_empty_ok
       s5.hReturn = ByteArray.empty ∧
       s5.toResult = .returned ByteArray.empty ∧
       s5.stack = rest ∧
+      s5.callStack = s0.callStack ∧
       counterStorageValue counterContractAddress counterCountSlot s5 =
         counterStorageValue counterContractAddress counterCountSlot s0 := by
   rcases hready0 with ⟨hrunning0, hprecompile0, hstackOk0, hgas0⟩
@@ -3746,12 +3750,19 @@ theorem counterState_of_initialize_return_stepFE_to_returned_empty_ok
     rw [hstate4]
     simp [EvmSemantics.EVM.State.consumeGas,
       EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack3]
-  obtain ⟨hhalt, hreturn, hstack5, hstorage5⟩ :=
+  obtain ⟨hhalt, hreturn, hstack5, hcallStack5, hstorage5⟩ :=
     counterState_of_stepFE_system_return_empty_ok hrunning4 hprecompile4
       (counterPreparedInitializeReturn_decoded hat4) hstack4 hstackOk4 hgas4
       hstep4
   have hresult : s5.toResult = .returned ByteArray.empty := by
     simp [EvmSemantics.EVM.State.toResult, hhalt, hreturn]
+  have hcallStack : s5.callStack = s0.callStack := by
+    have hcallStack4 : s4.callStack = s0.callStack := by
+      simp [hstate4, hstate3, hstate2, hstate1,
+        EvmSemantics.EVM.State.consumeGas,
+        EvmSemantics.EVM.State.incrPC,
+        EvmSemantics.EVM.State.replaceStackAndIncrPC]
+    exact hcallStack5.trans hcallStack4
   have hstorage : counterStorageValue counterContractAddress counterCountSlot s5 =
       counterStorageValue counterContractAddress counterCountSlot s0 := by
     have hstorage4 :
@@ -3762,7 +3773,7 @@ theorem counterState_of_initialize_return_stepFE_to_returned_empty_ok
         EvmSemantics.EVM.State.incrPC,
         EvmSemantics.EVM.State.replaceStackAndIncrPC]
     exact hstorage5.trans hstorage4
-  exact ⟨hhalt, hreturn, hresult, hstack5, hstorage⟩
+  exact ⟨hhalt, hreturn, hresult, hstack5, hcallStack, hstorage⟩
 
 theorem counterStack_of_initialize_prefix_stepFE_to_sload_ok
     {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 : EvmState}
@@ -4638,13 +4649,15 @@ theorem counterInitializeReturn_preserves_storage_model_stepFE_ok
     counterStorageValue counterContractAddress counterCountSlot s5 =
         counterInitializeStorageWord
           (counterStorageValue counterContractAddress counterCountSlot sloadState) ∧
+      s5.callStack = s0.callStack ∧
       counterObservableFromResult .initialize s5.toResult = .ok .none := by
-  obtain ⟨_hhalt, _hreturn, hresult, _hstack, hstorage⟩ :=
+  obtain ⟨_hhalt, _hreturn, hresult, _hstack, _hcallStack, hstorage⟩ :=
     counterState_of_initialize_return_stepFE_to_returned_empty_ok
       h0 hat0 hready0 hstep0 hready1 hstep1 hready2 hstep2 hready3 hstep3
       hready4 hstep4
-  constructor
+  refine ⟨?_, ?_, ?_⟩
   · rw [hstorage, hstorage0]
+  · exact _hcallStack
   · rw [hresult]
     exact counterInitializeObservable_of_returned_empty
 
@@ -4898,6 +4911,7 @@ theorem counterRunBytecode_initialize_body_and_return_ok
       counterStorageValue counterContractAddress counterCountSlot s22 =
         counterInitializeStorageWord
           (counterStorageValue counterContractAddress counterCountSlot s12) ∧
+      s22.callStack = s17.callStack ∧
       counterObservableFromResult .initialize s22.toResult = .ok .none := by
   have hstack16 :
       s16.stack =
@@ -4959,11 +4973,11 @@ theorem counterRunBytecode_initialize_body_and_return_ok
       hat12 haddrSload hready12 hstep12 hat13 hready13 hstep13
       hat14 hready14 hstep14 hat15 hready15 hstep15
       hat16 hready16 hstep16
-  obtain ⟨hstorage22, hobs22⟩ :=
+  obtain ⟨hstorage22, hcallStack22, hobs22⟩ :=
     counterInitializeReturn_preserves_storage_model_stepFE_ok
       hstorage17 hstack17 hat17 hready17 hstep17 hready18 hstep18
       hready19 hstep19 hready20 hstep20 hready21 hstep21
-  exact ⟨hrun, hstorage22, hobs22⟩
+  exact ⟨hrun, hstorage22, hcallStack22, hobs22⟩
 
 theorem counterStepFEPath_initialize_dispatcher_body_and_return_ok
     {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17
@@ -5254,6 +5268,7 @@ theorem counterRunBytecode_initialize_dispatcher_body_and_return_ok
       counterStorageValue counterContractAddress counterCountSlot s36 =
         counterInitializeStorageWord
           (counterStorageValue counterContractAddress counterCountSlot s26) ∧
+      s36.callStack = s31.callStack ∧
       counterObservableFromResult .initialize s36.toResult = .ok .none := by
   obtain ⟨hat14, _hdecoded14, hstack14⟩ :=
     counterState_of_dispatcher_trampoline_stepFE_to_initialize_first_opcode_ok
@@ -5267,6 +5282,7 @@ theorem counterRunBytecode_initialize_dispatcher_body_and_return_ok
       counterStorageValue counterContractAddress counterCountSlot s36 =
         counterInitializeStorageWord
           (counterStorageValue counterContractAddress counterCountSlot s26) ∧
+      s36.callStack = s31.callStack ∧
       counterObservableFromResult .initialize s36.toResult = .ok .none :=
     counterRunBytecode_initialize_body_and_return_ok
       hstack14 hat14 hready14 hstep14 hat15 hready15 hstep15
@@ -5280,7 +5296,7 @@ theorem counterRunBytecode_initialize_dispatcher_body_and_return_ok
       hat30 haddrSstore hready30 hstep30 hready31 hstep31
       hready32 hstep32 hready33 hstep33 hready34 hstep34
       hready35 hstep35
-  rcases hrunTail with ⟨_hrunTail, hstorage, hobs⟩
+  rcases hrunTail with ⟨_hrunTail, hstorage, hcallStack, hobs⟩
   have hrun :
       ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 36 =
         .ok (s36, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) := by
@@ -5298,7 +5314,7 @@ theorem counterRunBytecode_initialize_dispatcher_body_and_return_ok
         hready27 hstep27 hready28 hstep28 hready29 hstep29
         hready30 hstep30 hready31 hstep31 hready32 hstep32
         hready33 hstep33 hready34 hstep34 hready35 hstep35)
-  exact ⟨hrun, hstorage, hobs⟩
+  exact ⟨hrun, hstorage, hcallStack, hobs⟩
 
 def counterPowdrPreparedTraceStep (cfg : PowdrCounterConfig) (preparedState : EvmState)
     (call : CounterCall) : Except String (EvmState × ObservableReturn) := do
@@ -5306,6 +5322,17 @@ def counterPowdrPreparedTraceStep (cfg : PowdrCounterConfig) (preparedState : Ev
     ProofForge.Backend.Evm.PowdrAdapter.runBytecode preparedState cfg.fuel
   let observable ← counterObservableFromResult call finalState.toResult
   .ok (finalState, observable)
+
+theorem counterPowdrAdapter_isHalted_of_returned_top_level
+    {state : EvmState}
+    (hhalt : state.halt = .Returned)
+    (hcallStack : state.callStack = []) :
+    ProofForge.Backend.Evm.PowdrAdapter.isHalted state = true := by
+  simp [ProofForge.Backend.Evm.PowdrAdapter.isHalted,
+    EvmSemantics.EVM.State.isDone,
+    EvmSemantics.EVM.State.isHalted,
+    EvmSemantics.EVM.State.isRunning,
+    hhalt, hcallStack]
 
 theorem counterRunBytecode_extend_to_compiled_fuel
     {state finalState : EvmState}
@@ -5343,6 +5370,20 @@ theorem counterPowdrPreparedTraceStep_initialize_of_run36_ok
   rw [hobs]
   rfl
 
+theorem counterPowdrPreparedTraceStep_initialize_of_run36_returned_top_level_ok
+    {preparedState finalState : EvmState}
+    (hrun :
+      ProofForge.Backend.Evm.PowdrAdapter.runBytecode preparedState 36 =
+        .ok (finalState, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)))
+    (hhalt : finalState.halt = .Returned)
+    (hcallStack : finalState.callStack = [])
+    (hobs : counterObservableFromResult .initialize finalState.toResult = .ok .none) :
+    counterPowdrPreparedTraceStep counterCompiledPowdrConfig preparedState .initialize =
+      .ok (finalState, .none) := by
+  exact counterPowdrPreparedTraceStep_initialize_of_run36_ok hrun
+    (counterPowdrAdapter_isHalted_of_returned_top_level hhalt hcallStack)
+    hobs
+
 def counterPowdrTraceStep (cfg : PowdrCounterConfig) (state : EvmState)
     (call : CounterCall) : Except String (EvmState × ObservableReturn) := do
   counterPowdrPreparedTraceStep cfg (prepareCounterCall cfg.runtimeCode call state) call
@@ -5358,13 +5399,15 @@ theorem counterCompiledPreparedInitialize_entry_facts
     counterCompiledStateAt preparedState 0 ∧
       preparedState.stack = [] ∧
       preparedState.executionEnv.calldata = counterCallCalldata .initialize ∧
-      preparedState.executionEnv.address = counterContractAddress := by
+      preparedState.executionEnv.address = counterContractAddress ∧
+      preparedState.callStack = [] := by
   rcases hprepared with ⟨sourceState, rfl⟩
-  refine ⟨?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · unfold counterCompiledStateAt
     simp [counterCompiledPowdrConfig, prepareCounterCall, counterCallExecutionEnv]
     change EvmSemantics.Fork.Shanghai.toOrd ≤ EvmSemantics.Fork.Cancun.toOrd
     decide
+  · rfl
   · rfl
   · rfl
   · rfl
