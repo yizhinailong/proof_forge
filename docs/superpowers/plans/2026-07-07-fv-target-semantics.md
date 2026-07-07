@@ -182,12 +182,15 @@ surface. Remaining EVM work is E3.
   opt-in `just evm-powdr-counter-runtime` drift gate. The compiled-runtime path also
   exposes `counterCompiledPowdrTargetSemantics` and
   `counterCompiledPowdr_trace_simulates_after_initialize_from_obligations`, so the next
-  proof obligation is specialized to the real Counter runtime witness. It now exposes
+  proof obligation is specialized to the real Counter runtime witness. The module also
+  defines `counterBaseEvmState` and native executable smokes for `initialize`, `get`, and
+  `initialize; increment; get`; those are C-diff witnesses over powdr's executable driver,
+  not substitutes for the pending relational per-entrypoint proof. It now exposes
   `counterPowdrTraceStep` / `counterPowdrTargetSemantics`, which run prepared Counter
   calls through powdr `runBytecode`, project EVM results to Counter observables, and prove
   successful trace steps are backed by powdr `Steps` with the stated observable projection;
-  the target semantics' `executableTraceOk` stays false until the initial EVM state and
-  per-entrypoint obligations are bound. It also defines explicit
+  the target semantics' `executableTraceOk` stays false until the per-entrypoint
+  obligations are discharged. It also defines explicit
   `CounterPowdrEntrypointObligations` for `initialize`/`increment`/`get` and proves
   `counterPowdr_trace_simulates_from_obligations`: those three powdr bytecode obligations
   are sufficient to obtain the universal Counter trace simulation through the shared

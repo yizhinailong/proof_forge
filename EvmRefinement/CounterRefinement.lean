@@ -251,6 +251,40 @@ def counterCompiledPowdrConfig : PowdrCounterConfig := {
   fuel := counterCompiledRuntimeFuel
 }
 
+def counterRuntimeGasAvailable : Nat := 1000000
+
+def counterRuntimeBlockGasLimit : Nat := 30000000
+
+def counterRuntimeChainId : Nat := 31337
+
+def counterCallerAddress : EvmSemantics.AccountAddress :=
+  EvmSemantics.AccountAddress.ofNat 1
+
+def counterBaseEvmState : EvmState :=
+  { (default : EvmState) with
+    gasAvailable := counterRuntimeGasAvailable
+    executionEnv := {
+      (default : EvmSemantics.ExecutionEnv) with
+        address := counterContractAddress
+        origin := counterCallerAddress
+        caller := counterCallerAddress
+        weiValue := EvmSemantics.UInt256.ofNat 0
+        calldata := ByteArray.empty
+        code := counterCompiledRuntimeCode
+        codeAddr := counterContractAddress
+        gasPrice := EvmSemantics.UInt256.ofNat 0
+        header := { (default : EvmSemantics.BlockHeader) with
+          gasLimit := EvmSemantics.UInt256.ofNat counterRuntimeBlockGasLimit
+          chainId := EvmSemantics.UInt256.ofNat counterRuntimeChainId }
+        depth := 0
+        permitStateMutation := true
+        fork := EvmSemantics.Fork.Cancun }
+    pc := EvmSemantics.UInt256.ofNat 0
+    stack := []
+    execLength := 0
+    halt := .Running
+    callStack := [] }
+
 def counterUnitObservableFromResult (name : String) :
     EvmSemantics.EVM.ExecutionResult → Except String ObservableReturn
   | .success => .ok .none
@@ -375,6 +409,34 @@ theorem counterPowdrTraceStep_observable {cfg : PowdrCounterConfig}
 def counterPowdrRunTrace (cfg : PowdrCounterConfig) :
     List CounterCall → EvmState → Except String (EvmState × Array ObservableReturn) :=
   ProofForge.IR.StepSemantics.runTraceListGen (counterPowdrTraceStep cfg)
+
+def counterPowdrStepReturns (cfg : PowdrCounterConfig) (state : EvmState)
+    (call : CounterCall) (expected : ObservableReturn) : Bool :=
+  match counterPowdrTraceStep cfg state call with
+  | .ok (_, observable) => observable == expected
+  | .error _ => false
+
+def counterPowdrTraceReturns (cfg : PowdrCounterConfig) (calls : List CounterCall)
+    (state : EvmState) (expected : Array ObservableReturn) : Bool :=
+  match counterPowdrRunTrace cfg calls state with
+  | .ok (_, observables) => observables == expected
+  | .error _ => false
+
+theorem counterCompiledPowdr_initialize_executable_smoke :
+    counterPowdrStepReturns counterCompiledPowdrConfig counterBaseEvmState
+      .initialize .none = true := by
+  native_decide
+
+theorem counterCompiledPowdr_get_zero_executable_smoke :
+    counterPowdrStepReturns counterCompiledPowdrConfig counterBaseEvmState
+      .get (.u64 0) = true := by
+  native_decide
+
+theorem counterCompiledPowdr_initialize_increment_get_executable_smoke :
+    counterPowdrTraceReturns counterCompiledPowdrConfig
+      [.initialize, .increment, .get] counterBaseEvmState
+      #[.none, .none, .u64 1] = true := by
+  native_decide
 
 theorem counterPowdrRunTrace_eq_traceStep (cfg : PowdrCounterConfig)
     (calls : List CounterCall) (state : EvmState) :
