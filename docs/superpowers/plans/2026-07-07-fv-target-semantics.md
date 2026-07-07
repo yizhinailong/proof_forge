@@ -233,7 +233,12 @@ surface. Remaining EVM work is E3.
   `counterPowdrSafeEntrypointObligationsOfPostconditions` further isolate the
   remaining powdr work: prove the compiled runtime's EVM-only storage
   postconditions for `initialize`/safe `increment`/`get`, and the safe
-  per-entrypoint obligations follow.
+  per-entrypoint obligations follow. That surface is now split once more into
+  prepared-frame obligations:
+  `CounterPowdrPreparedEvmPostconditions` proves the bytecode facts on states
+  already produced by `prepareCounterCall`, and
+  `counterPowdrEvmPostconditionsOfPrepared` bridges those facts back to the
+  arbitrary pre-state wrapper used by `counterPowdrTraceStep`.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop

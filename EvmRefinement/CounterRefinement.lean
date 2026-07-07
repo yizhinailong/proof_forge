@@ -454,13 +454,20 @@ def counterObservableFromResult (call : CounterCall)
   | .increment => counterUnitObservableFromResult "increment" result
   | .get => counterGetObservableFromResult result
 
-def counterPowdrTraceStep (cfg : PowdrCounterConfig) (state : EvmState)
+def counterPowdrPreparedTraceStep (cfg : PowdrCounterConfig) (preparedState : EvmState)
     (call : CounterCall) : Except String (EvmState × ObservableReturn) := do
   let (finalState, _observations) ←
-    ProofForge.Backend.Evm.PowdrAdapter.runBytecode
-      (prepareCounterCall cfg.runtimeCode call state) cfg.fuel
+    ProofForge.Backend.Evm.PowdrAdapter.runBytecode preparedState cfg.fuel
   let observable ← counterObservableFromResult call finalState.toResult
   .ok (finalState, observable)
+
+def counterPowdrTraceStep (cfg : PowdrCounterConfig) (state : EvmState)
+    (call : CounterCall) : Except String (EvmState × ObservableReturn) := do
+  counterPowdrPreparedTraceStep cfg (prepareCounterCall cfg.runtimeCode call state) call
+
+def CounterPreparedCall (cfg : PowdrCounterConfig) (call : CounterCall)
+    (state : EvmState) : Prop :=
+  ∃ sourceState, state = prepareCounterCall cfg.runtimeCode call sourceState
 
 theorem counterPowdrTraceStep_steps {cfg : PowdrCounterConfig}
     {state finalState : EvmState} {call : CounterCall}
@@ -469,6 +476,7 @@ theorem counterPowdrTraceStep_steps {cfg : PowdrCounterConfig}
     EvmSemantics.EVM.Steps
       (prepareCounterCall cfg.runtimeCode call state) finalState := by
   unfold counterPowdrTraceStep at h
+  unfold counterPowdrPreparedTraceStep at h
   cases hrun : ProofForge.Backend.Evm.PowdrAdapter.runBytecode
       (prepareCounterCall cfg.runtimeCode call state) cfg.fuel with
   | error message =>
@@ -513,6 +521,7 @@ theorem counterPowdrTraceStep_observable {cfg : PowdrCounterConfig}
     (h : counterPowdrTraceStep cfg state call = .ok (finalState, obs)) :
     counterObservableFromResult call finalState.toResult = .ok obs := by
   unfold counterPowdrTraceStep at h
+  unfold counterPowdrPreparedTraceStep at h
   cases hrun : ProofForge.Backend.Evm.PowdrAdapter.runBytecode
       (prepareCounterCall cfg.runtimeCode call state) cfg.fuel with
   | error message =>
@@ -781,6 +790,62 @@ structure CounterPowdrEvmPostconditions (cfg : PowdrCounterConfig) where
         counterPowdrTraceStep cfg evmState .get = .ok (nextEvm, .u64 count) ∧
         CounterStorageWordRel
           (counterStorageValue counterContractAddress counterCountSlot nextEvm) count
+
+structure CounterPowdrPreparedEvmPostconditions (cfg : PowdrCounterConfig) where
+  initialize_writes_zero :
+    ∀ {preparedState},
+      CounterPreparedCall cfg .initialize preparedState →
+      ∃ nextEvm,
+        counterPowdrPreparedTraceStep cfg preparedState .initialize =
+          .ok (nextEvm, .none) ∧
+        CounterStorageWordRel
+          (counterStorageValue counterContractAddress counterCountSlot nextEvm) 0
+  increment_writes_succ :
+    ∀ {preparedState count},
+      CounterPreparedCall cfg .increment preparedState →
+      count + 1 < counterU64Modulus →
+      CounterStorageWordRel
+        (counterStorageValue counterContractAddress counterCountSlot preparedState) count →
+      ∃ nextEvm,
+        counterPowdrPreparedTraceStep cfg preparedState .increment =
+          .ok (nextEvm, .none) ∧
+        CounterStorageWordRel
+          (counterStorageValue counterContractAddress counterCountSlot nextEvm) (count + 1)
+  get_returns_count :
+    ∀ {preparedState count},
+      CounterPreparedCall cfg .get preparedState →
+      count < counterU64Modulus →
+      CounterStorageWordRel
+        (counterStorageValue counterContractAddress counterCountSlot preparedState) count →
+      ∃ nextEvm,
+        counterPowdrPreparedTraceStep cfg preparedState .get = .ok (nextEvm, .u64 count) ∧
+        CounterStorageWordRel
+          (counterStorageValue counterContractAddress counterCountSlot nextEvm) count
+
+def counterPowdrEvmPostconditionsOfPrepared
+    (cfg : PowdrCounterConfig) (post : CounterPowdrPreparedEvmPostconditions cfg) :
+    CounterPowdrEvmPostconditions cfg where
+  initialize_writes_zero := by
+    intro evmState
+    exact post.initialize_writes_zero ⟨evmState, rfl⟩
+  increment_writes_succ := by
+    intro evmState count hbound hstorage
+    have hstoragePrepared :
+        CounterStorageWordRel
+          (counterStorageValue counterContractAddress counterCountSlot
+            (prepareCounterCall cfg.runtimeCode .increment evmState)) count := by
+      rw [counterStorageValue_prepareCounterCall]
+      exact hstorage
+    exact post.increment_writes_succ ⟨evmState, rfl⟩ hbound hstoragePrepared
+  get_returns_count := by
+    intro evmState count hbound hstorage
+    have hstoragePrepared :
+        CounterStorageWordRel
+          (counterStorageValue counterContractAddress counterCountSlot
+            (prepareCounterCall cfg.runtimeCode .get evmState)) count := by
+      rw [counterStorageValue_prepareCounterCall]
+      exact hstorage
+    exact post.get_returns_count ⟨evmState, rfl⟩ hbound hstoragePrepared
 
 def counterPowdrSafeEntrypointObligationsOfPostconditions
     (cfg : PowdrCounterConfig) (post : CounterPowdrEvmPostconditions cfg) :
@@ -1122,6 +1187,14 @@ abbrev CounterCompiledPowdrEntrypointObligations :=
 
 abbrev CounterCompiledPowdrEvmPostconditions :=
   CounterPowdrEvmPostconditions counterCompiledPowdrConfig
+
+abbrev CounterCompiledPowdrPreparedEvmPostconditions :=
+  CounterPowdrPreparedEvmPostconditions counterCompiledPowdrConfig
+
+def counterCompiledPowdrEvmPostconditionsOfPrepared
+    (post : CounterCompiledPowdrPreparedEvmPostconditions) :
+    CounterCompiledPowdrEvmPostconditions :=
+  counterPowdrEvmPostconditionsOfPrepared counterCompiledPowdrConfig post
 
 abbrev CounterCompiledPowdrSafeEntrypointObligations :=
   CounterPowdrSafeEntrypointObligations counterCompiledPowdrConfig
