@@ -304,7 +304,10 @@ ProofForge's default build still avoids powdr/mathlib imports.
     until it is bound to the real runtime artifact and initial EVM state. It
     also exposes the three per-entrypoint powdr obligations and proves that, if
     they hold, the shared trace induction yields universal Counter trace
-    simulation.
+    simulation. `initialize` is now the relation-establishing entrypoint:
+    `counterPowdr_trace_simulates_after_initialize_from_obligations` proves
+    universal `initialize :: calls` traces from arbitrary IR/EVM starting states
+    under the same obligations.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).

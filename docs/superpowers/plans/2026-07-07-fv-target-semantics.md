@@ -185,7 +185,10 @@ surface. Remaining EVM work is E3.
   `CounterPowdrEntrypointObligations` for `initialize`/`increment`/`get` and proves
   `counterPowdr_trace_simulates_from_obligations`: those three powdr bytecode obligations
   are sufficient to obtain the universal Counter trace simulation through the shared
-  induction.
+  induction. `initialize` is now modeled as the relation-establishing entrypoint, so
+  `counterPowdr_trace_simulates_after_initialize_from_obligations` proves universal
+  `initialize :: calls` traces from arbitrary IR/EVM starting states once the same three
+  per-entrypoint obligations hold.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
