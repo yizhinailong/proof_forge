@@ -115,6 +115,11 @@ ir-step-semantics-smoke:
     lake build ProofForge.IR.StepSemantics ProofForge.Backend.Evm.Refinement
     lake env lean --run Tests/IRStepSemantics.lean
 
+# Check Track 1.1 total Counter-fragment IR semantics for the first universal C-proof path.
+ir-counter-semantics-smoke:
+    lake build ProofForge.IR.CounterSemantics
+    lake env lean --run Tests/IRCounterSemantics.lean
+
 # Check the three-valued ExecResult (ok/reverted/error) classification for
 # the IR reference semantics (FV-2 revert-model prerequisite).
 ir-exec-result-smoke:
@@ -481,7 +486,7 @@ testkit-budget-gate:
     CAST="${CAST:-$HOME/.foundry/bin/cast}" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault
 
 # Run the fast local baseline used before broader target smokes.
-check: build target-registry contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke diagnostic-smoke ir-step-semantics-smoke ir-exec-result-smoke fv5-overflow-smoke solana-light portable-counter-multi-target cli-target-first contract-source-diagnostics near-target-first wasm-near-plan near-plan-smoke wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli quint-mbt-gate quint-ir-model-gate
+check: build target-registry contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke diagnostic-smoke ir-step-semantics-smoke ir-counter-semantics-smoke ir-exec-result-smoke fv5-overflow-smoke solana-light portable-counter-multi-target cli-target-first contract-source-diagnostics near-target-first wasm-near-plan near-plan-smoke wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli quint-mbt-gate quint-ir-model-gate
 
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:
@@ -702,6 +707,7 @@ github-build-test:
     scripts/near/check-ir-coverage-manifest.py
     scripts/near/check-ir-coverage-manifest.py --manifest Tests/EmitWatCoverage.tsv --label emitwat-ir-coverage
     lake env lean --run Tests/IROwnership.lean
+    just ir-counter-semantics-smoke
     lake build ProofForge.Backend.Evm.Refinement
     lake build ProofForge.Contract.Examples.ValueVaultInvariant
     lake env lean --run Tests/NearWasmFormal.lean

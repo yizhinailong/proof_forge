@@ -1,4 +1,5 @@
 import ProofForge.IR.Contract
+import ProofForge.IR.CounterSemantics
 import ProofForge.IR.Examples.AbiAggregateProbe
 import ProofForge.IR.Examples.AbiScalarProbe
 import ProofForge.IR.Examples.ArrayProbe
