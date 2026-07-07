@@ -635,6 +635,19 @@ Summary:
   discriminator/account schema; the shim renders a Rust Mollusk test file) → Psy
   (3rd, blocked on `dargo` not installed here) → Move-Sui / Aleo / Cloudflare
   (deferred, research spikes with no real lowering).
+- **Multi-module rendering (2026-07-07):** the three C-diff shims are no longer
+  Counter-only. `EvmReplay` generalizes its mutating/read/init step rendering
+  to encode entrypoint ABI args (Counter path byte-identical; ValueVault now
+  renders). `NearReplay` generalizes its `init` branch to look up the module's
+  `initialize` entrypoint and encode its args from the ITF nondet picks
+  (previously hard-coded `("initialize", "")`; Counter path byte-identical),
+  and its smoke now covers ValueVault. `SolanaReplay` routes its account list
+  and state layout through the `SolanaModulePlan` (Tier B) instead of a
+  hard-coded Counter account, and its smoke covers ValueVault (multi-scalar)
+  and an `EvmMapProbe` map sub-module (non-scalar state, with a v1 degradation
+  that skips byte-level account-data assertion). The smokes are pure
+  string-render checks, not wired into `just check`. See
+  `docs/quint-cdiff-multi-backend-design.md` §15.
 - Mirror the existing `just quint-evm-backend-replay-gate` pattern on every
   backend once its `*ModulePlan` lands in Phase 2/4:
   - Solana: `just quint-solana-backend-replay-gate` — Quint MBT ITF trace →

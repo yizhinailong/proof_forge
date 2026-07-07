@@ -101,8 +101,16 @@ def renderStep (irModule : ProofForge.IR.Module)
     |>.mapError (fun err => { message := err.message })
   if actionName == "init" then
     -- NEAR `initialize` is a normal export; the offline-host persists state across
-    -- calls, so init just runs first and sets the primary state to 0.
-    pure ("initialize", "")
+    -- calls, so init runs first. If the module's `initialize` takes args (e.g.
+    -- ValueVault's `initialize(initial)`), encode them from the ITF nondet picks;
+    -- for nullary `initialize` (Counter) the hex is empty, matching the v1 path.
+    match Std.HashMap.get? epMap "initialize" with
+    | some ep =>
+      let args ← buildArgs ep state.nondetPicks
+        |>.mapError (fun err => { message := err.message })
+      let hex ← encodeArgsLe args
+      pure ("initialize", hex)
+    | none => pure ("initialize", "")
   else
     let entrypoint ← match Std.HashMap.get? epMap actionName with
       | some ep => .ok ep

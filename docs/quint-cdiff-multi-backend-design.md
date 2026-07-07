@@ -1,6 +1,6 @@
 # Quint C-diff multi-backend — feasibility assessment and design
 
-Status: **Draft (research + design; additive stub landed for NEAR and Solana)**
+Status: **Draft (research + design; multi-module C-diff shims landed for EVM, NEAR, and Solana)**
 
 Date: 2026-07-07
 
@@ -620,7 +620,80 @@ RFC 0014 Tier C-diff (en + zh) is updated to:
 - **A single global `*Replay` type.** Each backend's shim is target-specific, mirroring
   RFC 0004's non-goal on plan types.
 
-## 14. References
+## 15. Multi-module C-diff rendering (2026-07-07 update)
+
+The original shims were type-only stubs that each rendered a harness for a
+single module (Counter). They have been generalized to render sensible
+harnesses for multiple modules per backend, proving they are not
+Counter-specific. The generalization is pure Lean string rendering — no
+external tool execution, no new gates wired into `just check`.
+
+### 15.1 What was hard-coded to Counter
+
+| Shim | Counter-only constraint | Source |
+|---|---|---|
+| `EvmReplay` | rejected entrypoints with params ("EVM replay v1 does not encode entrypoint args"); init hard-coded `initialize()`; `init` step guarded `expected != 0` | `renderMutatingStep` / `renderReadStep` / `renderInitStep` |
+| `NearReplay` | the `init` branch hard-coded `("initialize", "")`, dropping any args the module's `initialize` takes (e.g. ValueVault's `initialize(initial)`); the render otherwise already encoded args via `buildArgs` + `encodeArgsLe`, so the only Counter-only-ness was the init step + the smoke only constructing a Counter config + trace | `renderStep` |
+| `SolanaReplay` | hard-coded a single writable state account named `counter` with `cfg.stateAccountDataLen` bytes; read back only `cfg.primaryStateVar` as a scalar at offset 0; assumed every module has an `initialize` entrypoint | `renderTraceStep` |
+
+### 15.2 Modules now rendered per shim
+
+| Shim | Modules | Why chosen | Non-scalar state? |
+|---|---|---|---|
+| `EvmReplay` | `Counter` (scalar, nullary), `ValueVault` (6 scalars, entrypoints with args) | ValueVault is the natural C-diff target `Evm.Refinement` already builds trace obligations for; its entrypoints take ABI args (`initialize(uint256)`, `deposit(uint256)`, `charge_fee(uint256,uint256)`, `release(uint256)`), exercising the generalized arg encoder | No (multi-scalar) |
+| `NearReplay` | `Counter`, `ValueVault` | ValueVault WAT exists (`Examples/WasmNear/ValueVault.golden.wat`); the render is already module-agnostic, so multi-module coverage comes from the smoke supplying a ValueVault config + trace | No (multi-scalar) |
+| `SolanaReplay` | `Counter`, `ValueVault`, `EvmMapProbe` (sub-module) | ValueVault exercises plan-driven multi-scalar account seeding (6 u64 scalars, account `balance` dataSize=48); EvmMapProbe exercises non-scalar (map) state and the v1 degradation path | Yes (map: `balances`) |
+
+### 15.3 Routing through the `*ModulePlan`
+
+- **EVM:** the render function was generalized (not routed through
+  `Evm.Plan.ModulePlan`). `renderMutatingStep` / `renderReadStep` / `renderInitStep`
+  now encode entrypoint args via `buildArgs` + a new `renderAbiArgList` helper.
+  The Counter path (nullary entrypoints) renders byte-identically to the v1
+  output (verified by a stash-diff). The existing `mbt-replay-gate.sh` /
+  `CounterEvmReplay.lean` consumer is unaffected.
+- **NEAR:** the `init` branch of `renderStep` was generalized to look up the
+  module's `initialize` entrypoint and encode its args from the ITF nondet
+  picks (previously it hard-coded `("initialize", "")`, dropping args). The
+  Counter path (nullary `initialize`) renders byte-identically. The smoke now
+  also covers ValueVault.
+- **Solana:** routed through the `SolanaModulePlan` (Tier B), as the task
+  suggested. `renderReplayHarness` builds a `SolanaModulePlan` and derives a
+  `SolanaReplayPlan` (state account name + data length + account-meta list +
+  primary scalar field offset/size) from it. The account list and state layout
+  now come from the plan rather than the hard-coded "single writable counter
+  account". If the plan build fails (a module the Solana backend does not
+  lower), the shim falls back to the config-derived single-account shape so it
+  degrades gracefully.
+
+### 15.4 Non-scalar state handling (Solana v1)
+
+For modules whose primary state is a map or array (e.g. `EvmMapProbe`'s
+`balances` map), the Solana account holds the *serialized* state, not a single
+scalar. The v1 shim observes only the primary scalar: it looks up
+`cfg.primaryStateVar` in `plan.stateFields`, keeping only fields with
+`kind == "scalar"` and `byteSize > 0`. If the primary var is a map/array
+(no scalar field by that name), `primaryFieldOffset? := none` and the
+read-back assertion is skipped — the harness still renders without crashing,
+proving the shim is not Counter-specific. Full map/array state-diff
+observation is a v2 follow-up.
+
+### 15.5 Smokes
+
+- `Tests/Quint/EvmReplaySmoke.lean` (new) — pure string-render check for
+  `Counter` + `ValueVault`; asserts the encoded arg literals and read-back
+  assertions appear.
+- `Tests/Quint/NearReplaySmoke.lean` — extended to render `Counter` +
+  `ValueVault`; asserts the export names and `--inputs-hex` flag.
+- `Tests/Quint/SolanaReplaySmoke.lean` — extended to render `Counter` +
+  `ValueVault` + `EvmMapProbe` (map sub-module); asserts the plan-derived
+  account bindings, data lengths, and the non-scalar skip comment.
+
+None are wired into `just check` (they are pure string-render checks; the
+end-to-end gates remain Step B follow-ups, same as the pre-existing NEAR/Solana
+smokes).
+
+## 16. References
 
 - [RFC 0014](rfcs/0014-unified-semantic-lowering-contract.md) — Tier C-diff definition
   (Four tiers table), Phase 5 Path 5a.
@@ -645,4 +718,10 @@ RFC 0014 Tier C-diff (en + zh) is updated to:
   Step A stub).
 - `ProofForge/Backend/Solana/Plan.lean` — the Solana Tier B plan (Phase 2, landed).
 - `Tests/Quint/CounterEvmReplay.lean` — the EVM C-diff test (reference shape).
+- `Tests/Quint/EvmReplaySmoke.lean` — the EVM multi-module pure-render smoke
+  (Counter + ValueVault).
+- `Tests/Quint/NearReplaySmoke.lean` — the NEAR multi-module pure-render smoke
+  (Counter + ValueVault).
+- `Tests/Quint/SolanaReplaySmoke.lean` — the Solana multi-module pure-render
+  smoke (Counter + ValueVault + EvmMapProbe map sub-module).
 - `Tests/Quint/CounterReplay.lean` — the Tier A IR-replay test (reference shape).
