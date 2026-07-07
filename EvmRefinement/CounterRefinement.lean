@@ -7984,6 +7984,31 @@ theorem counterCompiledPreparedInitialize_first_four_stepFE_ok
   exact ⟨s1, s2, s3, s4, hstep0, hstep1, hstep2, hstep3,
     hat4, hdecoded4, by simpa using hstack4⟩
 
+theorem counterCompiledPreparedInitialize_first_four_path_ok
+    {preparedState : EvmState}
+    (hprepared :
+      CounterPreparedCall counterCompiledPowdrConfig .initialize preparedState) :
+    ∃ s4,
+      EvmStepFEPath preparedState 4 s4 ∧
+      counterCompiledStateAt s4 5 ∧
+      s4.decoded = some (.Dup counterDup1Op, none) ∧
+      s4.stack =
+        [EvmSemantics.UInt256.ofNat counterInitializeSelectorNat] := by
+  obtain ⟨s1, s2, s3, s4, hstep0, hstep1, hstep2, hstep3,
+      hat4, hdecoded4, hstack4⟩ :=
+    counterCompiledPreparedInitialize_first_four_stepFE_ok hprepared
+  have hready0 := counterCompiledPreparedInitialize_first_ready hprepared
+  have hready1 := counterCompiledPreparedInitialize_second_ready hprepared hstep0
+  have hready2 := counterCompiledPreparedInitialize_third_ready hprepared hstep0 hstep1
+  have hready3 :=
+    counterCompiledPreparedInitialize_fourth_ready hprepared hstep0 hstep1 hstep2
+  refine ⟨s4, ?_, hat4, hdecoded4, hstack4⟩
+  exact .cons hready0.1 hstep0
+    (.cons hready1.1 hstep1
+      (.cons hready2.1 hstep2
+        (.cons hready3.1 hstep3
+          (.nil s4))))
+
 structure CounterPreparedInitializeStepFEPath (s0 s36 : EvmState) where
   s1 : EvmState
   s2 : EvmState
