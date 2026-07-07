@@ -351,7 +351,7 @@ refinement target** 接进来。三者分别打通：可验证、扩链广度、
 | # | 任务 | 落点 | 说明 |
 |---|---|---|---|
 | P1 | 统一 `TargetSemantics` 接口（= Track 1.2） | `Backend/Refinement/Core.lean`（新） | 抽出 `MachineState / step / run(fuel) / observe / R / executableTraceOk` + **共享** `ObservableReturn`/`TraceObligation`；两个解释器都 instantiate 它，三份复制的 obligation 类型就此合并 |
-| P2 | IR 小步/归纳（= Track 1.1，**部分已落**） | `IR/StepSemantics.lean` | Phase 6a 已有 `IRTraceMatches` + `runTraceListGen_sound`（归纳证明，非 native_decide）。**只是 C-proof 的前置，C-diff 不需要它** |
+| P2 | trace 归纳（= Track 1.1，**已落为任意 MachineState**） | `IR/StepSemantics.lean` | Phase 6a 已有 `IRTraceMatches` + `runTraceListGen_sound`（归纳证明，非 native_decide），并已在 EVM/Yul、Solana sBPF、Wasm/NEAR target runner state 上实例化 smoke。**只是 C-proof 的前置，C-diff 不需要它** |
 
 **关键排期洞见**：C-diff 差分义务（`executableTraceOk` 用 `native_decide` 逐点跑）**只需
 P1，不需 P2**——因为 native_decide 直接求值，`partial def` 的 IR 解释器照跑。所以

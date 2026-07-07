@@ -36,8 +36,8 @@ NEAR Promise / async / cross-contract → `runtime/offline-host` + wasmtime.
 ```text
 P1 (shared interface) ─┬─→ S1 → S2 → S3 → S4 → S5   (Solana C-diff)
                        └─→ W1 → W2 → W3 → W4 → W5   (WASM C-diff)
-P2 (IR induction, mostly landed in IR/StepSemantics.lean) ─┬─→ S6 (Solana C-proof)
-                                                           └─→ W6 (WASM C-proof)
+P2 (trace induction, landed generically in IR/StepSemantics.lean) ─┬─→ S6 (Solana C-proof)
+                                                                   └─→ W6 (WASM C-proof)
 ```
 
 Start with **P1** (unblocks both lanes) or **W1** (pure docs, zero code risk).
@@ -173,8 +173,9 @@ Start with **P1** (unblocks both lanes) or **W1** (pure docs, zero code risk).
 
 These are lower-priority; they build on the C-diff tasks above.
 
-- **P2 — IR induction:** mostly landed in `ProofForge/IR/StepSemantics.lean`
-  (`IRTraceMatches`, `runTraceListGen_sound`, proven by induction). Extend as S6/W6 need.
+- **P2 — trace induction:** landed in `ProofForge/IR/StepSemantics.lean`
+  (`IRTraceMatches`, `runTraceListGen_sound`, proven by induction) and generalized over
+  arbitrary target machine states. Extend as S6/W6 need.
 - **S6 / W6 — refinement lemmas:** per-entrypoint simulation
   `R s s' → R (stepIR …) (runTarget …)`, lifted to whole-trace equality by induction over
   the call list. Depends on P1 + P2 + (S3 / W5).

@@ -149,21 +149,23 @@ Concretely, the pieces are:
 **What was delivered:**
 
 - `ProofForge/IR/StepSemantics.lean` (new) defines a generic inductive
-  `IRTraceMatches step : State → List Call → Array Obs → Prop` predicate,
+  `IRTraceMatches step : MachineState → List Call → Array Obs → Prop` predicate,
   structurally recursive over the call list (two constructors: `nil` for
   the empty trace, `cons` for one atomic `step` call followed by the rest).
   It is parameterized by an atomic per-call step function
-  `step : State → Call → Except String (State × Obs)` so it stays
-  EVM-agnostic; `Evm.Refinement.lean` instantiates it with the existing
-  `runEntrypointObservable` to recover the IR trace semantics.
+  `step : MachineState → Call → Except String (MachineState × Obs)` so it
+  stays target-agnostic; `Evm.Refinement.lean` instantiates it with the
+  existing IR `runEntrypointObservable`, and
+  `Tests/TargetSemanticsInstances.lean` instantiates the same induction
+  theorem over the EVM/Yul, Solana sBPF, and Wasm/NEAR target runner states.
 - A generic executable runner `runTraceListGen step` mirrors
   `Evm.Refinement.runTraceList` and is proven *sound* against
   `IRTraceMatches` by `theorem runTraceListGen_sound` discharged with
   `induction calls generalizing s` — NOT `native_decide`. This is the first
-  universally-quantified IR-side trace lemma in the Tier C-proof chain:
-  for ALL states `s` and ALL call lists, the executable runner agrees with
-  the inductive predicate (on `.ok`; `.error` is `True`). A completeness
-  lemma and an `iff` bridge are also provided.
+  universally-quantified trace-runner lemma in the Tier C-proof chain:
+  for ALL machine states `s` and ALL call lists, the executable runner
+  agrees with the inductive predicate (on `.ok`; `.error` is `True`). A
+  completeness lemma and an `iff` bridge are also provided.
 - A `Decidable` instance on `IRTraceMatches` computes `runTraceListGen`
   and compares the observable array, letting `native_decide` re-prove the
   fixed-scenario theorems as `IRTraceMatches` instances without changing
@@ -195,6 +197,10 @@ Concretely, the pieces are:
   `requireSupportedFragment`. `Tests/SupportedFragment.lean` pins that the
   `counter-model` accepts canonical Counter and rejects checked/renamed Counter
   modules outside the proved fragment.
+- The existing executable EVM/Yul, Solana sBPF, and Wasm/NEAR runners are now
+  wired through the shared `TargetSemantics` interface. `just
+  target-semantics-instances-smoke` checks those instances and confirms that
+  `runTraceListGen_sound` can be specialized to each target machine state.
 
 **Design choice (b) — big-step induction over the call list.** We keep the
 existing big-step interpreter `IR.Semantics.runEntrypointWithArgs` as the
@@ -212,7 +218,8 @@ Phase 6c simulation-prerequisite) is left to Phase 6b+.
   `runTrace` sound against it by induction (not `native_decide`).
 - Keep the existing `native_decide` theorems as a regression smoke; layer the inductive
   ones on top.
-- Deliverable: first universally-quantified IR-side trace lemmas.
+- Deliverable: first universally-quantified trace-runner lemmas over arbitrary
+  machine states, with IR and target-runner instantiations.
 
 ### Phase 6b — Integrate `EVMYulLean` EVM bytecode semantics as a lake dependency
 
