@@ -63,6 +63,7 @@ python3 scripts/translate-docs.py --model glm-4.7
 
 - [架构评审（2026-07）：统一 SDK 输入与分支收敛](architecture-review-2026-07.md)
 - [全量代码 + 架构评审（2026-07，FV-5 能力门分支）](code-review-2026-07-fv5-capability-gate.md) — 实现正确性与 FV 可靠性评审
+- [执行任务清单 + WASM 家族与调用层规划（2026-07）](execution-plan-2026-07.md) — 分轨任务、WASM 新链模板、调用文档生成
 - [贡献者入职指南](onboarding.zh.md)
 - [多链愿景可行性分析](feasibility-analysis.md)
 - [多链技术实现方案](technical-implementation-plan.md) — 摘要版，工程细节见 RFC 0002

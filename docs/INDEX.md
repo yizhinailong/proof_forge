@@ -117,6 +117,7 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - [中文文档索引](zh/README.md)
 - [架构评审 2026-07：统一 SDK 输入与分支收敛](zh/architecture-review-2026-07.md)
 - [全量代码 + 架构评审 2026-07（FV-5 能力门分支）](zh/code-review-2026-07-fv5-capability-gate.md) — 实现正确性与 FV 可靠性
+- [执行任务清单 + WASM 家族与调用层规划 2026-07](zh/execution-plan-2026-07.md) — 分轨任务、WASM 新链模板、调用文档生成
 - [多链愿景可行性分析](zh/feasibility-analysis.md)
 - [多链技术实现方案](zh/technical-implementation-plan.md) — summary; engineering detail in RFC 0002
 - [多链方案 Review 清单](zh/review-checklist.md)
