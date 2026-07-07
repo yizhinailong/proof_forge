@@ -18,42 +18,9 @@ open ProofForge.Backend.Refinement
 
 abbrev IRState := ProofForge.IR.Semantics.State
 abbrev EvmState := ProofForge.Backend.Evm.PowdrAdapter.State
+abbrev EvmStepFEPath := ProofForge.Backend.Evm.PowdrAdapter.StepFEPath
 abbrev CounterCall := ProofForge.Backend.Refinement.CounterUniversal.CounterCall
 abbrev counterIRStep := ProofForge.Backend.Refinement.CounterUniversal.irStep
-
-theorem counterIsDone_false_of_running {state : EvmState}
-    (hrunning : state.halt = .Running) :
-    state.isDone = false := by
-  simp [EvmSemantics.EVM.State.isDone, EvmSemantics.EVM.State.isHalted,
-    EvmSemantics.EVM.State.isRunning, hrunning]
-
-theorem counterPowdrAdapter_stepF_of_stepFE_ok {state nextState : EvmState}
-    (hdone : state.isDone = false)
-    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
-    ProofForge.Backend.Evm.PowdrAdapter.stepF state = .ok nextState := by
-  unfold ProofForge.Backend.Evm.PowdrAdapter.stepF
-  simp [hdone, ProofForge.Backend.Evm.PowdrAdapter.rawStepF,
-    EvmSemantics.EVM.stepF, hstep]
-
-theorem counterRunBytecode_stepFE_succ
-    {state nextState finalState : EvmState}
-    {observations : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep}
-    {fuel : Nat}
-    (hrunning : state.halt = .Running)
-    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState)
-    (hrun :
-      ProofForge.Backend.Evm.PowdrAdapter.runBytecode nextState fuel =
-        .ok (finalState, observations)) :
-    ProofForge.Backend.Evm.PowdrAdapter.runBytecode state (fuel + 1) =
-      .ok (finalState, observations) := by
-  have hdone := counterIsDone_false_of_running hrunning
-  have hhalted :
-      ProofForge.Backend.Evm.PowdrAdapter.isHalted state = false := by
-    simpa [ProofForge.Backend.Evm.PowdrAdapter.isHalted] using hdone
-  have hstepAdapter :=
-    counterPowdrAdapter_stepF_of_stepFE_ok hdone hstep
-  exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_step_succ
-    hhalted hstepAdapter hrun
 
 def counterCountSlotNat : Nat := 0
 
@@ -4701,17 +4668,15 @@ theorem counterRunBytecode_initialize_return_segment_ok
     (hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5) :
     ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 5 =
       .ok (s5, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) := by
-  rcases hready0 with ⟨hrunning0, _hprecompile0, _hstackOk0, _hgas0⟩
-  rcases hready1 with ⟨hrunning1, _hprecompile1, _hstackOk1, _hgas1⟩
-  rcases hready2 with ⟨hrunning2, _hprecompile2, _hstackOk2, _hgas2⟩
-  rcases hready3 with ⟨hrunning3, _hprecompile3, _hstackOk3, _hgas3⟩
-  rcases hready4 with ⟨hrunning4, _hprecompile4, _hstackOk4, _hgas4⟩
-  exact counterRunBytecode_stepFE_succ hrunning0 hstep0
-    (counterRunBytecode_stepFE_succ hrunning1 hstep1
-      (counterRunBytecode_stepFE_succ hrunning2 hstep2
-        (counterRunBytecode_stepFE_succ hrunning3 hstep3
-          (counterRunBytecode_stepFE_succ hrunning4 hstep4
-            (ProofForge.Backend.Evm.PowdrAdapter.runBytecode_zero s5)))))
+  have hpath : EvmStepFEPath s0 5 s5 :=
+    .cons hready0.1 hstep0
+      (.cons hready1.1 hstep1
+        (.cons hready2.1 hstep2
+          (.cons hready3.1 hstep3
+            (.cons hready4.1 hstep4
+              (.nil s5)))))
+  exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath
+    hpath (ProofForge.Backend.Evm.PowdrAdapter.runBytecode_zero s5)
 
 theorem counterRunBytecode_initialize_body_and_return_ok
     {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17
@@ -4813,23 +4778,6 @@ theorem counterRunBytecode_initialize_body_and_return_ok
         counterInitializeStorageWord
           (counterStorageValue counterContractAddress counterCountSlot s12) ∧
       counterObservableFromResult .initialize s22.toResult = .ok .none := by
-  have hrunning0 := hready0.1
-  have hrunning1 := hready1.1
-  have hrunning2 := hready2.1
-  have hrunning3 := hready3.1
-  have hrunning4 := hready4.1
-  have hrunning5 := hready5.1
-  have hrunning6 := hready6.1
-  have hrunning7 := hready7.1
-  have hrunning8 := hready8.1
-  have hrunning9 := hready9.1
-  have hrunning10 := hready10.1
-  have hrunning11 := hready11.1
-  have hrunning12 := hready12.1
-  have hrunning13 := hready13.1
-  have hrunning14 := hready14.1
-  have hrunning15 := hready15.1
-  have hrunning16 := hready16.1
   have hstack16 :
       s16.stack =
         counterCountSlot ::
@@ -4853,27 +4801,31 @@ theorem counterRunBytecode_initialize_body_and_return_ok
     counterRunBytecode_initialize_return_segment_ok
       hready17 hstep17 hready18 hstep18 hready19 hstep19
       hready20 hstep20 hready21 hstep21
+  have hpathToReturn : EvmStepFEPath s0 17 s17 :=
+    .cons hready0.1 hstep0
+      (.cons hready1.1 hstep1
+        (.cons hready2.1 hstep2
+          (.cons hready3.1 hstep3
+            (.cons hready4.1 hstep4
+              (.cons hready5.1 hstep5
+                (.cons hready6.1 hstep6
+                  (.cons hready7.1 hstep7
+                    (.cons hready8.1 hstep8
+                      (.cons hready9.1 hstep9
+                        (.cons hready10.1 hstep10
+                          (.cons hready11.1 hstep11
+                            (.cons hready12.1 hstep12
+                              (.cons hready13.1 hstep13
+                                (.cons hready14.1 hstep14
+                                  (.cons hready15.1 hstep15
+                                    (.cons hready16.1 hstep16
+                                      (.nil s17)))))))))))))))))
   have hrun :
       ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 22 =
-        .ok (s22, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) :=
-    counterRunBytecode_stepFE_succ hrunning0 hstep0
-      (counterRunBytecode_stepFE_succ hrunning1 hstep1
-        (counterRunBytecode_stepFE_succ hrunning2 hstep2
-          (counterRunBytecode_stepFE_succ hrunning3 hstep3
-            (counterRunBytecode_stepFE_succ hrunning4 hstep4
-              (counterRunBytecode_stepFE_succ hrunning5 hstep5
-                (counterRunBytecode_stepFE_succ hrunning6 hstep6
-                  (counterRunBytecode_stepFE_succ hrunning7 hstep7
-                    (counterRunBytecode_stepFE_succ hrunning8 hstep8
-                      (counterRunBytecode_stepFE_succ hrunning9 hstep9
-                        (counterRunBytecode_stepFE_succ hrunning10 hstep10
-                          (counterRunBytecode_stepFE_succ hrunning11 hstep11
-                            (counterRunBytecode_stepFE_succ hrunning12 hstep12
-                              (counterRunBytecode_stepFE_succ hrunning13 hstep13
-                                (counterRunBytecode_stepFE_succ hrunning14 hstep14
-                                  (counterRunBytecode_stepFE_succ hrunning15 hstep15
-                                    (counterRunBytecode_stepFE_succ hrunning16 hstep16
-                                      hrunReturn))))))))))))))))
+        .ok (s22, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) := by
+    simpa using
+      ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath
+        hpathToReturn hrunReturn
   have hstorage17 :
       counterStorageValue counterContractAddress counterCountSlot s17 =
         counterInitializeStorageWord
@@ -5053,20 +5005,6 @@ theorem counterRunBytecode_initialize_dispatcher_body_and_return_ok
         counterInitializeStorageWord
           (counterStorageValue counterContractAddress counterCountSlot s26) ∧
       counterObservableFromResult .initialize s36.toResult = .ok .none := by
-  have hrunning0 := hready0.1
-  have hrunning1 := hready1.1
-  have hrunning2 := hready2.1
-  have hrunning3 := hready3.1
-  have hrunning4 := hready4.1
-  have hrunning5 := hready5.1
-  have hrunning6 := hready6.1
-  have hrunning7 := hready7.1
-  have hrunning8 := hready8.1
-  have hrunning9 := hready9.1
-  have hrunning10 := hready10.1
-  have hrunning11 := hready11.1
-  have hrunning12 := hready12.1
-  have hrunning13 := hready13.1
   obtain ⟨hat14, _hdecoded14, hstack14⟩ :=
     counterState_of_dispatcher_trampoline_stepFE_to_initialize_first_opcode_ok
       h0 hat0 hready0 hstep0 hcalldata0 hready1 hstep1 hready2 hstep2
@@ -5093,24 +5031,28 @@ theorem counterRunBytecode_initialize_dispatcher_body_and_return_ok
       hready32 hstep32 hready33 hstep33 hready34 hstep34
       hready35 hstep35
   rcases hrunTail with ⟨hrunTail, hstorage, hobs⟩
+  have hpathDispatcher : EvmStepFEPath s0 14 s14 :=
+    .cons hready0.1 hstep0
+      (.cons hready1.1 hstep1
+        (.cons hready2.1 hstep2
+          (.cons hready3.1 hstep3
+            (.cons hready4.1 hstep4
+              (.cons hready5.1 hstep5
+                (.cons hready6.1 hstep6
+                  (.cons hready7.1 hstep7
+                    (.cons hready8.1 hstep8
+                      (.cons hready9.1 hstep9
+                        (.cons hready10.1 hstep10
+                          (.cons hready11.1 hstep11
+                            (.cons hready12.1 hstep12
+                              (.cons hready13.1 hstep13
+                                (.nil s14))))))))))))))
   have hrun :
       ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 36 =
-        .ok (s36, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) :=
-    counterRunBytecode_stepFE_succ hrunning0 hstep0
-      (counterRunBytecode_stepFE_succ hrunning1 hstep1
-        (counterRunBytecode_stepFE_succ hrunning2 hstep2
-          (counterRunBytecode_stepFE_succ hrunning3 hstep3
-            (counterRunBytecode_stepFE_succ hrunning4 hstep4
-              (counterRunBytecode_stepFE_succ hrunning5 hstep5
-                (counterRunBytecode_stepFE_succ hrunning6 hstep6
-                  (counterRunBytecode_stepFE_succ hrunning7 hstep7
-                    (counterRunBytecode_stepFE_succ hrunning8 hstep8
-                      (counterRunBytecode_stepFE_succ hrunning9 hstep9
-                        (counterRunBytecode_stepFE_succ hrunning10 hstep10
-                          (counterRunBytecode_stepFE_succ hrunning11 hstep11
-                            (counterRunBytecode_stepFE_succ hrunning12 hstep12
-                              (counterRunBytecode_stepFE_succ hrunning13 hstep13
-                                hrunTail)))))))))))))
+        .ok (s36, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) := by
+    simpa using
+      ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath
+        hpathDispatcher hrunTail
   exact ⟨hrun, hstorage, hobs⟩
 
 def counterPowdrPreparedTraceStep (cfg : PowdrCounterConfig) (preparedState : EvmState)

@@ -362,11 +362,10 @@ surface. Remaining EVM work is E3.
   and exposes the `.none` observable.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure.
-  The adapter now has `runBytecode_halted_succ` and `runBytecode_step_succ`,
-  and `CounterRefinement.lean` adds
-  `counterPowdrAdapter_stepF_of_stepFE_ok` plus
-  `counterRunBytecode_stepFE_succ`, so the composed `stepFE` path can be fed
-  into the prepared-frame `runBytecode` driver one opcode at a time.
+  The adapter now has `runBytecode_halted_succ`, `runBytecode_step_succ`,
+  `runBytecode_stepFE_succ`, `StepFEPath`, and `runBytecode_of_stepFEPath`, so
+  the composed `stepFE` path can be fed into the prepared-frame `runBytecode`
+  driver either one opcode at a time or as a reusable path segment.
   `counterRunBytecode_initialize_return_segment_ok` applies that bridge to the
   final return segment, proving 5 fuel steps from the body return jump reach the
   halted return frame. `counterRunBytecode_initialize_body_and_return_ok`
@@ -381,16 +380,18 @@ surface. Remaining EVM work is E3.
   instead of carrying it as an explicit premise.
   `counterRunBytecode_initialize_dispatcher_body_and_return_ok` now prepends
   the initialize selector dispatcher plus trampoline path to that body+return
-  bridge, proving a 36-fuel `runBytecode` path from PC0 to the halted `.none`
-  result while preserving the initialize storage model.
+  bridge through `StepFEPath`, proving a 36-fuel `runBytecode` path from PC0 to
+  the halted `.none` result while preserving the initialize storage model.
   `runBytecode_halted`, `runBytecode_extend_halted`,
   `counterRunBytecode_extend_to_compiled_fuel`, and
   `counterPowdrPreparedTraceStep_initialize_of_run36_ok` now lift any such
   36-fuel initialize run to the compiled config's 5000-fuel
   `counterPowdrPreparedTraceStep`, once the final state is proven `isDone`.
-  The next slice should prove that final done fact from the top-level prepared
-  callStack plus returned-empty halt, then instantiate the prepared-frame
-  initialize storage model. The pinned
+  The shared safe trace layer is green once
+  `CounterCompiledPowdrPreparedStorageModels` is supplied; the hard remaining
+  work is target-specific prepared-storage-model discharge. Do not widen by
+  copying the initialize proof to `increment`/`get` before extending the reusable
+  segment machine (`StepFEPath` plus opcode-family lemmas). The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
   remains an explicit trust boundary. The remaining E3 work is to discharge those
   prepared-frame storage models against the concrete runtime by connecting the

@@ -442,10 +442,12 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   storage model at the return jump, the final return path preserves it to the
   halted frame and produces the `.none` observable.
 - `runBytecode_halted_succ`, `runBytecode_step_succ`,
-  `counterPowdrAdapter_stepF_of_stepFE_ok`, and
-  `counterRunBytecode_stepFE_succ` — green under `lake build EvmRefinement`;
-  the prepared-frame proof can now feed each successful `stepFE` opcode in the
-  composed path into the fuel-bounded powdr `runBytecode` driver.
+  `runBytecode_stepFE_succ`, `StepFEPath`, and
+  `runBytecode_of_stepFEPath` — green under `lake build EvmRefinement`;
+  the prepared-frame proof can now feed each successful `stepFE` opcode, or an
+  already-packaged `stepFE` path segment, into the fuel-bounded powdr
+  `runBytecode` driver. This is the first reusable path-composition layer for
+  the deep opcode discharge.
 - `counterRunBytecode_initialize_return_segment_ok` — green under
   `lake build EvmRefinement`; the final return segment now has a
   `runBytecode` proof from the body return jump to the halted frame using 5
@@ -467,9 +469,9 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   post-SSTORE `counterCompiledStateAt` premise from the 22-fuel bridge.
 - `counterRunBytecode_initialize_dispatcher_body_and_return_ok` — green under
   `lake build EvmRefinement`; the initialize selector dispatcher and trampoline
-  are now prepended to the body+return bridge, giving a 36-fuel `runBytecode`
-  proof from PC0 to the halted `.none` result while preserving the initialize
-  storage model.
+  are now prepended to the body+return bridge through `StepFEPath`, giving a
+  36-fuel `runBytecode` proof from PC0 to the halted `.none` result while
+  preserving the initialize storage model.
 - `runBytecode_halted`, `runBytecode_extend_halted`,
   `counterRunBytecode_extend_to_compiled_fuel`, and
   `counterPowdrPreparedTraceStep_initialize_of_run36_ok` — green under
@@ -486,22 +488,21 @@ Yul→bytecode `solc` step as an explicit trust boundary.
 - RFC 0014 Path 5b Phase 6b: status updated to powdr-target wired and Phase
   6b unblocked, cross-referencing this file.
 
-## (h) Remaining proof boundary
+## (h) Current proof boundary and scaling guardrail
 
 The Counter relation now carries `count < 2^64` plus the generated high-64-bit
-packed storage shape with low 192-bit padding allowed. The next relational
-proof slice must decide how Phase 6c
-handles `increment` at `2^64 - 1`: either the supported input predicate excludes
-overflowing traces, or the total Counter IR semantics is changed to match the
-compiled EVM runtime's checked/wrapping behavior. Until that is resolved, the
-compiled-runtime C-diff can stay green, but the universal relational
-per-entrypoint proof is not yet complete. The boundary is represented in Lean by
-`counterTraceSafeFromCount` / `counterTraceSafeAfterInitialize`, including a
-green safe trace check and an explicit unsafe max-u64 increment check. The
-per-entrypoint obligation surface now also carries this boundary through
-`CounterStepSafe`, and the safe trace theorem carries it through universal trace
-induction. `CounterTraceSafeAtState` is the current state/input predicate form;
-the remaining Phase 6c work is to prove the compiled runtime's prepared-frame
-EVM-only powdr storage models by connecting the composed dispatcher/trampoline/body
-and return `stepFE` path to the prepared-frame `counterPowdrPreparedTraceStep`
-result before instantiating the prepared-frame initialize storage model.
+packed storage shape with low 192-bit padding allowed. The overflow boundary is
+represented in Lean by `counterTraceSafeFromCount` /
+`counterTraceSafeAfterInitialize`, `CounterStepSafe`, and
+`CounterTraceSafeAtState`; the safe trace induction layer is green, and the
+compiled-runtime theorems reduce the all-call-list IR/powdr trace simulation to
+`CounterCompiledPowdrPreparedStorageModels`.
+
+The scaling risk is now below that trace-induction layer. The deep
+`runBytecode`/`stepFE` discharge has been driven through the full initialize
+dispatcher/trampoline/body/return path, but `increment` and `get` should not copy
+that proof shape one entrypoint at a time. Before widening the deep discharge,
+extend the reusable segment machinery (`StepFEPath`,
+`runBytecode_of_stepFEPath`, and opcode-family segment lemmas for dispatcher,
+storage, arithmetic, and return paths) so later entrypoints reuse common proof
+blocks instead of growing bespoke thousands-line opcode traces.

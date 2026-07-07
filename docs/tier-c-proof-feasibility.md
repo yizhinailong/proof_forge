@@ -439,9 +439,10 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterInitializeReturn_preserves_storage_model_stepFE_ok` packages the
     return-path bridge from an already-established initialize storage model to
     the final halted frame plus `.none` observable. `runBytecode_halted_succ`,
-    `runBytecode_step_succ`, `counterPowdrAdapter_stepF_of_stepFE_ok`, and
-    `counterRunBytecode_stepFE_succ` now expose the fuel-driver bridge needed
-    to feed the composed `stepFE` path into `counterPowdrPreparedTraceStep`.
+    `runBytecode_step_succ`, `runBytecode_stepFE_succ`, `StepFEPath`, and
+    `runBytecode_of_stepFEPath` now expose the fuel-driver bridge needed to feed
+    either one successful `stepFE` opcode or a reusable composed `stepFE` path
+    segment into `counterPowdrPreparedTraceStep`.
     `counterRunBytecode_initialize_return_segment_ok` applies that bridge to
     the final return segment with 5 fuel steps.
     `counterRunBytecode_initialize_body_and_return_ok` composes the body and
@@ -454,26 +455,25 @@ ProofForge's default build still avoids powdr/mathlib imports.
     back into the 22-fuel bridge. The body-return-jump `counterCompiledStateAt`
     fact is now derived internally rather than passed as an explicit premise;
     `counterRunBytecode_initialize_dispatcher_body_and_return_ok` now prepends
-    the initialize selector dispatcher and trampoline, yielding a 36-fuel
-    `runBytecode` bridge from PC0 to the halted `.none` result.
+    the initialize selector dispatcher and trampoline through `StepFEPath`,
+    yielding a 36-fuel `runBytecode` bridge from PC0 to the halted `.none`
+    result.
     `runBytecode_halted`, `runBytecode_extend_halted`,
     `counterRunBytecode_extend_to_compiled_fuel`, and
     `counterPowdrPreparedTraceStep_initialize_of_run36_ok` lift a 36-fuel
     initialize run through the compiled config's 5000-fuel
     `counterPowdrPreparedTraceStep` when the final state is known to be done.
-    The remaining step is to prove that final done fact from the top-level
-    prepared callStack plus returned-empty halt and instantiate the
-    prepared-frame initialize storage model.
+    The safe universal trace layer is green once
+    `CounterCompiledPowdrPreparedStorageModels` is supplied; the scaling
+    boundary is now the target-specific discharge of those prepared storage
+    models, not the shared trace induction.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
-- **What was NOT done (deferred to the implementation agent):**
-  - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
-  - Discharge the compiled runtime's prepared-frame EVM-only storage
-    postconditions against powdr `Step`; the ordinary postconditions and safe
-    per-entrypoint obligations then follow from the bridge/conversion theorems.
-    The next concrete proof slice is to connect the composed
-    dispatcher/trampoline/body/return `stepFE` path to the prepared-frame
-    `counterPowdrPreparedTraceStep` result and instantiate the prepared-frame
-    initialize storage model.
+- **Next implementation guardrail:** do not copy the initialize
+  dispatcher/body/return proof shape directly into `increment` and `get`.
+  First extend the reusable segment machinery (`StepFEPath`,
+  `runBytecode_of_stepFEPath`, and opcode-family lemmas for dispatcher,
+  storage, arithmetic, and return paths), then use that library to discharge
+  the remaining prepared-frame storage models.
 - **Deliverable (revised):** a clean powdr-target seam plus the opt-in
   dependency path and wrapper. The conformance-tested EVM bytecode semantics is
   now callable from the `EvmRefinement` target; the implementation agent's next

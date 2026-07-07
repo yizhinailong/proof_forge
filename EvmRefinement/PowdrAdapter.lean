@@ -89,6 +89,56 @@ theorem runBytecode_step_succ {state next finalState : State}
   rw [hrun]
   rfl
 
+theorem isDone_false_of_running {state : State}
+    (hrunning : state.halt = .Running) :
+    state.isDone = false := by
+  simp [EvmSemantics.EVM.State.isDone, EvmSemantics.EVM.State.isHalted,
+    EvmSemantics.EVM.State.isRunning, hrunning]
+
+theorem stepF_of_stepFE_ok {state nextState : State}
+    (hdone : state.isDone = false)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    stepF state = .ok nextState := by
+  unfold stepF
+  simp [hdone, rawStepF, EvmSemantics.EVM.stepF, hstep]
+
+theorem runBytecode_stepFE_succ
+    {state nextState finalState : State}
+    {observations : Array ObservableStep} {fuel : Nat}
+    (hrunning : state.halt = .Running)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState)
+    (hrun : runBytecode nextState fuel = .ok (finalState, observations)) :
+    runBytecode state (fuel + 1) = .ok (finalState, observations) := by
+  have hdone := isDone_false_of_running hrunning
+  have hhalted : isHalted state = false := by
+    simpa [isHalted] using hdone
+  have hstepAdapter := stepF_of_stepFE_ok hdone hstep
+  exact runBytecode_step_succ hhalted hstepAdapter hrun
+
+inductive StepFEPath : State → Nat → State → Prop where
+  | nil (state : State) : StepFEPath state 0 state
+  | cons {state nextState finalState : State} {fuel : Nat}
+      (hrunning : state.halt = .Running)
+      (hstep : EvmSemantics.EVM.stepFE state = .ok nextState)
+      (tail : StepFEPath nextState fuel finalState) :
+      StepFEPath state (fuel + 1) finalState
+
+theorem runBytecode_of_stepFEPath {prefixFuel tailFuel : Nat} :
+    ∀ {state tailState finalState : State}
+      {observations : Array ObservableStep},
+      StepFEPath state prefixFuel tailState →
+      runBytecode tailState tailFuel = .ok (finalState, observations) →
+      runBytecode state (prefixFuel + tailFuel) =
+        .ok (finalState, observations) := by
+  intro state tailState finalState observations hpath hrun
+  induction hpath generalizing tailFuel finalState observations with
+  | nil state =>
+      simpa using hrun
+  | cons hrunning hstep tail ih =>
+      have hrunTail := ih hrun
+      simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using
+        runBytecode_stepFE_succ hrunning hstep hrunTail
+
 theorem runBytecode_extend_halted {fuel : Nat} :
     ∀ {state finalState : State} {observations : Array ObservableStep}
       {extra : Nat},
