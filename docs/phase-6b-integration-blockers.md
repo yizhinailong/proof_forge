@@ -182,7 +182,10 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   top-level EVM frame while preserving storage, so stale halted frames or
   zero-gas defaults are not accidental counterexamples. The concrete compiled
   powdr target now wires `executableTraceOk` for Counter `TraceObligation`s and
-  proves the initialize-get-increment-get trace.
+  proves the initialize-get-increment-get trace. The relation layer also exposes
+  `CounterStepSafe`, `CounterPowdrSafeEntrypointObligations`, and
+  `counterPowdr_safe_step_simulates_from_obligations`, so the bounded
+  `increment` precondition is now part of the per-entrypoint EVM proof surface.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -210,6 +213,9 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   confirm the relation's packed U64 storage shape matches the compiled runtime.
 - `counterCompiledPowdr_executable_trace_ok` — green; the compiled-runtime
   powdr `TargetSemantics.executableTraceOk` accepts the Counter trace obligation.
+- `counterPowdr_safe_step_simulates_from_obligations` — green under
+  `lake build EvmRefinement`; safe per-entrypoint obligations imply the
+  one-step IR/powdr Counter simulation.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 
@@ -230,4 +236,7 @@ compiled EVM runtime's checked/wrapping behavior. Until that is resolved, the
 compiled-runtime C-diff can stay green, but the universal relational
 per-entrypoint proof is not yet complete. The boundary is represented in Lean by
 `counterTraceSafeFromCount` / `counterTraceSafeAfterInitialize`, including a
-green safe trace check and an explicit unsafe max-u64 increment check.
+green safe trace check and an explicit unsafe max-u64 increment check. The
+per-entrypoint obligation surface now also carries this boundary through
+`CounterStepSafe`; the remaining Phase 6c work is to discharge those safe powdr
+obligations and lift the trace-safety predicate through the universal theorem.

@@ -214,11 +214,17 @@ surface. Remaining EVM work is E3.
   represented in Lean by `counterTraceSafeFromCount` /
   `counterTraceSafeAfterInitialize`, with native checks for the normal
   initialize-get-increment-get trace and for the unsafe max-u64 increment case.
+  The per-entrypoint obligation surface now has a safe variant:
+  `CounterStepSafe`, `CounterPowdrSafeEntrypointObligations`, and
+  `counterPowdr_safe_step_simulates_from_obligations` thread the bounded
+  `increment` precondition into the EVM step proof instead of leaving overflow
+  as an implicit side condition.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
-  remains an explicit trust boundary. The remaining E3 work is the powdr bytecode
-  per-entrypoint simulation plus the universal trace lift.
+  remains an explicit trust boundary. The remaining E3 work is to discharge the safe
+  powdr bytecode per-entrypoint obligations and then lift the trace-safety predicate
+  into the universal trace theorem.
 - **Acceptance:** a universally-quantified refinement theorem (IR Counter ⟷ powdr EVM
   `Step`, by `induction`, **not** `native_decide`) type-checks under the opt-in target;
   `docs/formal-verification.md` EVM Tier C-proof row updated from aspirational/blocked to

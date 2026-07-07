@@ -336,11 +336,16 @@ ProofForge's default build still avoids powdr/mathlib imports.
     That boundary is now represented in Lean by `counterTraceSafeFromCount` /
     `counterTraceSafeAfterInitialize`, with native checks for the normal
     initialize-get-increment-get trace and for the unsafe max-u64 increment case.
+    The obligation surface now also has a safe variant:
+    `CounterStepSafe`, `CounterPowdrSafeEntrypointObligations`, and
+    `counterPowdr_safe_step_simulates_from_obligations` make the bounded
+    `increment` precondition explicit at the per-entrypoint EVM proof boundary.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
-  - Prove Counter's per-entrypoint simulation lemmas against powdr `Step` (that
-    is Phase 6c).
+  - Discharge Counter's safe per-entrypoint simulation lemmas against powdr
+    `Step` and lift `counterTraceSafeAfterInitialize` into the universal trace
+    theorem (that is Phase 6c).
 - **Deliverable (revised):** a clean powdr-target seam + documented opt-in
   dependency path (not a conformance-tested EVM bytecode semantics callable
   from ProofForge proofs yet — that is the implementation agent's next step).

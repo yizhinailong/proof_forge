@@ -623,6 +623,38 @@ structure CounterPowdrEntrypointObligations (cfg : PowdrCounterConfig) where
           counterPowdrTraceStep cfg evmState .get = .ok (nextEvm, observable) ∧
           CounterStorageRel nextIr nextEvm
 
+def CounterStepSafe (call : CounterCall) (irState : IRState) : Prop :=
+  match call with
+  | .initialize => True
+  | .get =>
+      ∀ count, irCounterCount? irState = some count → count < counterU64Modulus
+  | .increment =>
+      ∀ count, irCounterCount? irState = some count → count + 1 < counterU64Modulus
+
+structure CounterPowdrSafeEntrypointObligations (cfg : PowdrCounterConfig) where
+  initialize_simulates :
+    ∀ {irState evmState nextIr observable},
+      counterIRStep irState .initialize = .ok (nextIr, observable) →
+        ∃ nextEvm,
+          counterPowdrTraceStep cfg evmState .initialize = .ok (nextEvm, observable) ∧
+          CounterStorageRel nextIr nextEvm
+  increment_simulates :
+    ∀ {irState evmState nextIr observable},
+      CounterStorageRel irState evmState →
+      CounterStepSafe .increment irState →
+      counterIRStep irState .increment = .ok (nextIr, observable) →
+        ∃ nextEvm,
+          counterPowdrTraceStep cfg evmState .increment = .ok (nextEvm, observable) ∧
+          CounterStorageRel nextIr nextEvm
+  get_simulates :
+    ∀ {irState evmState nextIr observable},
+      CounterStorageRel irState evmState →
+      CounterStepSafe .get irState →
+      counterIRStep irState .get = .ok (nextIr, observable) →
+        ∃ nextEvm,
+          counterPowdrTraceStep cfg evmState .get = .ok (nextEvm, observable) ∧
+          CounterStorageRel nextIr nextEvm
+
 theorem counterPowdr_step_simulates_from_obligations
     (cfg : PowdrCounterConfig) (obligations : CounterPowdrEntrypointObligations cfg)
     (call : CounterCall) {irState : IRState} {evmState : EvmState}
@@ -650,6 +682,38 @@ theorem counterPowdr_step_simulates_from_obligations
         hcounter
     obtain ⟨nextEvm, hpowdrStep, hrelNext⟩ :=
       obligations.get_simulates hrel hirStep
+    exact ⟨nextIr, nextEvm, observable, hirStep, hpowdrStep, hrelNext⟩
+
+theorem counterPowdr_safe_step_simulates_from_obligations
+    (cfg : PowdrCounterConfig) (obligations : CounterPowdrSafeEntrypointObligations cfg)
+    (call : CounterCall) {irState : IRState} {evmState : EvmState}
+    (hrel : CounterStorageRel irState evmState)
+    (hsafe : CounterStepSafe call irState) :
+    ∃ nextIr nextEvm observable,
+      counterIRStep irState call = .ok (nextIr, observable) ∧
+      counterPowdrTraceStep cfg evmState call = .ok (nextEvm, observable) ∧
+      CounterStorageRel nextIr nextEvm := by
+  obtain ⟨count, hcounter⟩ := counterStorageRel_left_counterStateRel hrel
+  cases call
+  · obtain ⟨nextIr, _nextCount, observable, hirStep, _htargetStep, _hcounterNext⟩ :=
+      ProofForge.Backend.Refinement.CounterUniversal.counter_initialize_simulates
+        irState count
+    obtain ⟨nextEvm, hpowdrStep, hrelNext⟩ :=
+      obligations.initialize_simulates hirStep
+    exact ⟨nextIr, nextEvm, observable, hirStep, hpowdrStep, hrelNext⟩
+  · obtain ⟨nextIr, _nextCount, observable, hirStep, _htargetStep, _hcounterNext⟩ :=
+      ProofForge.Backend.Refinement.CounterUniversal.counter_increment_simulates
+        hcounter
+    obtain ⟨nextEvm, hpowdrStep, hrelNext⟩ :=
+      obligations.increment_simulates hrel hsafe hirStep
+    exact ⟨nextIr, nextEvm, observable, hirStep, hpowdrStep, hrelNext⟩
+  · obtain ⟨nextIr, _nextCount, observable, hirStep, _htargetStep, _hcounterNext⟩ :=
+      ProofForge.Backend.Refinement.CounterUniversal.counter_get_simulates
+        hcounter
+    have hsafeGet : CounterStepSafe .get irState := by
+      exact hsafe
+    obtain ⟨nextEvm, hpowdrStep, hrelNext⟩ :=
+      obligations.get_simulates hrel hsafeGet hirStep
     exact ⟨nextIr, nextEvm, observable, hirStep, hpowdrStep, hrelNext⟩
 
 theorem counterPowdr_trace_simulates_from_obligations
