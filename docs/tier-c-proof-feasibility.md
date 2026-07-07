@@ -344,6 +344,10 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterPowdr_safe_trace_simulates_after_initialize_from_obligations` lift
     that predicate through the universal trace induction, with a compiled-runtime
     specialization exposed for `counterCompiledPowdrConfig`.
+    `CounterTraceSafeAtState` and
+    `counterCompiledPowdr_safe_trace_simulates_from_state_safe_obligations`
+    expose the boundary as a state/input predicate for the later supported-fragment
+    gate.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).

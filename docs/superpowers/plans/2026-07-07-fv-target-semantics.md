@@ -223,6 +223,10 @@ surface. Remaining EVM work is E3.
   lift that safe side condition through the universal trace induction, with a
   compiled-runtime specialization exposed by
   `counterCompiledPowdr_safe_trace_simulates_after_initialize_from_obligations`.
+  `CounterTraceSafeAtState` and
+  `counterCompiledPowdr_safe_trace_simulates_from_state_safe_obligations` expose
+  the same boundary as a state/input predicate, which is the shape needed for a
+  later SupportedFragment gate.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
