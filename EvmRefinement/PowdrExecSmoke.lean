@@ -100,20 +100,10 @@ theorem twoSlotReader_getBalance_stepFEPath
               hsloadGas)) :=
     ProofForge.Backend.Evm.PowdrExec.stepFE_stop_ok
       hstopReady hstopDecoded
-  have hpushPath :=
-    ProofForge.Backend.Evm.PowdrExec.stepFEPath_single
-      hpushReady.running hpushStep
-  have hsloadPath :=
-    ProofForge.Backend.Evm.PowdrExec.stepFEPath_single
-      hsloadReady.running hsloadStep
-  have hstopPath :=
-    ProofForge.Backend.Evm.PowdrExec.stepFEPath_single
-      hstopReady.running hstopStep
-  have htail :=
-    ProofForge.Backend.Evm.PowdrExec.stepFEPath_append
-      hsloadPath hstopPath
-  simpa using
-    ProofForge.Backend.Evm.PowdrExec.stepFEPath_append hpushPath htail
+  exact ProofForge.Backend.Evm.PowdrExec.stepFEPath_three
+    hpushReady.running hpushStep
+    hsloadReady.running hsloadStep
+    hstopReady.running hstopStep
 
 theorem twoSlotReader_getBalance_runSteps
     {s0 : State}

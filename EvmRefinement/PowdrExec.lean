@@ -56,6 +56,53 @@ theorem stepFEPath_append {state midState finalState : State}
   exact ProofForge.Backend.Evm.PowdrAdapter.stepFEPath_append
     prefixPath suffixPath
 
+theorem stepFEPath_two {s0 s1 s2 : State}
+    (hr0 : s0.halt = .Running)
+    (h0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hr1 : s1.halt = .Running)
+    (h1 : EvmSemantics.EVM.stepFE s1 = .ok s2) :
+    StepFEPath s0 2 s2 := by
+  exact .cons hr0 h0 (.cons hr1 h1 (.nil s2))
+
+theorem stepFEPath_three {s0 s1 s2 s3 : State}
+    (hr0 : s0.halt = .Running)
+    (h0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hr1 : s1.halt = .Running)
+    (h1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hr2 : s2.halt = .Running)
+    (h2 : EvmSemantics.EVM.stepFE s2 = .ok s3) :
+    StepFEPath s0 3 s3 := by
+  exact .cons hr0 h0 (.cons hr1 h1 (.cons hr2 h2 (.nil s3)))
+
+theorem stepFEPath_four {s0 s1 s2 s3 s4 : State}
+    (hr0 : s0.halt = .Running)
+    (h0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hr1 : s1.halt = .Running)
+    (h1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hr2 : s2.halt = .Running)
+    (h2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hr3 : s3.halt = .Running)
+    (h3 : EvmSemantics.EVM.stepFE s3 = .ok s4) :
+    StepFEPath s0 4 s4 := by
+  exact .cons hr0 h0
+    (.cons hr1 h1 (.cons hr2 h2 (.cons hr3 h3 (.nil s4))))
+
+theorem stepFEPath_five {s0 s1 s2 s3 s4 s5 : State}
+    (hr0 : s0.halt = .Running)
+    (h0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hr1 : s1.halt = .Running)
+    (h1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hr2 : s2.halt = .Running)
+    (h2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hr3 : s3.halt = .Running)
+    (h3 : EvmSemantics.EVM.stepFE s3 = .ok s4)
+    (hr4 : s4.halt = .Running)
+    (h4 : EvmSemantics.EVM.stepFE s4 = .ok s5) :
+    StepFEPath s0 5 s5 := by
+  exact .cons hr0 h0
+    (.cons hr1 h1
+      (.cons hr2 h2 (.cons hr3 h3 (.cons hr4 h4 (.nil s5)))))
+
 structure StepFEReady (state : State) (op : Operation) : Prop where
   running : state.halt = .Running
   notPrecompile :

@@ -6657,13 +6657,9 @@ theorem counterStepFEPath_initialize_return_segment_ok
         (.System (.RETURN : EvmSemantics.Operation.SystemOps)))
     (hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5) :
     EvmStepFEPath s0 5 s5 := by
-  exact
-    .cons hready0.1 hstep0
-      (.cons hready1.1 hstep1
-        (.cons hready2.1 hstep2
-          (.cons hready3.1 hstep3
-            (.cons hready4.1 hstep4
-              (.nil s5)))))
+  exact ProofForge.Backend.Evm.PowdrExec.stepFEPath_five
+    hready0.1 hstep0 hready1.1 hstep1 hready2.1 hstep2
+    hready3.1 hstep3 hready4.1 hstep4
 
 theorem counterRunBytecode_initialize_return_segment_ok
     {s0 s1 s2 s3 s4 s5 : EvmState}
@@ -7919,11 +7915,9 @@ theorem counterCompiledPreparedInitialize_first_four_path_ok
   have hready3 :=
     counterCompiledPreparedInitialize_fourth_ready hprepared hstep0 hstep1 hstep2
   refine ⟨s4, ?_, hat4, hdecoded4, hstack4⟩
-  exact .cons hready0.1 hstep0
-    (.cons hready1.1 hstep1
-      (.cons hready2.1 hstep2
-        (.cons hready3.1 hstep3
-          (.nil s4))))
+  exact ProofForge.Backend.Evm.PowdrExec.stepFEPath_four
+    hready0.1 hstep0 hready1.1 hstep1 hready2.1 hstep2
+    hready3.1 hstep3
 
 theorem counterCompiledPreparedInitialize_fifth_ready
     {preparedState s1 s2 s3 s4 : EvmState}
@@ -8138,12 +8132,9 @@ theorem counterCompiledPreparedInitialize_first_five_path_ok
     counterCompiledPreparedInitialize_fifth_ready hprepared
       hstep0 hstep1 hstep2 hstep3
   refine ⟨s5, ?_, hat5, hdecoded5, hstack5⟩
-  exact .cons hready0.1 hstep0
-    (.cons hready1.1 hstep1
-      (.cons hready2.1 hstep2
-        (.cons hready3.1 hstep3
-          (.cons hready4.1 hstep4
-            (.nil s5)))))
+  exact ProofForge.Backend.Evm.PowdrExec.stepFEPath_five
+    hready0.1 hstep0 hready1.1 hstep1 hready2.1 hstep2
+    hready3.1 hstep3 hready4.1 hstep4
 
 theorem counterCompiledPreparedInitialize_sixth_ready
     {preparedState s1 s2 s3 s4 s5 : EvmState}
