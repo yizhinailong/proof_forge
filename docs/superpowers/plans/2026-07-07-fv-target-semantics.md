@@ -387,7 +387,10 @@ surface. Remaining EVM work is E3.
   now have reusable call-stack preservation lemmas for `SHL`, `NOT`, `SUB`,
   `SLOAD`, `AND`, `OR`, and `SSTORE`, so the remaining prefix proof can compose
   local opcode facts instead of rebuilding each branch inside the entrypoint
-  theorem.
+  theorem. `counterCallStack_of_initialize_tail_stepFE_ok` already composes the
+  `SLOAD; AND; OR; PUSH0; SSTORE` tail into a reusable call-stack segment, so
+  the remaining body proof only has to connect the first body opcode to the
+  SLOAD state and append that tail segment.
   `counterRunBytecode_initialize_dispatcher_body_and_return_ok` now prepends
   the initialize selector dispatcher plus trampoline path to that body+return
   bridge through `StepFEPath`, proving a 36-fuel `runBytecode` path from PC0 to

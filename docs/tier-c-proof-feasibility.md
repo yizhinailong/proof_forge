@@ -465,6 +465,10 @@ ProofForge's default build still avoids powdr/mathlib imports.
     lemmas for `SHL`, `NOT`, `SUB`, `SLOAD`, `AND`, `OR`, and `SSTORE`, so the
     remaining prefix proof can compose those local facts instead of rebuilding
     each opcode branch inside the entrypoint theorem.
+    `counterCallStack_of_initialize_tail_stepFE_ok` already composes the
+    `SLOAD; AND; OR; PUSH0; SSTORE` tail into a reusable call-stack segment, so
+    the remaining body proof only has to connect the first body opcode to the
+    SLOAD state and append that tail segment.
     `counterRunBytecode_initialize_dispatcher_body_and_return_ok` now prepends
     the initialize selector dispatcher and trampoline through `StepFEPath`,
     yielding a 36-fuel `runBytecode` bridge from PC0 to the halted `.none`

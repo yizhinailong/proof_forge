@@ -4439,6 +4439,112 @@ theorem counterStorageValue_of_initialize_tail_stepFE_ok
     hprecompileSstore (counterPreparedInitializeSstore_decoded hatSstore)
     haddrSstore hsstoreStack rfl hstackOkSstore hgasSstore hsstore
 
+theorem counterCallStack_of_initialize_tail_stepFE_ok
+    {sloadState afterSload afterAnd afterOr sstoreState nextState : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (haddrSload : sloadState.executionEnv.address = counterContractAddress)
+    (hstack :
+      sloadState.stack =
+        counterCountSlot :: counterInitializeLowMask ::
+          counterInitializeSetValue :: rest)
+    (hatSload : counterCompiledStateAt sloadState (counterInitializeBodyOffset + 17))
+    (hreadySload :
+      counterStepFEReady sloadState
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps)))
+    (hsload : EvmSemantics.EVM.stepFE sloadState = .ok afterSload)
+    (hatAnd : counterCompiledStateAt afterSload (counterInitializeBodyOffset + 18))
+    (hreadyAnd :
+      counterStepFEReady afterSload
+        (.CompBit (.AND : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hand : EvmSemantics.EVM.stepFE afterSload = .ok afterAnd)
+    (hatOr : counterCompiledStateAt afterAnd (counterInitializeBodyOffset + 19))
+    (hreadyOr :
+      counterStepFEReady afterAnd
+        (.CompBit (.OR : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hor : EvmSemantics.EVM.stepFE afterAnd = .ok afterOr)
+    (hatPush :
+      counterCompiledStateAt afterOr (counterInitializeBodyOffset + 20))
+    (hreadyPush : counterStepFEReady afterOr (.Push counterPush0Op))
+    (hpush : EvmSemantics.EVM.stepFE afterOr = .ok sstoreState)
+    (hatSstore : counterCompiledStateAt sstoreState (counterInitializeBodyOffset + 21))
+    (hreadySstore :
+      counterStepFEReady sstoreState
+        (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps)))
+    (hsstore : EvmSemantics.EVM.stepFE sstoreState = .ok nextState) :
+    nextState.callStack = sloadState.callStack := by
+  rcases hreadySload with ⟨hrunningSload, hprecompileSload, hstackOkSload,
+    hgasSload⟩
+  rcases hreadyAnd with ⟨hrunningAnd, hprecompileAnd, hstackOkAnd, hgasAnd⟩
+  rcases hreadyOr with ⟨hrunningOr, hprecompileOr, hstackOkOr, hgasOr⟩
+  rcases hreadyPush with ⟨hrunningPush, hprecompilePush, hstackOkPush, hgasPush⟩
+  rcases hreadySstore with ⟨hrunningSstore, hprecompileSstore, hstackOkSstore,
+    hgasSstore⟩
+  have hsloadStack :
+      afterSload.stack =
+        counterStorageValue counterContractAddress counterCountSlot sloadState ::
+          counterInitializeLowMask :: counterInitializeSetValue :: rest :=
+    counterStack_of_stepFE_stackMemFlow_sload_ok hrunningSload
+      hprecompileSload (counterPreparedInitializeSload_decoded hatSload)
+      haddrSload hstack rfl hstackOkSload hgasSload hsload
+  have hsloadCallStack :
+      afterSload.callStack = sloadState.callStack :=
+    counterCallStack_of_stepFE_stackMemFlow_sload_ok hrunningSload
+      hprecompileSload (counterPreparedInitializeSload_decoded hatSload)
+      hstack hstackOkSload hgasSload hsload
+  have handStack :
+      afterAnd.stack =
+        EvmSemantics.UInt256.land
+          (counterStorageValue counterContractAddress counterCountSlot sloadState)
+          counterInitializeLowMask :: counterInitializeSetValue :: rest :=
+    counterStack_of_stepFE_compBit_and_ok hrunningAnd hprecompileAnd
+      (counterPreparedInitializeAnd_decoded hatAnd) hsloadStack hstackOkAnd
+      hgasAnd hand
+  have handCallStack : afterAnd.callStack = afterSload.callStack :=
+    counterCallStack_of_stepFE_compBit_and_ok hrunningAnd hprecompileAnd
+      (counterPreparedInitializeAnd_decoded hatAnd) hsloadStack hstackOkAnd
+      hgasAnd hand
+  have horStack :
+      afterOr.stack =
+        counterInitializeStorageWord
+          (counterStorageValue counterContractAddress counterCountSlot sloadState) ::
+          rest := by
+    rw [counterStack_of_stepFE_compBit_or_ok hrunningOr hprecompileOr
+      (counterPreparedInitializeOr_decoded hatOr) handStack hstackOkOr hgasOr hor]
+    change counterInitializeBodyWriteWord
+        (counterStorageValue counterContractAddress counterCountSlot sloadState) ::
+          rest =
+      counterInitializeStorageWord
+        (counterStorageValue counterContractAddress counterCountSlot sloadState) ::
+          rest
+    rw [counterInitializeBodyWriteWord_eq_storageWord]
+  have horCallStack : afterOr.callStack = afterAnd.callStack :=
+    counterCallStack_of_stepFE_compBit_or_ok hrunningOr hprecompileOr
+      (counterPreparedInitializeOr_decoded hatOr) handStack hstackOkOr hgasOr hor
+  have hpushState :=
+    counterState_of_stepFE_push0_ok hrunningPush hprecompilePush
+      (counterPreparedInitializeSstoreSlotPush0_decoded hatPush)
+      hstackOkPush hgasPush hpush
+  have hpushCallStack : sstoreState.callStack = afterOr.callStack := by
+    rw [hpushState]
+    simp [EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC]
+  have hsstoreStack :
+      sstoreState.stack =
+        counterCountSlot ::
+          counterInitializeStorageWord
+            (counterStorageValue counterContractAddress counterCountSlot sloadState) ::
+          rest := by
+    rw [hpushState, horStack, counterCountSlot_eq_zero]
+    simp [EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC]
+  have hsstoreCallStack : nextState.callStack = sstoreState.callStack :=
+    counterCallStack_of_stepFE_stackMemFlow_sstore_ok hrunningSstore
+      hprecompileSstore (counterPreparedInitializeSstore_decoded hatSstore)
+      hsstoreStack hstackOkSstore hgasSstore hsstore
+  exact hsstoreCallStack.trans
+    (hpushCallStack.trans
+      (horCallStack.trans (handCallStack.trans hsloadCallStack)))
+
 theorem counterStack_of_initialize_tail_stepFE_ok
     {sloadState afterSload afterAnd afterOr sstoreState nextState : EvmState}
     {rest : List EvmSemantics.UInt256}

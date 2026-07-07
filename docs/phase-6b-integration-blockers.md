@@ -481,6 +481,11 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   opcode-family call-stack preservation lemmas for the bit/arithmetic/storage
   opcodes needed to carry the prepared top-level `callStack` through the body
   prefix without duplicating a bespoke path proof per entrypoint.
+- `counterCallStack_of_initialize_tail_stepFE_ok` — green under
+  `lake build EvmRefinement`; the `SLOAD; AND; OR; PUSH0; SSTORE` tail now
+  composes those opcode-family call-stack lemmas into a reusable segment proof,
+  so the remaining body prefix only has to connect the first body opcode to the
+  SLOAD state and then append this tail segment.
 - `counterStack_of_initialize_tail_stepFE_to_sstore_ok` and
   `counterStack_of_initialize_body_stepFE_to_sstore_ok` — green under
   `lake build EvmRefinement`; the composed tail/body path now exposes the
