@@ -380,6 +380,8 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterStorageValue_of_initialize_sload_and_or_push_sstore_ok` stitches the
     SLOAD/AND/OR result through the final `PUSH0; SSTORE` and proves the
     resulting state writes the initialize storage model into Counter slot 0.
+    `counterStorageValue_of_initialize_body_helpers_ok` composes the complete
+    initialize-body helper sequence from the prefix through SSTORE.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).

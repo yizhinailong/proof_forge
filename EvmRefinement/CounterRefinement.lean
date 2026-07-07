@@ -642,6 +642,71 @@ theorem counterStorageValue_of_initialize_sload_and_or_push_sstore_ok
   exact counterStorageValue_of_sstore_stackMemFlow_ok haddrSstore
     hsstoreStack rfl hsstore
 
+theorem counterStorageValue_of_initialize_body_helpers_ok
+    {s0 g0 s1 g1 s2 g2 s3 g3 s4 g4 s5 g5 s6 g6 s7 g7 s8 g8
+      s9 g9 s10 g10 s11 g11 s12 sloadGas afterSload andGas afterAnd
+      orGas afterOr pushGas sstoreState sstoreGas nextState : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (haddrSload : s12.executionEnv.address = counterContractAddress)
+    (haddrSstore : sstoreState.executionEnv.address = counterContractAddress)
+    (h0 : s0.stack = rest)
+    (hp0 :
+      EvmSemantics.EVM.stepF.push s0 g0 counterPush0Op none = .ok s1)
+    (hp192a :
+      EvmSemantics.EVM.stepF.push s1 g1 counterPush1Op
+        (some (EvmSemantics.UInt256.ofNat 192, 1)) = .ok s2)
+    (hshlSet :
+      EvmSemantics.EVM.stepF.compBit s2 g2
+        (.SHL : EvmSemantics.Operation.CompareBitwiseOps) = .ok s3)
+    (hp1a :
+      EvmSemantics.EVM.stepF.push s3 g3 counterPush1Op
+        (some (EvmSemantics.UInt256.ofNat 1, 1)) = .ok s4)
+    (hdup1 :
+      EvmSemantics.EVM.stepF.dup s4 g4 counterDup1Op = .ok s5)
+    (hp64 :
+      EvmSemantics.EVM.stepF.push s5 g5 counterPush1Op
+        (some (EvmSemantics.UInt256.ofNat 64, 1)) = .ok s6)
+    (hshl64 :
+      EvmSemantics.EVM.stepF.compBit s6 g6
+        (.SHL : EvmSemantics.Operation.CompareBitwiseOps) = .ok s7)
+    (hsub :
+      EvmSemantics.EVM.stepF.stopArith s7 g7
+        (.SUB : EvmSemantics.Operation.StopArithOps) = .ok s8)
+    (hp192b :
+      EvmSemantics.EVM.stepF.push s8 g8 counterPush1Op
+        (some (EvmSemantics.UInt256.ofNat 192, 1)) = .ok s9)
+    (hshlMask :
+      EvmSemantics.EVM.stepF.compBit s9 g9
+        (.SHL : EvmSemantics.Operation.CompareBitwiseOps) = .ok s10)
+    (hnot :
+      EvmSemantics.EVM.stepF.compBit s10 g10
+        (.NOT : EvmSemantics.Operation.CompareBitwiseOps) = .ok s11)
+    (hp0Slot :
+      EvmSemantics.EVM.stepF.push s11 g11 counterPush0Op none = .ok s12)
+    (hsload :
+      EvmSemantics.EVM.stepF.stackMemFlow s12 sloadGas
+        (.SLOAD : EvmSemantics.Operation.StackMemFlowOps) = .ok afterSload)
+    (hand :
+      EvmSemantics.EVM.stepF.compBit afterSload andGas
+        (.AND : EvmSemantics.Operation.CompareBitwiseOps) = .ok afterAnd)
+    (hor :
+      EvmSemantics.EVM.stepF.compBit afterAnd orGas
+        (.OR : EvmSemantics.Operation.CompareBitwiseOps) = .ok afterOr)
+    (hpushSlot :
+      EvmSemantics.EVM.stepF.push afterOr pushGas counterPush0Op none =
+        .ok sstoreState)
+    (hsstore :
+      EvmSemantics.EVM.stepF.stackMemFlow sstoreState sstoreGas
+        (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) = .ok nextState) :
+    counterStorageValue counterContractAddress counterCountSlot nextState =
+      counterInitializeStorageWord
+        (counterStorageValue counterContractAddress counterCountSlot s12) := by
+  have hsloadStack :=
+    counterStack_of_initialize_prefix_to_sload_ok h0 hp0 hp192a hshlSet
+      hp1a hdup1 hp64 hshl64 hsub hp192b hshlMask hnot hp0Slot
+  exact counterStorageValue_of_initialize_sload_and_or_push_sstore_ok
+    haddrSload haddrSstore hsloadStack hsload hand hor hpushSlot hsstore
+
 def irCounterCount? (state : IRState) : Option Nat :=
   match state.read "count" with
   | some (.u64 count) => some count
