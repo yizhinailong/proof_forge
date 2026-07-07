@@ -24,6 +24,8 @@ abbrev ExecutionSegment :=
   ProofForge.Backend.Evm.PowdrExec.ExecutionSegment
 abbrev SegmentProvider :=
   ProofForge.Backend.Evm.PowdrExec.SegmentProvider
+abbrev ReductionChainProvider :=
+  ProofForge.Backend.Evm.PowdrExec.ReductionChainProvider
 abbrev UInt256 := EvmSemantics.UInt256
 abbrev Operation := EvmSemantics.Operation
 
@@ -222,19 +224,26 @@ theorem twoSlotReader_getBalance_stepFEPath
   (twoSlotReader_getBalance_executionSegment hpushAt
     hsloadAt hsloadGas hstopAt).path
 
-def twoSlotReaderGetBalanceSegmentProvider :
-    SegmentProvider twoSlotReaderGetBalancePre 3
+def twoSlotReaderGetBalanceReductionChainProvider :
+    ReductionChainProvider twoSlotReaderGetBalancePre 3
       twoSlotReaderGetBalancePost where
-  segment := by
+  chain := by
     intro s0 hpre
     rcases hpre with
       ⟨hpushAt, hsloadAt, hsloadGas, hstopAt, _⟩
     refine
       ⟨stopPost
         (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushAt.ready)
-          hsloadGas), ?_⟩
-    exact twoSlotReader_getBalance_executionSegment hpushAt
-      hsloadAt hsloadGas hstopAt
+          hsloadGas), ?_, ?_⟩
+    · exact twoSlotReader_getBalance_reductionChain hpushAt
+        hsloadAt hsloadGas hstopAt
+    · exact ⟨hpushAt, hsloadAt, hsloadGas, hstopAt, rfl⟩
+
+def twoSlotReaderGetBalanceSegmentProvider :
+    SegmentProvider twoSlotReaderGetBalancePre 3
+      twoSlotReaderGetBalancePost :=
+  ProofForge.Backend.Evm.PowdrExec.segmentProvider_of_reductionChainProvider
+    twoSlotReaderGetBalanceReductionChainProvider
 
 theorem twoSlotReader_getBalance_runSteps_from_segmentProvider
     {s0 : State} (hpre : twoSlotReaderGetBalancePre s0) :
@@ -246,6 +255,17 @@ theorem twoSlotReader_getBalance_runSteps_from_segmentProvider
       twoSlotReaderGetBalancePost s0 finalState :=
   ProofForge.Backend.Evm.PowdrExec.runSteps_post_of_segmentProvider
     twoSlotReaderGetBalanceSegmentProvider hpre
+
+theorem twoSlotReader_getBalance_runSteps_from_reductionChainProvider
+    {s0 : State} (hpre : twoSlotReaderGetBalancePre s0) :
+    ∃ finalState,
+      ProofForge.Backend.Evm.PowdrExec.runSteps s0 3 =
+        .ok
+          (finalState,
+            (#[] : Array ProofForge.Backend.Evm.PowdrExec.ObservableStep)) ∧
+      twoSlotReaderGetBalancePost s0 finalState :=
+  ProofForge.Backend.Evm.PowdrExec.runSteps_post_of_reductionChainProvider
+    twoSlotReaderGetBalanceReductionChainProvider hpre
 
 theorem twoSlotReader_getBalance_runSteps
     {s0 : State}

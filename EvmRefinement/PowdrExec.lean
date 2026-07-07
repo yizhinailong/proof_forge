@@ -298,6 +298,37 @@ theorem executionSegment_of_reductionChain
     ExecutionSegment fuel post state finalState := by
   exact executionSegment_of_stepFEPath chain.path hpost
 
+structure ReductionChainProvider
+    (pre : State → Prop) (fuel : Nat)
+    (post : State → State → Prop) : Prop where
+  chain :
+    ∀ {state}, pre state →
+      ∃ finalState,
+        StepFEReductionChain state fuel finalState ∧
+          post state finalState
+
+theorem segmentProvider_of_reductionChainProvider
+    {pre : State → Prop} {fuel : Nat}
+    {post : State → State → Prop}
+    (provider : ReductionChainProvider pre fuel post) :
+    SegmentProvider pre fuel post where
+  segment := by
+    intro state hpre
+    obtain ⟨finalState, chain, hpost⟩ := provider.chain hpre
+    exact ⟨finalState,
+      executionSegment_of_reductionChain chain hpost⟩
+
+theorem runSteps_post_of_reductionChainProvider
+    {pre : State → Prop} {fuel : Nat}
+    {post : State → State → Prop} {state : State}
+    (provider : ReductionChainProvider pre fuel post) (hpre : pre state) :
+    ∃ finalState,
+      runSteps state fuel =
+        .ok (finalState, (#[] : Array ObservableStep)) ∧
+      post state finalState := by
+  exact runSteps_post_of_segmentProvider
+    (segmentProvider_of_reductionChainProvider provider) hpre
+
 theorem stepFEPath_two {s0 s1 s2 : State}
     (hr0 : s0.halt = .Running)
     (h0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
