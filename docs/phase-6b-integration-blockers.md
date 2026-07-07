@@ -172,7 +172,11 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   fuel-bounded execution to powdr `Steps`.
 - `EvmRefinement/CounterRefinement.lean` — opt-in Counter relation layer that
   maps IR `count` to the powdr account storage word at ProofForge's EVM scalar
-  slot 0.
+  slot 0, embeds the current CLI-generated Counter runtime bytecode witness,
+  proves its selector offsets, and exposes the compiled-runtime powdr config.
+- `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
+  — opt-in drift gate that regenerates the Counter runtime and checks it still
+  matches the embedded powdr witness.
 - `ProofForge/Backend/Evm/Refinement.lean` — **NOT modified** (no theorem
   touched; wiring is Phase 6c).
 - `ProofForge/IR/StepSemantics.lean` — **NOT modified** (Phase 6a
@@ -186,6 +190,8 @@ Yul→bytecode `solc` step as an explicit trust boundary.
 - `lake build proof-forge` — green; default target does not build powdr/mathlib.
 - `lake build EvmRefinement` — green; builds the opt-in powdr/mathlib adapter
   target.
+- `just evm-powdr-counter-runtime` — green; generated Counter runtime matches
+  the embedded powdr witness.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 

@@ -144,6 +144,10 @@ evm-bytecode-semantics-smoke:
 evm-powdr-adapter:
     lake build EvmRefinement
 
+# Check that the generated Counter runtime matches the embedded powdr witness.
+evm-powdr-counter-runtime: build
+    scripts/evm/powdr-counter-runtime-smoke.sh
+
 # Check the three-valued ExecResult (ok/reverted/error) classification for
 # the IR reference semantics (FV-2 revert-model prerequisite).
 ir-exec-result-smoke:

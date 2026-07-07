@@ -176,12 +176,15 @@ surface. Remaining EVM work is E3.
   IR `count` ↔ powdr `AccountMap`/`Storage` relation over `UInt256`, and proves the
   relation after writing `count`. It also defines selector calldata plus
   `prepareCounterCall`, a runtime-bytecode-parameterized powdr frame setup for Counter
-  calls, and proves that preparation preserves `CounterStorageRel`. It now exposes
+  calls, and proves that preparation preserves `CounterStorageRel`. It also embeds the
+  current CLI-generated Counter runtime bytecode as `counterCompiledRuntimeCode`, proves
+  its size and selector offsets, exposes `counterCompiledPowdrConfig`, and adds the
+  opt-in `just evm-powdr-counter-runtime` drift gate. It now exposes
   `counterPowdrTraceStep` / `counterPowdrTargetSemantics`, which run prepared Counter
   calls through powdr `runBytecode`, project EVM results to Counter observables, and prove
   successful trace steps are backed by powdr `Steps` with the stated observable projection;
-  the target semantics' `executableTraceOk` stays false until the real runtime artifact and
-  initial EVM state are bound. It also defines explicit
+  the target semantics' `executableTraceOk` stays false until the initial EVM state and
+  per-entrypoint obligations are bound. It also defines explicit
   `CounterPowdrEntrypointObligations` for `initialize`/`increment`/`get` and proves
   `counterPowdr_trace_simulates_from_obligations`: those three powdr bytecode obligations
   are sufficient to obtain the universal Counter trace simulation through the shared

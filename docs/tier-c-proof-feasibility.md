@@ -298,10 +298,14 @@ ProofForge's default build still avoids powdr/mathlib imports.
     proves `count` is EVM scalar slot 0 and relates IR `count` to powdr
     `AccountMap`/`Storage` over `UInt256`. It also prepares runtime-code
     parameterized Counter call frames and proves that preparation preserves the
-    storage relation. The module now exposes a powdr-backed Counter trace-step
-    surface and proves successful trace steps are backed by powdr `Steps` plus
-    the stated observable projection; the executable trace gate remains disabled
-    until it is bound to the real runtime artifact and initial EVM state. It
+    storage relation. It now embeds the current CLI-generated Counter runtime
+    bytecode witness, proves its size and selector offsets, exposes
+    `counterCompiledPowdrConfig`, and adds the opt-in
+    `just evm-powdr-counter-runtime` drift gate. The module now exposes a
+    powdr-backed Counter trace-step surface and proves successful trace steps
+    are backed by powdr `Steps` plus the stated observable projection; the
+    executable trace gate remains disabled
+    until it is bound to the initial EVM state and per-entrypoint obligations. It
     also exposes the three per-entrypoint powdr obligations and proves that, if
     they hold, the shared trace induction yields universal Counter trace
     simulation. `initialize` is now the relation-establishing entrypoint:
