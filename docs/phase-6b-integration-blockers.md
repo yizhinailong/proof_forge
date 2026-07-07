@@ -240,7 +240,16 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   `counterStack_of_stepFE_compBit_or_ok`,
   `counterStorageValue_of_stepFE_stackMemFlow_sstore_ok`, tail decode facts
   through `SSTORE`, and `counterStorageValue_of_initialize_tail_stepFE_ok`
-  prove the tail writes the initialize storage model value.
+  prove the tail writes the initialize storage model value. The trampoline is
+  bridged as well:
+  `counterCompiledRuntimeCode_decodes_initialize_trampoline_*`,
+  `counterPreparedInitializeTrampoline*_decoded`,
+  `counterState_of_stepFE_stackMemFlow_jumpdest_ok`,
+  `counterState_of_stepFE_stackMemFlow_jump_ok`,
+  `counterState_of_initialize_trampoline_stepFE_to_body_ok`, and
+  `counterState_of_initialize_body_jumpdest_stepFE_to_first_opcode_ok` prove
+  the concrete top-level `stepFE` trampoline lands at the initialize body and
+  advances to the first body opcode.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -340,6 +349,13 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   `lake build EvmRefinement`; the tail bridge now composes concrete top-level
   `stepFE` executions through SLOAD/AND/OR/PUSH0/SSTORE and proves the
   initialize storage model is written.
+- `counterCompiledRuntimeCode_decodes_initialize_trampoline_*`,
+  `counterPreparedInitializeTrampoline*_decoded`,
+  `counterState_of_initialize_trampoline_stepFE_to_body_ok`, and
+  `counterState_of_initialize_body_jumpdest_stepFE_to_first_opcode_ok` — green
+  under `lake build EvmRefinement`; the top-level trampoline now reaches the
+  initialize body and advances to the first body opcode with the return address
+  preserved on the stack.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 
@@ -366,6 +382,6 @@ per-entrypoint obligation surface now also carries this boundary through
 `CounterStepSafe`, and the safe trace theorem carries it through universal trace
 induction. `CounterTraceSafeAtState` is the current state/input predicate form;
 the remaining Phase 6c work is to prove the compiled runtime's prepared-frame
-EVM-only powdr storage models, starting with the dispatcher/JUMPDEST path to the
-proven initialize-body sequence and instantiating the prepared-frame initialize
-storage model.
+EVM-only powdr storage models, starting with the selector dispatcher path to the
+initialize trampoline and instantiating the prepared-frame initialize storage
+model.

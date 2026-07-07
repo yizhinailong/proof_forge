@@ -398,7 +398,11 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterStorageValue_of_stepFE_stackMemFlow_sstore_ok`, and
     `counterStorageValue_of_initialize_tail_stepFE_ok` extend the same
     top-level bridge through SLOAD/AND/OR/PUSH0/SSTORE and prove the tail writes
-    the initialize storage model value.
+    the initialize storage model value. The trampoline bridge now has concrete
+    decode facts plus `counterState_of_initialize_trampoline_stepFE_to_body_ok`
+    and `counterState_of_initialize_body_jumpdest_stepFE_to_first_opcode_ok`,
+    proving the top-level `stepFE` trampoline lands at the initialize body and
+    advances to the first body opcode.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
