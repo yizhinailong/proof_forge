@@ -812,20 +812,21 @@ A full feasibility assessment has been completed and is recorded in
   checks on *fixed* scenarios (Counter, ValueVault, etc.), not universally-quantified
   simulation proofs. `ValueVaultInvariant.lean` checks the accounting invariant for the
   *default* inputs only, not for all `ScenarioInputs`.
-- **Target semantics.** The Lean 4 EVM+Yul formal model is
-  [`leonardoalt/EVMYulLean`](https://github.com/leonardoalt/EVMYulLean) (Nethermind-maintained,
-  referenced by the powdr ecosystem). It is Lean 4, passes 22,330/22,332 (99.99%) of the
-  official `ethereum/tests` Cancun suite, models EVM bytecode at the opcode level
-  (`EVM.State`, `step`), and also covers Yul. It is a standalone semantics, not a
-  refinement framework — the simulation obligation is ProofForge's. Note: `powdr-labs/powdr`
-  is a *separate* Rust zkVM toolkit and is *not* the EVM semantics dependency.
+- **Target semantics.** The preferred Lean 4 EVM formal model is now
+  [`powdr-labs/evm-semantics`](https://github.com/powdr-labs/evm-semantics), which pins
+  Lean `v4.31.0` plus `mathlib @ v4.31.0` and exposes a relational EVM bytecode
+  semantics (`Step` / `Eval`) plus executable shadow `stepF`. It is a standalone
+  semantics, not a refinement framework — the simulation obligation is ProofForge's.
+  `EVMYulLean` remains a useful sibling/reference, but its v4.22 toolchain pin blocks it
+  as ProofForge's primary dependency today.
 - **Biggest blocker (IR side).** `IR.Semantics` is an interpreter
   (`runEntrypointWithArgs`), not a small-step `step : State → Option State` relation. A
   simulation proof requires an explicit step relation + induction principle. This is the
   first prerequisite and needs no new dependency.
 - **Second blocker (target side).** The in-tree `Evm.YulSemantics` is a *pseudo*-Yul
   semantics (pseudo-keccak, simplified storage) not conformance-tested. A real Tier
-  C-proof wants the `EVMYulLean` bytecode `step`, which means adding a `lake` dependency.
+  C-proof wants the `powdr-labs/evm-semantics` bytecode `Step` relation plus executable
+  `stepF`, which means adding an opt-in `lake` dependency that pulls mathlib.
 - **Storage layout bridging.** IR flat `State` vs EVM 256-bit storage slots is currently
   encoded only implicitly in the lowering; `Evm.Plan.ModulePlan` storage layout is the
   right place to make it explicit (a side-benefit of the Tier B work).
@@ -851,28 +852,23 @@ A full feasibility assessment has been completed and is recorded in
   smoke. `Tests/IRStepSemantics.lean` + `just ir-step-semantics-smoke` (wired into
   `just check`) anchor the layer. See the Phase 6a "landed" note in
   [`docs/tier-c-proof-feasibility.md`](../tier-c-proof-feasibility.md).
-- **Phase 6b — Integrate `EVMYulLean` EVM bytecode semantics as a lake dependency.**
-  Add `leonardoalt/EVMYulLean` as a `require` in `lakefile.lean`; pull `EthereumTests`
-  submodule for CI-only conformance. Provide a thin adapter
-  `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` exposing `EVM.state`/`step` aligned
-  with `ObservableStep`. Deliverable: a conformance-tested EVM bytecode semantics callable
-  from Lean proofs.
-  **Status (2026-07-07): blocked — seam only.** The integration was investigated and found
-  blocked by a Lean toolchain + mathlib version mismatch: `EVMYulLean` pins
-  `leanprover/lean4:v4.22.0` + `mathlib4 @ v4.22.0`, while ProofForge pins
-  `leanprover/lean4:v4.31.0` and has no mathlib dep. A single lake workspace uses one
-  toolchain; mathlib v4.22.0 will not compile under lean v4.31.0, and ProofForge is NOT
-  downgraded (would break the 378-job build). The `require` entry was NOT added to
-  `lakefile.lean`; `lake build` stays green. A stub adapter
-  `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` was landed as the seam, with the
-  public surface (`State`, `step`, `runBytecode`, aligned to `Refinement.ObservableStep`)
-  fixed by the stub and `sorry`-free stub theorems (`step_noop`, `runBytecode_empty`). The
-  full blocker record, the exact pinned-`commit` `require` syntax that would be used, and
-  the resolution path (wait for EVMYulLean to pin a ProofForge-compatible Lean toolchain +
-  matching mathlib tag, then add the `require` and `lake update` in an environment with
-  network access) are in [`docs/phase-6b-integration-blockers.md`](../phase-6b-integration-blockers.md).
-  No `Refinement.lean` theorem was touched (wiring is Phase 6c); no smoke gate was added
-  (per the task, the smoke is added only if integration succeeded).
+- **Phase 6b — Integrate `powdr-labs/evm-semantics` as an opt-in EVM refinement target.**
+  Add `powdr-labs/evm-semantics` as a pinned, opt-in `lake` dependency for EVM
+  refinement modules only; keep the default build mathlib-free. Provide a thin adapter
+  `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` exposing powdr's `State` / `Step` /
+  executable `stepF` aligned with `ObservableStep`. Deliverable: a conformance-gated EVM
+  bytecode semantics callable from Lean proofs.
+  **Status (2026-07-07): preferred target selected — seam only.** The earlier
+  `EVMYulLean` route was investigated and blocked by a Lean toolchain + mathlib version
+  mismatch (`v4.22.0` vs ProofForge's `v4.31.0`). The `require` entry was NOT added to
+  `lakefile.lean`; `lake build` stays green. The seam now mirrors
+  `powdr-labs/evm-semantics`: a stub `State`, relational `Step`, executable-shadow
+  `stepF`, `runBytecode`, and sorry-free stub theorems (`stepF_sound`, `step_noop`,
+  `runBytecode_empty`). The remaining work is to pin powdr behind an opt-in target, keep
+  mathlib out of the default target graph, and replace the stub bodies with real
+  `EvmSemantics` imports. Confirm whether powdr exposes a Yul-level relation; otherwise
+  the Yul→bytecode `solc` step remains an explicit trust boundary. See
+  [tier-c-proof-feasibility.md §2](../tier-c-proof-feasibility.md).
 - **Phase 6c — Prove IR → bytecode refinement for Counter.** Define the simulation relation
   `R : IR.State ↔ EVM.State` for the Counter module (single U64 scalar → one storage slot);
   prove `R`-simulation for `initialize`/`increment`/`get`; lift to a trace theorem by
@@ -911,8 +907,8 @@ A full feasibility assessment has been completed and is recorded in
   `Tests/IRStepSemantics.lean`, `just ir-step-semantics-smoke` (wired into `just check`),
   `ProofForge/Backend/Evm/Refinement.lean` bridge theorems
   (`counter_ir_trace_matches_inductive`, `value_vault_ir_trace_matches_inductive`).
-  Future: `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` (6b),
-  `lakefile.lean` `EVMYulLean` dependency (6b).
+  Future: opt-in `powdr-labs/evm-semantics` lake target (6b) and real
+  `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` powdr adapter bodies (6b).
 
 **Risks:** overstating what is "proven" — Path 5a is differential testing
 (Tier C-diff), not a proof; Path 5b's current `Evm.Refinement`/`ValueVaultInvariant`
@@ -923,8 +919,9 @@ no-new-dependency first step.
 **Scope cut:** Tier C-proof for Solana (full syscall semantics in Lean — no
 off-the-shelf formal sBPF semantics exists). Tier C-proof for NEAR/Psy likewise
 deferred pending formal target semantics; they stay in Tier C-diff. Full
-`ethereum/tests` coverage and all EVM opcodes are out of scope — conformance is
-`EVMYulLean`'s job; ProofForge only needs its adapter to be correct.
+EVM conformance-suite coverage and all EVM opcodes are out of scope for this RFC —
+conformance belongs to the external EVM semantics package; ProofForge only needs its
+adapter and simulation proofs to be correct.
 
 ### Phase 6–7 (stretch)
 

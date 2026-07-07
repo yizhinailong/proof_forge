@@ -215,7 +215,7 @@ NEAR offline-host、Solana 待建，见 Track 1.3），或 **(b) 直接引入已
 
 | 目标 | VM/语言 | 有 Lean 4 语义? | 来源 | FV 价值 | 现状 |
 |---|---|---|---|---|---|
-| EVM | EVM/Yul | ✓ | `leonardoalt/EVMYulLean`（22330/22332 符合性） | 高 | 已在 Phase 6b，卡工具链 |
+| EVM | EVM/Yul | ✓ | `powdr-labs/evm-semantics`（Lean v4.31，与本仓一致，**首选**；关系 `Step`+可执行 `stepF`）或 `EVMYulLean`（v4.22，卡工具链） | 高 | Phase 6b **可解锁**：refinement target 换成 powdr 即可 |
 | **Cairo / Starknet** | Cairo/Sierra/CASM | ✓ | `starkware-libs/formal-proofs`（Lean 4 主目录：Cairo VM/CPU 语义 + proof-producing compiler） | 高 | **仓库只当 sourcegen，漏了 Lean 语义** |
 | **Noir / Aztec** | Noir/ACIR | ✓ | Reilabs `Lampe`（Noir→Lean 4）；NAVe（ACIR） | 高 | **仓库完全没有** |
 | JAR PVM | RV64E/PVM2（RISC-V） | ✓ | JAR 自带 Lean 4 spec（`Jar.PVM2.*`） | 中高 | 已有 docs-first 计划 |
@@ -256,9 +256,9 @@ docs-first target note 才能进 tier。它们证明"WASM 家族"确实很大—
 "Lean 语义已存在"的目标：
 
 - **Cairo/Starknet（升级为双路）**：除现有 sourcegen（Road 1），加一条 **FV 路**——把
-  `starkware-libs/formal-proofs` 的 Cairo VM 语义作为 refinement target（类比 EVMYulLean
-  之于 EVM）。让 Starknet 从"sourcegen 目标"升级成"可 C-proof 目标"。前置：Track 1.2
-  统一 refinement 契约。
+  `starkware-libs/formal-proofs` 的 Cairo VM 语义作为 refinement target（类比
+  `powdr-labs/evm-semantics` 之于 EVM）。让 Starknet 从"sourcegen 目标"升级成
+  "可 C-proof 目标"。前置：Track 1.2 统一 refinement 契约。
 - **Noir/Aztec（新目标类别）**：ProofForge IR → Noir/ACIR，用 Lampe 的 Noir Lean 语义
   做 refinement。与 `psy-dpn`（ZK circuit sourcegen）是姊妹，但 Noir 有现成 Lean 语义，
   FV 价值更高。先补 docs-first target note + zk 相关 capability。
@@ -267,8 +267,9 @@ docs-first target note 才能进 tier。它们证明"WASM 家族"确实很大—
 
 **第三个 keystone**：除"IR 解释器 total 化"（FV 总开关）与"HostBridge 驱动的统一
 EmitWat"（扩链总开关），再加 **Track 1.2 统一 refinement 契约必须先落**——只有它落了，
-才能把 EVMYulLean / Cairo formal-proofs / Lampe 这些**外部 Lean 语义作为可插拔的
-refinement target** 接进来。三者分别打通：可验证、扩链广度、**外部语义复用**。
+才能把 `powdr-labs/evm-semantics` / Cairo formal-proofs / Lampe 这些**外部 Lean
+语义作为可插拔的 refinement target** 接进来。三者分别打通：可验证、扩链广度、
+**外部语义复用**。
 
 ### 6.5 落地动作（docs-first，接现有 target 入库流程）
 
@@ -290,7 +291,7 @@ refinement target** 接进来。三者分别打通：可验证、扩链广度、
 
 | 目标 | 家族 | Lean 4 语义 | 仓库状态 | FV 路径 |
 |---|---|---|---|---|
-| EVM | 直接编译/bytecode | ✓ EVMYulLean | 生产 | **引入外部语义** |
+| EVM | 直接编译/bytecode | ✓ `powdr-labs/evm-semantics`（首选，v4.31 兼容）/ EVMYulLean | 生产 | **引入外部语义** |
 | Solana sBPF | 直接编译/bytecode | ✗ | 生产 | 自建（Track 1.3） |
 | JAR PVM | 直接编译/RISC-V | ✓ JAR 自带 spec | docs 计划 | **引入外部语义** |
 | NEAR | WASM-host | ✗ | 生产 | 自建 / C-diff |
@@ -329,8 +330,8 @@ refinement target** 接进来。三者分别打通：可验证、扩链广度、
   Silverscript/ZK SDK 发布。
 - **别把"有形式语义"等同于"有 Lean 语义"**：Tezos Michelson 有 Coq（`Mi-Cho-Coq`）、
   Cardano Plutus 有 Agda（`plutus-metatheory`）——**都不是 Lean**，移植到 Lean 4 是研究
-  级工作，远贵于 EVMYulLean 那种"加一个 lake 依赖"。所以真正"Lean-语义-就绪"的集合仍是
-  精确的四个：**EVM、Cairo、Noir、JAR PVM**。
+  级工作，远贵于 `powdr-labs/evm-semantics` 那种"加 opt-in lake 依赖"。所以真正
+  "Lean-语义-就绪"的集合仍是精确的四个：**EVM、Cairo、Noir、JAR PVM**。
 
 **修订后的目标车道（三条并行）**：
 1. **Lean-语义-就绪 FV 车道**（最高 FV 价值）：EVM → Cairo（升级双路）→ Noir（新）→ JAR。
@@ -470,7 +471,7 @@ checked/renamed Counter。对应 smoke：`just ir-counter-semantics-smoke`、
 > `  observe(target(module,input)) = observe(IR(module,input))`，片段外编译期拒绝。
 
 **一条谓词 + 一条全称定理，覆盖片段内无穷多合约**；换链 = 换一份目标 Lean 语义（自建，
-或引入 EVMYulLean / Cairo formal-proofs / Lampe，见第六节）+ 重新实例化同一
+或引入 `powdr-labs/evm-semantics` / Cairo formal-proofs / Lampe，见第六节）+ 重新实例化同一
 `TargetSemantics` 接口（P1）。这才是 IR 通吃所有链的机制，而不是 fixture 堆叠。
 
 **修订依赖顺序（取代 7.5 的图）**：
@@ -484,3 +485,36 @@ P1 共享接口
 **诚实边界**：全称也只覆盖**支持片段**，非任意图灵完备逻辑；全套链运行时
 （CPI/syscall/Promise/账户模型）永远留外部差分（Mollusk/wasmtime），是 non-goal。
 "覆盖所有链" = "覆盖每条链的支持片段、全称，片段外拒绝"，不是"任意合约都能证"。
+
+### 7.7 引入 vs 自建：自建目标别啃完整 VM（两跳信任 + 外部差分门必留）
+
+参照 EVM 用 `powdr-labs/evm-semantics` 的做法后，一个必须记清的区分——否则实现时容易
+误以为要在 Lean 里啃完整 sBPF/WASM VM：
+
+- **EVM = 引入**：`powdr-labs/evm-semantics` 现成（Lean v4.31，与本仓一致；关系 `Step` +
+  可执行 `stepF`），挂 **opt-in lake 依赖**、对它的关系 `Step` 证精化——**不自己写 EVM 语义**。
+- **Solana / WASM = 自建，但只建片段**：无现成 Lean 语义，写解释器（S1/W2）；但**自建 ≠
+  重写完整 VM**，只 model 被下降到的指令 + host 子集（ALU / 存储 / 控制流）。完整 VM
+  （Solana CPI/PDA/syscall/账户模型；NEAR Promise/async）留外部门（见 7.1/7.2 非目标）。
+  是**小而可审计的片段解释器，不是链 runtime**。
+
+**两跳信任（自建的代价，外部差分门必须永久保留）**：
+
+- **引入（EVM）**：powdr 的 `Step` 拿 `ethereum/tests` 测过 → "Lean 模型 ≈ 真 EVM"是它的
+  活；你只证**一跳** `IR ⟷ powdr Step`。
+- **自建（Solana/WASM）**：你证 `IR ⟷ 你的解释器`（纯 Lean、无 mathlib、可控）；但"你的
+  解释器 ≈ 真机"这**第二跳不在 Lean 里证**，靠**外部差分门**（Mollusk/Surfpool；
+  wasmtime/offline-host）兜。**自建目标永远不能删/弱化这个门**——它是唯一能抓到手写解释器
+  和真机悄悄发散的东西。
+
+**WASM 专属备注**：WASM 是标准化 ISA，将来若出现成熟的 Lean 4 WASM 语义，核心部分可切成
+"引入"（像 EVM 那样）；但 **host 部分（NEAR `env.storage_read`/`value_return` 等）是链专属，
+无论如何都得自建**。所以 WASM = "核心也许将来能引入 + host 永远自建"，Solana 目前 = "全自建"。
+
+不管引入还是自建，都插进同一个 `TargetSemantics` 接口（P1）：关系 `Step`（供 C-proof 归纳）
++ 可执行 `step`/`stepF`（供 C-diff `native_decide`）。**自建的也照抄 powdr 的"关系 + 可执行"
+双结构。**
+
+**战略含义**：有现成 Lean 语义的链（EVM/Cairo/Noir/JAR）验证便宜（引入 + 一跳信任）；没有的
+（Solana/WASM/Move）要自建（写片段解释器 + 两跳信任 + 永留外部门）。规划 FV 优先级时，优先
+推有现成语义的那批。

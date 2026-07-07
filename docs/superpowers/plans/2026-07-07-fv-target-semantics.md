@@ -31,6 +31,35 @@ W1–W5 are therefore doable now; the C-proof tasks (S6/W6) are a later layer on
 Solana CPI / PDA derivation / account-validation prologue → Mollusk/Surfpool.
 NEAR Promise / async / cross-contract → `runtime/offline-host` + wasmtime.
 
+**Import vs self-build — do NOT over-scope the self-built targets.** The EVM lane and the
+Solana/WASM lanes differ in one fundamental way:
+
+- **EVM = import (do not write EVM semantics).** A Lean 4 EVM semantics already exists —
+  `powdr-labs/evm-semantics` (Lean `v4.31.0`, toolchain-compatible; relational `Step` plus
+  an executable `stepF`). Add it as an **opt-in lake dependency** and refine the IR against
+  its relational `Step`. See
+  [tier-c-proof-feasibility.md §2](../../tier-c-proof-feasibility.md).
+- **Solana / WASM = self-build, but ONLY the fragment.** No off-the-shelf Lean semantics
+  exists, so you write the interpreter (S1 / W2) — but **self-build ≠ reimplement the whole
+  VM**. Model ONLY the instruction + host subset the lowering emits (ALU, storage,
+  control-flow). The full VM (Solana CPI/PDA/syscalls/account-model; NEAR Promise/async)
+  stays OUT, in the external gate (Non-goals above). It is a small, auditable fragment
+  interpreter, not a chain runtime.
+
+**Two-hop trust for self-built targets — the external differential gate stays forever.**
+- Import (EVM): powdr's `Step` is conformance-tested against `ethereum/tests`, so "Lean
+  model ≈ real EVM" is powdr's job; you prove ONE hop: IR ⟷ powdr `Step`.
+- Self-build (Solana/WASM): you prove IR ⟷ your interpreter (pure Lean, no mathlib). But
+  "your interpreter ≈ the real VM" is a SECOND hop that is **not** proven in Lean — it is
+  checked by the external differential gate (Mollusk/Surfpool for sBPF, wasmtime /
+  offline-host for Wasm). **Never delete or weaken that gate for a self-built target**; it
+  is the only thing that catches a hand-written interpreter diverging from the real runtime.
+
+Whether import or self-build, both plug into the SAME `TargetSemantics` interface (P1):
+a relational `Step` (for the C-proof induction) + an executable `step` / `stepF` (for the
+C-diff `native_decide`). Adopt powdr's dual relational+executable shape for the self-built
+interpreters too.
+
 ## Task graph
 
 ```text
