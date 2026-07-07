@@ -296,7 +296,9 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `runBytecode` executions imply powdr `Steps`.
   - `EvmRefinement/CounterRefinement.lean` — opt-in Counter relation layer that
     proves `count` is EVM scalar slot 0 and relates IR `count` to powdr
-    `AccountMap`/`Storage` over `UInt256`.
+    `AccountMap`/`Storage` over `UInt256`. It also prepares runtime-code
+    parameterized Counter call frames and proves that preparation preserves the
+    storage relation.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).

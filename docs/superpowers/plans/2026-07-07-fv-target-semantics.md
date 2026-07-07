@@ -174,11 +174,14 @@ surface. Remaining EVM work is E3.
 - **Progress:** `EvmRefinement/CounterRefinement.lean` now starts the E3 relation layer:
   it proves the ProofForge EVM layout maps Counter `count` to scalar slot 0, defines the
   IR `count` ↔ powdr `AccountMap`/`Storage` relation over `UInt256`, and proves the
-  relation after writing `count`. `EvmRefinement/PowdrAdapter.lean` also proves
-  `runBytecode_steps`: every successful fuel-bounded executable run is backed by powdr's
-  relational `Steps` closure. The pinned powdr tree has no Yul-level semantics module, so
-  ProofForge's Yul→bytecode `solc` hop remains an explicit trust boundary. The remaining
-  E3 work is the powdr bytecode per-entrypoint simulation plus the universal trace lift.
+  relation after writing `count`. It also defines selector calldata plus
+  `prepareCounterCall`, a runtime-bytecode-parameterized powdr frame setup for Counter
+  calls, and proves that preparation preserves `CounterStorageRel`.
+  `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
+  fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
+  powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
+  remains an explicit trust boundary. The remaining E3 work is the powdr bytecode
+  per-entrypoint simulation plus the universal trace lift.
 - **Acceptance:** a universally-quantified refinement theorem (IR Counter ⟷ powdr EVM
   `Step`, by `induction`, **not** `native_decide`) type-checks under the opt-in target;
   `docs/formal-verification.md` EVM Tier C-proof row updated from aspirational/blocked to

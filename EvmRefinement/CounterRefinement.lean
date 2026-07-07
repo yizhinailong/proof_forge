@@ -17,6 +17,7 @@ open ProofForge.IR.Semantics
 
 abbrev IRState := ProofForge.IR.Semantics.State
 abbrev EvmState := ProofForge.Backend.Evm.PowdrAdapter.State
+abbrev CounterCall := ProofForge.Backend.Refinement.CounterUniversal.CounterCall
 
 def counterCountSlotNat : Nat := 0
 
@@ -92,5 +93,81 @@ theorem counterStorageRel_set_count (irState : IRState) (evmState : EvmState)
       (irState.write "count" (.u64 count))
       (setCounterStorage counterContractAddress counterCountSlot evmState count) :=
   counterStorageRelAt_set_count counterContractAddress counterCountSlot irState evmState count
+
+def counterCallSelector : CounterCall → String
+  | .initialize => "8129fc1c"
+  | .increment => "d09de08a"
+  | .get => "6d4ce63c"
+
+theorem counterCallSelector_matches_entrypoint (call : CounterCall) :
+    call.entrypoint.selector? = some (counterCallSelector call) := by
+  cases call <;> rfl
+
+def counterCallCalldata : CounterCall → ByteArray
+  | .initialize => ByteArray.mk #[0x81, 0x29, 0xfc, 0x1c]
+  | .increment => ByteArray.mk #[0xd0, 0x9d, 0xe0, 0x8a]
+  | .get => ByteArray.mk #[0x6d, 0x4c, 0xe6, 0x3c]
+
+theorem counterCallCalldata_size (call : CounterCall) :
+    (counterCallCalldata call).size = 4 := by
+  cases call <;> rfl
+
+def installCounterRuntimeCode (runtimeCode : ByteArray) (state : EvmState) :
+    EvmState :=
+  let account := state.accountMap counterContractAddress
+  { state with
+    accountMap := state.accountMap.set counterContractAddress
+      { account with code := runtimeCode } }
+
+/-- Prepare a top-level powdr frame for executing one Counter selector.
+
+The runtime bytecode is an explicit parameter: the later proof should pass the
+actual ProofForge EVM artifact bytes here, rather than replacing the compiler
+pipeline with a handwritten bytecode fixture. -/
+def prepareCounterCall (runtimeCode : ByteArray) (call : CounterCall)
+    (state : EvmState) : EvmState :=
+  let state := installCounterRuntimeCode runtimeCode state
+  { state with
+    activeWords := EvmSemantics.UInt256.ofNat 0
+    memory := ByteArray.empty
+    returnData := ByteArray.empty
+    hReturn := ByteArray.empty
+    executionEnv := {
+      state.executionEnv with
+        address := counterContractAddress
+        calldata := counterCallCalldata call
+        code := runtimeCode
+        codeAddr := counterContractAddress
+        permitStateMutation := true
+    }
+    pc := EvmSemantics.UInt256.ofNat 0
+    stack := []
+    execLength := 0
+    halt := .Running
+    callStack := [] }
+
+theorem counterStorageValue_installCounterRuntimeCode
+    (runtimeCode : ByteArray) (state : EvmState) :
+    counterStorageValue counterContractAddress counterCountSlot
+        (installCounterRuntimeCode runtimeCode state) =
+      counterStorageValue counterContractAddress counterCountSlot state := by
+  simp [installCounterRuntimeCode, counterStorageValue, counterAccount]
+
+theorem counterStorageValue_prepareCounterCall
+    (runtimeCode : ByteArray) (call : CounterCall) (state : EvmState) :
+    counterStorageValue counterContractAddress counterCountSlot
+        (prepareCounterCall runtimeCode call state) =
+      counterStorageValue counterContractAddress counterCountSlot state := by
+  simp [prepareCounterCall, counterStorageValue, counterAccount, installCounterRuntimeCode]
+
+theorem counterStorageRel_prepareCounterCall
+    {irState : IRState} {evmState : EvmState}
+    (runtimeCode : ByteArray) (call : CounterCall)
+    (hrel : CounterStorageRel irState evmState) :
+    CounterStorageRel irState (prepareCounterCall runtimeCode call evmState) := by
+  rcases hrel with ⟨count, hcount, hstorage⟩
+  refine ⟨count, hcount, ?_⟩
+  rw [counterStorageValue_prepareCounterCall]
+  exact hstorage
 
 end ProofForge.Backend.Evm.CounterRefinement
