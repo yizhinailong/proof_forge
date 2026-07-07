@@ -46,6 +46,12 @@ def counterPackedCountValue (count : Nat) : EvmSemantics.UInt256 :=
 def counterPaddedCountValue (count padding : Nat) : EvmSemantics.UInt256 :=
   EvmSemantics.UInt256.ofNat (counterPackedCountNat count + padding)
 
+def counterLowPaddingNat (word : EvmSemantics.UInt256) : Nat :=
+  word.toNat % counterU64StorageShift
+
+def counterInitializeStorageWord (word : EvmSemantics.UInt256) : EvmSemantics.UInt256 :=
+  counterPaddedCountValue 0 (counterLowPaddingNat word)
+
 /-- The generated runtime stores `count : U64` in the high 64 bits and leaves
 the lower 192 bits as padding/other-packed-field space. The relation therefore
 tracks the high-bit count while allowing arbitrary low padding. -/
@@ -64,6 +70,18 @@ theorem counterStorageWordRel_padded {count padding : Nat}
     (hpadding : padding < counterU64StorageShift) :
     CounterStorageWordRel (counterPaddedCountValue count padding) count := by
   exact ⟨padding, hpadding, rfl⟩
+
+theorem counterLowPaddingNat_lt (word : EvmSemantics.UInt256) :
+    counterLowPaddingNat word < counterU64StorageShift := by
+  unfold counterLowPaddingNat
+  have hshift : 0 < counterU64StorageShift := by
+    native_decide
+  exact Nat.mod_lt word.toNat hshift
+
+theorem counterInitializeStorageWord_rel_zero (word : EvmSemantics.UInt256) :
+    CounterStorageWordRel (counterInitializeStorageWord word) 0 := by
+  unfold counterInitializeStorageWord
+  exact counterStorageWordRel_padded (counterLowPaddingNat_lt word)
 
 /-- Placeholder contract account address for the storage relation.
 
@@ -921,6 +939,31 @@ structure CounterPowdrPreparedEvmPostconditions (cfg : PowdrCounterConfig) where
         counterPowdrPreparedTraceStep cfg preparedState .get = .ok (nextEvm, .u64 count) ∧
         CounterStorageWordRel
           (counterStorageValue counterContractAddress counterCountSlot nextEvm) count
+
+theorem counterPreparedInitializePostconditionOfStorageModel
+    (cfg : PowdrCounterConfig)
+    (hmodel :
+      ∀ {preparedState},
+        CounterPreparedCall cfg .initialize preparedState →
+        ∃ nextEvm,
+          counterPowdrPreparedTraceStep cfg preparedState .initialize =
+            .ok (nextEvm, .none) ∧
+          counterStorageValue counterContractAddress counterCountSlot nextEvm =
+            counterInitializeStorageWord
+              (counterStorageValue counterContractAddress counterCountSlot preparedState)) :
+    ∀ {preparedState},
+      CounterPreparedCall cfg .initialize preparedState →
+      ∃ nextEvm,
+        counterPowdrPreparedTraceStep cfg preparedState .initialize =
+          .ok (nextEvm, .none) ∧
+        CounterStorageWordRel
+          (counterStorageValue counterContractAddress counterCountSlot nextEvm) 0 := by
+  intro preparedState hprepared
+  obtain ⟨nextEvm, hstep, hstorage⟩ := hmodel hprepared
+  refine ⟨nextEvm, hstep, ?_⟩
+  rw [hstorage]
+  exact counterInitializeStorageWord_rel_zero
+    (counterStorageValue counterContractAddress counterCountSlot preparedState)
 
 def counterPowdrEvmPostconditionsOfPrepared
     (cfg : PowdrCounterConfig) (post : CounterPowdrPreparedEvmPostconditions cfg) :

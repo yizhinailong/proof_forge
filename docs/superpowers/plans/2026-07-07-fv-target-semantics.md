@@ -238,7 +238,11 @@ surface. Remaining EVM work is E3.
   `CounterPowdrPreparedEvmPostconditions` proves the bytecode facts on states
   already produced by `prepareCounterCall`, and
   `counterPowdrEvmPostconditionsOfPrepared` bridges those facts back to the
-  arbitrary pre-state wrapper used by `counterPowdrTraceStep`.
+  arbitrary pre-state wrapper used by `counterPowdrTraceStep`. For initialize,
+  `counterInitializeStorageWord` models the compiled body as "clear the high
+  64-bit count field, preserve low 192-bit padding", and
+  `counterPreparedInitializePostconditionOfStorageModel` turns that storage
+  model into the prepared-frame initialize postcondition.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop

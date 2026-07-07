@@ -197,7 +197,10 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   returns `0` even when the low 192 bits are nonzero.
   `CounterPowdrPreparedEvmPostconditions` and
   `counterPowdrEvmPostconditionsOfPrepared` split the hard proof into
-  prepared-frame bytecode facts plus the `prepareCounterCall` bridge.
+  prepared-frame bytecode facts plus the `prepareCounterCall` bridge. The
+  initialize slice now has `counterInitializeStorageWord` as the storage model
+  and `counterPreparedInitializePostconditionOfStorageModel` as the bridge from
+  that model to the prepared-frame postcondition.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -242,6 +245,10 @@ Yul→bytecode `solc` step as an explicit trust boundary.
 - `counterPowdrEvmPostconditionsOfPrepared` — green under
   `lake build EvmRefinement`; prepared-frame postconditions imply the ordinary
   arbitrary-pre-state postconditions used by `counterPowdrTraceStep`.
+- `counterPreparedInitializePostconditionOfStorageModel` — green under
+  `lake build EvmRefinement`; a powdr proof that initialize writes
+  `counterInitializeStorageWord` implies the prepared-frame initialize
+  postcondition.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 

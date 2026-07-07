@@ -358,6 +358,10 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `CounterPowdrPreparedEvmPostconditions` and
     `counterPowdrEvmPostconditionsOfPrepared` split those postconditions into
     prepared-frame bytecode facts plus the `prepareCounterCall` bridge.
+    `counterInitializeStorageWord` models the compiled initialize body as
+    high-64-bit count clear plus low-192-bit padding preservation, and
+    `counterPreparedInitializePostconditionOfStorageModel` turns that model into
+    the prepared-frame initialize postcondition.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
