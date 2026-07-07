@@ -173,8 +173,10 @@ surface. Remaining EVM work is E3.
   explicit trust boundary (the §2 granularity caveat).
 - **Progress:** `EvmRefinement/CounterRefinement.lean` now starts the E3 relation layer:
   it proves the ProofForge EVM layout maps Counter `count` to scalar slot 0, defines the
-  IR `count` ↔ powdr `AccountMap`/`Storage` relation over `UInt256`, and proves the
-  relation after writing `count`. It also defines selector calldata plus
+  IR `count` ↔ powdr `AccountMap`/`Storage` relation over the generated EVM packed
+  U64 slot word (`count * 2^192`, with `count < 2^64`), and proves the
+  relation after writing `count`. This corrected the earlier raw-`UInt256.ofNat count`
+  relation, which does not match the compiled runtime's `get`. It also defines selector calldata plus
   `prepareCounterCall`, a runtime-bytecode-parameterized powdr frame setup for Counter
   calls, and proves that preparation preserves `CounterStorageRel`. It also embeds the
   current CLI-generated Counter runtime bytecode as `counterCompiledRuntimeCode`, proves
@@ -188,7 +190,11 @@ surface. Remaining EVM work is E3.
   not substitutes for the pending relational per-entrypoint proof. The concrete compiled
   target's `executableTraceOk` now consumes Counter `TraceObligation`s through the
   compiled runtime and proves the initialize-get-increment-get trace with
-  `counterCompiledPowdr_executable_trace_ok`. It now exposes
+  `counterCompiledPowdr_executable_trace_ok`. Prepared calls now normalize a fresh
+  top-level EVM frame (gas/header/fork/caller/pc/stack/halt) while preserving storage, so
+  the relation is not accidentally blocked by stale halted frames or zero-gas defaults.
+  Packed-storage smokes show `get` reads packed `7` as `7` and `increment; get` reaches
+  `8`. It now exposes
   `counterPowdrTraceStep` / `counterPowdrTargetSemantics`, which run prepared Counter
   calls through powdr `runBytecode`, project EVM results to Counter observables, and prove
   successful trace steps are backed by powdr `Steps` with the stated observable projection;
@@ -201,6 +207,10 @@ surface. Remaining EVM work is E3.
   `counterPowdr_trace_simulates_after_initialize_from_obligations` proves universal
   `initialize :: calls` traces from arbitrary IR/EVM starting states once the same three
   per-entrypoint obligations hold.
+  The newly explicit `count < 2^64` side condition is the next proof boundary: an
+  unbounded IR `u64` Nat increment at `2^64 - 1` will not match the compiled EVM runtime
+  unless the supported fragment/input predicate excludes overflow or the IR Counter
+  semantics is changed to the same checked/wrapping behavior.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop

@@ -172,14 +172,17 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   fuel-bounded execution to powdr `Steps`.
 - `EvmRefinement/CounterRefinement.lean` — opt-in Counter relation layer that
   maps IR `count` to the powdr account storage word at ProofForge's EVM scalar
-  slot 0, embeds the current CLI-generated Counter runtime bytecode witness,
-  proves its selector offsets, exposes the compiled-runtime powdr config, and
-  specializes the initialize-prefixed trace theorem to that concrete runtime
-  target. It also defines a high-gas top-level `counterBaseEvmState` and native
-  executable smokes for the compiled runtime; those are C-diff witnesses, not
-  the pending relational per-entrypoint proof. The concrete compiled powdr
-  target now wires `executableTraceOk` for Counter `TraceObligation`s and proves
-  the initialize-get-increment-get trace.
+  slot 0 using the generated packed U64 word (`count * 2^192`, `count < 2^64`),
+  embeds the current CLI-generated Counter runtime bytecode witness, proves its
+  selector offsets, exposes the compiled-runtime powdr config, and specializes
+  the initialize-prefixed trace theorem to that concrete runtime target. It also
+  defines a high-gas top-level `counterBaseEvmState` and native executable
+  smokes for the compiled runtime; those are C-diff witnesses, not the pending
+  relational per-entrypoint proof. Prepared calls now normalize a fresh
+  top-level EVM frame while preserving storage, so stale halted frames or
+  zero-gas defaults are not accidental counterexamples. The concrete compiled
+  powdr target now wires `executableTraceOk` for Counter `TraceObligation`s and
+  proves the initialize-get-increment-get trace.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -202,6 +205,9 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   `counterCompiledPowdr_get_zero_executable_smoke`, and
   `counterCompiledPowdr_initialize_increment_get_executable_smoke` — green
   under `lake build EvmRefinement`.
+- `counterCompiledPowdr_get_packed_seven_executable_smoke` and
+  `counterCompiledPowdr_increment_packed_seven_executable_smoke` — green;
+  confirm the relation's packed U64 storage shape matches the compiled runtime.
 - `counterCompiledPowdr_executable_trace_ok` — green; the compiled-runtime
   powdr `TargetSemantics.executableTraceOk` accepts the Counter trace obligation.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
@@ -213,3 +219,13 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   with the old EVMYulLean mismatch retained as historical blocker/fallback.
 - RFC 0014 Path 5b Phase 6b: status updated to the powdr target switch and
   opt-in mathlib isolation plan, cross-referencing this file.
+
+## (h) Remaining proof boundary
+
+The Counter relation now carries `count < 2^64`, matching the generated packed
+U64 storage word. The next relational proof slice must decide how Phase 6c
+handles `increment` at `2^64 - 1`: either the supported input predicate excludes
+overflowing traces, or the total Counter IR semantics is changed to match the
+compiled EVM runtime's checked/wrapping behavior. Until that is resolved, the
+compiled-runtime C-diff can stay green, but the universal relational
+per-entrypoint proof is not yet complete.

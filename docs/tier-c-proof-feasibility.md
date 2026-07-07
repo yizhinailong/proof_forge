@@ -296,8 +296,11 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `runBytecode` executions imply powdr `Steps`.
   - `EvmRefinement/CounterRefinement.lean` — opt-in Counter relation layer that
     proves `count` is EVM scalar slot 0 and relates IR `count` to powdr
-    `AccountMap`/`Storage` over `UInt256`. It also prepares runtime-code
-    parameterized Counter call frames and proves that preparation preserves the
+    `AccountMap`/`Storage` over the generated EVM packed U64 slot word
+    (`count * 2^192`, with `count < 2^64`). This corrects the earlier
+    raw-`UInt256.ofNat count` relation, which does not match the compiled
+    runtime's `get`. It also prepares runtime-code parameterized Counter call
+    frames and proves that preparation preserves the
     storage relation. It now embeds the current CLI-generated Counter runtime
     bytecode witness, proves its size and selector offsets, exposes
     `counterCompiledPowdrConfig`, and adds the opt-in
@@ -311,7 +314,11 @@ ProofForge's default build still avoids powdr/mathlib imports.
     pending relational per-entrypoint proof. The concrete compiled target's
     `executableTraceOk` now consumes Counter `TraceObligation`s through the
     compiled runtime and proves the initialize-get-increment-get trace with
-    `counterCompiledPowdr_executable_trace_ok`. The module now exposes a
+    `counterCompiledPowdr_executable_trace_ok`. Prepared calls now normalize a
+    fresh top-level EVM frame while preserving storage, so stale halted frames or
+    zero-gas defaults are not accidental counterexamples. Packed-storage smokes
+    show `get` reads packed `7` as `7` and `increment; get` reaches `8`. The
+    module now exposes a
     powdr-backed Counter trace-step surface and proves successful trace steps
     are backed by powdr `Steps` plus the stated observable projection; the
     compiled-runtime C-diff is green, while the relational per-entrypoint
@@ -322,6 +329,10 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterPowdr_trace_simulates_after_initialize_from_obligations` proves
     universal `initialize :: calls` traces from arbitrary IR/EVM starting states
     under the same obligations.
+    The explicit `count < 2^64` side condition is now the next proof boundary:
+    an unbounded IR `u64` Nat increment at `2^64 - 1` will not match the compiled
+    EVM runtime unless the supported fragment/input predicate excludes overflow
+    or the IR Counter semantics is changed to the same checked/wrapping behavior.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
