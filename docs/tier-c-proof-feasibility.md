@@ -308,11 +308,14 @@ ProofForge's default build still avoids powdr/mathlib imports.
     witness. It also defines `counterBaseEvmState` and native executable smokes
     for `initialize`, `get`, and `initialize; increment; get`; those are
     C-diff witnesses over powdr's executable driver, not substitutes for the
-    pending relational per-entrypoint proof. The module now exposes a
+    pending relational per-entrypoint proof. The concrete compiled target's
+    `executableTraceOk` now consumes Counter `TraceObligation`s through the
+    compiled runtime and proves the initialize-get-increment-get trace with
+    `counterCompiledPowdr_executable_trace_ok`. The module now exposes a
     powdr-backed Counter trace-step surface and proves successful trace steps
     are backed by powdr `Steps` plus the stated observable projection; the
-    executable trace gate remains disabled until the per-entrypoint obligations
-    are discharged. It
+    compiled-runtime C-diff is green, while the relational per-entrypoint
+    obligations still need to be discharged. It
     also exposes the three per-entrypoint powdr obligations and proves that, if
     they hold, the shared trace induction yields universal Counter trace
     simulation. `initialize` is now the relation-establishing entrypoint:

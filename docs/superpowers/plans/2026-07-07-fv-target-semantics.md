@@ -185,12 +185,15 @@ surface. Remaining EVM work is E3.
   proof obligation is specialized to the real Counter runtime witness. The module also
   defines `counterBaseEvmState` and native executable smokes for `initialize`, `get`, and
   `initialize; increment; get`; those are C-diff witnesses over powdr's executable driver,
-  not substitutes for the pending relational per-entrypoint proof. It now exposes
+  not substitutes for the pending relational per-entrypoint proof. The concrete compiled
+  target's `executableTraceOk` now consumes Counter `TraceObligation`s through the
+  compiled runtime and proves the initialize-get-increment-get trace with
+  `counterCompiledPowdr_executable_trace_ok`. It now exposes
   `counterPowdrTraceStep` / `counterPowdrTargetSemantics`, which run prepared Counter
   calls through powdr `runBytecode`, project EVM results to Counter observables, and prove
   successful trace steps are backed by powdr `Steps` with the stated observable projection;
-  the target semantics' `executableTraceOk` stays false until the per-entrypoint
-  obligations are discharged. It also defines explicit
+  compiled-runtime C-diff is green, while the relational per-entrypoint obligations still
+  need to be discharged. It also defines explicit
   `CounterPowdrEntrypointObligations` for `initialize`/`increment`/`get` and proves
   `counterPowdr_trace_simulates_from_obligations`: those three powdr bytecode obligations
   are sufficient to obtain the universal Counter trace simulation through the shared

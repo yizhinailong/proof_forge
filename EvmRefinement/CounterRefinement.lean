@@ -444,6 +444,52 @@ theorem counterPowdrRunTrace_eq_traceStep (cfg : PowdrCounterConfig)
       ProofForge.IR.StepSemantics.runTraceListGen
         (counterPowdrTraceStep cfg) calls state := rfl
 
+def counterCallFromTraceCall? (call : TraceCall) : Option CounterCall :=
+  if call.args.size == 0 && call.evmArgs.size == 0 then
+    if isCounterInitializeEntrypoint call.entrypoint then
+      some .initialize
+    else if isCounterIncrementEntrypoint call.entrypoint then
+      some .increment
+    else if isCounterGetEntrypoint call.entrypoint then
+      some .get
+    else
+      none
+  else
+    none
+
+def counterCallsFromTraceCalls? : List TraceCall → Option (List CounterCall)
+  | [] => some []
+  | call :: rest => do
+      let counterCall ← counterCallFromTraceCall? call
+      let counterRest ← counterCallsFromTraceCalls? rest
+      some (counterCall :: counterRest)
+
+def counterExpectedStepMatches (call : CounterCall)
+    (observable : ObservableReturn) (expected : ObservableStep) : Bool :=
+  expected.entrypointName == call.entrypoint.name &&
+    expected.selector == counterCallSelector call &&
+    expected.returnValue == observable &&
+    expected.logs.isEmpty
+
+def counterExpectedTraceMatches :
+    List CounterCall → List ObservableReturn → List ObservableStep → Bool
+  | [], [], [] => true
+  | call :: calls, observable :: observables, expected :: expectedRest =>
+      counterExpectedStepMatches call observable expected &&
+        counterExpectedTraceMatches calls observables expectedRest
+  | _, _, _ => false
+
+def counterPowdrExecutableTraceOk (cfg : PowdrCounterConfig) (state : EvmState)
+    (obligation : TraceObligation) : Bool :=
+  FormalFragment.counter.acceptsModule obligation.module &&
+    match counterCallsFromTraceCalls? obligation.calls.toList with
+    | none => false
+    | some calls =>
+        match counterPowdrRunTrace cfg calls state with
+        | .ok (_, observables) =>
+            counterExpectedTraceMatches calls observables.toList obligation.expected.toList
+        | .error _ => false
+
 def counterPowdrTargetSemantics (cfg : PowdrCounterConfig) : TargetSemantics := {
   id := "evm-powdr-counter"
   supportedFragments := #[.counter]
@@ -456,8 +502,34 @@ def counterPowdrTargetSemantics (cfg : PowdrCounterConfig) : TargetSemantics := 
   executableTraceOk := fun _ => false
 }
 
+def counterCompiledPowdrExecutableTraceOk (obligation : TraceObligation) : Bool :=
+  counterPowdrExecutableTraceOk counterCompiledPowdrConfig counterBaseEvmState obligation
+
 def counterCompiledPowdrTargetSemantics : TargetSemantics :=
-  counterPowdrTargetSemantics counterCompiledPowdrConfig
+  { counterPowdrTargetSemantics counterCompiledPowdrConfig with
+    executableTraceOk := counterCompiledPowdrExecutableTraceOk }
+
+def counterCompiledPowdrTraceObligation : TraceObligation := {
+  name := "Counter.powdr.initialize-get-increment-get"
+  module := ProofForge.IR.Examples.Counter.module
+  calls := #[
+    { entrypoint := ProofForge.IR.Examples.Counter.initializeEntrypoint },
+    { entrypoint := ProofForge.IR.Examples.Counter.get },
+    { entrypoint := ProofForge.IR.Examples.Counter.increment },
+    { entrypoint := ProofForge.IR.Examples.Counter.get }
+  ]
+  expected := #[
+    { entrypointName := "initialize", selector := "8129fc1c", returnValue := .none },
+    { entrypointName := "get", selector := "6d4ce63c", returnValue := .u64 0 },
+    { entrypointName := "increment", selector := "d09de08a", returnValue := .none },
+    { entrypointName := "get", selector := "6d4ce63c", returnValue := .u64 1 }
+  ]
+}
+
+theorem counterCompiledPowdr_executable_trace_ok :
+    counterCompiledPowdrTargetSemantics.executableTraceOk
+      counterCompiledPowdrTraceObligation = true := by
+  native_decide
 
 structure CounterPowdrEntrypointObligations (cfg : PowdrCounterConfig) where
   initialize_simulates :
