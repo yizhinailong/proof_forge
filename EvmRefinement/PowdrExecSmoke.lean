@@ -156,17 +156,17 @@ theorem twoSlotReader_getBalance_executionSegment
   have hstopStep :
       EvmSemantics.EVM.stepFE s2 = .ok s3 :=
     ProofForge.Backend.Evm.PowdrExec.stepFE_stop_at_ok hstopAt
+  have pushReduction : StepFEReduction s0 s1 :=
+    ProofForge.Backend.Evm.PowdrExec.StepFEReduction.of_readyOpcodeAt
+      hpushAt hpushStep
+  have sloadReduction : StepFEReduction s1 s2 :=
+    ProofForge.Backend.Evm.PowdrExec.StepFEReduction.of_readyOpcodeAt
+      hsloadAt hsloadStep
+  have stopReduction : StepFEReduction s2 s3 :=
+    ProofForge.Backend.Evm.PowdrExec.StepFEReduction.of_readyOpcodeAt
+      hstopAt hstopStep
   have chain : StepFEReductionChain s0 3 s3 :=
-    .cons
-      ({ running := hpushAt.ready.running, step := hpushStep } :
-        StepFEReduction s0 s1)
-      (.cons
-        ({ running := hsloadAt.ready.running, step := hsloadStep } :
-          StepFEReduction s1 s2)
-        (.cons
-          ({ running := hstopAt.ready.running, step := hstopStep } :
-            StepFEReduction s2 s3)
-          (.nil s3)))
+    .cons pushReduction (.cons sloadReduction (.cons stopReduction (.nil s3)))
   exact ProofForge.Backend.Evm.PowdrExec.executionSegment_of_reductionChain
     chain
     (by

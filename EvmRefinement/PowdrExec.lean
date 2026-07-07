@@ -234,6 +234,14 @@ structure StepFEReduction (state nextState : State) : Prop where
   running : state.halt = .Running
   step : EvmSemantics.EVM.stepFE state = .ok nextState
 
+theorem StepFEReduction.of_step
+    {state nextState : State}
+    (hrunning : state.halt = .Running)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    StepFEReduction state nextState :=
+  { running := hrunning
+    step := hstep }
+
 theorem StepFEReduction.path
     {state nextState : State}
     (reduction : StepFEReduction state nextState) :
@@ -428,6 +436,14 @@ theorem ReadyOpcodeAt.state_decoded
     (hat : ReadyOpcodeAt code pc op argOpt state) :
     state.decoded = some (op, argOpt) := by
   exact hat.decoded.decoded
+
+theorem StepFEReduction.of_readyOpcodeAt
+    {state nextState : State} {code : ByteArray} {pc : Nat}
+    {op : Operation} {argOpt : Option (EvmSemantics.UInt256 × Nat)}
+    (hat : ReadyOpcodeAt code pc op argOpt state)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    StepFEReduction state nextState :=
+  StepFEReduction.of_step hat.ready.running hstep
 
 theorem stepFE_push_dispatch
     {state : State} {op : EvmSemantics.Operation.PushOp}
