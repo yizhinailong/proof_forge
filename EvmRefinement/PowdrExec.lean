@@ -53,6 +53,24 @@ theorem runSteps_of_executionSegment
       .ok (finalState, (#[] : Array ObservableStep)) := by
   exact runSteps_of_stepFEPath_done segment.path
 
+theorem executionSegment_append
+    {prefixFuel suffixFuel : Nat}
+    {prefixPost suffixPost combinedPost : State → State → Prop}
+    {state midState finalState : State}
+    (combine :
+      prefixPost state midState → suffixPost midState finalState →
+        combinedPost state finalState)
+    (leftSegment :
+      ExecutionSegment prefixFuel prefixPost state midState)
+    (rightSegment :
+      ExecutionSegment suffixFuel suffixPost midState finalState) :
+    ExecutionSegment (prefixFuel + suffixFuel) combinedPost state finalState :=
+  { path :=
+      ProofForge.Backend.Evm.PowdrAdapter.stepFEPath_append
+        leftSegment.path rightSegment.path
+    postcondition :=
+      combine leftSegment.postcondition rightSegment.postcondition }
+
 structure SegmentProvider
     (pre : State → Prop) (fuel : Nat)
     (post : State → State → Prop) : Prop where
