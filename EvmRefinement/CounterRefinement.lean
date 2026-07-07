@@ -196,6 +196,27 @@ theorem counterStorageRel_set_count (irState : IRState) (evmState : EvmState)
       (setCounterStorage counterContractAddress counterCountSlot evmState count) :=
   counterStorageRelAt_set_count counterContractAddress counterCountSlot irState evmState count hbound
 
+theorem counterStorageRelAt_set_padded_count (address : EvmSemantics.AccountAddress)
+    (slot : EvmSemantics.UInt256) (irState : IRState) (evmState : EvmState)
+    (count padding : Nat) (hbound : count < counterU64Modulus)
+    (hpadding : padding < counterU64StorageShift) :
+    CounterStorageRelAt address slot
+      (irState.write "count" (.u64 count))
+      (setCounterStorageWord address slot evmState
+        (counterPaddedCountValue count padding)) := by
+  refine ⟨count, irCounterCount?_write_count irState count, hbound, ?_⟩
+  simp [counterStorageWordRel_padded hpadding]
+
+theorem counterStorageRel_set_padded_count (irState : IRState) (evmState : EvmState)
+    (count padding : Nat) (hbound : count < counterU64Modulus)
+    (hpadding : padding < counterU64StorageShift) :
+    CounterStorageRel
+      (irState.write "count" (.u64 count))
+      (setCounterStorageWord counterContractAddress counterCountSlot evmState
+        (counterPaddedCountValue count padding)) :=
+  counterStorageRelAt_set_padded_count counterContractAddress counterCountSlot
+    irState evmState count padding hbound hpadding
+
 def counterCallSelector : CounterCall → String
   | .initialize => "8129fc1c"
   | .increment => "d09de08a"
