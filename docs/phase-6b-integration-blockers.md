@@ -486,6 +486,11 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   composes those opcode-family call-stack lemmas into a reusable segment proof,
   so the remaining body prefix only has to connect the first body opcode to the
   SLOAD state and then append this tail segment.
+- `counterCallStack_of_initialize_prefix_stepFE_to_sload_ok` — green under
+  `lake build EvmRefinement`; the first 12 initialize-body opcodes now compose
+  into a reusable call-stack segment from the first body opcode to the SLOAD
+  state, so the body proof can be assembled from prefix plus tail rather than
+  replaying every opcode inside the final bridge.
 - `counterStack_of_initialize_tail_stepFE_to_sstore_ok` and
   `counterStack_of_initialize_body_stepFE_to_sstore_ok` — green under
   `lake build EvmRefinement`; the composed tail/body path now exposes the

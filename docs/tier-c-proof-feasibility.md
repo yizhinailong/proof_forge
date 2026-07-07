@@ -469,6 +469,9 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `SLOAD; AND; OR; PUSH0; SSTORE` tail into a reusable call-stack segment, so
     the remaining body proof only has to connect the first body opcode to the
     SLOAD state and append that tail segment.
+    `counterCallStack_of_initialize_prefix_stepFE_to_sload_ok` now supplies
+    that first-body-opcode-to-SLOAD call-stack segment, leaving the body
+    call-stack proof as a prefix-plus-tail composition.
     `counterRunBytecode_initialize_dispatcher_body_and_return_ok` now prepends
     the initialize selector dispatcher and trampoline through `StepFEPath`,
     yielding a 36-fuel `runBytecode` bridge from PC0 to the halted `.none`

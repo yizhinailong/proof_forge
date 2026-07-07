@@ -8,9 +8,14 @@ Use `Examples/Shared/` for contracts that should compile to multiple targets by
 changing only `--target`. These are the canonical application-facing examples:
 
 - `Counter.lean`
+- `ArrayExample.lean`
+- `Ownable.lean`, `Pausable.lean`, and `ReentrancyGuard.lean` for portable
+  stdlib mixin facades
 - `RoleGatedToken.lean`
 - `StakingVault.lean`
 - `ValueVault.lean`
+- `FungibleToken.lean`, `FeeToken.lean`, and `SoulboundToken.lean` for
+  target-neutral token intent examples
 
 These modules should avoid target-only capabilities unless the compiler can
 route or reject them through target capabilities. The portable smoke scripts and
@@ -33,7 +38,8 @@ native surface or a backend-specific artifact format:
 If an example starts in a target directory but its contract logic is useful
 across chains, move the shared logic to `Examples/Shared/` and keep only
 target-specific golden files, manifests, or runtime probes in the target
-directory.
+directory. Compatibility entrypoints may import the shared module and attach
+target-only metadata such as EVM constructor bindings.
 
 ## Legacy Parser Fixtures
 

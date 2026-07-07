@@ -17,6 +17,8 @@ use solana_address::Address;
 use solana_instruction::{error::InstructionError, AccountMeta, Instruction};
 
 pub mod live_rpc;
+pub mod spl_token;
+pub mod token_2022;
 
 const COUNTER_PROJECT_NAME: &str = "proofforge-counter";
 const VALUE_VAULT_PROJECT_NAME: &str = "proofforge-value-vault";

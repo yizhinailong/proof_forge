@@ -9,6 +9,7 @@ require evm_semantics from git
 
 lean_lib ProofForge where
   roots := #[
+    `Examples,
     `ProofForge,
     `ProofForge.Psy,
     `ProofForge.Target,

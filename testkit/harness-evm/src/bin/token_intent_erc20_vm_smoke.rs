@@ -30,15 +30,15 @@ const ACCOUNT_BALANCE: u128 = 1_000_000_000_000_000_000;
 const DEPLOY_GAS_LIMIT: u64 = 10_000_000;
 const CALL_GAS_LIMIT: u64 = 5_000_000;
 
-type LearnTokenEvm = revm::MainnetEvm<Context<BlockEnv, TxEnv, CfgEnv, CacheDB<EmptyDB>>>;
+type TokenIntentEvm = revm::MainnetEvm<Context<BlockEnv, TxEnv, CfgEnv, CacheDB<EmptyDB>>>;
 
 fn main() -> Result<()> {
     let mut args = env::args().skip(1);
     let Some(bin_path) = args.next() else {
-        bail!("usage: learn_token_erc20_vm_smoke <creation-bin> <artifact-json>");
+        bail!("usage: token_intent_erc20_vm_smoke <creation-bin> <artifact-json>");
     };
     let Some(artifact_path) = args.next() else {
-        bail!("usage: learn_token_erc20_vm_smoke <creation-bin> <artifact-json>");
+        bail!("usage: token_intent_erc20_vm_smoke <creation-bin> <artifact-json>");
     };
     ensure!(args.next().is_none(), "unexpected extra arguments");
 
@@ -321,7 +321,7 @@ fn main() -> Result<()> {
         "reverted transfer changed sender balance"
     );
 
-    println!("learn-token-erc20-vm: ok ({contract})");
+    println!("token-intent-erc20-vm: ok ({contract})");
     Ok(())
 }
 
@@ -331,7 +331,7 @@ struct CallResult {
 }
 
 fn deploy(
-    evm: &mut LearnTokenEvm,
+    evm: &mut TokenIntentEvm,
     creation_bytecode: Vec<u8>,
     nonces: &mut HashMap<Address, u64>,
 ) -> Result<Address> {
@@ -367,7 +367,7 @@ fn deploy(
 }
 
 fn call(
-    evm: &mut LearnTokenEvm,
+    evm: &mut TokenIntentEvm,
     selectors: &HashMap<String, String>,
     contract: Address,
     caller: Address,
@@ -423,7 +423,7 @@ fn call(
 }
 
 fn read_uint(
-    evm: &mut LearnTokenEvm,
+    evm: &mut TokenIntentEvm,
     selectors: &HashMap<String, String>,
     contract: Address,
     name: &str,
@@ -438,7 +438,7 @@ fn read_uint(
 }
 
 fn balance_of(
-    evm: &mut LearnTokenEvm,
+    evm: &mut TokenIntentEvm,
     selectors: &HashMap<String, String>,
     contract: Address,
     owner: Address,
