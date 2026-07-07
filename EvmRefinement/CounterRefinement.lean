@@ -21,6 +21,40 @@ abbrev EvmState := ProofForge.Backend.Evm.PowdrAdapter.State
 abbrev CounterCall := ProofForge.Backend.Refinement.CounterUniversal.CounterCall
 abbrev counterIRStep := ProofForge.Backend.Refinement.CounterUniversal.irStep
 
+theorem counterIsDone_false_of_running {state : EvmState}
+    (hrunning : state.halt = .Running) :
+    state.isDone = false := by
+  simp [EvmSemantics.EVM.State.isDone, EvmSemantics.EVM.State.isHalted,
+    EvmSemantics.EVM.State.isRunning, hrunning]
+
+theorem counterPowdrAdapter_stepF_of_stepFE_ok {state nextState : EvmState}
+    (hdone : state.isDone = false)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    ProofForge.Backend.Evm.PowdrAdapter.stepF state = .ok nextState := by
+  unfold ProofForge.Backend.Evm.PowdrAdapter.stepF
+  simp [hdone, ProofForge.Backend.Evm.PowdrAdapter.rawStepF,
+    EvmSemantics.EVM.stepF, hstep]
+
+theorem counterRunBytecode_stepFE_succ
+    {state nextState finalState : EvmState}
+    {observations : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep}
+    {fuel : Nat}
+    (hrunning : state.halt = .Running)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState)
+    (hrun :
+      ProofForge.Backend.Evm.PowdrAdapter.runBytecode nextState fuel =
+        .ok (finalState, observations)) :
+    ProofForge.Backend.Evm.PowdrAdapter.runBytecode state (fuel + 1) =
+      .ok (finalState, observations) := by
+  have hdone := counterIsDone_false_of_running hrunning
+  have hhalted :
+      ProofForge.Backend.Evm.PowdrAdapter.isHalted state = false := by
+    simpa [ProofForge.Backend.Evm.PowdrAdapter.isHalted] using hdone
+  have hstepAdapter :=
+    counterPowdrAdapter_stepF_of_stepFE_ok hdone hstep
+  exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_step_succ
+    hhalted hstepAdapter hrun
+
 def counterCountSlotNat : Nat := 0
 
 /-- The EVM layout assigns Counter.count to scalar storage slot 0. -/

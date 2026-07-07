@@ -361,7 +361,12 @@ surface. Remaining EVM work is E3.
   initialize storage model at the return jump, the halted frame keeps that model
   and exposes the `.none` observable.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
-  fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
+  fuel-bounded executable run is backed by powdr's relational `Steps` closure.
+  The adapter now has `runBytecode_halted_succ` and `runBytecode_step_succ`,
+  and `CounterRefinement.lean` adds
+  `counterPowdrAdapter_stepF_of_stepFE_ok` plus
+  `counterRunBytecode_stepFE_succ`, so the composed `stepFE` path can be fed
+  into the prepared-frame `runBytecode` driver one opcode at a time. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
   remains an explicit trust boundary. The remaining E3 work is to discharge those
   prepared-frame storage models against the concrete runtime by connecting the

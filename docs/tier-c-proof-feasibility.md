@@ -438,7 +438,10 @@ ProofForge's default build still avoids powdr/mathlib imports.
     the Counter `initialize` observable `.none`.
     `counterInitializeReturn_preserves_storage_model_stepFE_ok` packages the
     return-path bridge from an already-established initialize storage model to
-    the final halted frame plus `.none` observable.
+    the final halted frame plus `.none` observable. `runBytecode_halted_succ`,
+    `runBytecode_step_succ`, `counterPowdrAdapter_stepF_of_stepFE_ok`, and
+    `counterRunBytecode_stepFE_succ` now expose the fuel-driver bridge needed
+    to feed the composed `stepFE` path into `counterPowdrPreparedTraceStep`.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).

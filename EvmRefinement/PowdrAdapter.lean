@@ -63,6 +63,25 @@ def runBytecode : State → Nat → Except String (State × Array ObservableStep
         let (finalState, observations) ← runBytecode next fuel
         .ok (finalState, observations)
 
+theorem runBytecode_halted_succ {state : State} {fuel : Nat}
+    (hHalted : isHalted state = true) :
+    runBytecode state (fuel + 1) = .ok (state, #[]) := by
+  simp [runBytecode, hHalted]
+
+theorem runBytecode_step_succ {state next finalState : State}
+    {observations : Array ObservableStep} {fuel : Nat}
+    (hHalted : isHalted state = false)
+    (hstep : stepF state = .ok next)
+    (hrun : runBytecode next fuel = .ok (finalState, observations)) :
+    runBytecode state (fuel + 1) = .ok (finalState, observations) := by
+  simp [runBytecode, hHalted, hstep]
+  change Except.bind (runBytecode next fuel)
+      (fun result : State × Array ObservableStep =>
+        Except.ok (result.fst, result.snd)) =
+    Except.ok (finalState, observations)
+  rw [hrun]
+  rfl
+
 theorem raw_stepF_sound (state : State) (hRunning : ¬ state.isDone) :
     Step state (rawStepF state) :=
   EvmSemantics.EVM.stepF_sound state hRunning
