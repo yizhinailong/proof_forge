@@ -83,6 +83,114 @@ theorem counterInitializeStorageWord_rel_zero (word : EvmSemantics.UInt256) :
   unfold counterInitializeStorageWord
   exact counterStorageWordRel_padded (counterLowPaddingNat_lt word)
 
+theorem counterUInt256_ext_toNat {a b : EvmSemantics.UInt256}
+    (h : a.toNat = b.toNat) : a = b := by
+  cases a with
+  | mk aval =>
+    cases b with
+    | mk bval =>
+      simp [EvmSemantics.UInt256.toNat] at h
+      cases aval with
+      | mk aval avalLt =>
+        cases bval with
+        | mk bval bvalLt =>
+          simp at h
+          subst bval
+          rfl
+
+theorem counterUInt256_land_toNat
+    (a b : EvmSemantics.UInt256) :
+    (EvmSemantics.UInt256.land a b).toNat = a.toNat &&& b.toNat := by
+  unfold EvmSemantics.UInt256.land EvmSemantics.UInt256.toNat
+  change (a.val &&& b.val).val = a.val.val &&& b.val.val
+  exact Fin.and_val a.val b.val
+
+theorem counterUInt256_lor_toNat
+    (a b : EvmSemantics.UInt256) :
+    (EvmSemantics.UInt256.lor a b).toNat = a.toNat ||| b.toNat := by
+  unfold EvmSemantics.UInt256.lor EvmSemantics.UInt256.toNat
+  change (a.val ||| b.val).val = a.val.val ||| b.val.val
+  rw [Fin.or_val]
+  rw [Nat.mod_eq_of_lt]
+  exact Nat.or_lt_two_pow (by simp [EvmSemantics.UInt256.size])
+    (by simp [EvmSemantics.UInt256.size])
+
+theorem counterUInt256_ofNat_toNat_of_lt {n : Nat}
+    (h : n < EvmSemantics.UInt256.size) :
+    (EvmSemantics.UInt256.ofNat n).toNat = n := by
+  unfold EvmSemantics.UInt256.ofNat EvmSemantics.UInt256.toNat
+  rw [Fin.val_ofNat]
+  exact Nat.mod_eq_of_lt h
+
+theorem counterUInt256_ofNat_zero_toNat :
+    (EvmSemantics.UInt256.ofNat 0).toNat = 0 :=
+  counterUInt256_ofNat_toNat_of_lt (by native_decide)
+
+/-- The `PUSH0; PUSH1 0xc0; SHL` segment in the compiled initialize body. -/
+def counterInitializeSetValue : EvmSemantics.UInt256 :=
+  EvmSemantics.UInt256.shiftLeft
+    (EvmSemantics.UInt256.ofNat 0)
+    (EvmSemantics.UInt256.ofNat 192)
+
+/-- The low-192-bit preserve mask built by the compiled initialize body. -/
+def counterInitializeLowMask : EvmSemantics.UInt256 :=
+  EvmSemantics.UInt256.lnot
+    (EvmSemantics.UInt256.shiftLeft
+      (EvmSemantics.UInt256.ofNat (2 ^ 64 - 1))
+      (EvmSemantics.UInt256.ofNat 192))
+
+def counterInitializeBodyWriteWord
+    (oldWord : EvmSemantics.UInt256) : EvmSemantics.UInt256 :=
+  EvmSemantics.UInt256.lor
+    (EvmSemantics.UInt256.land oldWord counterInitializeLowMask)
+    counterInitializeSetValue
+
+theorem counterInitializeSetValue_eq_zero :
+    counterInitializeSetValue = EvmSemantics.UInt256.ofNat 0 := by
+  native_decide
+
+theorem counterInitializeLowMask_eq :
+    counterInitializeLowMask =
+      EvmSemantics.UInt256.ofNat (counterU64StorageShift - 1) := by
+  native_decide
+
+theorem counterInitializeLandLowMask_toNat (word : EvmSemantics.UInt256) :
+    (EvmSemantics.UInt256.land word
+        (EvmSemantics.UInt256.ofNat (counterU64StorageShift - 1))).toNat =
+      counterLowPaddingNat word := by
+  unfold counterLowPaddingNat counterU64StorageShift
+  rw [counterUInt256_land_toNat]
+  unfold EvmSemantics.UInt256.toNat EvmSemantics.UInt256.ofNat
+  simp only [Fin.val_ofNat]
+  rw [Nat.mod_eq_of_lt]
+  · rw [Nat.and_two_pow_sub_one_eq_mod]
+  · unfold EvmSemantics.UInt256.size
+    native_decide
+
+theorem counterLowPaddingNat_lt_uint256Size (word : EvmSemantics.UInt256) :
+    counterLowPaddingNat word < EvmSemantics.UInt256.size :=
+  Nat.lt_trans (counterLowPaddingNat_lt word) (by native_decide)
+
+theorem counterInitializeBodyWriteWord_eq_storageWord
+    (word : EvmSemantics.UInt256) :
+    counterInitializeBodyWriteWord word = counterInitializeStorageWord word := by
+  unfold counterInitializeBodyWriteWord
+  rw [counterInitializeLowMask_eq, counterInitializeSetValue_eq_zero]
+  apply counterUInt256_ext_toNat
+  rw [counterUInt256_lor_toNat, counterInitializeLandLowMask_toNat,
+    counterUInt256_ofNat_zero_toNat]
+  simp only [Nat.or_zero]
+  unfold counterInitializeStorageWord counterPaddedCountValue counterPackedCountNat
+  simp only [Nat.zero_mul, Nat.zero_add]
+  rw [counterUInt256_ofNat_toNat_of_lt
+    (counterLowPaddingNat_lt_uint256Size word)]
+
+theorem counterInitializeBodyWriteWord_rel_zero
+    (word : EvmSemantics.UInt256) :
+    CounterStorageWordRel (counterInitializeBodyWriteWord word) 0 := by
+  rw [counterInitializeBodyWriteWord_eq_storageWord]
+  exact counterInitializeStorageWord_rel_zero word
+
 /-- Placeholder contract account address for the storage relation.
 
 The later bytecode-entrypoint proof should replace this default with the
@@ -216,6 +324,38 @@ theorem counterStack_of_initialize_sload_and_or_ok
           mask :: setValue :: rest :=
     counterStack_of_compBit_and_ok hsloadStack hand
   exact counterStack_of_compBit_or_ok handStack hor
+
+theorem counterStack_of_initialize_sload_and_or_storageWord_ok
+    {sloadState sloadGas afterSload andGas afterAnd orGas afterOr : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (haddr : sloadState.executionEnv.address = counterContractAddress)
+    (hstack :
+      sloadState.stack =
+        counterCountSlot :: counterInitializeLowMask ::
+          counterInitializeSetValue :: rest)
+    (hsload :
+      EvmSemantics.EVM.stepF.stackMemFlow sloadState sloadGas
+        (.SLOAD : EvmSemantics.Operation.StackMemFlowOps) = .ok afterSload)
+    (hand :
+      EvmSemantics.EVM.stepF.compBit afterSload andGas
+        (.AND : EvmSemantics.Operation.CompareBitwiseOps) = .ok afterAnd)
+    (hor :
+      EvmSemantics.EVM.stepF.compBit afterAnd orGas
+        (.OR : EvmSemantics.Operation.CompareBitwiseOps) = .ok afterOr) :
+    afterOr.stack =
+      counterInitializeStorageWord
+        (counterStorageValue counterContractAddress counterCountSlot sloadState) ::
+          rest := by
+  have hstackAfter :=
+    counterStack_of_initialize_sload_and_or_ok haddr hstack hsload hand hor
+  rw [hstackAfter]
+  change counterInitializeBodyWriteWord
+      (counterStorageValue counterContractAddress counterCountSlot sloadState) ::
+        rest =
+    counterInitializeStorageWord
+      (counterStorageValue counterContractAddress counterCountSlot sloadState) ::
+        rest
+  rw [counterInitializeBodyWriteWord_eq_storageWord]
 
 theorem counterStorageValue_of_sstore_stackMemFlow_ok
     {state gasState nextState : EvmState} {slot value : EvmSemantics.UInt256}
