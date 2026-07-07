@@ -461,6 +461,10 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterCompiledStateAt_of_initialize_sstore_stepFE_ok` feeds that fact
     back into the 22-fuel bridge. The body-return-jump `counterCompiledStateAt`
     fact is now derived internally rather than passed as an explicit premise;
+    the body opcode families also now have reusable call-stack preservation
+    lemmas for `SHL`, `NOT`, `SUB`, `SLOAD`, `AND`, `OR`, and `SSTORE`, so the
+    remaining prefix proof can compose those local facts instead of rebuilding
+    each opcode branch inside the entrypoint theorem.
     `counterRunBytecode_initialize_dispatcher_body_and_return_ok` now prepends
     the initialize selector dispatcher and trampoline through `StepFEPath`,
     yielding a 36-fuel `runBytecode` bridge from PC0 to the halted `.none`
@@ -490,9 +494,10 @@ ProofForge's default build still avoids powdr/mathlib imports.
 - **Next implementation guardrail:** do not copy the initialize
   dispatcher/body/return proof shape directly into `increment` and `get`.
   First extend the reusable segment machinery (`StepFEPath`,
-  `runBytecode_of_stepFEPath`, and opcode-family lemmas for dispatcher,
-  storage, arithmetic, and return paths), then use that library to discharge
-  the remaining prepared-frame storage models.
+  `runBytecode_of_stepFEPath`, opcode-family call-stack preservation, and
+  opcode-family lemmas for dispatcher, storage, arithmetic, and return paths),
+  then use that library to discharge the remaining prepared-frame storage
+  models.
 - **Deliverable (revised):** a clean powdr-target seam plus the opt-in
   dependency path and wrapper. The conformance-tested EVM bytecode semantics is
   now callable from the `EvmRefinement` target; the implementation agent's next

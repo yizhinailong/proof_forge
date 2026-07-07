@@ -383,7 +383,11 @@ surface. Remaining EVM work is E3.
   pre-SSTORE stack shape consumed by
   `counterCompiledStateAt_of_initialize_sstore_stepFE_ok`, so the 22-fuel body
   bridge derives the body-return-jump `counterCompiledStateAt` fact internally
-  instead of carrying it as an explicit premise.
+  instead of carrying it as an explicit premise. The body opcode families also
+  now have reusable call-stack preservation lemmas for `SHL`, `NOT`, `SUB`,
+  `SLOAD`, `AND`, `OR`, and `SSTORE`, so the remaining prefix proof can compose
+  local opcode facts instead of rebuilding each branch inside the entrypoint
+  theorem.
   `counterRunBytecode_initialize_dispatcher_body_and_return_ok` now prepends
   the initialize selector dispatcher plus trampoline path to that body+return
   bridge through `StepFEPath`, proving a 36-fuel `runBytecode` path from PC0 to
@@ -409,7 +413,8 @@ surface. Remaining EVM work is E3.
   `CounterCompiledPowdrPreparedStorageModels` is supplied; the hard remaining
   work is target-specific prepared-storage-model discharge. Do not widen by
   copying the initialize proof to `increment`/`get` before extending the reusable
-  segment machine (`StepFEPath` plus opcode-family lemmas). The pinned
+  segment machine (`StepFEPath` plus opcode-family call-stack and segment
+  lemmas). The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
   remains an explicit trust boundary. The remaining E3 work is to discharge those
   prepared-frame storage models against the concrete runtime by connecting the

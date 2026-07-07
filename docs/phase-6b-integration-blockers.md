@@ -470,6 +470,17 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   `counterCompiledStateAt_of_initialize_sstore_stepFE_ok` — green under
   `lake build EvmRefinement`; a successful powdr SSTORE step now preserves
   compiled code/fork and advances the initialize body PC to the return jump.
+- `counterCallStack_of_stepFE_compBit_shl_ok`,
+  `counterCallStack_of_stepFE_compBit_not_ok`,
+  `counterCallStack_of_stepFE_stopArith_sub_ok`,
+  `counterCallStack_of_stepFE_stackMemFlow_sload_ok`,
+  `counterCallStack_of_stepFE_compBit_and_ok`,
+  `counterCallStack_of_stepFE_compBit_or_ok`, and
+  `counterCallStack_of_stepFE_stackMemFlow_sstore_ok` — green under
+  `lake build EvmRefinement`; the initialize body now has reusable
+  opcode-family call-stack preservation lemmas for the bit/arithmetic/storage
+  opcodes needed to carry the prepared top-level `callStack` through the body
+  prefix without duplicating a bespoke path proof per entrypoint.
 - `counterStack_of_initialize_tail_stepFE_to_sstore_ok` and
   `counterStack_of_initialize_body_stepFE_to_sstore_ok` — green under
   `lake build EvmRefinement`; the composed tail/body path now exposes the
@@ -525,6 +536,7 @@ The scaling risk is now below that trace-induction layer. The deep
 dispatcher/trampoline/body/return path, but `increment` and `get` should not copy
 that proof shape one entrypoint at a time. Before widening the deep discharge,
 extend the reusable segment machinery (`StepFEPath`,
-`runBytecode_of_stepFEPath`, and opcode-family segment lemmas for dispatcher,
-storage, arithmetic, and return paths) so later entrypoints reuse common proof
-blocks instead of growing bespoke thousands-line opcode traces.
+`runBytecode_of_stepFEPath`, opcode-family call-stack preservation, and segment
+lemmas for dispatcher, storage, arithmetic, and return paths) so later
+entrypoints reuse common proof blocks instead of growing bespoke thousands-line
+opcode traces.
