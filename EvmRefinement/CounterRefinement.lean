@@ -3998,6 +3998,77 @@ theorem counterCallStack_of_initialize_trampoline_stepFE_to_body_ok
   exact hcallStack4.trans
     (hcallStack3.trans (hcallStack2.trans hcallStack1))
 
+theorem counterStorageValue_of_initialize_trampoline_stepFE_to_body_ok
+    {s0 s1 s2 s3 s4 : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (h0 : s0.stack = rest)
+    (hat0 : counterCompiledStateAt s0 counterInitializeTrampolineOffset)
+    (hready0 :
+      counterStepFEReady s0
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hat1 : counterCompiledStateAt s1 (counterInitializeTrampolineOffset + 1))
+    (hready1 : counterStepFEReady s1 (.Push counterPush1Op))
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hat2 : counterCompiledStateAt s2 (counterInitializeTrampolineOffset + 3))
+    (hready2 : counterStepFEReady s2 (.Push counterPush1Op))
+    (hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hat3 : counterCompiledStateAt s3 (counterInitializeTrampolineOffset + 5))
+    (hready3 :
+      counterStepFEReady s3
+        (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4) :
+    counterStorageValue counterContractAddress counterCountSlot s4 =
+      counterStorageValue counterContractAddress counterCountSlot s0 := by
+  rcases hready0 with ⟨hrunning0, hprecompile0, hstackOk0, hgas0⟩
+  rcases hready1 with ⟨hrunning1, hprecompile1, hstackOk1, hgas1⟩
+  rcases hready2 with ⟨hrunning2, hprecompile2, hstackOk2, hgas2⟩
+  rcases hready3 with ⟨hrunning3, hprecompile3, hstackOk3, hgas3⟩
+  have hstate1 :=
+    counterState_of_stepFE_stackMemFlow_jumpdest_ok hrunning0 hprecompile0
+      (counterPreparedInitializeTrampolineJumpdest_decoded hat0) hstackOk0
+      hgas0 hstep0
+  have hstack1 : s1.stack = rest := by
+    rw [hstate1]
+    simp [EvmSemantics.EVM.State.consumeGas, EvmSemantics.EVM.State.incrPC, h0]
+  have hstate2 :=
+    counterState_of_stepFE_push1_ok hrunning1 hprecompile1
+      (counterPreparedInitializeTrampolineReturnPush_decoded hat1) hstackOk1
+      hgas1 hstep1
+  have hstack2 :
+      s2.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeReturnOffset :: rest := by
+    rw [hstate2]
+    simp [EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack1]
+  have hstate3 :=
+    counterState_of_stepFE_push1_ok hrunning2 hprecompile2
+      (counterPreparedInitializeTrampolineBodyPush_decoded hat2) hstackOk2
+      hgas2 hstep2
+  have hstack3 :
+      s3.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeBodyOffset ::
+          EvmSemantics.UInt256.ofNat counterInitializeReturnOffset :: rest := by
+    rw [hstate3]
+    simp [EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack2]
+  have hdecoded3 := counterPreparedInitializeTrampolineJump_decoded hat3
+  rcases hat3 with ⟨hcode3, _hpc3, _hfork3⟩
+  have hvalid :
+      EvmSemantics.EVM.Decode.isValidJumpDest s3.executionEnv.code
+        (EvmSemantics.UInt256.ofNat counterInitializeBodyOffset).toNat = true := by
+    rw [hcode3]
+    have hbodyNat :
+        (EvmSemantics.UInt256.ofNat counterInitializeBodyOffset).toNat =
+          counterInitializeBodyOffset := by
+      native_decide
+    rw [hbodyNat]
+    exact counterCompiledRuntimeCode_valid_initialize_body_jumpdest
+  have hstate4 :=
+    counterState_of_stepFE_stackMemFlow_jump_ok hrunning3 hprecompile3
+      hdecoded3 hstack3 hvalid hstackOk3 hgas3 hstep3
+  simp [hstate4, hstate3, hstate2, hstate1]
+
 theorem counterPreparedInitializeFirstPush0_decoded
     {state : EvmState}
     (hat : counterCompiledStateAt state (counterInitializeBodyOffset + 1)) :
@@ -4304,6 +4375,170 @@ theorem counterCallStack_of_dispatcher_trampoline_stepFE_to_initialize_first_opc
                 (hcallStack4.trans
                   (hcallStack3.trans
                     (hcallStack2.trans hcallStack1)))))))))
+
+theorem counterStorageValue_of_dispatcher_trampoline_stepFE_to_initialize_first_opcode_ok
+    {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (h0 : s0.stack = rest)
+    (hat0 : counterCompiledStateAt s0 0)
+    (hready0 : counterStepFEReady s0 (.Push counterPush0Op))
+    (hstep0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hcalldata0 : s0.executionEnv.calldata = counterCallCalldata .initialize)
+    (hready1 :
+      counterStepFEReady s1
+        (.Env (.CALLDATALOAD : EvmSemantics.Operation.EnvOps)))
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hready2 : counterStepFEReady s2 (.Push counterPush1Op))
+    (hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hready3 :
+      counterStepFEReady s3
+        (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4)
+    (hready4 : counterStepFEReady s4 (.Dup counterDup1Op))
+    (hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5)
+    (hready5 : counterStepFEReady s5 (.Push counterPush4Op))
+    (hstep5 : EvmSemantics.EVM.stepFE s5 = .ok s6)
+    (hready6 :
+      counterStepFEReady s6
+        (.CompBit (.EQ : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep6 : EvmSemantics.EVM.stepFE s6 = .ok s7)
+    (hready7 : counterStepFEReady s7 (.Push counterPush1Op))
+    (hstep7 : EvmSemantics.EVM.stepFE s7 = .ok s8)
+    (hready8 :
+      counterStepFEReady s8
+        (.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep8 : EvmSemantics.EVM.stepFE s8 = .ok s9)
+    (hready9 :
+      counterStepFEReady s9
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep9 : EvmSemantics.EVM.stepFE s9 = .ok s10)
+    (hat10 : counterCompiledStateAt s10 (counterInitializeTrampolineOffset + 1))
+    (hready10 : counterStepFEReady s10 (.Push counterPush1Op))
+    (hstep10 : EvmSemantics.EVM.stepFE s10 = .ok s11)
+    (hat11 : counterCompiledStateAt s11 (counterInitializeTrampolineOffset + 3))
+    (hready11 : counterStepFEReady s11 (.Push counterPush1Op))
+    (hstep11 : EvmSemantics.EVM.stepFE s11 = .ok s12)
+    (hat12 : counterCompiledStateAt s12 (counterInitializeTrampolineOffset + 5))
+    (hready12 :
+      counterStepFEReady s12
+        (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep12 : EvmSemantics.EVM.stepFE s12 = .ok s13)
+    (hready13 :
+      counterStepFEReady s13
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep13 : EvmSemantics.EVM.stepFE s13 = .ok s14) :
+    counterStorageValue counterContractAddress counterCountSlot s14 =
+      counterStorageValue counterContractAddress counterCountSlot s0 := by
+  obtain ⟨hat1, _hdecoded1, hstack1, hcalldata1From0⟩ :=
+    counterState_of_dispatcher_first_push0_stepFE_to_calldataload_ok
+      h0 hat0 hready0 hstep0
+  have hcalldata1 : s1.executionEnv.calldata = counterCallCalldata .initialize := by
+    rw [hcalldata1From0, hcalldata0]
+  obtain ⟨hat2, _hdecoded2, hstack2⟩ :=
+    counterState_of_dispatcher_calldataload_stepFE_to_shift_push_ok
+      hstack1 hcalldata1 hat1 hready1 hstep1
+  obtain ⟨hat3, _hdecoded3, hstack3⟩ :=
+    counterState_of_dispatcher_selector_shift_push_stepFE_to_shr_ok
+      hstack2 hat2 hready2 hstep2
+  obtain ⟨hat4, _hdecoded4, hstack4⟩ :=
+    counterState_of_dispatcher_selector_shr_stepFE_to_dup_ok
+      hstack3 hat3 hready3 hstep3
+  obtain ⟨hat5, _hdecoded5, hstack5⟩ :=
+    counterState_of_dispatcher_selector_dup_stepFE_to_selector_push_ok
+      hstack4 hat4 hready4 hstep4
+  obtain ⟨hat6, _hdecoded6, hstack6⟩ :=
+    counterState_of_dispatcher_initialize_selector_push_stepFE_to_eq_ok
+      hstack5 hat5 hready5 hstep5
+  obtain ⟨hat7, _hdecoded7, hstack7⟩ :=
+    counterState_of_dispatcher_initialize_eq_stepFE_to_trampoline_push_ok
+      hstack6 hat6 hready6 hstep6
+  obtain ⟨hat8, _hdecoded8, hstack8⟩ :=
+    counterState_of_dispatcher_trampoline_push_stepFE_to_jumpi_ok
+      hstack7 hat7 hready7 hstep7
+  obtain ⟨hat9, _hdecoded9, hstack9⟩ :=
+    counterState_of_dispatcher_initialize_jumpi_stepFE_to_trampoline_ok
+      hstack8 hat8 hready8 hstep8
+  obtain ⟨hat13, _hdecoded13, hstack13⟩ :=
+    counterState_of_initialize_trampoline_stepFE_to_body_ok
+      hstack9 hat9 hready9 hstep9 hat10 hready10 hstep10
+      hat11 hready11 hstep11 hat12 hready12 hstep12
+  rcases hready0 with ⟨hrunning0, hprecompile0, hstackOk0, hgas0⟩
+  rcases hready1 with ⟨hrunning1, hprecompile1, hstackOk1, hgas1⟩
+  rcases hready2 with ⟨hrunning2, hprecompile2, hstackOk2, hgas2⟩
+  rcases hready3 with ⟨hrunning3, hprecompile3, hstackOk3, hgas3⟩
+  rcases hready4 with ⟨hrunning4, hprecompile4, hstackOk4, hgas4⟩
+  rcases hready5 with ⟨hrunning5, hprecompile5, hstackOk5, hgas5⟩
+  rcases hready6 with ⟨hrunning6, hprecompile6, hstackOk6, hgas6⟩
+  rcases hready7 with ⟨hrunning7, hprecompile7, hstackOk7, hgas7⟩
+  rcases hready8 with ⟨hrunning8, hprecompile8, hstackOk8, hgas8⟩
+  rcases hready13 with ⟨hrunning13, hprecompile13, hstackOk13, hgas13⟩
+  have hstate1 :=
+    counterState_of_stepFE_push0_ok hrunning0 hprecompile0
+      (counterPreparedDispatcherFirstPush0_decoded hat0) hstackOk0 hgas0 hstep0
+  have hstate2 :=
+    counterState_of_stepFE_env_calldataload_ok hrunning1 hprecompile1
+      (counterPreparedDispatcherCalldataload_decoded hat1) hstack1 hstackOk1
+      hgas1 hstep1
+  have hstate3 :=
+    counterState_of_stepFE_push1_ok hrunning2 hprecompile2
+      (counterPreparedDispatcherSelectorShiftPush224_decoded hat2)
+      hstackOk2 hgas2 hstep2
+  have hstate4 :=
+    counterState_of_stepFE_compBit_shr_ok hrunning3 hprecompile3
+      (counterPreparedDispatcherSelectorShr_decoded hat3) hstack3 hstackOk3
+      hgas3 hstep3
+  have hstate5 :=
+    counterState_of_stepFE_dup1_ok hrunning4 hprecompile4
+      (counterPreparedDispatcherSelectorDup1_decoded hat4) hstack4 hstackOk4
+      hgas4 hstep4
+  have hstate6 :=
+    counterState_of_stepFE_push4_ok hrunning5 hprecompile5
+      (counterPreparedDispatcherInitializeSelectorPush4_decoded hat5)
+      hstackOk5 hgas5 hstep5
+  have hstate7 :=
+    counterState_of_stepFE_compBit_eq_ok hrunning6 hprecompile6
+      (counterPreparedDispatcherInitializeEq_decoded hat6) hstack6 hstackOk6
+      hgas6 hstep6
+  have hstate8 :=
+    counterState_of_stepFE_push1_ok hrunning7 hprecompile7
+      (counterPreparedDispatcherInitializeTrampolinePush_decoded hat7)
+      hstackOk7 hgas7 hstep7
+  rcases hat8 with ⟨hcode8, _hpc8, _hfork8⟩
+  have hdestNat :
+      (EvmSemantics.UInt256.ofNat counterInitializeTrampolineOffset).toNat =
+        counterInitializeTrampolineOffset := by
+    native_decide
+  have hvalid :
+      EvmSemantics.EVM.Decode.isValidJumpDest s8.executionEnv.code
+        (EvmSemantics.UInt256.ofNat counterInitializeTrampolineOffset).toNat =
+        true := by
+    rw [hcode8, hdestNat]
+    exact counterCompiledRuntimeCode_valid_initialize_trampoline_jumpdest
+  have hstate9 :=
+    counterState_of_stepFE_stackMemFlow_jumpi_taken_ok hrunning8 hprecompile8
+      (counterPreparedDispatcherInitializeJumpi_decoded ⟨hcode8, _hpc8, _hfork8⟩)
+      hstack8 counterInitialize_selector_condition_nonzero hvalid hstackOk8 hgas8
+      hstep8
+  have hstorage9 :
+      counterStorageValue counterContractAddress counterCountSlot s9 =
+        counterStorageValue counterContractAddress counterCountSlot s0 := by
+    simp [hstate9, hstate8, hstate7, hstate6, hstate5, hstate4, hstate3,
+      hstate2, hstate1]
+  have hstorage13 :
+      counterStorageValue counterContractAddress counterCountSlot s13 =
+        counterStorageValue counterContractAddress counterCountSlot s9 :=
+    counterStorageValue_of_initialize_trampoline_stepFE_to_body_ok
+      hstack9 hat9 hready9 hstep9 hat10 hready10 hstep10
+      hat11 hready11 hstep11 hat12 hready12 hstep12
+  have hstate14 :=
+    counterState_of_stepFE_stackMemFlow_jumpdest_ok hrunning13 hprecompile13
+      (counterPreparedInitializeBodyJumpdest_decoded hat13) hstackOk13 hgas13
+      hstep13
+  have hstorage14 :
+      counterStorageValue counterContractAddress counterCountSlot s14 =
+        counterStorageValue counterContractAddress counterCountSlot s13 := by
+    simp [hstate14]
+  exact hstorage14.trans (hstorage13.trans hstorage9)
 
 theorem counterPreparedInitializeSetValuePush192_decoded
     {state : EvmState}
@@ -5404,6 +5639,133 @@ theorem counterStorageValue_of_initialize_prefix_stepFE_to_sload_ok
       hstep11
   simp [hstate12, hstate11, hstate10, hstate9, hstate8, hstate7,
     hstate6, hstate5, hstate4, hstate3, hstate2, hstate1]
+
+theorem counterStorageValue_of_dispatcher_initialize_prefix_stepFE_to_sload_ok
+    {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17
+      s18 s19 s20 s21 s22 s23 s24 s25 s26 : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (h0 : s0.stack = rest)
+    (hat0 : counterCompiledStateAt s0 0)
+    (hready0 : counterStepFEReady s0 (.Push counterPush0Op))
+    (hstep0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hcalldata0 : s0.executionEnv.calldata = counterCallCalldata .initialize)
+    (hready1 :
+      counterStepFEReady s1
+        (.Env (.CALLDATALOAD : EvmSemantics.Operation.EnvOps)))
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hready2 : counterStepFEReady s2 (.Push counterPush1Op))
+    (hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hready3 :
+      counterStepFEReady s3
+        (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4)
+    (hready4 : counterStepFEReady s4 (.Dup counterDup1Op))
+    (hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5)
+    (hready5 : counterStepFEReady s5 (.Push counterPush4Op))
+    (hstep5 : EvmSemantics.EVM.stepFE s5 = .ok s6)
+    (hready6 :
+      counterStepFEReady s6
+        (.CompBit (.EQ : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep6 : EvmSemantics.EVM.stepFE s6 = .ok s7)
+    (hready7 : counterStepFEReady s7 (.Push counterPush1Op))
+    (hstep7 : EvmSemantics.EVM.stepFE s7 = .ok s8)
+    (hready8 :
+      counterStepFEReady s8
+        (.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep8 : EvmSemantics.EVM.stepFE s8 = .ok s9)
+    (hready9 :
+      counterStepFEReady s9
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep9 : EvmSemantics.EVM.stepFE s9 = .ok s10)
+    (hat10 : counterCompiledStateAt s10 (counterInitializeTrampolineOffset + 1))
+    (hready10 : counterStepFEReady s10 (.Push counterPush1Op))
+    (hstep10 : EvmSemantics.EVM.stepFE s10 = .ok s11)
+    (hat11 : counterCompiledStateAt s11 (counterInitializeTrampolineOffset + 3))
+    (hready11 : counterStepFEReady s11 (.Push counterPush1Op))
+    (hstep11 : EvmSemantics.EVM.stepFE s11 = .ok s12)
+    (hat12 : counterCompiledStateAt s12 (counterInitializeTrampolineOffset + 5))
+    (hready12 :
+      counterStepFEReady s12
+        (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep12 : EvmSemantics.EVM.stepFE s12 = .ok s13)
+    (hready13 :
+      counterStepFEReady s13
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep13 : EvmSemantics.EVM.stepFE s13 = .ok s14)
+    (hready14 : counterStepFEReady s14 (.Push counterPush0Op))
+    (hstep14 : EvmSemantics.EVM.stepFE s14 = .ok s15)
+    (hat15 : counterCompiledStateAt s15 (counterInitializeBodyOffset + 2))
+    (hready15 : counterStepFEReady s15 (.Push counterPush1Op))
+    (hstep15 : EvmSemantics.EVM.stepFE s15 = .ok s16)
+    (hat16 : counterCompiledStateAt s16 (counterInitializeBodyOffset + 4))
+    (hready16 :
+      counterStepFEReady s16
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep16 : EvmSemantics.EVM.stepFE s16 = .ok s17)
+    (hat17 : counterCompiledStateAt s17 (counterInitializeBodyOffset + 5))
+    (hready17 : counterStepFEReady s17 (.Push counterPush1Op))
+    (hstep17 : EvmSemantics.EVM.stepFE s17 = .ok s18)
+    (hat18 : counterCompiledStateAt s18 (counterInitializeBodyOffset + 7))
+    (hready18 : counterStepFEReady s18 (.Dup counterDup1Op))
+    (hstep18 : EvmSemantics.EVM.stepFE s18 = .ok s19)
+    (hat19 : counterCompiledStateAt s19 (counterInitializeBodyOffset + 8))
+    (hready19 : counterStepFEReady s19 (.Push counterPush1Op))
+    (hstep19 : EvmSemantics.EVM.stepFE s19 = .ok s20)
+    (hat20 : counterCompiledStateAt s20 (counterInitializeBodyOffset + 10))
+    (hready20 :
+      counterStepFEReady s20
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep20 : EvmSemantics.EVM.stepFE s20 = .ok s21)
+    (hat21 : counterCompiledStateAt s21 (counterInitializeBodyOffset + 11))
+    (hready21 :
+      counterStepFEReady s21
+        (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps)))
+    (hstep21 : EvmSemantics.EVM.stepFE s21 = .ok s22)
+    (hat22 : counterCompiledStateAt s22 (counterInitializeBodyOffset + 12))
+    (hready22 : counterStepFEReady s22 (.Push counterPush1Op))
+    (hstep22 : EvmSemantics.EVM.stepFE s22 = .ok s23)
+    (hat23 : counterCompiledStateAt s23 (counterInitializeBodyOffset + 14))
+    (hready23 :
+      counterStepFEReady s23
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep23 : EvmSemantics.EVM.stepFE s23 = .ok s24)
+    (hat24 : counterCompiledStateAt s24 (counterInitializeBodyOffset + 15))
+    (hready24 :
+      counterStepFEReady s24
+        (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep24 : EvmSemantics.EVM.stepFE s24 = .ok s25)
+    (hat25 : counterCompiledStateAt s25 (counterInitializeBodyOffset + 16))
+    (hready25 : counterStepFEReady s25 (.Push counterPush0Op))
+    (hstep25 : EvmSemantics.EVM.stepFE s25 = .ok s26) :
+    counterStorageValue counterContractAddress counterCountSlot s26 =
+      counterStorageValue counterContractAddress counterCountSlot s0 := by
+  obtain ⟨hat14, _hdecoded14, hstack14⟩ :=
+    counterState_of_dispatcher_trampoline_stepFE_to_initialize_first_opcode_ok
+      h0 hat0 hready0 hstep0 hcalldata0 hready1 hstep1 hready2 hstep2
+      hready3 hstep3 hready4 hstep4 hready5 hstep5 hready6 hstep6
+      hready7 hstep7 hready8 hstep8 hready9 hstep9 hat10 hready10 hstep10
+      hat11 hready11 hstep11 hat12 hready12 hstep12 hready13 hstep13
+  have hdispatcher :
+      counterStorageValue counterContractAddress counterCountSlot s14 =
+        counterStorageValue counterContractAddress counterCountSlot s0 :=
+    counterStorageValue_of_dispatcher_trampoline_stepFE_to_initialize_first_opcode_ok
+      h0 hat0 hready0 hstep0 hcalldata0 hready1 hstep1
+      hready2 hstep2 hready3 hstep3 hready4 hstep4
+      hready5 hstep5 hready6 hstep6 hready7 hstep7
+      hready8 hstep8 hready9 hstep9 hat10 hready10 hstep10
+      hat11 hready11 hstep11 hat12 hready12 hstep12
+      hready13 hstep13
+  have hbody :
+      counterStorageValue counterContractAddress counterCountSlot s26 =
+        counterStorageValue counterContractAddress counterCountSlot s14 :=
+    counterStorageValue_of_initialize_prefix_stepFE_to_sload_ok
+      hstack14 hat14 hready14 hstep14 hat15 hready15 hstep15
+      hat16 hready16 hstep16 hat17 hready17 hstep17
+      hat18 hready18 hstep18 hat19 hready19 hstep19
+      hat20 hready20 hstep20 hat21 hready21 hstep21
+      hat22 hready22 hstep22 hat23 hready23 hstep23
+      hat24 hready24 hstep24 hat25 hready25 hstep25
+  exact hbody.trans hdispatcher
 
 theorem counterStack_of_initialize_tail_stepFE_to_sstore_ok
     {sloadState afterSload afterAnd afterOr sstoreState : EvmState}
@@ -6982,6 +7344,8 @@ theorem counterRunBytecode_initialize_dispatcher_body_and_return_ok
       counterStorageValue counterContractAddress counterCountSlot s36 =
         counterInitializeStorageWord
           (counterStorageValue counterContractAddress counterCountSlot s26) ∧
+      counterStorageValue counterContractAddress counterCountSlot s26 =
+        counterStorageValue counterContractAddress counterCountSlot s0 ∧
       s36.callStack = s31.callStack ∧
       s36.callStack = s14.callStack ∧
       s36.callStack = s0.callStack ∧
@@ -7024,6 +7388,21 @@ theorem counterRunBytecode_initialize_dispatcher_body_and_return_ok
       hready8 hstep8 hready9 hstep9 hat10 hready10 hstep10
       hat11 hready11 hstep11 hat12 hready12 hstep12
       hready13 hstep13
+  have hstoragePrefix :
+      counterStorageValue counterContractAddress counterCountSlot s26 =
+        counterStorageValue counterContractAddress counterCountSlot s0 :=
+    counterStorageValue_of_dispatcher_initialize_prefix_stepFE_to_sload_ok
+      h0 hat0 hready0 hstep0 hcalldata0 hready1 hstep1
+      hready2 hstep2 hready3 hstep3 hready4 hstep4
+      hready5 hstep5 hready6 hstep6 hready7 hstep7
+      hready8 hstep8 hready9 hstep9 hat10 hready10 hstep10
+      hat11 hready11 hstep11 hat12 hready12 hstep12
+      hready13 hstep13 hready14 hstep14 hat15 hready15 hstep15
+      hat16 hready16 hstep16 hat17 hready17 hstep17
+      hat18 hready18 hstep18 hat19 hready19 hstep19
+      hat20 hready20 hstep20 hat21 hready21 hstep21
+      hat22 hready22 hstep22 hat23 hready23 hstep23
+      hat24 hready24 hstep24 hat25 hready25 hstep25
   have hrun :
       ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 36 =
         .ok (s36, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) := by
@@ -7041,7 +7420,7 @@ theorem counterRunBytecode_initialize_dispatcher_body_and_return_ok
         hready27 hstep27 hready28 hstep28 hready29 hstep29
         hready30 hstep30 hready31 hstep31 hready32 hstep32
         hready33 hstep33 hready34 hstep34 hready35 hstep35)
-  exact ⟨hrun, hhalt, hstorage, hcallStackReturn, hcallStackBody,
+  exact ⟨hrun, hhalt, hstorage, hstoragePrefix, hcallStackReturn, hcallStackBody,
     hcallStackBody.trans hcallStackDispatcher, hobs⟩
 
 def counterPowdrPreparedTraceStep (cfg : PowdrCounterConfig) (preparedState : EvmState)
