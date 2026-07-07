@@ -865,18 +865,17 @@ theorem counterStack_of_stepFE_compBit_shl_ok
           EvmSemantics.Operation) ≤ state.gasAvailable)
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     nextState.stack = EvmSemantics.UInt256.shiftLeft value shift :: rest := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterStack_of_compBit_shl_ok hstack hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_shl_ok
+      hready hdecoded hstack
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
 
 theorem counterState_of_stepFE_compBit_shl_ok
     {state nextState : EvmState}
@@ -906,18 +905,16 @@ theorem counterState_of_stepFE_compBit_shl_ok
           (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps) :
             EvmSemantics.Operation)) hgas).replaceStackAndIncrPC
         (EvmSemantics.UInt256.shiftLeft value shift :: rest) := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterState_of_compBit_shl_ok hstack hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_shl_ok
+      hready hdecoded hstack
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  rfl
 
 theorem counterCallStack_of_stepFE_compBit_shl_ok
     {state nextState : EvmState}
@@ -942,19 +939,12 @@ theorem counterCallStack_of_stepFE_compBit_shl_ok
           EvmSemantics.Operation) ≤ state.gasAvailable)
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     nextState.callStack = state.callStack := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      have hcallStack := counterCallStack_of_compBit_shl_ok hstack hstep
-      simpa [EvmSemantics.EVM.State.consumeGas] using hcallStack
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hstate :=
+    counterState_of_stepFE_compBit_shl_ok hrunning hprecompile hdecoded
+      hstack hstackOk hgas hstep
+  rw [hstate]
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
 
 theorem counterState_of_compBit_shr_ok
     {state gasState nextState : EvmState}
@@ -999,18 +989,16 @@ theorem counterState_of_stepFE_compBit_shr_ok
           (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps) :
             EvmSemantics.Operation)) hgas).replaceStackAndIncrPC
         (EvmSemantics.UInt256.shiftRight value shift :: rest) := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterState_of_compBit_shr_ok hstack hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_shr_ok
+      hready hdecoded hstack
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  rfl
 
 theorem counterCallStack_of_stepFE_compBit_shr_ok
     {state nextState : EvmState}
@@ -1189,18 +1177,17 @@ theorem counterStack_of_stepFE_compBit_not_ok
           EvmSemantics.Operation) ≤ state.gasAvailable)
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     nextState.stack = EvmSemantics.UInt256.lnot value :: rest := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterStack_of_compBit_not_ok hstack hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_not_ok
+      hready hdecoded hstack
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
 
 theorem counterState_of_stepFE_compBit_not_ok
     {state nextState : EvmState}
@@ -1230,18 +1217,16 @@ theorem counterState_of_stepFE_compBit_not_ok
           (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps) :
             EvmSemantics.Operation)) hgas).replaceStackAndIncrPC
         (EvmSemantics.UInt256.lnot value :: rest) := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterState_of_compBit_not_ok hstack hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_not_ok
+      hready hdecoded hstack
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  rfl
 
 theorem counterCallStack_of_stepFE_compBit_not_ok
     {state nextState : EvmState}
@@ -1266,19 +1251,12 @@ theorem counterCallStack_of_stepFE_compBit_not_ok
           EvmSemantics.Operation) ≤ state.gasAvailable)
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     nextState.callStack = state.callStack := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      have hcallStack := counterCallStack_of_compBit_not_ok hstack hstep
-      simpa [EvmSemantics.EVM.State.consumeGas] using hcallStack
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hstate :=
+    counterState_of_stepFE_compBit_not_ok hrunning hprecompile hdecoded
+      hstack hstackOk hgas hstep
+  rw [hstate]
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
 
 theorem counterStack_of_stopArith_sub_ok
     {state gasState nextState : EvmState}
@@ -1342,18 +1320,17 @@ theorem counterStack_of_stepFE_stopArith_sub_ok
           EvmSemantics.Operation) ≤ state.gasAvailable)
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     nextState.stack = (a - b) :: rest := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterStack_of_stopArith_sub_ok hstack hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_sub_ok
+      hready hdecoded hstack
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
 
 theorem counterState_of_stepFE_stopArith_sub_ok
     {state nextState : EvmState}
@@ -1383,18 +1360,16 @@ theorem counterState_of_stepFE_stopArith_sub_ok
           (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps) :
             EvmSemantics.Operation)) hgas).replaceStackAndIncrPC
         ((a - b) :: rest) := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterState_of_stopArith_sub_ok hstack hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_sub_ok
+      hready hdecoded hstack
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  rfl
 
 theorem counterCallStack_of_stepFE_stopArith_sub_ok
     {state nextState : EvmState}
@@ -1419,19 +1394,12 @@ theorem counterCallStack_of_stepFE_stopArith_sub_ok
           EvmSemantics.Operation) ≤ state.gasAvailable)
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     nextState.callStack = state.callStack := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      have hcallStack := counterCallStack_of_stopArith_sub_ok hstack hstep
-      simpa [EvmSemantics.EVM.State.consumeGas] using hcallStack
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hstate :=
+    counterState_of_stepFE_stopArith_sub_ok hrunning hprecompile hdecoded
+      hstack hstackOk hgas hstep
+  rw [hstate]
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
 
 theorem counterInitializeU64MaskBase_eq :
     (EvmSemantics.UInt256.shiftLeft
@@ -2058,18 +2026,17 @@ theorem counterStack_of_stepFE_compBit_and_ok
           EvmSemantics.Operation) ≤ state.gasAvailable)
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     nextState.stack = EvmSemantics.UInt256.land a b :: rest := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterStack_of_compBit_and_ok hstack hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.CompBit (.AND : EvmSemantics.Operation.CompareBitwiseOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_and_ok
+      hready hdecoded hstack
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
 
 theorem counterCallStack_of_stepFE_compBit_and_ok
     {state nextState : EvmState}
@@ -2094,19 +2061,17 @@ theorem counterCallStack_of_stepFE_compBit_and_ok
           EvmSemantics.Operation) ≤ state.gasAvailable)
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     nextState.callStack = state.callStack := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      have hcallStack := counterCallStack_of_compBit_and_ok hstack hstep
-      simpa [EvmSemantics.EVM.State.consumeGas] using hcallStack
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.CompBit (.AND : EvmSemantics.Operation.CompareBitwiseOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_and_ok
+      hready hdecoded hstack
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
 
 theorem counterStack_of_compBit_or_ok
     {state gasState nextState : EvmState} {a b : EvmSemantics.UInt256}
@@ -2157,18 +2122,17 @@ theorem counterStack_of_stepFE_compBit_or_ok
           EvmSemantics.Operation) ≤ state.gasAvailable)
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     nextState.stack = EvmSemantics.UInt256.lor a b :: rest := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterStack_of_compBit_or_ok hstack hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.CompBit (.OR : EvmSemantics.Operation.CompareBitwiseOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_or_ok
+      hready hdecoded hstack
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
 
 theorem counterCallStack_of_stepFE_compBit_or_ok
     {state nextState : EvmState}
@@ -2193,19 +2157,17 @@ theorem counterCallStack_of_stepFE_compBit_or_ok
           EvmSemantics.Operation) ≤ state.gasAvailable)
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     nextState.callStack = state.callStack := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      have hcallStack := counterCallStack_of_compBit_or_ok hstack hstep
-      simpa [EvmSemantics.EVM.State.consumeGas] using hcallStack
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.CompBit (.OR : EvmSemantics.Operation.CompareBitwiseOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_or_ok
+      hready hdecoded hstack
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
 
 theorem counterStack_of_initialize_sload_and_or_ok
     {sloadState sloadGas afterSload andGas afterAnd orGas afterOr : EvmState}
