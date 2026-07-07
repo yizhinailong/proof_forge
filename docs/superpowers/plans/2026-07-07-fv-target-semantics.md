@@ -795,6 +795,45 @@ external dependency, but the external differential gate stays (Background "Two-h
   a new `CosmWasmHost`; both green. (ICP stays deferred — see the lane header.)
 - **Depends on:** WASM-4.
 
+---
+
+## ZK targets — future lane (gated on codegen): group by the Lean-semantics axis, NOT a shared core
+
+> **ZK does NOT have a shared core like WASM.** Cairo (Cairo VM/Sierra), Noir (ACIR), Aleo
+> (Leo/AVM), and Psy (DPN) are different arithmetization/VM models with little common structure
+> — so there is **no "one ZK core + thin adapters"**. They group instead by **whether a Lean
+> semantics exists** (the execution-plan §6 axis), and they all share the FRAMEWORK
+> (`TargetSemantics` + `CounterUniversal` induction), not a core.
+>
+> **Two groups:**
+>
+> | Group | Targets | Lean semantics | Structure |
+> |---|---|---|---|
+> | **ZK-import** (high FV value) | **Cairo/Starknet**, **Noir/Aztec** | ✓ exist — Cairo: `starkware-libs/formal-proofs` (Cairo VM/CPU in Lean 4); Noir: Reilabs `Lampe` + NAVe (ACIR) | **same as EVM E-lane**: opt-in lake dep on the external semantics, refine IR against its executable `Step`. Their Lean models ARE execution semantics, so trace-refinement works |
+> | **ZK-sourcegen / C-diff** | **Aleo/Leo** (spike: `Backend/Aleo/IR.lean`), **Psy/DPN** (experimental: `Backend/Psy/*`) | ✗ none (snarkVM / DPN) | stay at **differential testing** (vs `leo` / `dargo` result vectors), like pre-interpreter C-diff. Self-building a Lean semantics is a research project — low priority |
+>
+> **ZK-specific boundary (non-goal, like `solc`):** the **proving system** (STARK for Cairo,
+> Barretenberg/Groth16 for Noir, snarkVM for Aleo, Dargo for Psy) stays external. We prove
+> **IR ⟷ the circuit's computed function** (functional correctness, via the imported execution
+> semantics); "the circuit is sound / the proof verifies" is the ZK project's job (Cairo's AIR
+> proofs, the ACIR formalization), not ours.
+>
+> **CRITICAL PREREQUISITE — codegen first.** Unlike EVM/Solana/WASM (mature codegen), the
+> ZK-import targets are NOT code-ready:
+> - **Cairo/Starknet** — docs-only research, NO code (no IR→Cairo codegen yet).
+> - **Noir** — not in the repo at all; needs a target note + IR→Noir/ACIR codegen.
+> - **Aleo/Psy** — have codegen spikes but no Lean semantics (C-diff only).
+>
+> So the ZK-import refinement is **gated on first building IR→Cairo and IR→Noir codegen** (a
+> WS28 sourcegen effort). **Do EVM → Solana → WASM first** (mature codegen); schedule the ZK
+> lane when a ZK sourcegen lane opens.
+>
+> **When the ZK-import lane opens, it copies the EVM E-lane exactly:** `ZK-E1` opt-in lake dep
+> on `starkware-libs/formal-proofs` (Cairo) / `reilabs/lampe` (Noir) → `ZK-E2` adapter to its
+> `Step` → `ZK-E3` IR↔Cairo / IR↔Noir refinement via the shared `CounterUniversal` induction.
+> Aleo + Psy stay at C-diff differential gates until/unless a ZK-app Lean semantics is worth
+> self-building.
+
 ## Later tasks — C-proof layer (after P2) and deeper slices
 
 These are lower-priority; they build on the C-diff tasks above.
