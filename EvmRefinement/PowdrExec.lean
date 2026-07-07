@@ -413,6 +413,46 @@ theorem executionSegment_four_reductions
       r2.running r2.step r3.running r3.step)
     hpost
 
+@[simp] def BaseGasSufficient (state : State) (op : Operation) : Prop :=
+  EvmSemantics.EVM.Gas.baseCost state.fork op ≤ state.gasAvailable
+
+def SLoadGasSufficient (state : State) (key : UInt256) : Prop :=
+  EvmSemantics.EVM.Gas.sloadTotal state key ≤ state.gasAvailable
+
+def MemoryExpansionSufficientAfterBase
+    (state : State) (op : Operation)
+    (hbase : BaseGasSufficient state op)
+    (offset size : Nat) : Prop :=
+  (state.consumeGas
+    (EvmSemantics.EVM.Gas.baseCost state.fork op) hbase).canExpandMemory
+      offset size
+
+def SStoreBaseGasSufficient (state : State) : Prop :=
+  BaseGasSufficient state
+    (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps))
+
+def SStoreSentryAllows
+    (state : State) (hbase : SStoreBaseGasSufficient state) : Prop :=
+  EvmSemantics.EVM.Gas.sstoreSentry state.fork
+    (state.consumeGas
+      (EvmSemantics.EVM.Gas.baseCost state.fork
+        (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+          Operation)) hbase).gasAvailable = false
+
+def SStoreDynamicGasSufficient
+    (state : State) (key value : UInt256)
+    (hbase : SStoreBaseGasSufficient state) : Prop :=
+  (let addr := state.executionEnv.address
+   let acc := state.accountMap addr
+   let current := acc.storage key
+   let original := state.substate.originalStorage addr key
+   EvmSemantics.EVM.Gas.sstoreCost state.fork original current value +
+     EvmSemantics.EVM.Gas.sstoreColdSurcharge state key) ≤
+    (state.consumeGas
+      (EvmSemantics.EVM.Gas.baseCost state.fork
+        (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+          Operation)) hbase).gasAvailable
+
 structure StepFEReady (state : State) (op : Operation) : Prop where
   running : state.halt = .Running
   notPrecompile :
