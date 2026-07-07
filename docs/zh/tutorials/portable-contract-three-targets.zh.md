@@ -120,14 +120,25 @@ cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --sce
 
 ValueVault budget baseline 位于 `testkit/scenarios/value-vault.toml`。
 
-## 步骤 6 — 在 EVM 上组合 stdlib 模块（可选）
+## 步骤 6 — 使用高层 token intent（可选）
 
-可移植 Counter/ValueVault 演示跨目标产品路径。EVM stdlib 模块（`Ownable`、
-`Pausable`、`ERC20`、`ReentrancyGuard`）通过 `contract_source` 内的
-`import` / `open` 组合；参见
-`Examples/Evm/Contracts/SimpleToken.lean` 和
-[authoring-model.md](../authoring-model.md)。这些 stdlib 示例目前以 EVM 为先；
-共享场景 Counter/ValueVault 仍是三目标 canonical 参考。
+可移植 Counter/ValueVault 演示 chain-neutral contract logic。Fungible token
+使用更高层的 `TokenSpec` intent 边界，而不是在 source 里命名某条链的协议：
+
+```bash
+lake env proof-forge build --target evm --token --root . \
+  -o build/shared-fungible-token/FungibleToken.erc20.bin \
+  --yul-output build/shared-fungible-token/FungibleToken.erc20.yul \
+  Examples/Shared/FungibleToken.lean
+
+lake env proof-forge build --target solana-sbpf-asm --token --root . \
+  -o build/shared-fungible-token/FungibleToken.solana-token-plan.json \
+  Examples/Shared/FungibleToken.lean
+```
+
+source 保持 target-neutral；EVM target 选择 ERC-20-compatible artifact，
+Solana target 选择 SPL Token / Token-2022 plan。EVM stdlib composition 示例仍放在
+`Examples/Evm/Contracts/`。
 
 ## 检查清单
 
@@ -137,6 +148,8 @@ ValueVault budget baseline 位于 `testkit/scenarios/value-vault.toml`。
 - [ ] 本地 `just portable-counter-multi-target` 通过。
 - [ ] `just testkit-budget-gate` 通过（行为 + resource budget）。
 - [ ] Artifact metadata 记录 `sourceKind: contract-sdk` 及模块所需 capability。
+- [ ] Token 示例使用 `TokenSpec` 或其他高层 intent 边界，而不是在 shared source
+      中命名 target protocol。
 
 ## 下一步
 

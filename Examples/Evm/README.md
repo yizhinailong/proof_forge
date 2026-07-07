@@ -1,7 +1,11 @@
 # ProofForge EVM Examples
 
-This directory demonstrates compiling EVM contracts through ProofForge's unified
-portable entry path.
+This directory keeps EVM-specific fixtures for ProofForge's unified portable
+entry path: golden Yul files, Foundry runtime smokes, constructor/proxy probes,
+and stdlib/protocol-specific composition examples.
+
+Portable examples that should compile by changing only `--target` belong in
+[Examples/Shared](../Shared/README.md).
 
 ## Unified entry
 
@@ -31,11 +35,19 @@ Build:
 lake env proof-forge build --target evm \
   --root . \
   -o build/evm/Counter.bin \
-  Examples/Evm/Contracts/Counter.lean
+  Examples/Shared/Counter.lean
 ```
 
-`ArrayExample.lean` and the stdlib examples use the same unified path via
-`contract_source` / `def spec : ContractSpec`.
+`Counter`, `ValueVault`, `RoleGatedToken`, and `StakingVault` are the primary
+multi-target shared contract scenarios.
+
+`SimpleToken`, `OwnableERC20`, `AccessControlProbe`, `ArrayExample.lean`,
+`VerifiedVault.lean`, constructor probes, proxy probes, and the `stdlib/`
+wrappers are EVM-focused fixtures because they exercise EVM ABI, ERC-style
+stdlib composition, deployment, callvalue/native-transfer, or golden-output
+behavior. Chain-neutral token intent lives in
+`Examples/Shared/FungibleToken.lean` as a `TokenSpec`; the EVM target lowers
+that intent to an ERC-20-compatible artifact.
 
 No `.evm-methods` sidecar is required. The CLI loads `spec : ContractSpec` from
 the Lean module and lowers through the portable IR EVM backend.
@@ -61,7 +73,10 @@ expects Foundry (`cast`/`forge`) and `solc` on `PATH`.
 scripts/evm/foundry-smoke.sh
 ```
 
-## Shared scenario Counter
+## Shared Scenarios
 
-`Counter.lean` follows the cross-target shared scenario (`initialize`,
-`increment`, `get`). See [docs/shared-scenario.md](../../docs/shared-scenario.md).
+The canonical shared examples live in [Examples/Shared](../Shared/README.md).
+See [docs/shared-scenario.md](../../docs/shared-scenario.md) for the Counter and
+ValueVault scenario details. See
+[Examples/Shared/FungibleToken.lean](../Shared/FungibleToken.lean) for the
+target-neutral token-intent example.

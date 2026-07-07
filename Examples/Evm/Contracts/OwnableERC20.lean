@@ -2,8 +2,9 @@
 Copyright (c) 2026 DaviRain. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
-Example composed contract: Ownable access control plus ERC-20 token surface.
-Uses the official `compose` merge API instead of inlining owner state (CS-2.7).
+EVM stdlib composition fixture: Ownable access control plus ERC-20 token
+surface. The chain-neutral token intent example lives in
+`Examples/Shared/FungibleToken.lean`.
 -/
 import ProofForge.Contract.Source
 import ProofForge.Contract.Compose

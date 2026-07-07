@@ -13,13 +13,36 @@ and NEAR `value_return` for U32/U64/Bool/Hash.
 -/
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
-import ProofForge.Backend.Diagnostic
 import ProofForge.IR.Contract
 import ProofForge.IR.Ownership
 import ProofForge.Compiler.Wasm.AST
 import ProofForge.Compiler.Wasm.Printer
+import ProofForge.Backend.WasmNear.Aggregate
+import ProofForge.Backend.WasmNear.Assert
+import ProofForge.Backend.WasmNear.ArrayHeap
+import ProofForge.Backend.WasmNear.Capabilities
+import ProofForge.Backend.WasmNear.Common
+import ProofForge.Backend.WasmNear.Context
+import ProofForge.Backend.WasmNear.Crosscall
+import ProofForge.Backend.WasmNear.Diagnostics
+import ProofForge.Backend.WasmNear.Event
+import ProofForge.Backend.WasmNear.ExprAnalysis
+import ProofForge.Backend.WasmNear.Hash
+import ProofForge.Backend.WasmNear.Imports
+import ProofForge.Backend.WasmNear.Layout
+import ProofForge.Backend.WasmNear.Locals
+import ProofForge.Backend.WasmNear.LoweringEnv
+import ProofForge.Backend.WasmNear.Map
+import ProofForge.Backend.WasmNear.Memory
+import ProofForge.Backend.WasmNear.ModuleAssembly
+import ProofForge.Backend.WasmNear.Params
 import ProofForge.Backend.WasmNear.Plan
-import ProofForge.Target.Check
+import ProofForge.Backend.WasmNear.Promise
+import ProofForge.Backend.WasmNear.Return
+import ProofForge.Backend.WasmNear.Scalar
+import ProofForge.Backend.WasmNear.Statement
+import ProofForge.Backend.WasmNear.Struct
+import ProofForge.Backend.WasmNear.Types
 import ProofForge.Target.Plan
 import ProofForge.Target.Registry
 
@@ -27,1186 +50,204 @@ namespace ProofForge.Backend.WasmNear.EmitWat
 
 open ProofForge.IR
 open ProofForge.Compiler.Wasm
+open ProofForge.Backend.WasmNear.Aggregate
+open ProofForge.Backend.WasmNear.Assert
+open ProofForge.Backend.WasmNear.ArrayHeap
+open ProofForge.Backend.WasmNear.Capabilities
+open ProofForge.Backend.WasmNear.Common
+open ProofForge.Backend.WasmNear.Context
+open ProofForge.Backend.WasmNear.Crosscall
+open ProofForge.Backend.WasmNear.Diagnostics
+open ProofForge.Backend.WasmNear.Event
+open ProofForge.Backend.WasmNear.ExprAnalysis
+open ProofForge.Backend.WasmNear.Hash
+open ProofForge.Backend.WasmNear.Imports
+open ProofForge.Backend.WasmNear.Layout
+open ProofForge.Backend.WasmNear.Locals
+open ProofForge.Backend.WasmNear.LoweringEnv
+open ProofForge.Backend.WasmNear.Map
 open ProofForge.Backend.WasmNear.Plan
-
-def nativeValueUnsupportedMessage : String :=
-  "EmitWat: NEAR native value (attached deposit) requires an exact U128 projection; IR v0 cannot lower nativeValue yet"
-
-def indexedEventUnsupportedMessage (name : String) : String :=
-  s!"EmitWat: event `{name}` uses indexed fields, but NEAR logs do not support EVM-style topic indexing"
-
-def crosscallUnsupportedMessage : String :=
-  "EmitWat: crosscall.invoke maps to NEAR Promise-based execution, but EmitWat v0 has no Promise lowering yet"
-
-def crosscallEvmOnlyMessage (kind : String) : String :=
-  s!"EmitWat: NEAR crosscall does not support `{kind}`; use `crosscallInvoke` with `nearCrosscallStrings` address literals"
-
-def crosscallTypedUnsupportedMessage : String :=
-  "EmitWat: typed crosscall is not supported on NEAR; use untyped `crosscallInvoke`"
-
-structure EmitError where
-  message : String
-  deriving Repr, Inhabited
-
-def err (msg : String) : Except EmitError α := .error { message := msg }
-
-/-! ## Shared diagnostic contract adapter (RFC 0014 Phase 3)
-
-Trivial `LoweringError` instance: projects `EmitError` into the shared
-`LoweringDiagnostic` shape, tagging `backend? := "wasm-near"`. The class
-default `render` delegates to `LoweringDiagnostic.render`, which outputs only
-`message`, so this is byte-identical to the bare `message` that the `err`
-helper above uses. Purely additive metadata; no existing call site or golden
-diagnostic is affected. -/
-instance : ProofForge.Backend.Diagnostic.LoweringError EmitError where
-  toDiagnostic := fun e =>
-    { message := e.message, backend? := some "wasm-near" }
-
-/-! ## NEAR Wasm linear-memory scratch layout
-
-These constants carve fixed, non-overlapping regions out of the Wasm linear
-memory for EmitWat codegen. The layout is a frozen contract between the
-emitter and the runtime host imports (`read_register`/`storage_read`/...).
-
-Region map (base → base+size, all bytes are exclusive scratch space):
-
-| Region          | Base   | Size   | End    | Purpose |
-|-----------------|--------|--------|--------|---------|
-| `KEY_BUF`       | 4096   | 4096   | 8192   | input register read buffer |
-| `RET_BUF`       | 8192   | 3808   | 12000  | `value_return` payload (U64/U32/Bool) |
-| `TRUE_PTR`      | 12000  | 6      | 12006  | canonical `true` byte (1) |
-| `FALSE_PTR`     | 12006  | 5      | 12011  | canonical `false` bytes |
-| `HEX_LUT_PTR`   | 12012  | 16     | 12028  | lowercase hex digit lookup table |
-| `MAPKEY_BUF`    | 12500  | ~17500 | 30000  | scratch for map storage keys (prefix ++ key) |
-| `HASH_HEAP`     | 30000  | ~10000 | 40000  | bump-alloc base for 32-byte hash temporaries |
-| `HASH_CONCAT_BUF`| 40000 | 64     | 40064  | `hash_two_to_one` 64-byte input |
-| `CTX_BUF`       | 41000  | 128    | 41128  | account-id → sha256 → u64 |
-| `EVENT_BUF`     | 42000  | 256    | 42256  | event JSON scratch |
-| `EVT_KEY_PTR`   | 42800  | 5      | 42805  | fixed "event" key string |
-| `STRING_BASE`   | 43000  | ~1000  | 44000  | event/field name string pool |
-| `INPUT_BUF`     | 44000  | ~2000  | 46000  | Borsh input args (1 KB headroom) |
-| `PARAM_HASH_BUF`| 46000  | ~1000  | 47000  | 32-byte slots for decoded hash params |
-| `CROSSCALL_BUF` | 47000  | ~1100  | 48100  | NEAR crosscall JSON argument scratch |
-| `CROSSCALL_ARGS_EMPTY_PTR` | 48100 | 2 | 48102 | fixed "[]" payload |
-| `CROSSCALL_STRING_BASE` | 49000 | ~1000 | 50000 | NEAR account/method string pool |
-| `ZERO_HASH_BUF` | 50000  | 32     | 50032  | 32 zero bytes for missing hash map entries |
-| `OLD_HASH_BUF`  | 50500  | 32     | 50532  | previous value for hash map set/insert |
-| `PROMISE_RESULT_BUF` | 51000 | 8   | 51008  | Borsh U64 promise callback payload |
-| `STRUCT_BUF`    | 52000  | ...    | ...    | struct-valued scalar state read/write |
-| `ARR_HEAP`      | 60000  | ...    | ...    | bump-alloc base for array-value temporaries |
-
-The bump heaps (`HASH_HEAP`, `ARR_HEAP`) grow upward and are reset per
-entrypoint by the prologue. Their high-water marks must stay below the next
-fixed region: `HASH_HEAP` must stay below `HASH_CONCAT_BUF` (40000), and
-`ARR_HEAP` must stay below the Wasm memory limit configured by the host.
-The fixed scratch regions above 40000 are never touched by the bump heaps.
-
-Note: this is a codegen-only layout, separate from the `AllocatorConfig`
-bound to the `wasm-near` target profile (`nearWeeModel`, used for IR-level
-storage slot assignment). The two do not overlap because `AllocatorConfig`
-addresses storage keys, not linear memory. -/
-
--- Memory layout
-def KEY_BUF   : Nat := 4096
-def RET_BUF   : Nat := 8192
-def TRUE_PTR  : Nat := 12000
-def FALSE_PTR : Nat := 12006
-def HEX_LUT_PTR : Nat := 12012
-def MAPKEY_BUF : Nat := 12500    -- scratch for building map storage keys (prefix ++ key bytes)
-def HASH_HEAP : Nat := 30000       -- bump-allocator base for hash (32-byte) temporaries
-def ARR_HEAP : Nat := 60000       -- bump-allocator base for array-value temporaries
-def HASH_CONCAT_BUF : Nat := 40000 -- 64-byte scratch for hash_two_to_one
-def CTX_BUF : Nat := 41000          -- 128-byte scratch for account-id → sha256 → u64
-def EVENT_BUF : Nat := 42000       -- 256-byte scratch for building event JSON
-def EVT_KEY_PTR : Nat := 42800     -- fixed "event" key string (5 bytes)
-def STRING_BASE : Nat := 43000     -- event/field name string pool base
-def INPUT_BUF : Nat := 44000       -- 1 KB scratch for Borsh input args
-def CROSSCALL_BUF : Nat := 47000          -- scratch for building crosscall JSON arg arrays
-def CROSSCALL_ARGS_EMPTY_PTR : Nat := 48100 -- fixed "[]" payload for zero-arg NEAR crosscalls
-def CROSSCALL_ARGS_EMPTY_LEN : Nat := 2
-def CROSSCALL_STRING_BASE : Nat := 49000
-def crosscallDefaultGas : Nat := 50_000_000_000_000
-def PARAM_HASH_BUF : Nat := 46000  -- 32-byte slots for decoded hash params (one per hash param)
-def ZERO_HASH_BUF : Nat := 50000  -- 32 zero bytes returned for missing hash-valued map entries
-def OLD_HASH_BUF   : Nat := 50500  -- 32-byte slot holding the previous value for hash-valued map set/insert
-def STRUCT_BUF      : Nat := 52000  -- buffer for reading/writing struct-valued scalar state
-def PROMISE_RESULT_BUF : Nat := 51000  -- scratch for Borsh U64 promise callback payloads
-def crosscallPoolPtrName : String := "__pf_crosscall_pool_ptr"
-def crosscallPoolLenName : String := "__pf_crosscall_pool_len"
-
-/-- Assert two half-open intervals `[a0, a0+aSz)` and `[b0, b0+bSz)` do not
-overlap. Used by `memoryLayoutNonoverlap` below to make the frozen layout
-machine-checked at build time. -/
-def disjointRegions (a0 aSz b0 bSz : Nat) : Bool :=
-  a0 + aSz ≤ b0 ∨ b0 + bSz ≤ a0
-
-/-- Build-time check that the fixed scratch regions are pairwise disjoint.
-Evaluated by `memoryLayoutNonoverlap_valid` below; a failure means someone
-added or moved a constant without leaving a gap, which would silently
-corrupt runtime scratch state. -/
-def memoryLayoutNonoverlap : Bool :=
-  let regions := #[
-    (KEY_BUF, 4096), (RET_BUF, 3808), (TRUE_PTR, 6), (FALSE_PTR, 5),
-    (HEX_LUT_PTR, 16), (MAPKEY_BUF, 17500), (HASH_HEAP, 10000),
-    (HASH_CONCAT_BUF, 64), (CTX_BUF, 128),
-    (EVENT_BUF, 256), (EVT_KEY_PTR, 5), (STRING_BASE, 1000),
-    (INPUT_BUF, 2000), (PARAM_HASH_BUF, 1000), (CROSSCALL_BUF, 1100),
-    (CROSSCALL_ARGS_EMPTY_PTR, CROSSCALL_ARGS_EMPTY_LEN),
-    (CROSSCALL_STRING_BASE, 1000), (ZERO_HASH_BUF, 32),
-    (OLD_HASH_BUF, 32), (PROMISE_RESULT_BUF, 8), (STRUCT_BUF, 4000)
-  ]
-  regions.all (fun (a0, aSz) =>
-    regions.all (fun (b0, bSz) =>
-      a0 == b0 ∨ disjointRegions a0 aSz b0 bSz))
-
-/-- Decidable proof that the fixed EmitWat scratch regions are pairwise
-disjoint. If this theorem fails to elaborate, the memory layout constants
-above have been edited into an overlapping state and codegen would silently
-corrupt runtime scratch buffers. `native_decide` is used because the
-check folds `Array.all` over a literal array, which the kernel's `decide`
-reduction does not fully evaluate, while native evaluation handles it
-trivially. -/
-theorem memoryLayoutNonoverlap_valid : memoryLayoutNonoverlap = true := by
-  native_decide
-
--- Value type → Wasm
-def wasmTypeOf : ValueType → ValType
-  | .u32 => .i32 | .u64 => .i64 | .bool => .i32 | .hash => .i32 | _ => .i32
-def widthOf : ValueType → String
-  | .u32 => "i32" | .u64 => "i64" | .bool => "i32" | .hash => "i32" | _ => "i32"
-def isNumeric (t : ValueType) : Bool := match t with | .u32 | .u64 => true | _ => false
-def isScalarBorshType (t : ValueType) : Bool :=
-  match t with | .u32 | .u64 | .bool | .hash => true | _ => false
-def scalarWidth : ValueType → Nat
-  | .u32 => 4 | .u64 => 8 | .bool => 1 | .hash => 32 | _ => 8
-def loadOpFor : ValueType → String
-  | .u32 => "i32.load" | .u64 => "i64.load" | .bool => "i32.load8_u" | _ => "i64.load"
-def storeOpFor : ValueType → String
-  | .u32 => "i32.store" | .u64 => "i64.store" | .bool => "i32.store8" | _ => "i64.store"
-def typeSuffix (vt : ValueType) : String :=
-  match vt with | .u32 => "u32" | .u64 => "u64" | .bool => "bool" | .hash => "hash" | _ => "x"
-def readName  (vt : ValueType) : String := "__pf_read_"  ++ typeSuffix vt
-def writeName (vt : ValueType) : String := "__pf_write_" ++ typeSuffix vt
-def returnU64Name  : String := "__pf_return_u64"
-def returnBoolName : String := "__pf_return_bool"
-
--- Host imports
-def hostImport (name : String) (params results : Array ValType) : Import :=
-  { module_ := "env", name := name, funcName := name, type := { params := params, results := results } }
-
-def valTypeOfString : String → ValType
-  | "i32" => .i32 | "i64" => .i64 | _ => .i32
-
-def hostFunctionImport (hf : ProofForge.Target.HostFunction) : Import :=
-  hostImport hf.name (hf.params.map valTypeOfString) (hf.results.map valTypeOfString)
-
-def dedupeImports (imports : Array Import) : Array Import :=
-  imports.foldl (fun acc import_ =>
-    if acc.any (fun existing => existing.module_ == import_.module_ && existing.name == import_.name) then
-      acc
-    else
-      acc.push import_) #[]
-
-def bridgeBaseImports (bridge : ProofForge.Target.HostBridge) : Array Import :=
-  bridge.hostFunctions.map hostFunctionImport
-
-def nearImports : Array Import := bridgeBaseImports .near
-
--- Helpers (per scalar type)
-def readFunc (vt : ValueType) : Func :=
-  { name := readName vt,
-    params := #[{ name := "kp", type := .i32 }, { name := "kl", type := .i32 }],
-    results := #[wasmTypeOf vt],
-    locals := #[{ name := "found", type := .i64 }, { name := "r", type := wasmTypeOf vt }],
-    body := { insns := #[
-      .const (wasmTypeOf vt) "0", .localSet "r",
-      .localGet "kl", .plain "i64.extend_i32_u", .localGet "kp", .plain "i64.extend_i32_u",
-      .i64Const 0, .call "storage_read", .localSet "found",
-      .localGet "found", .i64Const 0, .plain "i64.ne",
-      .if_ { insns := #[ .i64Const 0, .i64Const KEY_BUF, .call "read_register",
-                        .i32Const KEY_BUF, .load (loadOpFor vt) 0, .localSet "r" ] } { insns := #[] },
-      .localGet "r" ] } }
-
-def writeFunc (vt : ValueType) : Func :=
-  { name := writeName vt,
-    params := #[{ name := "kp", type := .i32 }, { name := "kl", type := .i32 }, { name := "v", type := wasmTypeOf vt }],
-    results := #[],
-    body := { insns := #[
-      .i32Const KEY_BUF, .localGet "v", .store (storeOpFor vt) 0,
-      .localGet "kl", .plain "i64.extend_i32_u", .localGet "kp", .plain "i64.extend_i32_u",
-      .i64Const (scalarWidth vt), .i64Const KEY_BUF, .i64Const 0, .call "storage_write", .drop ] } }
-
-def returnU32Name  : String := "__pf_return_u32"
-
-def returnU64Func : Func :=
-  { name := returnU64Name, params := #[{ name := "v", type := .i64 }],
-    body := { insns := #[
-      .i32Const RET_BUF, .localGet "v", .store "i64.store" 0,
-      .i64Const 8, .i64Const RET_BUF, .call "value_return" ] } }
-
-def returnU32Func : Func :=
-  { name := returnU32Name, params := #[{ name := "v", type := .i32 }],
-    body := { insns := #[
-      .i32Const RET_BUF, .localGet "v", .store "i32.store" 0,
-      .i64Const 4, .i64Const RET_BUF, .call "value_return" ] } }
-
-def returnBoolFunc : Func :=
-  { name := returnBoolName, params := #[{ name := "v", type := .i32 }],
-    body := { insns := #[
-      .i32Const RET_BUF, .localGet "v", .store "i32.store8" 0,
-      .i64Const 1, .i64Const RET_BUF, .call "value_return" ] } }
-
-def powName (vt : ValueType) : String := "__pf_pow_" ++ typeSuffix vt
-
-/-- `__pf_pow_<t>(base, exp)`: integer exponentiation by squaring (log2(exp) iterations). -/
-def powFunc (vt : ValueType) : Func :=
-  let w := widthOf vt
-  { name := powName vt,
-    params := #[{ name := "base", type := wasmTypeOf vt }, { name := "exp", type := wasmTypeOf vt }],
-    results := #[wasmTypeOf vt],
-    locals := #[{ name := "r", type := wasmTypeOf vt }],
-    body := { insns := #[
-      .const (wasmTypeOf vt) "1", .localSet "r",
-      .block_ { insns := #[ .loop_ { insns := #[
-        .localGet "exp", .const (wasmTypeOf vt) "0", .plain (w ++ ".eq"), .brIf 1,
-        .localGet "exp", .const (wasmTypeOf vt) "1", .plain (w ++ ".and"), .const (wasmTypeOf vt) "0", .plain (w ++ ".ne"),
-        .if_ { insns := #[ .localGet "r", .localGet "base", .plain (w ++ ".mul"), .localSet "r" ] } { insns := #[] },
-        .localGet "base", .localGet "base", .plain (w ++ ".mul"), .localSet "base",
-        .localGet "exp", .const (wasmTypeOf vt) "1", .plain (w ++ ".shr_u"), .localSet "exp",
-        .br 0 ] } ] },
-      .localGet "r" ] } }
-
-def scalarStorageHelperFuncsForModulePlan (plan : ModulePlan) : Array Func :=
-  let scalarTypes : Array ValueType := #[.u32, .u64, .bool]
-  let funcs := scalarTypes.foldl (init := #[]) fun acc type =>
-    let acc :=
-      if plan.scalarReadTypes.contains type then
-        acc.push (readFunc type)
-      else
-        acc
-    if plan.scalarWriteTypes.contains type then
-      acc.push (writeFunc type)
-    else
-      acc
-  funcs
-
-def returnHelperFuncsForModulePlan (plan : ModulePlan) : Array Func :=
-  (if plan.returnTypes.contains .u64 then #[returnU64Func] else #[]) ++
-    (if plan.returnTypes.contains .u32 then #[returnU32Func] else #[]) ++
-    (if plan.returnTypes.contains .bool then #[returnBoolFunc] else #[])
-
-def modulePlanUsesHashAlloc (plan : ModulePlan) : Bool :=
-  plan.usesHashMake || plan.usesHashPreimage || plan.usesHashTwoToOne ||
-    plan.scalarReadTypes.contains .hash || plan.contextOps.contains .randomSeed ||
-    plan.contextOps.contains .userIdHash
-
-def modulePlanUsesSha256 (plan : ModulePlan) : Bool :=
-  plan.usesHashPreimage || plan.usesHashTwoToOne ||
-    plan.contextOps.contains .userId || plan.contextOps.contains .userIdHash ||
-    plan.contextOps.contains .contractId || plan.contextOps.contains .origin
-
-def powHelperFuncsForModulePlan (plan : ModulePlan) : Array Func :=
-  (if plan.usesPowU32 then #[powFunc .u32] else #[]) ++
-    (if plan.usesPowU64 then #[powFunc .u64] else #[])
-
--- Map helpers ----------------------------------------------------------
--- Map<U64, T>: storage key = prefix(stateId ++ ":") ++ 8 key bytes.
-
-def mapReadName  (vt : ValueType) : String := "__pf_map_read_"  ++ typeSuffix vt
-def mapWriteName (vt : ValueType) : String := "__pf_map_write_" ++ typeSuffix vt
-def mapContainsName : String := "__pf_map_contains"
-def mapBuildkeyName  : String := "__pf_map_buildkey"
-def memcpyName        : String := "__pf_memcpy"
-
-/- `__pf_map_buildkey(pp, pl, k)`: write prefix[pp..pp+pl] then 8 key bytes to MAPKEY_BUF. -/
-def mapBuildkeyFunc : Func :=
-  { name := mapBuildkeyName,
-    params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "k", type := .i64 }],
-    locals := #[{ name := "i", type := .i32 }],
-    body := { insns := #[
-      .i32Const 0, .localSet "i",
-      .block_ { insns := #[ .loop_ { insns := #[
-        .localGet "i", .localGet "pl", .plain "i32.ge_u", .brIf 1,
-        .localGet "i", .i32Const MAPKEY_BUF, .plain "i32.add",
-        .localGet "i", .localGet "pp", .plain "i32.add", .load "i32.load8_u" 0,
-        .store "i32.store8" 0,
-        .localGet "i", .i32Const 1, .plain "i32.add", .localSet "i", .br 0 ] } ] } ,
-      .i32Const MAPKEY_BUF, .localGet "pl", .plain "i32.add", .localGet "k", .store "i64.store" 0 ] } }
-
-def mapReadFunc (vt : ValueType) : Func :=
-  if vt == .hash then
-    { name := mapReadName vt,
-      params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "k", type := .i64 }],
-      results := #[.i32],
-      locals := #[{ name := "found", type := .i64 }, { name := "r", type := .i32 }],
-      body := { insns := #[
-        .i32Const ZERO_HASH_BUF, .localSet "r",
-        .localGet "pp", .localGet "pl", .localGet "k", .call mapBuildkeyName,
-        .localGet "pl", .i32Const 8, .plain "i32.add", .plain "i64.extend_i32_u",
-        .i64Const MAPKEY_BUF, .i64Const 0, .call "storage_read", .localSet "found",
-        .localGet "found", .i64Const 0, .plain "i64.ne",
-        .if_ { insns := #[ .i64Const 0, .i64Const KEY_BUF, .call "read_register",
-                          .i32Const KEY_BUF, .localSet "r" ] } { insns := #[] },
-        .localGet "r" ] } }
-  else
-    { name := mapReadName vt,
-      params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "k", type := .i64 }],
-      results := #[wasmTypeOf vt],
-      locals := #[{ name := "found", type := .i64 }, { name := "r", type := wasmTypeOf vt }],
-      body := { insns := #[
-        .const (wasmTypeOf vt) "0", .localSet "r",
-        .localGet "pp", .localGet "pl", .localGet "k", .call mapBuildkeyName,
-        .localGet "pl", .i32Const 8, .plain "i32.add", .plain "i64.extend_i32_u",
-        .i64Const MAPKEY_BUF, .i64Const 0, .call "storage_read", .localSet "found",
-        .localGet "found", .i64Const 0, .plain "i64.ne",
-        .if_ { insns := #[ .i64Const 0, .i64Const KEY_BUF, .call "read_register",
-                          .i32Const KEY_BUF, .load (loadOpFor vt) 0, .localSet "r" ] } { insns := #[] },
-        .localGet "r" ] } }
-
-def mapWriteFunc (vt : ValueType) : Func :=
-  if vt == .hash then
-    { name := mapWriteName vt,
-      params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 },
-                  { name := "k", type := .i64 }, { name := "v", type := .i32 }],
-      results := #[.i32],
-      locals := #[{ name := "found", type := .i64 }, { name := "r", type := .i32 }],
-      body := { insns := #[
-        .i32Const ZERO_HASH_BUF, .localSet "r",
-        .localGet "pp", .localGet "pl", .localGet "k", .call mapBuildkeyName,
-        .localGet "pl", .i32Const 8, .plain "i32.add", .plain "i64.extend_i32_u",
-        .i64Const MAPKEY_BUF, .i64Const 0, .call "storage_read", .localSet "found",
-        .localGet "found", .i64Const 0, .plain "i64.ne",
-        .if_ { insns := #[ .i64Const 0, .i64Const OLD_HASH_BUF, .call "read_register",
-                          .i32Const OLD_HASH_BUF, .localSet "r" ] } { insns := #[] },
-        .i32Const KEY_BUF, .localGet "v", .i32Const 32, .call memcpyName,
-        .localGet "pl", .i32Const 8, .plain "i32.add", .plain "i64.extend_i32_u",
-        .i64Const MAPKEY_BUF, .i64Const 32, .i64Const KEY_BUF, .i64Const 0,
-        .call "storage_write", .drop,
-        .localGet "r" ] } }
-  else
-    { name := mapWriteName vt,
-      params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 },
-                  { name := "k", type := .i64 }, { name := "v", type := wasmTypeOf vt }],
-      results := #[wasmTypeOf vt],
-      locals := #[{ name := "found", type := .i64 }, { name := "r", type := wasmTypeOf vt }],
-      body := { insns := #[
-        .const (wasmTypeOf vt) "0", .localSet "r",
-        .localGet "pp", .localGet "pl", .localGet "k", .call mapBuildkeyName,
-        .localGet "pl", .i32Const 8, .plain "i32.add", .plain "i64.extend_i32_u",
-        .i64Const MAPKEY_BUF, .i64Const 0, .call "storage_read", .localSet "found",
-        .localGet "found", .i64Const 0, .plain "i64.ne",
-        .if_ { insns := #[ .i64Const 0, .i64Const KEY_BUF, .call "read_register",
-                          .i32Const KEY_BUF, .load (loadOpFor vt) 0, .localSet "r" ] } { insns := #[] },
-        .i32Const KEY_BUF, .localGet "v", .store (storeOpFor vt) 0,
-        .localGet "pl", .i32Const 8, .plain "i32.add", .plain "i64.extend_i32_u",
-        .i64Const MAPKEY_BUF, .i64Const (scalarWidth vt), .i64Const KEY_BUF, .i64Const 0,
-        .call "storage_write", .drop,
-        .localGet "r" ] } }
-
-def mapContainsFunc : Func :=
-  { name := mapContainsName,
-    params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "k", type := .i64 }],
-    results := #[.i64],
-    body := { insns := #[
-      .localGet "pp", .localGet "pl", .localGet "k", .call mapBuildkeyName,
-      .localGet "pl", .i32Const 8, .plain "i32.add", .plain "i64.extend_i32_u",
-      .i64Const MAPKEY_BUF, .call "storage_has_key" ] } }
-
-/-- storage_has_key import (added only for contains surfaces; see lowerModule). -/
-def storageHasKeyImport : Import :=
-  hostImport "storage_has_key" #[.i64, .i64] #[.i64]
-
-def mapHelperFuncsForModulePlan (plan : ModulePlan) : Array Func :=
-  (if plan.usesU64IndexedBuildKey then #[mapBuildkeyFunc] else #[]) ++
-    (plan.u64IndexedReadTypes.foldl (init := #[]) fun acc type => acc ++ #[mapReadFunc type]) ++
-    (plan.u64IndexedWriteTypes.foldl (init := #[]) fun acc type => acc ++ #[mapWriteFunc type]) ++
-    (if plan.usesU64IndexedContains then #[mapContainsFunc] else #[])
-
--- Map<Hash, T>: storage key = prefix ++ 32 key bytes (key is a hash pointer).
-
-def mapBuildkeyHashName  : String := "__pf_map_buildkey_hash"
-def mapReadHashName  (vt : ValueType) : String := "__pf_map_read_hash_"  ++ typeSuffix vt
-def mapWriteHashName (vt : ValueType) : String := "__pf_map_write_hash_" ++ typeSuffix vt
-def mapContainsHashName : String := "__pf_map_contains_hash"
-
-def mapBuildkeyHashFunc : Func :=
-  { name := mapBuildkeyHashName,
-    params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "kp", type := .i32 }],
-    locals := #[{ name := "i", type := .i32 }],
-    body := { insns := #[
-      .i32Const 0, .localSet "i",
-      .block_ { insns := #[ .loop_ { insns := #[
-        .localGet "i", .localGet "pl", .plain "i32.ge_u", .brIf 1,
-        .localGet "i", .i32Const MAPKEY_BUF, .plain "i32.add",
-        .localGet "i", .localGet "pp", .plain "i32.add", .load "i32.load8_u" 0,
-        .store "i32.store8" 0,
-        .localGet "i", .i32Const 1, .plain "i32.add", .localSet "i", .br 0 ] } ] } ,
-      .i32Const MAPKEY_BUF, .localGet "pl", .plain "i32.add", .localGet "kp", .i32Const 32, .call memcpyName ] } }
-
-def mapReadHashFunc (vt : ValueType) : Func :=
-  if vt == .hash then
-    { name := mapReadHashName vt,
-      params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "kp", type := .i32 }],
-      results := #[.i32],
-      locals := #[{ name := "found", type := .i64 }, { name := "r", type := .i32 }],
-      body := { insns := #[
-        .i32Const ZERO_HASH_BUF, .localSet "r",
-        .localGet "pp", .localGet "pl", .localGet "kp", .call mapBuildkeyHashName,
-        .localGet "pl", .i32Const 32, .plain "i32.add", .plain "i64.extend_i32_u",
-        .i64Const MAPKEY_BUF, .i64Const 0, .call "storage_read", .localSet "found",
-        .localGet "found", .i64Const 0, .plain "i64.ne",
-        .if_ { insns := #[ .i64Const 0, .i64Const KEY_BUF, .call "read_register",
-                          .i32Const KEY_BUF, .localSet "r" ] } { insns := #[] },
-        .localGet "r" ] } }
-  else
-    { name := mapReadHashName vt,
-      params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "kp", type := .i32 }],
-      results := #[wasmTypeOf vt],
-      locals := #[{ name := "found", type := .i64 }, { name := "r", type := wasmTypeOf vt }],
-      body := { insns := #[
-        .const (wasmTypeOf vt) "0", .localSet "r",
-        .localGet "pp", .localGet "pl", .localGet "kp", .call mapBuildkeyHashName,
-        .localGet "pl", .i32Const 32, .plain "i32.add", .plain "i64.extend_i32_u",
-        .i64Const MAPKEY_BUF, .i64Const 0, .call "storage_read", .localSet "found",
-        .localGet "found", .i64Const 0, .plain "i64.ne",
-        .if_ { insns := #[ .i64Const 0, .i64Const KEY_BUF, .call "read_register",
-                          .i32Const KEY_BUF, .load (loadOpFor vt) 0, .localSet "r" ] } { insns := #[] },
-        .localGet "r" ] } }
-
-def mapWriteHashFunc (vt : ValueType) : Func :=
-  if vt == .hash then
-    { name := mapWriteHashName vt,
-      params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 },
-                  { name := "kp", type := .i32 }, { name := "v", type := .i32 }],
-      results := #[.i32],
-      locals := #[{ name := "found", type := .i64 }, { name := "r", type := .i32 }],
-      body := { insns := #[
-        .i32Const ZERO_HASH_BUF, .localSet "r",
-        .localGet "pp", .localGet "pl", .localGet "kp", .call mapBuildkeyHashName,
-        .localGet "pl", .i32Const 32, .plain "i32.add", .plain "i64.extend_i32_u",
-        .i64Const MAPKEY_BUF, .i64Const 0, .call "storage_read", .localSet "found",
-        .localGet "found", .i64Const 0, .plain "i64.ne",
-        .if_ { insns := #[ .i64Const 0, .i64Const OLD_HASH_BUF, .call "read_register",
-                          .i32Const OLD_HASH_BUF, .localSet "r" ] } { insns := #[] },
-        .i32Const KEY_BUF, .localGet "v", .i32Const 32, .call memcpyName,
-        .localGet "pl", .i32Const 32, .plain "i32.add", .plain "i64.extend_i32_u",
-        .i64Const MAPKEY_BUF, .i64Const 32, .i64Const KEY_BUF, .i64Const 0,
-        .call "storage_write", .drop,
-        .localGet "r" ] } }
-  else
-    { name := mapWriteHashName vt,
-      params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 },
-                  { name := "kp", type := .i32 }, { name := "v", type := wasmTypeOf vt }],
-      results := #[wasmTypeOf vt],
-      locals := #[{ name := "found", type := .i64 }, { name := "r", type := wasmTypeOf vt }],
-      body := { insns := #[
-        .const (wasmTypeOf vt) "0", .localSet "r",
-        .localGet "pp", .localGet "pl", .localGet "kp", .call mapBuildkeyHashName,
-        .localGet "pl", .i32Const 32, .plain "i32.add", .plain "i64.extend_i32_u",
-        .i64Const MAPKEY_BUF, .i64Const 0, .call "storage_read", .localSet "found",
-        .localGet "found", .i64Const 0, .plain "i64.ne",
-        .if_ { insns := #[ .i64Const 0, .i64Const KEY_BUF, .call "read_register",
-                          .i32Const KEY_BUF, .load (loadOpFor vt) 0, .localSet "r" ] } { insns := #[] },
-        .i32Const KEY_BUF, .localGet "v", .store (storeOpFor vt) 0,
-        .localGet "pl", .i32Const 32, .plain "i32.add", .plain "i64.extend_i32_u",
-        .i64Const MAPKEY_BUF, .i64Const (scalarWidth vt), .i64Const KEY_BUF, .i64Const 0,
-        .call "storage_write", .drop,
-        .localGet "r" ] } }
-
-def mapContainsHashFunc : Func :=
-  { name := mapContainsHashName,
-    params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "kp", type := .i32 }],
-    results := #[.i64],
-    body := { insns := #[
-      .localGet "pp", .localGet "pl", .localGet "kp", .call mapBuildkeyHashName,
-      .localGet "pl", .i32Const 32, .plain "i32.add", .plain "i64.extend_i32_u",
-      .i64Const MAPKEY_BUF, .call "storage_has_key" ] } }
-
-def mapHashHelperFuncsForModulePlan (plan : ModulePlan) : Array Func :=
-  (if plan.usesHashIndexedBuildKey then #[mapBuildkeyHashFunc] else #[]) ++
-    (plan.hashIndexedReadTypes.foldl (init := #[]) fun acc type => acc ++ #[mapReadHashFunc type]) ++
-    (plan.hashIndexedWriteTypes.foldl (init := #[]) fun acc type => acc ++ #[mapWriteHashFunc type]) ++
-    (if plan.usesHashIndexedContains then #[mapContainsHashFunc] else #[])
-
--- Hash helpers ---------------------------------------------------------
--- Hash = 32-byte memory region (4×u64), referenced by an i32 pointer. A
--- mutable global `hash_ptr` bump-allocates a fresh 32-byte slot per temp
--- (reset each NEAR call since the instance is fresh).
-
-def hashAllocName    : String := "__pf_hash_alloc"
-def hashMakeName      : String := "__pf_hash_make"
-def hashSName         : String := "__pf_hash"
-def hashTwoName       : String := "__pf_hash_two_to_one"
-def hashEqName        : String := "__pf_hash_eq"
-def readHashName      : String := "__pf_read_hash"
-def writeHashName     : String := "__pf_write_hash"
-def hashPtrGlobal     : String := "hash_ptr"
-
-def sha256Import : Import := hostImport "sha256" #[.i64, .i64, .i64] #[]
-def logUtf8Import : Import := hostImport "log_utf8" #[.i64, .i64] #[]
-def inputImport : Import := hostImport "input" #[.i64] #[]
-def panicImport : Import := hostImport "panic" #[.i64, .i64] #[]
-def predecessorImport : Import := hostImport "predecessor_account_id" #[.i64] #[]
-def currentAcctImport : Import := hostImport "current_account_id" #[.i64] #[]
-def signerImport : Import := hostImport "signer_account_id" #[.i64] #[]
-def depositImport : Import := hostImport "attached_deposit" #[] #[.i64]
-def registerLenImport : Import := hostImport "register_len" #[.i64] #[.i64]
-def blockHeightImport : Import := hostImport "block_index" #[] #[.i64]
-def epochHeightImport : Import := hostImport "epoch_height" #[] #[.i64]
-def randomSeedImport : Import := hostImport "random_seed" #[.i64] #[]
-def ctxUserIdName : String := "__pf_ctx_user_id"
-def ctxUserHashName : String := "__pf_ctx_user_hash"
-def ctxContractIdName : String := "__pf_ctx_contract_id"
-def ctxSignerName : String := "__pf_ctx_signer_id"
-def ctxRandomSeedName : String := "__pf_ctx_random_seed"
-
-def hashPtrGlobalDecl : Global :=
-  { name := hashPtrGlobal, type := .i32, init := toString HASH_HEAP, isMutable := true }
-
-def hashAllocFunc : Func :=
-  { name := hashAllocName, results := #[.i32],
-    body := { insns := #[ .globalGet hashPtrGlobal,
-      .globalGet hashPtrGlobal, .i32Const 32, .plain "i32.add", .globalSet hashPtrGlobal ] } }
-
--- Array-value bump allocator (for arrayLit temporaries). Returns current ptr and
--- advances by the byte count; the caller stores elements into [ptr, ptr+n).
-def arrPtrGlobal     : String := "arr_ptr"
-def arrFreeGlobal    : String := "arr_free"
-def arrAllocName     : String := "__pf_arr_alloc"
-def allocImportName   : String := "pf_alloc"
-def deallocImportName : String := "pf_dealloc"
-def arrayLitName (elemType : ValueType) (len : Nat) : String :=
-  "__pf_arr_lit_" ++ typeSuffix elemType ++ "_" ++ toString len
-def arrEqName (elemType : ValueType) (len : Nat) : String :=
-  "__pf_arr_eq_" ++ typeSuffix elemType ++ "_" ++ toString len
-def findStruct? (structs : Array ProofForge.IR.StructDecl) (name : String) : Option ProofForge.IR.StructDecl :=
-  structs.find? (fun s => s.name == name)
-/-- Field offset = prefix sum of `scalarWidth` of preceding fields; total size = sum all. -/
-def structTotalSize (s : ProofForge.IR.StructDecl) : Nat :=
-  s.fields.foldl (fun acc f => acc + scalarWidth f.type) 0
-def structFieldOffset? (s : ProofForge.IR.StructDecl) (fieldName : String) : Option Nat :=
-  let rec go (i acc : Nat) : Option Nat :=
-    if h : i < s.fields.size then
-      let f := s.fields[i]
-      if f.id == fieldName then some acc else go (i+1) (acc + scalarWidth f.type)
-    else none
-  go 0 0
-def structFieldType? (s : ProofForge.IR.StructDecl) (fieldName : String) : Option ValueType :=
-  (s.fields.find? (fun f => f.id == fieldName)).map (fun f => f.type)
-def structLitName (typeName : String) : String := "__pf_struct_lit_" ++ typeName
-def isStructStorageFieldType : ValueType → Bool
-  | .u32 | .u64 | .bool => true
-  | _ => false
-def isIndexedStorageValueType : ValueType → Bool
-  | .u32 | .u64 | .bool | .hash => true
-  | _ => false
-def structStorageFieldsSupported (s : ProofForge.IR.StructDecl) : Bool :=
-  s.fields.all (fun f => isStructStorageFieldType f.type)
-def zeroStructBufInsns (s : ProofForge.IR.StructDecl) : Array Insn :=
-  (s.fields.foldl (fun st f =>
-      (st.1 + scalarWidth f.type,
-       st.2 ++ #[.i32Const st.1, .i32Const STRUCT_BUF, .plain "i32.add",
-                 .const (wasmTypeOf f.type) "0", .store (storeOpFor f.type) 0]))
-    (0, (#[] : Array Insn))).2
-/-- The `arr_ptr` mutable global holds the bump frontier; only emitted for
-    chain-deployment allocators (offline imported allocators have no frontier). -/
-def arrPtrGlobalDecl (heapBase : Nat) : Global :=
-  { name := arrPtrGlobal, type := .i32, init := toString heapBase, isMutable := true }
-def arrFreeGlobalDecl : Global :=
-  { name := arrFreeGlobal, type := .i32, init := "0", isMutable := true }
-/-- `__pf_arr_alloc(n) -> i32` lowered per allocator mode: no-free deployment
-    advances the frontier; NEAR/minimal deployment emits a wasm-internal
-    first-fit allocator; offline experiments forward to `pf_alloc`. -/
-def arrAllocFunc (cfg : ProofForge.IR.AllocatorConfig) : Func :=
-  if cfg.usesMinimalMallocShape then
-    { name := arrAllocName, params := #[{ name := "n", type := .i64 }], results := #[.i32],
-      locals := #[{ name := "need", type := .i32 }, { name := "prev", type := .i32 },
-                  { name := "curr", type := .i32 }, { name := "next", type := .i32 },
-                  { name := "block", type := .i32 }, { name := "end", type := .i32 }],
-      body := { insns := #[
-        -- total block size = align8(payload bytes + 8-byte header)
-        .localGet "n", .i64Const 15, .plain "i64.add", .const .i64 "-8", .plain "i64.and",
-        .plain "i32.wrap_i64", .localSet "need",
-        .i32Const 0, .localSet "prev",
-        .globalGet arrFreeGlobal, .localSet "curr",
-        .block_ { insns := #[ .loop_ { insns := #[
-          .localGet "curr", .plain "i32.eqz", .brIf 1,
-          .localGet "curr", .load "i32.load" 0, .localGet "need", .plain "i32.ge_u",
-          .if_ { insns := #[
-            .localGet "curr", .load "i32.load" 4, .localSet "next",
-            .localGet "prev", .plain "i32.eqz",
-            .if_ { insns := #[ .localGet "next", .globalSet arrFreeGlobal ] }
-                 { insns := #[ .localGet "prev", .localGet "next", .store "i32.store" 4 ] },
-            .localGet "curr", .i32Const 8, .plain "i32.add", .return_ ] } { insns := #[] },
-          .localGet "curr", .localSet "prev",
-          .localGet "curr", .load "i32.load" 4, .localSet "curr",
-          .br 0 ] } ] },
-        .globalGet arrPtrGlobal, .localSet "block",
-        .localGet "block", .localGet "need", .plain "i32.add", .localSet "end",
-        .localGet "end", .plain "memory.size", .i32Const 65536, .plain "i32.mul", .plain "i32.gt_u",
-        .if_ { insns := #[
-          .localGet "end", .plain "memory.size", .i32Const 65536, .plain "i32.mul", .plain "i32.sub",
-          .i32Const 65535, .plain "i32.add", .i32Const 16, .plain "i32.shr_u",
-          .plain "memory.grow", .const .i32 "-1", .plain "i32.eq",
-          .if_ { insns := #[.unreachable] } { insns := #[] } ] } { insns := #[] },
-        .localGet "end", .globalSet arrPtrGlobal,
-        .localGet "block", .localGet "need", .store "i32.store" 0,
-        .localGet "block", .i32Const 0, .store "i32.store" 4,
-        .localGet "block", .i32Const 8, .plain "i32.add" ] } }
-  else
-    { name := arrAllocName, params := #[{ name := "n", type := .i64 }], results := #[.i32],
-      body := { insns :=
-        if cfg.requiresHost then #[.localGet "n", .call allocImportName]
-        else #[ .globalGet arrPtrGlobal,
-          .globalGet arrPtrGlobal, .localGet "n", .plain "i32.wrap_i64", .plain "i32.add", .globalSet arrPtrGlobal ] } }
-/-- `__pf_arr_dealloc(ptr, n)`: no-op for no-free deployment strategies, host
-    forwarder for offline experiments, and wasm-internal free-list update for
-    chain deployment allocators with reuse. `Statement.release` lowers to this
-    helper for heap-backed locals. -/
-def arrDeallocFunc (cfg : ProofForge.IR.AllocatorConfig) : Func :=
-  if cfg.usesMinimalMallocShape then
-    { name := "__pf_arr_dealloc", params := #[{ name := "p", type := .i32 }, { name := "n", type := .i64 }],
-      results := #[], locals := #[{ name := "block", type := .i32 }],
-      body := { insns := #[
-        .localGet "p", .plain "i32.eqz",
-        .if_ { insns := #[.return_] } { insns := #[] },
-        .localGet "p", .i32Const 8, .plain "i32.sub", .localSet "block",
-        .localGet "block", .globalGet arrFreeGlobal, .store "i32.store" 4,
-        .localGet "block", .globalSet arrFreeGlobal ] } }
-  else
-    { name := "__pf_arr_dealloc", params := #[{ name := "p", type := .i32 }, { name := "n", type := .i64 }],
-      results := #[],
-      body := { insns := if cfg.requiresHost then #[.localGet "p", .localGet "n", .call deallocImportName] else #[] } }
-/-- Host imports for reuse-capable strategies: `pf_alloc` + `pf_dealloc`.
-    `(import "env" "pf_alloc"   (func (param i64) (result i32)))`
-    `(import "env" "pf_dealloc" (func (param i32 i64)))` -/
-def allocImport : Import :=
-  hostImport allocImportName #[.i64] #[.i32]
-def deallocImport : Import :=
-  hostImport deallocImportName #[.i32, .i64] #[]
-
-def hashMakeFunc : Func :=
-  { name := hashMakeName,
-    params := #[{ name := "a", type := .i64 }, { name := "b", type := .i64 },
-                { name := "c", type := .i64 }, { name := "d", type := .i64 }],
-    results := #[.i32], locals := #[{ name := "p", type := .i32 }],
-    body := { insns := #[
-      .call hashAllocName, .localSet "p",
-      .localGet "p", .localGet "a", .store "i64.store" 0,
-      .localGet "p", .localGet "b", .store "i64.store" 8,
-      .localGet "p", .localGet "c", .store "i64.store" 16,
-      .localGet "p", .localGet "d", .store "i64.store" 24,
-      .localGet "p" ] } }
-
-def hashSFunc : Func :=
-  { name := hashSName, params := #[{ name := "preimage", type := .i32 }], results := #[.i32],
-    locals := #[{ name := "p", type := .i32 }],
-    body := { insns := #[
-      .i64Const 32, .localGet "preimage", .plain "i64.extend_i32_u", .i64Const 0, .call "sha256",
-      .call hashAllocName, .localSet "p",
-      .i64Const 0, .localGet "p", .plain "i64.extend_i32_u", .call "read_register",
-      .localGet "p" ] } }
-
-def memcpyFunc : Func :=
-  { name := memcpyName,
-    params := #[{ name := "dst", type := .i32 }, { name := "src", type := .i32 }, { name := "n", type := .i32 }],
-    locals := #[{ name := "i", type := .i32 }],
-    body := { insns := #[
-      .i32Const 0, .localSet "i",
-      .block_ { insns := #[ .loop_ { insns := #[
-        .localGet "i", .localGet "n", .plain "i32.ge_u", .brIf 1,
-        .localGet "i", .localGet "dst", .plain "i32.add",
-        .localGet "i", .localGet "src", .plain "i32.add", .load "i32.load8_u" 0,
-        .store "i32.store8" 0,
-        .localGet "i", .i32Const 1, .plain "i32.add", .localSet "i", .br 0 ] } ] } ] } }
-
-def hashTwoFunc : Func :=
-  { name := hashTwoName,
-    params := #[{ name := "l", type := .i32 }, { name := "r", type := .i32 }], results := #[.i32],
-    locals := #[{ name := "p", type := .i32 }],
-    body := { insns := #[
-      .i32Const HASH_CONCAT_BUF, .localGet "l", .i32Const 32, .call memcpyName,
-      .i32Const (HASH_CONCAT_BUF + 32), .localGet "r", .i32Const 32, .call memcpyName,
-      .i64Const 64, .i64Const HASH_CONCAT_BUF, .i64Const 0, .call "sha256",
-      .call hashAllocName, .localSet "p",
-      .i64Const 0, .localGet "p", .plain "i64.extend_i32_u", .call "read_register",
-      .localGet "p" ] } }
-
-def hashEqFunc : Func :=
-  { name := hashEqName,
-    params := #[{ name := "a", type := .i32 }, { name := "b", type := .i32 }], results := #[.i32],
-    body := { insns := #[
-      .localGet "a", .load "i64.load" 0, .localGet "b", .load "i64.load" 0, .plain "i64.eq",
-      .localGet "a", .load "i64.load" 8, .localGet "b", .load "i64.load" 8, .plain "i64.eq", .plain "i32.and",
-      .localGet "a", .load "i64.load" 16, .localGet "b", .load "i64.load" 16, .plain "i64.eq", .plain "i32.and",
-      .localGet "a", .load "i64.load" 24, .localGet "b", .load "i64.load" 24, .plain "i64.eq", .plain "i32.and" ] } }
-
-def readHashFunc : Func :=
-  { name := readHashName,
-    params := #[{ name := "kp", type := .i32 }, { name := "kl", type := .i32 }], results := #[.i32],
-    locals := #[{ name := "found", type := .i64 }, { name := "p", type := .i32 }],
-    body := { insns := #[
-      .call hashAllocName, .localSet "p",
-      .localGet "kl", .plain "i64.extend_i32_u", .localGet "kp", .plain "i64.extend_i32_u",
-      .i64Const 0, .call "storage_read", .localSet "found",
-      .localGet "found", .i64Const 0, .plain "i64.ne",
-      .if_ { insns := #[ .i64Const 0, .localGet "p", .plain "i64.extend_i32_u", .call "read_register" ] } { insns := #[] },
-      .localGet "p" ] } }
-
-def writeHashFunc : Func :=
-  { name := writeHashName,
-    params := #[{ name := "kp", type := .i32 }, { name := "kl", type := .i32 }, { name := "v", type := .i32 }],
-    body := { insns := #[
-      .localGet "kl", .plain "i64.extend_i32_u", .localGet "kp", .plain "i64.extend_i32_u",
-      .i64Const 32, .localGet "v", .plain "i64.extend_i32_u", .i64Const 0, .call "storage_write", .drop ] } }
-
-def hashExprHelperFuncsForModulePlan (plan : ModulePlan) : Array Func :=
-  (if modulePlanUsesHashAlloc plan then #[hashAllocFunc] else #[]) ++
-    (if plan.usesHashMake then #[hashMakeFunc] else #[]) ++
-    (if plan.usesHashPreimage then #[hashSFunc] else #[]) ++
-    (if plan.usesMemcpy then #[memcpyFunc] else #[]) ++
-    (if plan.usesHashTwoToOne then #[hashTwoFunc] else #[]) ++
-    (if plan.usesHashEq then #[hashEqFunc] else #[])
-
-def hashStorageHelperFuncsForModulePlan (plan : ModulePlan) : Array Func :=
-  (if plan.scalarReadTypes.contains .hash then #[readHashFunc] else #[]) ++
-    (if plan.scalarWriteTypes.contains .hash then #[writeHashFunc] else #[])
-
--- Context helpers ------------------------------------------------------
--- userId/contractId: sha256(account_id_bytes)[0..8] as u64.
-
-def ctxUserIdFunc : Func :=
-  { name := ctxUserIdName, results := #[.i64], locals := #[{ name := "len", type := .i64 }],
-    body := { insns := #[
-      .i64Const 0, .call "predecessor_account_id",
-      .i64Const 0, .call "register_len", .localSet "len",
-      .i64Const 0, .i64Const CTX_BUF, .call "read_register",
-      .localGet "len", .i64Const CTX_BUF, .i64Const 1, .call "sha256",
-      .i64Const 1, .i64Const CTX_BUF, .call "read_register",
-      .i32Const CTX_BUF, .load "i64.load" 0 ] } }
-
-/-- Full sha256(predecessor_account_id_bytes) as a 32-byte hash pointer. -/
-def ctxUserHashFunc : Func :=
-  { name := ctxUserHashName, results := #[.i32], locals := #[{ name := "len", type := .i64 }, { name := "p", type := .i32 }],
-    body := { insns := #[
-      .i64Const 0, .call "predecessor_account_id",
-      .i64Const 0, .call "register_len", .localSet "len",
-      .i64Const 0, .i64Const CTX_BUF, .call "read_register",
-      .localGet "len", .i64Const CTX_BUF, .i64Const 1, .call "sha256",
-      .call hashAllocName, .localSet "p",
-      .i64Const 1, .localGet "p", .plain "i64.extend_i32_u", .call "read_register",
-      .localGet "p" ] } }
-
-def ctxContractIdFunc : Func :=
-  { name := ctxContractIdName, results := #[.i64], locals := #[{ name := "len", type := .i64 }],
-    body := { insns := #[
-      .i64Const 0, .call "current_account_id",
-      .i64Const 0, .call "register_len", .localSet "len",
-      .i64Const 0, .i64Const CTX_BUF, .call "read_register",
-      .localGet "len", .i64Const CTX_BUF, .i64Const 1, .call "sha256",
-      .i64Const 1, .i64Const CTX_BUF, .call "read_register",
-      .i32Const CTX_BUF, .load "i64.load" 0 ] } }
-
-/-- Signer account id: sha256(signer_account_id_bytes)[0..8] as u64.
-    Maps to IR `ContextField.origin` (tx.origin equivalent). On NEAR the signer
-    is the account that signed the transaction, distinct from the predecessor
-    (the immediate caller). -/
-def ctxSignerFunc : Func :=
-  { name := ctxSignerName, results := #[.i64], locals := #[{ name := "len", type := .i64 }],
-    body := { insns := #[
-      .i64Const 0, .call "signer_account_id",
-      .i64Const 0, .call "register_len", .localSet "len",
-      .i64Const 0, .i64Const CTX_BUF, .call "read_register",
-      .localGet "len", .i64Const CTX_BUF, .i64Const 1, .call "sha256",
-      .i64Const 1, .i64Const CTX_BUF, .call "read_register",
-      .i32Const CTX_BUF, .load "i64.load" 0 ] } }
-
-def ctxRandomSeedFunc : Func :=
-  { name := ctxRandomSeedName, results := #[.i32], locals := #[{ name := "p", type := .i32 }],
-    body := { insns := #[
-      .i64Const 0, .call "random_seed",
-      .call hashAllocName, .localSet "p",
-      .i64Const 0, .localGet "p", .plain "i64.extend_i32_u", .call "read_register",
-      .localGet "p" ] } }
-
-def nearImportsForModulePlan (plan : ModulePlan) : Array Import :=
-  nearImports.filter fun import_ =>
-    match import_.name with
-    | "attached_deposit" => plan.usesNativeValue
-    | "storage_read" => plan.usesStorageRead
-    | "storage_write" => plan.usesStorageWrite
-    | "value_return" => !plan.returnTypes.isEmpty
-    | "promise_create" => plan.usesPromiseCreate
-    | "promise_then" => plan.usesPromiseThen
-    | "promise_results_count" | "promise_result" => plan.usesPromiseResults
-    | "promise_return" => plan.usesPromiseReturn
-    | "log_utf8" => plan.usesEventApi
-    | "signer_account_id" => plan.contextOps.contains .origin
-    | "block_timestamp" => plan.contextOps.contains .timestamp
-    | "epoch_height" => plan.contextOps.contains .epochHeight
-    | "random_seed" => plan.contextOps.contains .randomSeed
-    | _ => true
-
-def ctxHelperFuncsForModulePlan (plan : ModulePlan) : Array Func :=
-  (if plan.contextOps.contains .userId then #[ctxUserIdFunc] else #[]) ++
-    (if plan.contextOps.contains .userIdHash then #[ctxUserHashFunc] else #[]) ++
-    (if plan.contextOps.contains .contractId then #[ctxContractIdFunc] else #[]) ++
-    (if plan.contextOps.contains .origin then #[ctxSignerFunc] else #[]) ++
-    (if plan.contextOps.contains .randomSeed then #[ctxRandomSeedFunc] else #[])
-
-def ctxImportsForModulePlan (plan : ModulePlan) : Array Import :=
-  (if plan.contextOps.contains .userId || plan.contextOps.contains .userIdHash then #[predecessorImport] else #[]) ++
-    (if plan.contextOps.contains .contractId then #[currentAcctImport] else #[]) ++
-    (if plan.contextOps.contains .userId || plan.contextOps.contains .userIdHash ||
-        plan.contextOps.contains .contractId || plan.contextOps.contains .origin then #[registerLenImport] else #[]) ++
-    (if plan.contextOps.contains .checkpointId then #[blockHeightImport] else #[])
-
-def promiseCtxImportsForModulePlan (plan : ModulePlan) : Array Import :=
-  if !plan.usesPromiseReceiverAccount then
-    #[]
-  else
-    (if plan.contextOps.contains .contractId then #[] else #[currentAcctImport]) ++
-      (if plan.contextOps.contains .userId || plan.contextOps.contains .contractId || plan.contextOps.contains .origin then
-        #[] else #[registerLenImport])
-
-def promiseResultImportsForModulePlan (plan : ModulePlan) : Array Import :=
-  if !plan.usesPromiseResultU64 then
-    #[]
-  else if plan.contextOps.contains .userId || plan.contextOps.contains .contractId ||
-      plan.contextOps.contains .origin || plan.usesPromiseReceiverAccount then
-    #[]
-  else
-    #[registerLenImport]
-
-/-- Offline host-provided allocators forward heap helpers to `pf_alloc` /
-    `pf_dealloc`. Only emit the imports actually referenced by the planned arr
-    heap surface. -/
-def hostAllocatorImportsForModulePlan (plan : ModulePlan) (cfg : ProofForge.IR.AllocatorConfig) : Array Import :=
-  if !cfg.requiresHost then
-    #[]
-  else
-    (if plan.usesArrAlloc then #[allocImport] else #[]) ++
-      (if plan.usesArrDealloc then #[deallocImport] else #[])
-
-def lowerContextExprPlan :
-    ContextExprPlan → Except EmitError (Array Insn × ValueType)
-  | .userId => .ok (#[.call ctxUserIdName], .u64)
-  | .userIdHash => .ok (#[.call ctxUserHashName], .hash)
-  | .contractId => .ok (#[.call ctxContractIdName], .u64)
-  | .checkpointId => .ok (#[.call "block_index"], .u64)
-  | .timestamp => .ok (#[.call "block_timestamp"], .u64)
-  | .epochHeight => .ok (#[.call "epoch_height"], .u64)
-  | .randomSeed => .ok (#[.call ctxRandomSeedName], .hash)
-  | .origin => .ok (#[.call ctxSignerName], .u64)
-
--- Event helpers --------------------------------------------------------
--- Build a JSON event string in EVENT_BUF via an append pointer, then log_utf8.
-
-def fmtU64Name    : String := "__pf_fmt_u64"
-def evtPtrGlobal   : String := "evt_ptr"
-def evtStartName   : String := "__pf_evt_start"
-def evtPutcName    : String := "__pf_evt_putc"
-def evtPutstrName  : String := "__pf_evt_putstr"
-def evtPutu64Name  : String := "__pf_evt_putu64"
-def evtPutboolName : String := "__pf_evt_putbool"
-def evtPutHashName : String := "__pf_evt_puthash"
-def evtLogName     : String := "__pf_evt_log"
-
-def evtPtrGlobalDecl : Global :=
-  { name := evtPtrGlobal, type := .i32, init := toString EVENT_BUF, isMutable := true }
-
-def fmtU64Func : Func :=
-  { name := fmtU64Name, params := #[{ name := "v", type := .i64 }], results := #[.i32],
-    locals := #[{ name := "tmp", type := .i64 }, { name := "p", type := .i32 }, { name := "d", type := .i32 }],
-    body := { insns := #[
-      .localGet "v", .localSet "tmp",
-      .i32Const (RET_BUF + 20), .localSet "p",
-      .localGet "tmp", .plain "i64.eqz",
-      .if_ { insns := #[ .i32Const (RET_BUF + 19), .i32Const 48, .store "i32.store8" 0,
-                        .i32Const (RET_BUF + 19), .localSet "p" ] }
-         { insns := #[ .block_ { insns := #[ .loop_ { insns := #[
-            .localGet "tmp", .plain "i64.eqz", .brIf 1,
-            .localGet "tmp", .i64Const 10, .plain "i64.rem_u", .plain "i32.wrap_i64", .localSet "d",
-            .localGet "tmp", .i64Const 10, .plain "i64.div_u", .localSet "tmp",
-            .localGet "p", .i32Const 1, .plain "i32.sub", .localTee "p",
-            .i32Const 48, .localGet "d", .plain "i32.add", .store "i32.store8" 0, .br 0 ] } ] } ] },
-      .localGet "p" ] } }
-
-def evtStartFunc : Func :=
-  { name := evtStartName, body := { insns := #[ .i32Const EVENT_BUF, .globalSet evtPtrGlobal ] } }
-
-def evtPutcFunc : Func :=
-  { name := evtPutcName, params := #[{ name := "c", type := .i32 }],
-    body := { insns := #[
-      .globalGet evtPtrGlobal, .localGet "c", .store "i32.store8" 0,
-      .globalGet evtPtrGlobal, .i32Const 1, .plain "i32.add", .globalSet evtPtrGlobal ] } }
-
-def evtPutstrFunc : Func :=
-  { name := evtPutstrName, params := #[{ name := "ptr", type := .i32 }, { name := "len", type := .i32 }],
-    body := { insns := #[
-      .globalGet evtPtrGlobal, .localGet "ptr", .localGet "len", .call memcpyName,
-      .globalGet evtPtrGlobal, .localGet "len", .plain "i32.add", .globalSet evtPtrGlobal ] } }
-
-def evtPutu64Func : Func :=
-  { name := evtPutu64Name, params := #[{ name := "v", type := .i64 }],
-    locals := #[{ name := "p", type := .i32 }, { name := "len", type := .i32 }],
-    body := { insns := #[
-      .localGet "v", .call fmtU64Name, .localSet "p",
-      .i32Const (RET_BUF + 20), .localGet "p", .plain "i32.sub", .localSet "len",
-      .globalGet evtPtrGlobal, .localGet "p", .localGet "len", .call memcpyName,
-      .globalGet evtPtrGlobal, .localGet "len", .plain "i32.add", .globalSet evtPtrGlobal ] } }
-
-def evtPutboolFunc : Func :=
-  { name := evtPutboolName, params := #[{ name := "b", type := .i32 }],
-    body := { insns := #[
-      .localGet "b", .plain "i32.eqz",
-      .if_ { insns := #[ .i32Const FALSE_PTR, .i32Const 5, .call evtPutstrName ] }
-         { insns := #[ .i32Const TRUE_PTR, .i32Const 4, .call evtPutstrName ] } ] } }
-
-/-- JSON-encode a 32-byte hash as a quoted lowercase hex string. -/
-def evtPutHashFunc : Func :=
-  { name := evtPutHashName, params := #[{ name := "v", type := .i32 }],
-    locals := #[{ name := "i", type := .i32 }, { name := "b", type := .i32 }, { name := "hi", type := .i32 }, { name := "lo", type := .i32 }],
-    body := { insns := #[
-      .i32Const 0x22, .call evtPutcName,
-      .i32Const 0, .localSet "i",
-      .block_ { insns := #[ .loop_ { insns := #[
-        .localGet "i", .i32Const 32, .plain "i32.eq", .brIf 1,
-        .localGet "v", .localGet "i", .plain "i32.add", .load "i32.load8_u" 0, .localSet "b",
-        .localGet "b", .i32Const 4, .plain "i32.shr_u", .i32Const 15, .plain "i32.and", .localSet "hi",
-        .i32Const HEX_LUT_PTR, .localGet "hi", .plain "i32.add", .load "i32.load8_u" 0, .call evtPutcName,
-        .localGet "b", .i32Const 15, .plain "i32.and", .localSet "lo",
-        .i32Const HEX_LUT_PTR, .localGet "lo", .plain "i32.add", .load "i32.load8_u" 0, .call evtPutcName,
-        .localGet "i", .i32Const 1, .plain "i32.add", .localSet "i", .br 0
-      ] } ] },
-      .i32Const 0x22, .call evtPutcName
-    ] } }
-
-def evtLogFunc : Func :=
-  { name := evtLogName,
-    body := { insns := #[
-      .globalGet evtPtrGlobal, .i32Const EVENT_BUF, .plain "i32.sub", .plain "i64.extend_i32_u",
-      .i64Const EVENT_BUF, .call "log_utf8" ] } }
-
-def evtHelperFuncsForModulePlan (plan : ModulePlan) : Array Func :=
-  (if plan.usesEventNumeric then #[fmtU64Func] else #[]) ++
-    (if plan.usesEventApi then #[evtStartFunc, evtPutcFunc, evtPutstrFunc] else #[]) ++
-    (if plan.usesEventNumeric then #[evtPutu64Func] else #[]) ++
-    (if plan.usesEventBool then #[evtPutboolFunc] else #[]) ++
-    (if plan.usesEventHash then #[evtPutHashFunc] else #[]) ++
-    (if plan.usesEventApi then #[evtLogFunc] else #[])
-def evtGlobals : Array Global := #[ evtPtrGlobalDecl ]
-
--- Crosscall JSON arg helpers (same append-pointer pattern as events, separate buffer).
-def crosscallPtrGlobal : String := "crosscall_ptr"
-def crosscallArgsStartName : String := "__pf_crosscall_args_start"
-def crosscallArgsPutcName : String := "__pf_crosscall_args_putc"
-def crosscallArgsPutu64Name : String := "__pf_crosscall_args_putu64"
-def crosscallArgsPutboolName : String := "__pf_crosscall_args_putbool"
-def crosscallArgsPuthashName : String := "__pf_crosscall_args_puthash"
-
-def crosscallPtrGlobalDecl : Global :=
-  { name := crosscallPtrGlobal, type := .i32, init := toString CROSSCALL_BUF, isMutable := true }
-
-def crosscallArgsStartFunc : Func :=
-  { name := crosscallArgsStartName, body := { insns := #[ .i32Const CROSSCALL_BUF, .globalSet crosscallPtrGlobal ] } }
-
-def crosscallArgsPutcFunc : Func :=
-  { name := crosscallArgsPutcName, params := #[{ name := "c", type := .i32 }],
-    body := { insns := #[
-      .globalGet crosscallPtrGlobal, .localGet "c", .store "i32.store8" 0,
-      .globalGet crosscallPtrGlobal, .i32Const 1, .plain "i32.add", .globalSet crosscallPtrGlobal ] } }
-
-def crosscallArgsPutstrName : String := "__pf_crosscall_args_putstr"
-
-def crosscallArgsPutstrFunc : Func :=
-  { name := crosscallArgsPutstrName, params := #[{ name := "ptr", type := .i32 }, { name := "len", type := .i32 }],
-    body := { insns := #[
-      .globalGet crosscallPtrGlobal, .localGet "ptr", .localGet "len", .call memcpyName,
-      .globalGet crosscallPtrGlobal, .localGet "len", .plain "i32.add", .globalSet crosscallPtrGlobal ] } }
-
-def crosscallArgsPutu64Func : Func :=
-  { name := crosscallArgsPutu64Name, params := #[{ name := "v", type := .i64 }],
-    locals := #[{ name := "p", type := .i32 }, { name := "len", type := .i32 }],
-    body := { insns := #[
-      .localGet "v", .call fmtU64Name, .localSet "p",
-      .i32Const (RET_BUF + 20), .localGet "p", .plain "i32.sub", .localSet "len",
-      .globalGet crosscallPtrGlobal, .localGet "p", .localGet "len", .call memcpyName,
-      .globalGet crosscallPtrGlobal, .localGet "len", .plain "i32.add", .globalSet crosscallPtrGlobal ] } }
-
-def crosscallArgsPutboolFunc : Func :=
-  { name := crosscallArgsPutboolName, params := #[{ name := "b", type := .i32 }],
-    body := { insns := #[
-      .localGet "b", .plain "i32.eqz",
-      .if_ { insns := #[ .i32Const FALSE_PTR, .i32Const 5, .call crosscallArgsPutstrName ] }
-         { insns := #[ .i32Const TRUE_PTR, .i32Const 4, .call crosscallArgsPutstrName ] } ] } }
-
-def crosscallArgsPuthashFunc : Func :=
-  { name := crosscallArgsPuthashName, params := #[{ name := "v", type := .i32 }],
-    locals := #[{ name := "i", type := .i32 }, { name := "b", type := .i32 }, { name := "hi", type := .i32 }, { name := "lo", type := .i32 }],
-    body := { insns := #[
-      .i32Const 0x22, .call crosscallArgsPutcName,
-      .i32Const 0, .localSet "i",
-      .block_ { insns := #[ .loop_ { insns := #[
-        .localGet "i", .i32Const 32, .plain "i32.eq", .brIf 1,
-        .localGet "v", .localGet "i", .plain "i32.add", .load "i32.load8_u" 0, .localSet "b",
-        .localGet "b", .i32Const 4, .plain "i32.shr_u", .i32Const 15, .plain "i32.and", .localSet "hi",
-        .i32Const HEX_LUT_PTR, .localGet "hi", .plain "i32.add", .load "i32.load8_u" 0, .call crosscallArgsPutcName,
-        .localGet "b", .i32Const 15, .plain "i32.and", .localSet "lo",
-        .i32Const HEX_LUT_PTR, .localGet "lo", .plain "i32.add", .load "i32.load8_u" 0, .call crosscallArgsPutcName,
-        .localGet "i", .i32Const 1, .plain "i32.add", .localSet "i", .br 0
-      ] } ] },
-      .i32Const 0x22, .call crosscallArgsPutcName
-    ] } }
-
-def crosscallArgsHelperFuncsForModulePlan (plan : ModulePlan) : Array Func :=
-  if !plan.usesCrosscallArgs then
-    #[]
-  else
-    (if plan.usesEventNumeric then #[] else if plan.usesFmtU64 then #[fmtU64Func] else #[]) ++
-      #[crosscallArgsStartFunc, crosscallArgsPutcFunc, crosscallArgsPutstrFunc, crosscallArgsPutu64Func,
-        crosscallArgsPutboolFunc] ++
-      (if plan.usesCrosscallHash then #[crosscallArgsPuthashFunc] else #[])
-
-def crosscallGlobalsForModulePlan (plan : ModulePlan) : Array Global :=
-  if plan.usesCrosscallArgs then #[crosscallPtrGlobalDecl] else #[]
-
-def promiseCurrentAccountName : String := "__pf_promise_current_account"
-
-/-- Load the current contract account id into `CTX_BUF` and return its byte length. -/
-def promiseCurrentAccountFunc : Func :=
-  { name := promiseCurrentAccountName, results := #[.i64],
-    locals := #[{ name := "len", type := .i64 }],
-    body := { insns := #[
-      .i64Const 0, .call "current_account_id",
-      .i64Const 0, .call "register_len", .localSet "len",
-      .i64Const 0, .i64Const CTX_BUF, .call "read_register",
-      .localGet "len" ] } }
-
-def promiseResultU64Name : String := "__pf_promise_result_u64"
-
-/-- Read promise result at `idx`, Borsh-decode register 0 as U64 (0 on failure). -/
-def promiseResultU64Func : Func :=
-  { name := promiseResultU64Name,
-    params := #[{ name := "idx", type := .i64 }],
-    results := #[.i64],
-    locals := #[{ name := "status", type := .i64 }, { name := "r", type := .i64 }],
-    body := { insns := #[
-      .localGet "idx", .i64Const 0, .call "promise_result", .localSet "status",
-      .i64Const 0, .localSet "r",
-      .localGet "status", .i64Const 1, .plain "i64.eq",
-      .if_ { insns := #[
-        .i64Const 0, .i64Const PROMISE_RESULT_BUF, .call "read_register",
-        .i32Const PROMISE_RESULT_BUF, .load "i64.load" 0, .localSet "r"
-      ] } { insns := #[] },
-      .localGet "r" ] } }
-
-def promiseHelperFuncsForModulePlan (plan : ModulePlan) : Array Func :=
-  (if plan.usesPromiseThen then #[promiseCurrentAccountFunc] else #[]) ++
-    (if plan.usesPromiseResultU64 then #[promiseResultU64Func] else #[])
-
--- State layout
-structure StateInfo where
-  id : String
-  type : ValueType
-  keyPtr : Nat
-  keyLen : Nat
-
-def stateLayout (mod : ProofForge.IR.Module) : Array StateInfo :=
-  let step (acc : Array StateInfo) (offset : Nat) (s : StateDecl) : Array StateInfo × Nat :=
-    match s.kind with
-    | .scalar => (acc.push { id := s.id, type := s.type, keyPtr := offset, keyLen := s.id.length }, offset + s.id.length + 1)
-    | _ => (acc, offset)
-  let result : Array StateInfo × Nat := mod.state.foldl (init := (#[], 0))
-    fun (acc, offset) s => step acc offset s
-  result.fst
-
-def findScalarState? (layout : Array StateInfo) (id : String) : Option StateInfo :=
-  layout.find? (fun s => s.id == id)
-
-def readScalarStructBufInsns (s : StateInfo) (sd : ProofForge.IR.StructDecl) : Array Insn :=
-  #[.i64Const s.keyLen, .i64Const s.keyPtr, .i64Const 0, .call "storage_read",
-    .i64Const 0, .plain "i64.ne",
-    .if_ { insns := #[.i64Const 0, .i64Const STRUCT_BUF, .call "read_register"] }
-         { insns := zeroStructBufInsns sd }]
-
-structure MapInfo where
-  id        : String
-  keyType   : ValueType
-  valueType : ValueType
-  prefixPtr : Nat
-  prefixLen : Nat
-  isArray   : Bool
-
-/-- Map state → prefix data segment `id ++ ":"` laid out back-to-back from a high offset. -/
-def mapLayout (mod : ProofForge.IR.Module) : Array MapInfo :=
-  let step (acc : Array MapInfo) (offset : Nat) (s : StateDecl) : Array MapInfo × Nat :=
-    match s.kind with
-    | .map kt _ => (acc.push { id := s.id, keyType := kt, valueType := s.type, prefixPtr := offset, prefixLen := s.id.length + 1, isArray := false }, offset + s.id.length + 2)
-    | .array _ => (acc.push { id := s.id, keyType := .u64, valueType := s.type, prefixPtr := offset, prefixLen := s.id.length + 1, isArray := true }, offset + s.id.length + 2)
-    | _ => (acc, offset)
-  let result : Array MapInfo × Nat := mod.state.foldl (init := (#[], 20000)) fun (acc, offset) s => step acc offset s
-  result.fst
-
-def findMapState? (layout : Array MapInfo) (id : String) : Option MapInfo :=
-  layout.find? (fun m => m.id == id)
-
-def findArrayState? (layout : Array MapInfo) (id : String) : Option MapInfo :=
-  layout.find? (fun m => m.id == id && m.isArray)
-
-def readArrayStructBufInsns (m : MapInfo) (s : ProofForge.IR.StructDecl) : Array Insn :=
-  #[.i64Const (m.prefixLen + 8), .i64Const MAPKEY_BUF, .i64Const 0, .call "storage_read",
-    .i64Const 0, .plain "i64.ne",
-    .if_ { insns := #[.i64Const 0, .i64Const STRUCT_BUF, .call "read_register"] }
-         { insns := zeroStructBufInsns s }]
-
-structure StringInfo where
-  str : String
-  ptr : Nat
-  len : Nat
-
-/-- Collect event-name + field-name strings into a deduped pool at STRING_BASE. -/
-def stringPool (mod : ProofForge.IR.Module) : Array StringInfo :=
-  let raw : Array String := mod.entrypoints.foldl (init := #[]) fun acc ep =>
-    ep.body.foldl (init := acc) fun acc' s =>
-      match s with
-      | .effect (.eventEmit name fields) => acc' ++ #[name] ++ fields.map (fun (n, _) => n)
-      | .effect (.eventEmitIndexed name indexedFields dataFields) =>
-          acc' ++ #[name] ++ indexedFields.map (fun (n, _) => n) ++ dataFields.map (fun (n, _) => n)
-      | _ => acc'
-  let unique : Array String := raw.foldl (init := #[]) fun acc s => if acc.contains s then acc else acc.push s
-  let result : Array StringInfo × Nat :=
-    unique.foldl (init := (#[], STRING_BASE)) fun (acc, offset) s =>
-      (acc.push { str := s, ptr := offset, len := s.length }, offset + s.length + 1)
-  result.fst
-
-def panicMessage (ref : ProofForge.IR.ErrorRef) : String :=
-  let code := ref.userCode?.getD ""
-  s!"PF:{ref.assertionId}:{code}"
-
-/-- Collect assertion error messages into a deduped pool placed after the event/field string pool. -/
-def panicPool (mod : ProofForge.IR.Module) (stringPoolEnd : Nat) : Array StringInfo :=
-  let base := stringPoolEnd
-  let raw : Array String := mod.entrypoints.foldl (init := #[]) fun acc ep =>
-    ep.body.foldl (init := acc) fun acc' s =>
-      match s with
-      | .assert _ _ (some ref) => acc'.push (panicMessage ref)
-      | .assertEq _ _ _ (some ref) => acc'.push (panicMessage ref)
-      | _ => acc'
-  let unique : Array String := raw.foldl (init := #[]) fun acc s => if acc.contains s then acc else acc.push s
-  let result : Array StringInfo × Nat :=
-    unique.foldl (init := (#[], base)) fun (acc, offset) s =>
-      (acc.push { str := s, ptr := offset, len := s.length }, offset + s.length + 1)
-  result.fst
-
-def findString? (pool : Array StringInfo) (s : String) : Option StringInfo :=
-  pool.find? (fun si => si.str == s)
-
-def crosscallStringInfos (strings : Array String) (base : Nat) : Array StringInfo :=
-  let result : Array StringInfo × Nat :=
-    strings.foldl (init := (#[], base)) fun (acc, offset) s =>
-      (acc.push { str := s, ptr := offset, len := s.length }, offset + s.length + 1)
-  result.fst
+open ProofForge.Backend.WasmNear.Memory
+open ProofForge.Backend.WasmNear.ModuleAssembly
+open ProofForge.Backend.WasmNear.Params
+open ProofForge.Backend.WasmNear.Promise
+open ProofForge.Backend.WasmNear.Return
+open ProofForge.Backend.WasmNear.Scalar
+open ProofForge.Backend.WasmNear.Statement
+open ProofForge.Backend.WasmNear.Struct
+open ProofForge.Backend.WasmNear.Types
+
+export ProofForge.Backend.WasmNear.Aggregate (
+  arrayLitName arrEqName collectArrayLitsPathSegment collectArrayLitsPath
+  collectArrayLitsExpr collectArrayLitsEffect collectStructLitsExpr
+  collectStructLitsPathSegment collectStructLitsPath collectStructLitsEffect
+  collectArrayLitsStmt dedupArrayLits moduleArrayLits arrLitFunc
+  arrLitHelperFuncs arrEqFunc arrEqHelperFuncs structLitFunc
+  collectStructLitsStmt dedupStrings moduleStructLitNames
+  structLitHelperFuncs arrayLitFuncsForModulePlan arrayEqFuncsForModulePlan
+  structLitFuncsForModulePlan aggregateHelperFuncsForModulePlan
+)
+
+export ProofForge.Backend.WasmNear.Assert (
+  assertFailInsns
+)
+
+export ProofForge.Backend.WasmNear.ArrayHeap (
+  arrPtrGlobal arrFreeGlobal arrAllocName arrPtrGlobalDecl arrFreeGlobalDecl
+  arrAllocFunc arrDeallocFunc modulePlanUsesArrHeap
+  arrHeapHelperFuncsForModulePlan
+)
+
+export ProofForge.Backend.WasmNear.Capabilities (
+  emitWatCapabilities checkCapabilities checkTargetPlan
+)
+
+export ProofForge.Backend.WasmNear.Common (
+  memcpyName memcpyFunc
+)
+
+export ProofForge.Backend.WasmNear.Context (
+  ctxUserIdName ctxUserHashName ctxContractIdName ctxSignerName
+  ctxRandomSeedName ctxUserIdFunc ctxUserHashFunc ctxContractIdFunc
+  ctxSignerFunc ctxRandomSeedFunc ctxHelperFuncsForModulePlan
+  lowerContextExprPlan
+)
+
+export ProofForge.Backend.WasmNear.Crosscall (
+  crosscallPtrGlobal crosscallArgsStartName crosscallArgsPutcName
+  crosscallArgsPutu64Name crosscallArgsPutboolName crosscallArgsPuthashName
+  crosscallPtrGlobalDecl crosscallArgsStartFunc crosscallArgsPutcFunc
+  crosscallArgsPutstrName crosscallArgsPutstrFunc crosscallArgsPutu64Func
+  crosscallArgsPutboolFunc crosscallArgsPuthashFunc
+  crosscallArgsHelperFuncsForModulePlan crosscallGlobalsForModulePlan
+  poolLookupSetBody crosscallPoolPtrFunc crosscallPoolLenFunc
+  crosscallPoolHelperFuncs
+)
+
+export ProofForge.Backend.WasmNear.Diagnostics (
+  nativeValueUnsupportedMessage indexedEventUnsupportedMessage
+  crosscallUnsupportedMessage crosscallEvmOnlyMessage
+  crosscallTypedUnsupportedMessage EmitError err
+)
+
+export ProofForge.Backend.WasmNear.Event (
+  fmtU64Name evtPtrGlobal evtStartName evtPutcName evtPutstrName
+  evtPutu64Name evtPutboolName evtPutHashName evtLogName evtPtrGlobalDecl
+  fmtU64Func evtStartFunc evtPutcFunc evtPutstrFunc evtPutu64Func
+  evtPutboolFunc evtPutHashFunc evtLogFunc evtHelperFuncsForModulePlan
+  evtGlobals evtPutcInsns evtHeaderInsns evtValueInsnsForType
+  evtFieldInsns evtFooterInsns
+)
+
+export ProofForge.Backend.WasmNear.ExprAnalysis (
+  canDuplicateExpr exprReturnsNearPromise
+)
+
+export ProofForge.Backend.WasmNear.Hash (
+  modulePlanUsesHashAlloc hashAllocName hashMakeName hashSName hashTwoName
+  hashEqName readHashName writeHashName hashPtrGlobal hashPtrGlobalDecl
+  hashAllocFunc hashMakeFunc hashSFunc hashTwoFunc hashEqFunc readHashFunc
+  writeHashFunc hashExprHelperFuncsForModulePlan
+  hashStorageHelperFuncsForModulePlan
+)
+
+export ProofForge.Backend.WasmNear.Imports (
+  hostImport valTypeOfString hostFunctionImport dedupeImports bridgeBaseImports
+  nearImports storageHasKeyImport sha256Import logUtf8Import inputImport
+  panicImport predecessorImport currentAcctImport signerImport depositImport
+  registerLenImport blockHeightImport epochHeightImport randomSeedImport
+  allocImportName deallocImportName allocImport deallocImport
+  modulePlanUsesSha256 nearImportsForModulePlan ctxImportsForModulePlan
+  promiseCtxImportsForModulePlan promiseResultImportsForModulePlan
+  hostAllocatorImportsForModulePlan importsForModulePlan
+)
+
+export ProofForge.Backend.WasmNear.Layout (
+  StateInfo stateLayout findScalarState? MapInfo mapLayout findMapState?
+  findArrayState? StringInfo stringPool panicMessage panicPool findString?
+  crosscallStringInfos
+)
+
+export ProofForge.Backend.WasmNear.LoweringEnv (
+  Ctx LBind LocalTypes lookupLocal? assignOpName resolveCrosscallStringRef
+)
+
+export ProofForge.Backend.WasmNear.Locals (
+  collectLocalsFrom collectLocals
+)
+
+export ProofForge.Backend.WasmNear.Map (
+  mapReadName mapWriteName mapContainsName mapBuildkeyName mapBuildkeyFunc
+  mapWriteStateInfo mapWriteCall mapWriteValueInsns
+  mapReadStateInfo mapReadCall mapReadValueInsns
+  mapContainsStateInfo mapContainsCall mapContainsValueInsns
+  storageArrayStateInfo storageArrayReadInsns
+  storageArrayWriteStateInfo storageArrayWriteInsns
+  nestedMapReadStateInfo nestedMapReadValueInsns
+  nestedMapWriteStateInfo nestedMapWriteValueInsns
+  mapReadFunc mapWriteFunc mapContainsFunc mapHelperFuncsForModulePlan
+  mapBuildkeyHashName mapReadHashName mapWriteHashName mapContainsHashName
+  mapBuildkeyHashFunc mapReadHashFunc mapWriteHashFunc mapContainsHashFunc
+  mapHashHelperFuncsForModulePlan
+)
+
+export ProofForge.Backend.WasmNear.Memory (
+  KEY_BUF RET_BUF TRUE_PTR FALSE_PTR HEX_LUT_PTR MAPKEY_BUF HASH_HEAP ARR_HEAP
+  HASH_CONCAT_BUF CTX_BUF EVENT_BUF EVT_KEY_PTR STRING_BASE INPUT_BUF
+  CROSSCALL_BUF CROSSCALL_ARGS_EMPTY_PTR CROSSCALL_ARGS_EMPTY_LEN
+  CROSSCALL_STRING_BASE crosscallDefaultGas PARAM_HASH_BUF ZERO_HASH_BUF
+  OLD_HASH_BUF STRUCT_BUF PROMISE_RESULT_BUF crosscallPoolPtrName
+  crosscallPoolLenName disjointRegions memoryLayoutNonoverlap
+  memoryLayoutNonoverlap_valid
+)
+
+export ProofForge.Backend.WasmNear.ModuleAssembly (
+  moduleStringPoolEnd loweringCtxForModule dataSegmentsForModulePlan
+  helperFuncsForModulePlan globalsForModulePlan
+)
+
+export ProofForge.Backend.WasmNear.Params (
+  loadParams
+)
+
+export ProofForge.Backend.WasmNear.Promise (
+  promiseCurrentAccountName promiseCurrentAccountFunc promiseResultU64Name
+  promiseResultU64Func promiseHelperFuncsForModulePlan
+)
+
+export ProofForge.Backend.WasmNear.Return (
+  returnInsnsForLoweredExpr
+)
+
+export ProofForge.Backend.WasmNear.Scalar (
+  storageScalarStateInfo storageScalarWriteInsns
+  storageScalarAssignOpTargetType storageScalarAssignOpInsns
+  readFunc writeFunc returnU64Func returnU32Func returnBoolFunc powName
+  powFunc scalarStorageHelperFuncsForModulePlan returnHelperFuncsForModulePlan
+  powHelperFuncsForModulePlan
+)
+
+export ProofForge.Backend.WasmNear.Statement (
+  localLetBindInsns localAssignInsns localAssignOpTargetType localAssignOpInsns
+  storagePathAssignOpTargetType storagePathAssignOpValueInsns releaseInsns
+  dropResultInsns appendInsnChunks appendInsnChunksM requireDuplicableExpr ifElseInsns boundedForInsns
+)
+
+export ProofForge.Backend.WasmNear.Struct (
+  findStruct? ScalarStructStateInfo scalarStructStateInfo
+  ArrayStructInfo arrayStructMapInfo arrayStructInfo
+  structTotalSize structFieldOffset? structFieldType?
+  structLitName isStructStorageFieldType isIndexedStorageValueType
+  structStorageFieldsSupported structStorageFieldInfo zeroStructBufInsns readScalarStructBufInsns
+  scalarStructFieldReadInsns scalarStructFieldWriteInsns
+  readArrayStructBufInsns arrayStructFieldReadInsns arrayStructFieldWriteInsns
+)
+
+export ProofForge.Backend.WasmNear.Types (
+  wasmTypeOf widthOf isNumeric isScalarBorshType scalarWidth loadOpFor
+  storeOpFor typeSuffix readName writeName returnU32Name returnU64Name
+  returnBoolName
+)
 
 def stringInfoEnd (base : Nat) (strings : Array StringInfo) : Nat :=
   strings.foldl (init := base) fun acc s => max acc (s.ptr + s.len + 1)
@@ -1278,123 +319,20 @@ def validateScratchCapacities
             err s!"EmitWat: NEAR promise callback args require up to {required} bytes, limit is {CROSSCALL_ARGS_EMPTY_PTR - CROSSCALL_BUF}"
       | _ => pure ()
 
+def crosscallArgsLenInsns (args : Array Expr) (argsLenMarker : Nat) : Array Insn :=
+  if args.isEmpty then
+    #[.i64Const argsLenMarker]
+  else
+    #[.globalGet crosscallPtrGlobal, .i32Const CROSSCALL_BUF, .plain "i32.sub", .plain "i64.extend_i32_u"]
+
+def crosscallArgsPtrInsns (argsPtr : Nat) : Array Insn :=
+  #[.i32Const argsPtr, .plain "i64.extend_i32_u"]
+
+def stringInfoLenPtrInsns (si : StringInfo) : Array Insn :=
+  #[.i64Const si.len, .i32Const si.ptr, .plain "i64.extend_i32_u"]
+
 -- Type-directed expression lowering (mutually recursive)
-structure Ctx where
-  scalars : Array StateInfo
-  maps    : Array MapInfo
-  strings : Array StringInfo
-  panics  : Array StringInfo
-  crosscallStrings : Array StringInfo
-  structs : Array ProofForge.IR.StructDecl
-  allocator : ProofForge.IR.AllocatorConfig
-
-structure LBind where
-  name : String
-  vt : ValueType
-abbrev LocalTypes := Array LBind
-
-def lookupLocal? (env : LocalTypes) (name : String) : Option ValueType :=
-  match env.find? (fun b => b.name == name) with
-  | some b => some b.vt
-  | none => none
-
-def assignOpName : AssignOp → String
-  | .add => "add" | .sub => "sub" | .mul => "mul" | .div => "div_u" | .mod => "rem_u"
-  | .bitAnd => "and" | .bitOr => "or" | .bitXor => "xor"
-  | .shiftLeft => "shl" | .shiftRight => "shr_u"
-
-def poolLookupSetBody (strings : Array StringInfo) (field : StringInfo → Nat) : Array Insn :=
-  (Array.range strings.size).foldl (fun acc i =>
-    match strings[i]? with
-    | none => acc
-    | some si =>
-      acc ++ #[.localGet "idx", .i64Const i, .plain "i64.eq",
-        .if_ { insns := #[.i64Const (field si), .localSet "result"] } { insns := #[] }]) #[]
-
-def crosscallPoolPtrFunc (strings : Array StringInfo) : Func :=
-  { name := crosscallPoolPtrName,
-    params := #[{ name := "idx", type := .i64 }],
-    results := #[.i64],
-    locals := #[{ name := "result", type := .i64 }],
-    body := { insns :=
-      #[.i64Const 0, .localSet "result"] ++
-        poolLookupSetBody strings (fun si => si.ptr) ++
-        #[.localGet "result"] } }
-
-def crosscallPoolLenFunc (strings : Array StringInfo) : Func :=
-  { name := crosscallPoolLenName,
-    params := #[{ name := "idx", type := .i64 }],
-    results := #[.i64],
-    locals := #[{ name := "result", type := .i64 }],
-    body := { insns :=
-      #[.i64Const 0, .localSet "result"] ++
-        poolLookupSetBody strings (fun si => si.len) ++
-        #[.localGet "result"] } }
-
-def crosscallPoolHelperFuncs (strings : Array StringInfo) : Array Func :=
-  if strings.isEmpty then #[] else #[crosscallPoolPtrFunc strings, crosscallPoolLenFunc strings]
-
-def resolveCrosscallStringRef (ctx : Ctx) (e : Expr) (role : String) : Except EmitError StringInfo :=
-  match e with
-  | .literal (.address idx) =>
-    match ctx.crosscallStrings[idx]? with
-    | some si => .ok si
-    | none =>
-      err s!"EmitWat: NEAR crosscall {role} index `{idx}` is out of range for `module.nearCrosscallStrings`"
-  | _ =>
-    err s!"EmitWat: NEAR crosscall {role} must be `.literal (.address <index>)` into `module.nearCrosscallStrings`"
-
 mutual
-  partial def canDuplicateExpr : Expr → Bool
-    | .literal _ => true
-    | .local _ => true
-    | .arrayLit _ values => values.all canDuplicateExpr
-    | .arrayGet array index => canDuplicateExpr array && canDuplicateExpr index
-    | .memoryArrayNew _ length => canDuplicateExpr length
-    | .memoryArrayLength array => canDuplicateExpr array
-    | .memoryArrayGet array index => canDuplicateExpr array && canDuplicateExpr index
-    | .structLit _ fields => fields.all (fun field => canDuplicateExpr field.snd)
-    | .field base _ => canDuplicateExpr base
-    | .add lhs rhs
-    | .sub lhs rhs
-    | .mul lhs rhs
-    | .div lhs rhs
-    | .mod lhs rhs
-    | .pow lhs rhs
-    | .bitAnd lhs rhs
-    | .bitOr lhs rhs
-    | .bitXor lhs rhs
-    | .shiftLeft lhs rhs
-    | .shiftRight lhs rhs
-    | .eq lhs rhs
-    | .ne lhs rhs
-    | .lt lhs rhs
-    | .le lhs rhs
-    | .gt lhs rhs
-    | .ge lhs rhs
-    | .boolAnd lhs rhs
-    | .boolOr lhs rhs
-    | .hashTwoToOne lhs rhs => canDuplicateExpr lhs && canDuplicateExpr rhs
-    | .cast value _ => canDuplicateExpr value
-    | .boolNot value => canDuplicateExpr value
-    | .hashValue a b c d =>
-        canDuplicateExpr a && canDuplicateExpr b && canDuplicateExpr c && canDuplicateExpr d
-    | .hash preimage => canDuplicateExpr preimage
-    | .nativeValue => false
-    | .crosscallInvoke _ _ _
-    | .crosscallInvokeTyped _ _ _ _
-    | .crosscallInvokeValueTyped _ _ _ _ _
-    | .crosscallInvokeStaticTyped _ _ _ _
-    | .crosscallInvokeDelegateTyped _ _ _ _
-    | .crosscallCreate _ _
-    | .crosscallCreate2 _ _ _
-    | .nearCrosscallInvokePool _ _ _ _
-    | .nearPromiseThen _ _ _ _
-    | .nearPromiseResultsCount
-    | .nearPromiseResultStatus _
-    | .nearPromiseResultU64 _
-    | .effect _ => false
-
   partial def lowerCrosscallArgValue (ctx : Ctx) (env : LocalTypes) (arg : Expr) :
       Except EmitError (Array Insn × Array Insn) := do
     let (vis, vt) ← lowerExpr ctx env arg
@@ -1418,33 +356,39 @@ mutual
       let body := body ++ #[.i32Const 93, .call crosscallArgsPutcName]
       .ok (body, CROSSCALL_BUF, 0)
 
+  partial def lowerNearDeposit (ctx : Ctx) (env : LocalTypes) (label : String) (deposit : Expr) :
+      Except EmitError (Array Insn) := do
+    let (depositInsns, depositType) ← lowerExpr ctx env deposit
+    if depositType != .u64 then
+      err s!"EmitWat: {label} deposit expected `U64`, got `{depositType.name}`"
+    else
+      .ok depositInsns
+
+  partial def lowerU32OrU64AsI64 (ctx : Ctx) (env : LocalTypes) (label : String) (value : Expr) :
+      Except EmitError (Array Insn) := do
+    let (valueInsns, valueType) ← lowerExpr ctx env value
+    if !(valueType == .u32 || valueType == .u64) then
+      err s!"EmitWat: {label} expected U32/U64, got `{valueType.name}`"
+    else
+      let conv := if valueType == .u64 then #[] else #[.plain "i64.extend_i32_u"]
+      .ok (valueInsns ++ conv)
+
   partial def lowerNearCrosscallInvokePool (ctx : Ctx) (env : LocalTypes) (accountIndex method : Expr)
       (args : Array Expr) (deposit : Expr) : Except EmitError (Array Insn × ValueType) := do
     if ctx.crosscallStrings.isEmpty then
       err "EmitWat: NEAR crosscall pool invoke requires `module.nearCrosscallStrings` to be populated"
-    let (accountInsns, accountType) ← lowerExpr ctx env accountIndex
-    if !(accountType == .u32 || accountType == .u64) then
-      err s!"EmitWat: NEAR crosscall pool account index expected U32/U64, got `{accountType.name}`"
-    if !canDuplicateExpr accountIndex then
-      err "EmitWat: NEAR crosscall pool account index must be duplicable"
-    let accountConv := if accountType == .u64 then accountInsns else accountInsns ++ #[.plain "i64.extend_i32_u"]
+    let accountConv ← lowerU32OrU64AsI64 ctx env "NEAR crosscall pool account index" accountIndex
+    requireDuplicableExpr accountIndex "EmitWat: NEAR crosscall pool account index must be duplicable"
     let methodSi ← resolveCrosscallStringRef ctx method "method name"
     let (argBuildInsns, argsPtr, argsLenMarker) ← lowerCrosscallArgsJson ctx env args
-    let (depositInsns, depositType) ← lowerExpr ctx env deposit
-    if depositType != .u64 then
-      err s!"EmitWat: NEAR crosscall deposit expected `U64`, got `{depositType.name}`"
-    let argsLenInsns :=
-      if args.isEmpty then
-        #[.i64Const argsLenMarker]
-      else
-        #[.globalGet crosscallPtrGlobal, .i32Const CROSSCALL_BUF, .plain "i32.sub", .plain "i64.extend_i32_u"]
-    let argsPtrInsns := #[.i32Const argsPtr, .plain "i64.extend_i32_u"]
+    let depositInsns ← lowerNearDeposit ctx env "NEAR crosscall" deposit
+    let argsLenInsns := crosscallArgsLenInsns args argsLenMarker
+    let argsPtrInsns := crosscallArgsPtrInsns argsPtr
     .ok (argBuildInsns ++ accountConv ++ #[
       .call crosscallPoolLenName
     ] ++ accountConv ++ #[
-      .call crosscallPoolPtrName,
-      .i64Const methodSi.len, .i32Const methodSi.ptr, .plain "i64.extend_i32_u"
-    ] ++ argsLenInsns ++ argsPtrInsns ++ depositInsns ++ #[
+      .call crosscallPoolPtrName
+    ] ++ stringInfoLenPtrInsns methodSi ++ argsLenInsns ++ argsPtrInsns ++ depositInsns ++ #[
       .i64Const crosscallDefaultGas,
       .call "promise_create"
     ], .u64)
@@ -1456,23 +400,13 @@ mutual
     let account ← resolveCrosscallStringRef ctx target "target account id"
     let methodSi ← resolveCrosscallStringRef ctx method "method name"
     let (argBuildInsns, argsPtr, argsLenMarker) ← lowerCrosscallArgsJson ctx env args
-    let (depositInsns, depositType) ← lowerExpr ctx env deposit
-    if depositType != .u64 then
-      err s!"EmitWat: NEAR crosscall deposit expected `U64`, got `{depositType.name}`"
-    let argsLenInsns :=
-      if args.isEmpty then
-        #[.i64Const argsLenMarker]
-      else
-        #[.globalGet crosscallPtrGlobal, .i32Const CROSSCALL_BUF, .plain "i32.sub", .plain "i64.extend_i32_u"]
-    let argsPtrInsns :=
-      if args.isEmpty then
-        #[.i32Const argsPtr, .plain "i64.extend_i32_u"]
-      else
-        #[.i32Const argsPtr, .plain "i64.extend_i32_u"]
-    .ok (argBuildInsns ++ #[
-      .i64Const account.len, .i32Const account.ptr, .plain "i64.extend_i32_u",
-      .i64Const methodSi.len, .i32Const methodSi.ptr, .plain "i64.extend_i32_u"
-    ] ++ argsLenInsns ++ argsPtrInsns ++ depositInsns ++ #[
+    let depositInsns ← lowerNearDeposit ctx env "NEAR crosscall" deposit
+    let argsLenInsns := crosscallArgsLenInsns args argsLenMarker
+    let argsPtrInsns := crosscallArgsPtrInsns argsPtr
+    .ok (argBuildInsns ++
+      stringInfoLenPtrInsns account ++
+      stringInfoLenPtrInsns methodSi ++
+      argsLenInsns ++ argsPtrInsns ++ depositInsns ++ #[
       .i64Const crosscallDefaultGas,
       .call "promise_create"
     ], .u64)
@@ -1486,23 +420,20 @@ mutual
       err s!"EmitWat: NEAR promise_then parent expected `U64` promise id, got `{parentType.name}`"
     let methodSi ← resolveCrosscallStringRef ctx callbackMethod "callback method name"
     let (argBuildInsns, argsPtr, argsLenMarker) ← lowerCrosscallArgsJson ctx env args
-    let (depositInsns, depositType) ← lowerExpr ctx env deposit
-    if depositType != .u64 then
-      err s!"EmitWat: NEAR promise_then deposit expected `U64`, got `{depositType.name}`"
-    let argsLenInsns :=
-      if args.isEmpty then
-        #[.i64Const argsLenMarker]
-      else
-        #[.globalGet crosscallPtrGlobal, .i32Const CROSSCALL_BUF, .plain "i32.sub", .plain "i64.extend_i32_u"]
-    let argsPtrInsns := #[.i32Const argsPtr, .plain "i64.extend_i32_u"]
+    let depositInsns ← lowerNearDeposit ctx env "NEAR promise_then" deposit
+    let argsLenInsns := crosscallArgsLenInsns args argsLenMarker
+    let argsPtrInsns := crosscallArgsPtrInsns argsPtr
     .ok (parentInsns ++ argBuildInsns ++ #[
       .call promiseCurrentAccountName,
-      .i32Const CTX_BUF, .plain "i64.extend_i32_u",
-      .i64Const methodSi.len, .i32Const methodSi.ptr, .plain "i64.extend_i32_u"
-    ] ++ argsLenInsns ++ argsPtrInsns ++ depositInsns ++ #[
+      .i32Const CTX_BUF, .plain "i64.extend_i32_u"
+    ] ++ stringInfoLenPtrInsns methodSi ++ argsLenInsns ++ argsPtrInsns ++ depositInsns ++ #[
       .i64Const crosscallDefaultGas,
       .call "promise_then"
     ], .u64)
+
+  partial def lowerNearPromiseResultIndex (ctx : Ctx) (env : LocalTypes) (index : Expr) :
+      Except EmitError (Array Insn) :=
+    lowerU32OrU64AsI64 ctx env "NEAR promise_result index" index
 
   partial def lowerExpr (ctx : Ctx) (env : LocalTypes) (e : Expr)
       : Except EmitError (Array Insn × ValueType) :=
@@ -1542,11 +473,8 @@ mutual
     | .shiftLeft a b => lowerNumBin ctx env "shl" a b
     | .shiftRight a b => lowerNumBin ctx env "shr_u" a b
     | .pow a b => do
-      let (la, ta) ← lowerExpr ctx env a
-      let (lb, tb) ← lowerExpr ctx env b
-      if !(isNumeric ta && ta == tb) then
-        err s!"EmitWat: `pow` expected matching U32/U64 operands, got `{ta.name}`/`{tb.name}`"
-      else .ok (la ++ lb ++ #[.call (powName ta)], ta)
+      let (la, lb, t) ← lowerMatchingNumericOperands ctx env "pow" a b
+      .ok (la ++ lb ++ #[.call (powName t)], t)
     | .eq a b => lowerCmp ctx env "eq" a b
     | .ne a b => lowerCmp ctx env "ne" a b
     | .lt a b => lowerCmp ctx env "lt_u" a b
@@ -1587,11 +515,11 @@ mutual
     | .effect (.storagePathRead id path) =>
       lowerStoragePathRead ctx env id path
     | .arrayLit elementType values => do
-      let lowered ← values.mapM fun v => do
+      let elementInsns ← appendInsnChunksM values fun v => do
         let (is, t) ← lowerExpr ctx env v
         if t != elementType then err s!"EmitWat: arrayLit element expected `{elementType.name}`, got `{t.name}`"
         else .ok is
-      .ok (lowered.foldl (fun acc is => acc ++ is) #[] ++ #[.call (arrayLitName elementType values.size)],
+      .ok (elementInsns ++ #[.call (arrayLitName elementType values.size)],
             .fixedArray elementType values.size)
     | .arrayGet array index => do
       let (pa, ta) ← lowerExpr ctx env array
@@ -1615,7 +543,7 @@ mutual
       match findStruct? ctx.structs typeName with
       | none => err s!"EmitWat: unknown struct `{typeName}`"
       | some s =>
-        let argInsns ← s.fields.mapM fun f =>
+        let argInsns ← appendInsnChunksM s.fields fun f =>
           match fields.find? (fun (n, _) => n == f.id) with
           | none => err s!"EmitWat: structLit `{typeName}` missing field `{f.id}`"
           | some (_, vexpr) => do
@@ -1623,7 +551,7 @@ mutual
             if vt != f.type then
               err s!"EmitWat: struct field `{typeName}.{f.id}` expected `{f.type.name}`, got `{vt.name}`"
             else .ok vis
-        .ok (argInsns.foldl (fun acc is => acc ++ is) #[] ++ #[.call (structLitName typeName)],
+        .ok (argInsns ++ #[.call (structLitName typeName)],
               .structType typeName)
     | .field base fieldName => do
       let (pb, tb) ← lowerExpr ctx env base
@@ -1658,28 +586,26 @@ mutual
     | .nearPromiseResultsCount =>
       .ok (#[.call "promise_results_count"], .u64)
     | .nearPromiseResultStatus index => do
-      let (indexInsns, indexType) ← lowerExpr ctx env index
-      if !(indexType == .u32 || indexType == .u64) then
-        err s!"EmitWat: NEAR promise_result index expected U32/U64, got `{indexType.name}`"
-      else do
-        let conv := if indexType == .u64 then #[] else #[.plain "i64.extend_i32_u"]
-        .ok (indexInsns ++ conv ++ #[.i64Const 0, .call "promise_result"], .u64)
+      let indexInsns ← lowerNearPromiseResultIndex ctx env index
+      .ok (indexInsns ++ #[.i64Const 0, .call "promise_result"], .u64)
     | .nearPromiseResultU64 index => do
-      let (indexInsns, indexType) ← lowerExpr ctx env index
-      if !(indexType == .u32 || indexType == .u64) then
-        err s!"EmitWat: NEAR promise_result index expected U32/U64, got `{indexType.name}`"
-      else do
-        let conv := if indexType == .u64 then #[] else #[.plain "i64.extend_i32_u"]
-        .ok (indexInsns ++ conv ++ #[.call promiseResultU64Name], .u64)
+      let indexInsns ← lowerNearPromiseResultIndex ctx env index
+      .ok (indexInsns ++ #[.call promiseResultU64Name], .u64)
     | _ => err "EmitWat: this expression form is not yet supported"
 
-  partial def lowerNumBin (ctx : Ctx) (env : LocalTypes) (op : String) (a b : Expr)
-      : Except EmitError (Array Insn × ValueType) := do
+  partial def lowerMatchingNumericOperands (ctx : Ctx) (env : LocalTypes) (op : String) (a b : Expr)
+      : Except EmitError (Array Insn × Array Insn × ValueType) := do
     let (la, ta) ← lowerExpr ctx env a
     let (lb, tb) ← lowerExpr ctx env b
     if !(isNumeric ta && ta == tb) then
       err s!"EmitWat: `{op}` expected matching U32/U64 operands, got `{ta.name}`/`{tb.name}`"
-    else .ok (la ++ lb ++ #[.plain (widthOf ta ++ "." ++ op)], ta)
+    else
+      .ok (la, lb, ta)
+
+  partial def lowerNumBin (ctx : Ctx) (env : LocalTypes) (op : String) (a b : Expr)
+      : Except EmitError (Array Insn × ValueType) := do
+    let (la, lb, t) ← lowerMatchingNumericOperands ctx env op a b
+    .ok (la ++ lb ++ #[.plain (widthOf t ++ "." ++ op)], t)
 
   partial def lowerCmp (ctx : Ctx) (env : LocalTypes) (op : String) (a b : Expr)
       : Except EmitError (Array Insn × ValueType) := do
@@ -1716,31 +642,30 @@ mutual
       | _, _ => err s!"EmitWat: cast from `{src.name}` to `{target.name}` is not supported"
     .ok (is ++ extra, target)
 
-  partial def lowerMapKeyU64 (ctx : Ctx) (env : LocalTypes) (key : Expr)
+  partial def lowerMapKeyTyped (ctx : Ctx) (env : LocalTypes) (expected : ValueType) (key : Expr)
       : Except EmitError (Array Insn) := do
     let (is, t) ← lowerExpr ctx env key
-    if t != .u64 then err s!"EmitWat: map key expected U64, got `{t.name}`"
+    if t != expected then err s!"EmitWat: map key expected {expected.name}, got `{t.name}`"
     else .ok is
 
+  partial def lowerMapKeyU64 (ctx : Ctx) (env : LocalTypes) (key : Expr)
+      : Except EmitError (Array Insn) :=
+    lowerMapKeyTyped ctx env .u64 key
+
   partial def lowerMapKeyHash (ctx : Ctx) (env : LocalTypes) (key : Expr)
-      : Except EmitError (Array Insn) := do
-    let (is, t) ← lowerExpr ctx env key
-    if t != .hash then err s!"EmitWat: map key expected Hash, got `{t.name}`"
-    else .ok is
+      : Except EmitError (Array Insn) :=
+    lowerMapKeyTyped ctx env .hash key
+
+  partial def lowerMapKeyFor (ctx : Ctx) (env : LocalTypes) (keyType : ValueType) (key : Expr)
+      : Except EmitError (Array Insn) :=
+    if keyType == .hash then lowerMapKeyHash ctx env key else lowerMapKeyU64 ctx env key
 
   partial def lowerMapGet (ctx : Ctx) (env : LocalTypes) (id : String) (key : Expr)
       : Except EmitError (Array Insn × ValueType) := do
-    match findMapState? ctx.maps id with
-    | none => err s!"EmitWat: unknown map state `{id}`"
-    | some m =>
-      if m.isArray then err s!"EmitWat: state `{id}` is an array; use storageArrayRead or an index storage path"
-      else do
-        let readCall ← match m.keyType with
-          | .u64 => do pure #[.call (mapReadName m.valueType)]
-          | .hash => do pure #[.call (mapReadHashName m.valueType)]
-          | _ => err s!"EmitWat: only Map<U64|Hash, T> is supported (`{id}` has key `{m.keyType.name}`)"
-        let kis ← if m.keyType == .hash then lowerMapKeyHash ctx env key else lowerMapKeyU64 ctx env key
-        .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ readCall, m.valueType)
+    let mapInfo ← mapReadStateInfo ctx.maps id
+    let readCall ← mapReadCall mapInfo id
+    let keyInsns ← lowerMapKeyFor ctx env mapInfo.keyType key
+    .ok (mapReadValueInsns mapInfo keyInsns readCall)
 
   /-- Nested map read: Map<K1, Map<K2, V>>. Builds compound key:
       mapBuildkey writes prefix + key1 to MAPKEY_BUF, then we manually
@@ -1748,44 +673,25 @@ mutual
       Then call storage_read with extended key length = prefixLen + 16. -/
   partial def lowerNestedMapGet (ctx : Ctx) (env : LocalTypes) (id : String) (key1 key2 : Expr)
       : Except EmitError (Array Insn × ValueType) := do
-    match findMapState? ctx.maps id with
-    | none => err s!"EmitWat: unknown map state `{id}`"
-    | some m =>
-      if m.keyType != .u64 then err s!"EmitWat: nested map key must be U64 (`{id}` has key `{m.keyType.name}`)"
-      else do
-        let readCall := #[.call (mapReadName m.valueType)]
-        let ki1 ← lowerMapKeyU64 ctx env key1
-        let ki2 ← lowerMapKeyU64 ctx env key2
-        .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ ki1 ++ ki2 ++ readCall, m.valueType)
+    let mapInfo ← nestedMapReadStateInfo ctx.maps id
+    let key1Insns ← lowerMapKeyU64 ctx env key1
+    let key2Insns ← lowerMapKeyU64 ctx env key2
+    .ok (nestedMapReadValueInsns mapInfo key1Insns key2Insns)
 
   partial def lowerMapContains (ctx : Ctx) (env : LocalTypes) (id : String) (key : Expr)
       : Except EmitError (Array Insn × ValueType) := do
-    match findMapState? ctx.maps id with
-    | none => err s!"EmitWat: unknown map state `{id}`"
-    | some m =>
-      if m.isArray then err s!"EmitWat: state `{id}` is an array; map contains is only valid for map state"
-      else do
-        let containsCall ← match m.keyType with
-          | .u64 => do pure #[.call mapContainsName]
-          | .hash => do pure #[.call mapContainsHashName]
-          | _ => err s!"EmitWat: only Map<U64|Hash, T> is supported"
-        let kis ← if m.keyType == .hash then lowerMapKeyHash ctx env key else lowerMapKeyU64 ctx env key
-        .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ containsCall ++ #[.plain "i32.wrap_i64"], .bool)
+    let mapInfo ← mapContainsStateInfo ctx.maps id
+    let containsCall ← mapContainsCall mapInfo
+    let keyInsns ← lowerMapKeyFor ctx env mapInfo.keyType key
+    .ok (mapContainsValueInsns mapInfo keyInsns containsCall)
+
   partial def lowerMapWriteValue (ctx : Ctx) (env : LocalTypes) (id : String) (key : Expr)
       (valueInsns : Array Insn) (valueType : ValueType)
       : Except EmitError (Array Insn × ValueType) := do
-    match findMapState? ctx.maps id with
-    | none => err s!"EmitWat: unknown map state `{id}`"
-    | some m =>
-      if m.isArray then err s!"EmitWat: state `{id}` is an array; use storageArrayWrite or an index storage path"
-      else do
-        let writeCall ← match m.keyType with
-          | .u64 => pure #[.call (mapWriteName m.valueType)]
-          | .hash => pure #[.call (mapWriteHashName m.valueType)]
-          | _ => err s!"EmitWat: only Map<U64|Hash, T> is supported"
-        let kis ← if m.keyType == .hash then lowerMapKeyHash ctx env key else lowerMapKeyU64 ctx env key
-        if valueType != m.valueType then err s!"EmitWat: map write `{id}` expected `{m.valueType.name}`, got `{valueType.name}`"
-        else .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ valueInsns ++ writeCall, m.valueType)
+    let mapInfo ← mapWriteStateInfo ctx.maps id
+    let writeCall ← mapWriteCall mapInfo
+    let keyInsns ← lowerMapKeyFor ctx env mapInfo.keyType key
+    mapWriteValueInsns mapInfo id keyInsns valueInsns writeCall valueType
 
   partial def lowerMapWrite (ctx : Ctx) (env : LocalTypes) (id : String) (key value : Expr)
       : Except EmitError (Array Insn × ValueType) := do
@@ -1796,16 +702,10 @@ mutual
   partial def lowerNestedMapWriteValue (ctx : Ctx) (env : LocalTypes) (id : String) (key1 key2 : Expr)
       (valueInsns : Array Insn) (valueType : ValueType)
       : Except EmitError (Array Insn × ValueType) := do
-    match findMapState? ctx.maps id with
-    | none => err s!"EmitWat: unknown map state `{id}`"
-    | some m =>
-      if m.keyType != .u64 then err s!"EmitWat: nested map key must be U64"
-      else if valueType != m.valueType then err s!"EmitWat: nested map write `{id}` expected `{m.valueType.name}`, got `{valueType.name}`"
-      else do
-        let writeCall := #[.call (mapWriteName m.valueType)]
-        let ki1 ← lowerMapKeyU64 ctx env key1
-        let ki2 ← lowerMapKeyU64 ctx env key2
-        .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ ki1 ++ ki2 ++ valueInsns ++ writeCall, m.valueType)
+    let mapInfo ← nestedMapWriteStateInfo ctx.maps id valueType
+    let key1Insns ← lowerMapKeyU64 ctx env key1
+    let key2Insns ← lowerMapKeyU64 ctx env key2
+    .ok (nestedMapWriteValueInsns mapInfo key1Insns key2Insns valueInsns)
 
   /-- Nested map write: Map<K1, Map<K2, V>>. -/
   partial def lowerNestedMapWrite (ctx : Ctx) (env : LocalTypes) (id : String) (key1 key2 value : Expr)
@@ -1815,30 +715,16 @@ mutual
 
   partial def lowerStorageArrayRead (ctx : Ctx) (env : LocalTypes) (id : String) (index : Expr)
       : Except EmitError (Array Insn × ValueType) := do
-    match findArrayState? ctx.maps id with
-    | none => err s!"EmitWat: unknown array state `{id}`"
-    | some m =>
-      if m.keyType != .u64 then err s!"EmitWat: storage array `{id}` index must be U64"
-      else if !isIndexedStorageValueType m.valueType then
-        err s!"EmitWat: indexed storage path `{id}` has unsupported element type `{m.valueType.name}`; use index+field for struct arrays"
-      else do
-        let kis ← lowerMapKeyU64 ctx env index
-        .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ #[.call (mapReadName m.valueType)], m.valueType)
+    let arrayInfo ← storageArrayStateInfo ctx.maps id
+    let indexInsns ← lowerMapKeyU64 ctx env index
+    .ok (storageArrayReadInsns arrayInfo indexInsns)
 
   partial def lowerStorageArrayWriteValue (ctx : Ctx) (env : LocalTypes) (id : String) (index : Expr)
       (valueInsns : Array Insn) (valueType : ValueType)
       : Except EmitError (Array Insn × ValueType) := do
-    match findArrayState? ctx.maps id with
-    | none => err s!"EmitWat: unknown array state `{id}`"
-    | some m =>
-      if m.keyType != .u64 then err s!"EmitWat: storage array `{id}` index must be U64"
-      else if !isIndexedStorageValueType m.valueType then
-        err s!"EmitWat: indexed storage path `{id}` has unsupported element type `{m.valueType.name}`; use index+field for struct arrays"
-      else if valueType != m.valueType then
-        err s!"EmitWat: array write `{id}` expected `{m.valueType.name}`, got `{valueType.name}`"
-      else do
-        let kis ← lowerMapKeyU64 ctx env index
-        .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ valueInsns ++ #[.call (mapWriteName m.valueType)], m.valueType)
+    let arrayInfo ← storageArrayWriteStateInfo ctx.maps id valueType
+    let indexInsns ← lowerMapKeyU64 ctx env index
+    .ok (storageArrayWriteInsns arrayInfo indexInsns valueInsns)
 
   partial def lowerStorageArrayWrite (ctx : Ctx) (env : LocalTypes) (id : String) (index value : Expr)
       : Except EmitError (Array Insn × ValueType) := do
@@ -1847,51 +733,19 @@ mutual
 
   partial def lowerScalarStructFieldRead (ctx : Ctx) (id fieldName : String)
       : Except EmitError (Array Insn × ValueType) := do
-    match findScalarState? ctx.scalars id with
-    | none => err s!"EmitWat: unknown scalar state `{id}`"
-    | some s => match s.type with
-      | .structType typeName =>
-        match findStruct? ctx.structs typeName with
-        | none => err s!"EmitWat: unknown struct `{typeName}`"
-        | some sd =>
-          if !structStorageFieldsSupported sd then
-            err s!"EmitWat: scalar struct `{typeName}` storage fields must be U32/U64/Bool"
-          else match structFieldOffset? sd fieldName, structFieldType? sd fieldName with
-            | some off, some ft =>
-              if !isStructStorageFieldType ft then
-                err s!"EmitWat: scalar struct field `{typeName}.{fieldName}` has unsupported type `{ft.name}`"
-              else
-                .ok (readScalarStructBufInsns s sd ++
-                  #[.i32Const off, .i32Const STRUCT_BUF, .plain "i32.add", .load (loadOpFor ft) 0], ft)
-            | _, _ => err s!"EmitWat: struct `{typeName}` has no field `{fieldName}`"
-      | _ => err s!"EmitWat: storageStructFieldRead expects a struct state, got `{s.type.name}`"
+    let stateInfo ← scalarStructStateInfo ctx.scalars ctx.structs id "storageStructFieldRead"
+    let (off, ft) ← structStorageFieldInfo stateInfo.structDecl stateInfo.typeName fieldName "scalar"
+    .ok (scalarStructFieldReadInsns stateInfo.state stateInfo.structDecl off ft)
 
   partial def lowerScalarStructFieldWriteValue (ctx : Ctx) (id fieldName : String)
       (valueInsns : Array Insn) (valueType : ValueType)
       : Except EmitError (Array Insn) := do
-    match findScalarState? ctx.scalars id with
-    | none => err s!"EmitWat: unknown scalar state `{id}`"
-    | some s => match s.type with
-      | .structType typeName =>
-        match findStruct? ctx.structs typeName with
-        | none => err s!"EmitWat: unknown struct `{typeName}`"
-        | some sd =>
-          if !structStorageFieldsSupported sd then
-            err s!"EmitWat: scalar struct `{typeName}` storage fields must be U32/U64/Bool"
-          else match structFieldOffset? sd fieldName, structFieldType? sd fieldName with
-            | some off, some ft =>
-              if !isStructStorageFieldType ft then
-                err s!"EmitWat: scalar struct field `{typeName}.{fieldName}` has unsupported type `{ft.name}`"
-              else if valueType != ft then
-                err s!"EmitWat: struct field write `{id}.{fieldName}` expected `{ft.name}`, got `{valueType.name}`"
-              else
-                .ok (readScalarStructBufInsns s sd ++
-                  #[.i32Const off, .i32Const STRUCT_BUF, .plain "i32.add"] ++ valueInsns ++
-                  #[.store (storeOpFor ft) 0,
-                    .i64Const s.keyLen, .i64Const s.keyPtr, .i64Const (structTotalSize sd),
-                    .i64Const STRUCT_BUF, .i64Const 0, .call "storage_write", .drop])
-            | _, _ => err s!"EmitWat: struct `{typeName}` has no field `{fieldName}`"
-      | _ => err s!"EmitWat: storageStructFieldWrite expects a struct state, got `{s.type.name}`"
+    let stateInfo ← scalarStructStateInfo ctx.scalars ctx.structs id "storageStructFieldWrite"
+    let (off, ft) ← structStorageFieldInfo stateInfo.structDecl stateInfo.typeName fieldName "scalar"
+    if valueType != ft then
+      err s!"EmitWat: struct field write `{id}.{fieldName}` expected `{ft.name}`, got `{valueType.name}`"
+    else
+      .ok (scalarStructFieldWriteInsns stateInfo.state stateInfo.structDecl off ft valueInsns)
 
   partial def lowerScalarStructFieldWrite (ctx : Ctx) (env : LocalTypes) (id fieldName : String) (value : Expr)
       : Except EmitError (Array Insn) := do
@@ -1900,68 +754,30 @@ mutual
 
   partial def lowerArrayStructFieldRead (ctx : Ctx) (env : LocalTypes) (id : String) (index : Expr) (fieldName : String)
       : Except EmitError (Array Insn × ValueType) := do
-    match findArrayState? ctx.maps id with
-    | none => err s!"EmitWat: unknown array state `{id}`"
-    | some m =>
-      if m.keyType != .u64 then err s!"EmitWat: storage array `{id}` index must be U64"
-      else match m.valueType with
-        | .structType typeName =>
-          match findStruct? ctx.structs typeName with
-          | none => err s!"EmitWat: unknown struct `{typeName}`"
-          | some sd =>
-            if !structStorageFieldsSupported sd then
-              err s!"EmitWat: array struct `{typeName}` storage fields must be U32/U64/Bool"
-            else match structFieldOffset? sd fieldName, structFieldType? sd fieldName with
-              | some off, some ft =>
-                if !isStructStorageFieldType ft then
-                  err s!"EmitWat: array struct field `{typeName}.{fieldName}` has unsupported type `{ft.name}`"
-                else do
-                  let kis ← lowerMapKeyU64 ctx env index
-                  .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ kis ++ #[.call mapBuildkeyName]
-                        ++ readArrayStructBufInsns m sd
-                        ++ #[.i32Const off, .i32Const STRUCT_BUF, .plain "i32.add", .load (loadOpFor ft) 0],
-                        ft)
-              | _, _ => err s!"EmitWat: struct `{typeName}` has no field `{fieldName}`"
-        | _ => err s!"EmitWat: storageArrayStructFieldRead expects a struct-valued array, got `{m.valueType.name}`"
+    let mapInfo ← arrayStructMapInfo ctx.maps id
+    let structInfo ← arrayStructInfo ctx.structs mapInfo "storageArrayStructFieldRead"
+    let (off, ft) ← structStorageFieldInfo structInfo.structDecl structInfo.typeName fieldName "array"
+    let kis ← lowerMapKeyU64 ctx env index
+    .ok (arrayStructFieldReadInsns structInfo.mapInfo structInfo.structDecl kis #[.call mapBuildkeyName] off ft)
 
   partial def lowerArrayStructFieldWriteValue (ctx : Ctx) (env : LocalTypes) (id : String) (index : Expr) (fieldName : String)
       (valueInsns : Array Insn) (valueType : ValueType)
       : Except EmitError (Array Insn) := do
-    match findArrayState? ctx.maps id with
-    | none => err s!"EmitWat: unknown array state `{id}`"
-    | some m =>
-      if m.keyType != .u64 then err s!"EmitWat: storage array `{id}` index must be U64"
-      else if !canDuplicateExpr index then
-        err "EmitWat: storage array struct field path index must be a pure expression until key temporaries are lowered"
-      else match m.valueType with
-        | .structType typeName =>
-          match findStruct? ctx.structs typeName with
-          | none => err s!"EmitWat: unknown struct `{typeName}`"
-          | some sd =>
-            if !structStorageFieldsSupported sd then
-              err s!"EmitWat: array struct `{typeName}` storage fields must be U32/U64/Bool"
-            else match structFieldOffset? sd fieldName, structFieldType? sd fieldName with
-              | some off, some ft =>
-                if !isStructStorageFieldType ft then
-                  err s!"EmitWat: array struct field `{typeName}.{fieldName}` has unsupported type `{ft.name}`"
-                else if valueType != ft then
-                  err s!"EmitWat: array struct field write `{id}[].{fieldName}` expected `{ft.name}`, got `{valueType.name}`"
-                else do
-                  let readKey ← lowerMapKeyU64 ctx env index
-                  let writeKey ← lowerMapKeyU64 ctx env index
-                  .ok (#[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ readKey ++ #[.call mapBuildkeyName]
-                        ++ readArrayStructBufInsns m sd
-                        ++ #[.i32Const off, .i32Const STRUCT_BUF, .plain "i32.add"] ++ valueInsns ++ #[.store (storeOpFor ft) 0]
-                        ++ #[.i32Const m.prefixPtr, .i32Const m.prefixLen] ++ writeKey ++
-                        #[.call mapBuildkeyName, .i64Const (m.prefixLen + 8), .i64Const MAPKEY_BUF,
-                          .i64Const (structTotalSize sd), .i64Const STRUCT_BUF, .i64Const 0, .call "storage_write", .drop])
-              | _, _ => err s!"EmitWat: struct `{typeName}` has no field `{fieldName}`"
-        | _ => err s!"EmitWat: storageArrayStructFieldWrite expects a struct-valued array, got `{m.valueType.name}`"
+    let mapInfo ← arrayStructMapInfo ctx.maps id
+    requireDuplicableExpr index "EmitWat: storage array struct field path index must be a pure expression until key temporaries are lowered"
+    let structInfo ← arrayStructInfo ctx.structs mapInfo "storageArrayStructFieldWrite"
+    let (off, ft) ← structStorageFieldInfo structInfo.structDecl structInfo.typeName fieldName "array"
+    if valueType != ft then
+      err s!"EmitWat: array struct field write `{id}[].{fieldName}` expected `{ft.name}`, got `{valueType.name}`"
+    else do
+      let readKey ← lowerMapKeyU64 ctx env index
+      let writeKey ← lowerMapKeyU64 ctx env index
+      .ok (arrayStructFieldWriteInsns structInfo.mapInfo structInfo.structDecl readKey writeKey
+        #[.call mapBuildkeyName] valueInsns off ft)
 
   partial def lowerArrayStructFieldWrite (ctx : Ctx) (env : LocalTypes) (id : String) (index : Expr) (fieldName : String) (value : Expr)
       : Except EmitError (Array Insn) := do
-    if !canDuplicateExpr value then
-      err "EmitWat: storageArrayStructFieldWrite value must be a pure expression while STRUCT_BUF is the field patch buffer"
+    requireDuplicableExpr value "EmitWat: storageArrayStructFieldWrite value must be a pure expression while STRUCT_BUF is the field patch buffer"
     let (vis, vt) ← lowerExpr ctx env value
     lowerArrayStructFieldWriteValue ctx env id index fieldName vis vt
 
@@ -1983,428 +799,99 @@ mutual
     match path.toList with
     | [.mapKey key] => do
       let (is, _) ← lowerMapWrite ctx env id key value
-      .ok (is ++ #[.drop])
+      .ok (dropResultInsns is)
     | [.index index] => do
       let (is, _) ← lowerStorageArrayWrite ctx env id index value
-      .ok (is ++ #[.drop])
+      .ok (dropResultInsns is)
     | [.field fieldName] => do
-      if !canDuplicateExpr value then
-        err "EmitWat: storagePathWrite field value must be a pure expression while STRUCT_BUF is the field patch buffer"
+      requireDuplicableExpr value "EmitWat: storagePathWrite field value must be a pure expression while STRUCT_BUF is the field patch buffer"
       lowerScalarStructFieldWrite ctx env id fieldName value
     | [.index index, .field fieldName] =>
       lowerArrayStructFieldWrite ctx env id index fieldName value
     | [.mapKey key1, .mapKey key2] => do
       let (is, _) ← lowerNestedMapWrite ctx env id key1 key2 value
-      .ok (is ++ #[.drop])
+      .ok (dropResultInsns is)
     | _ => err "EmitWat: storagePathWrite supports mapKey, index, field, index+field, or nested mapKey+mapKey paths"
 
   partial def lowerStoragePathAssignOp (ctx : Ctx) (env : LocalTypes) (id : String) (path : Array StoragePathSegment)
       (op : AssignOp) (value : Expr) : Except EmitError (Array Insn) := do
     match path.toList with
     | [.mapKey key] => do
-      if !canDuplicateExpr key then
-        err "EmitWat: storagePathAssignOp mapKey must be a pure expression until key temporaries are lowered"
+      requireDuplicableExpr key "EmitWat: storagePathAssignOp mapKey must be a pure expression until key temporaries are lowered"
       let (currentInsns, currentType) ← lowerMapGet ctx env id key
-      if !isNumeric currentType then
-        err s!"EmitWat: storagePathAssignOp requires U32/U64 map values, got `{currentType.name}`"
+      let currentType ← storagePathAssignOpTargetType "map values" currentType
       let (valueInsns, valueType) ← lowerExpr ctx env value
-      if valueType != currentType then
-        err s!"EmitWat: storagePathAssignOp expected `{currentType.name}`, got `{valueType.name}`"
-      let computed := currentInsns ++ valueInsns ++ #[.plain (widthOf currentType ++ "." ++ assignOpName op)]
+      let computed ← storagePathAssignOpValueInsns op currentInsns currentType valueInsns valueType
       let (writeInsns, _) ← lowerMapWriteValue ctx env id key computed currentType
-      .ok (writeInsns ++ #[.drop])
+      .ok (dropResultInsns writeInsns)
     | [.index index] => do
-      if !canDuplicateExpr index then
-        err "EmitWat: storagePathAssignOp index must be a pure expression until key temporaries are lowered"
+      requireDuplicableExpr index "EmitWat: storagePathAssignOp index must be a pure expression until key temporaries are lowered"
       let (currentInsns, currentType) ← lowerStorageArrayRead ctx env id index
-      if !isNumeric currentType then
-        err s!"EmitWat: storagePathAssignOp requires U32/U64 array values, got `{currentType.name}`"
+      let currentType ← storagePathAssignOpTargetType "array values" currentType
       let (valueInsns, valueType) ← lowerExpr ctx env value
-      if valueType != currentType then
-        err s!"EmitWat: storagePathAssignOp expected `{currentType.name}`, got `{valueType.name}`"
-      let computed := currentInsns ++ valueInsns ++ #[.plain (widthOf currentType ++ "." ++ assignOpName op)]
+      let computed ← storagePathAssignOpValueInsns op currentInsns currentType valueInsns valueType
       let (writeInsns, _) ← lowerStorageArrayWriteValue ctx env id index computed currentType
-      .ok (writeInsns ++ #[.drop])
+      .ok (dropResultInsns writeInsns)
     | [.field fieldName] => do
-      if !canDuplicateExpr value then
-        err "EmitWat: storagePathAssignOp field value must be a pure expression while STRUCT_BUF is the field patch buffer"
+      requireDuplicableExpr value "EmitWat: storagePathAssignOp field value must be a pure expression while STRUCT_BUF is the field patch buffer"
       let (currentInsns, currentType) ← lowerScalarStructFieldRead ctx id fieldName
-      if !isNumeric currentType then
-        err s!"EmitWat: storagePathAssignOp requires U32/U64 struct fields, got `{currentType.name}`"
+      let currentType ← storagePathAssignOpTargetType "struct fields" currentType
       let (valueInsns, valueType) ← lowerExpr ctx env value
-      if valueType != currentType then
-        err s!"EmitWat: storagePathAssignOp expected `{currentType.name}`, got `{valueType.name}`"
-      let computed := currentInsns ++ valueInsns ++ #[.plain (widthOf currentType ++ "." ++ assignOpName op)]
+      let computed ← storagePathAssignOpValueInsns op currentInsns currentType valueInsns valueType
       lowerScalarStructFieldWriteValue ctx id fieldName computed currentType
     | [.index index, .field fieldName] => do
-      if !canDuplicateExpr value then
-        err "EmitWat: storagePathAssignOp index+field value must be a pure expression while STRUCT_BUF is the field patch buffer"
+      requireDuplicableExpr value "EmitWat: storagePathAssignOp index+field value must be a pure expression while STRUCT_BUF is the field patch buffer"
       let (currentInsns, currentType) ← lowerArrayStructFieldRead ctx env id index fieldName
-      if !isNumeric currentType then
-        err s!"EmitWat: storagePathAssignOp requires U32/U64 array struct fields, got `{currentType.name}`"
+      let currentType ← storagePathAssignOpTargetType "array struct fields" currentType
       let (valueInsns, valueType) ← lowerExpr ctx env value
-      if valueType != currentType then
-        err s!"EmitWat: storagePathAssignOp expected `{currentType.name}`, got `{valueType.name}`"
-      let computed := currentInsns ++ valueInsns ++ #[.plain (widthOf currentType ++ "." ++ assignOpName op)]
+      let computed ← storagePathAssignOpValueInsns op currentInsns currentType valueInsns valueType
       lowerArrayStructFieldWriteValue ctx env id index fieldName computed currentType
     | [.mapKey key1, .mapKey key2] => do
       let (currentInsns, currentType) ← lowerNestedMapGet ctx env id key1 key2
-      if !isNumeric currentType then
-        err s!"EmitWat: storagePathAssignOp requires U32/U64 nested map values, got `{currentType.name}`"
+      let currentType ← storagePathAssignOpTargetType "nested map values" currentType
       let (valueInsns, valueType) ← lowerExpr ctx env value
-      if valueType != currentType then
-        err s!"EmitWat: storagePathAssignOp expected `{currentType.name}`, got `{valueType.name}`"
-      let opInsn : Insn := .plain (widthOf currentType ++ "." ++ assignOpName op)
-      let computed := currentInsns ++ valueInsns ++ #[opInsn]
+      let computed ← storagePathAssignOpValueInsns op currentInsns currentType valueInsns valueType
       let (writeInsns, _) ← lowerNestedMapWriteValue ctx env id key1 key2 computed currentType
-      .ok (writeInsns ++ #[.drop])
+      .ok (dropResultInsns writeInsns)
     | _ => err "EmitWat: storagePathAssignOp supports mapKey, index, field, index+field, or nested mapKey+mapKey paths"
 
-  partial def collectArrayLitsPathSegment (segment : StoragePathSegment) : Array (ValueType × Nat) :=
-    match segment with
-    | .field _ => #[]
-    | .index index => collectArrayLitsExpr index
-    | .mapKey key => collectArrayLitsExpr key
-  partial def collectArrayLitsPath (path : Array StoragePathSegment) : Array (ValueType × Nat) :=
-    path.foldl (fun acc segment => acc ++ collectArrayLitsPathSegment segment) #[]
-
-  partial def collectArrayLitsExpr (e : Expr) : Array (ValueType × Nat) :=
-    match e with
-    | .literal _ => #[]
-    | .local _ => #[]
-    | .arrayLit elementType values =>
-        #[(elementType, values.size)] ++ values.foldl (fun acc v => acc ++ collectArrayLitsExpr v) #[]
-    | .arrayGet array index => collectArrayLitsExpr array ++ collectArrayLitsExpr index
-    | .memoryArrayNew _ length => collectArrayLitsExpr length
-    | .memoryArrayLength array => collectArrayLitsExpr array
-    | .memoryArrayGet array index => collectArrayLitsExpr array ++ collectArrayLitsExpr index
-    | .structLit _ fields => fields.foldl (fun acc f => acc ++ collectArrayLitsExpr f.snd) #[]
-    | .field base _ => collectArrayLitsExpr base
-    | .add a b | .sub a b | .mul a b | .div a b | .mod a b | .pow a b
-    | .bitAnd a b | .bitOr a b | .bitXor a b | .shiftLeft a b | .shiftRight a b
-    | .eq a b | .ne a b | .lt a b | .le a b | .gt a b | .ge a b
-    | .boolAnd a b | .boolOr a b => collectArrayLitsExpr a ++ collectArrayLitsExpr b
-    | .cast value _ => collectArrayLitsExpr value
-    | .boolNot value => collectArrayLitsExpr value
-    | .hashValue a b c d => collectArrayLitsExpr a ++ collectArrayLitsExpr b ++ collectArrayLitsExpr c ++ collectArrayLitsExpr d
-    | .hash preimage => collectArrayLitsExpr preimage
-    | .hashTwoToOne a b => collectArrayLitsExpr a ++ collectArrayLitsExpr b
-    | .nativeValue => #[]
-    | .crosscallInvoke t m args => collectArrayLitsExpr t ++ collectArrayLitsExpr m ++ args.foldl (fun acc a => acc ++ collectArrayLitsExpr a) #[]
-    | .crosscallInvokeTyped t m args _
-    | .crosscallInvokeStaticTyped t m args _
-    | .crosscallInvokeDelegateTyped t m args _ =>
-        collectArrayLitsExpr t ++ collectArrayLitsExpr m ++ args.foldl (fun acc a => acc ++ collectArrayLitsExpr a) #[]
-    | .crosscallInvokeValueTyped t m v args _ =>
-        collectArrayLitsExpr t ++ collectArrayLitsExpr m ++ collectArrayLitsExpr v ++ args.foldl (fun acc a => acc ++ collectArrayLitsExpr a) #[]
-    | .crosscallCreate value _ => collectArrayLitsExpr value
-    | .crosscallCreate2 value salt _ => collectArrayLitsExpr value ++ collectArrayLitsExpr salt
-    | .nearCrosscallInvokePool accountIndex methodId args deposit =>
-        collectArrayLitsExpr accountIndex ++ collectArrayLitsExpr methodId ++
-          collectArrayLitsExpr deposit ++ args.foldl (fun acc a => acc ++ collectArrayLitsExpr a) #[]
-    | .nearPromiseThen parentPromise callbackMethod args deposit =>
-        collectArrayLitsExpr parentPromise ++ collectArrayLitsExpr callbackMethod ++
-          collectArrayLitsExpr deposit ++ args.foldl (fun acc a => acc ++ collectArrayLitsExpr a) #[]
-    | .nearPromiseResultsCount => #[]
-    | .nearPromiseResultStatus index => collectArrayLitsExpr index
-    | .nearPromiseResultU64 index => collectArrayLitsExpr index
-    | .effect eff => collectArrayLitsEffect eff
-  partial def collectArrayLitsEffect (eff : Effect) : Array (ValueType × Nat) :=
-    match eff with
-    | .storageScalarWrite _ v => collectArrayLitsExpr v
-    | .storageScalarAssignOp _ _ v => collectArrayLitsExpr v
-    | .storageMapContains _ k => collectArrayLitsExpr k
-    | .storageMapGet _ k => collectArrayLitsExpr k
-    | .storageMapInsert _ k v | .storageMapSet _ k v => collectArrayLitsExpr k ++ collectArrayLitsExpr v
-    | .storageArrayRead _ i => collectArrayLitsExpr i
-    | .storageArrayWrite _ i v => collectArrayLitsExpr i ++ collectArrayLitsExpr v
-    | .storageArrayStructFieldRead _ i _ => collectArrayLitsExpr i
-    | .storageArrayStructFieldWrite _ i _ v => collectArrayLitsExpr i ++ collectArrayLitsExpr v
-    | .storageDynamicArrayPush _ v => collectArrayLitsExpr v
-    | .storageDynamicArrayPop _ => #[]
-    | .memoryArraySet _ i v => collectArrayLitsExpr i ++ collectArrayLitsExpr v
-    | .storageStructFieldRead _ _ => #[]
-    | .storageStructFieldWrite _ _ v => collectArrayLitsExpr v
-    | .storagePathRead _ path => collectArrayLitsPath path
-    | .storagePathWrite _ path v => collectArrayLitsPath path ++ collectArrayLitsExpr v
-    | .storagePathAssignOp _ path _ v => collectArrayLitsPath path ++ collectArrayLitsExpr v
-    | .contextRead _ => #[]
-    | .eventEmit _ fields => fields.foldl (fun acc f => acc ++ collectArrayLitsExpr f.snd) #[]
-    | .eventEmitIndexed _ indexedFields dataFields =>
-        let indexed := indexedFields.foldl (fun acc f => acc ++ collectArrayLitsExpr f.snd) #[]
-        dataFields.foldl (fun acc f => acc ++ collectArrayLitsExpr f.snd) indexed
-    | .storageScalarRead _ => #[]
-  partial def collectStructLitsExpr (e : Expr) : Array String :=
-    match e with
-    | .literal _ | .local _ | .nativeValue => #[]
-    | .arrayLit _ values => values.foldl (fun acc v => acc ++ collectStructLitsExpr v) #[]
-    | .arrayGet a i => collectStructLitsExpr a ++ collectStructLitsExpr i
-    | .memoryArrayNew _ length => collectStructLitsExpr length
-    | .memoryArrayLength array => collectStructLitsExpr array
-    | .memoryArrayGet array index => collectStructLitsExpr array ++ collectStructLitsExpr index
-    | .structLit typeName fields => #[typeName] ++ fields.foldl (fun acc f => acc ++ collectStructLitsExpr f.snd) #[]
-    | .field base _ => collectStructLitsExpr base
-    | .add a b | .sub a b | .mul a b | .div a b | .mod a b | .pow a b
-    | .bitAnd a b | .bitOr a b | .bitXor a b | .shiftLeft a b | .shiftRight a b
-    | .eq a b | .ne a b | .lt a b | .le a b | .gt a b | .ge a b
-    | .boolAnd a b | .boolOr a b => collectStructLitsExpr a ++ collectStructLitsExpr b
-    | .cast value _ | .boolNot value => collectStructLitsExpr value
-    | .hash preimage => collectStructLitsExpr preimage
-    | .hashValue a b c d => collectStructLitsExpr a ++ collectStructLitsExpr b ++ collectStructLitsExpr c ++ collectStructLitsExpr d
-    | .hashTwoToOne a b => collectStructLitsExpr a ++ collectStructLitsExpr b
-    | .crosscallInvoke t m args => collectStructLitsExpr t ++ collectStructLitsExpr m ++ args.foldl (fun acc a => acc ++ collectStructLitsExpr a) #[]
-    | .crosscallInvokeTyped t m args _
-    | .crosscallInvokeStaticTyped t m args _
-    | .crosscallInvokeDelegateTyped t m args _ =>
-        collectStructLitsExpr t ++ collectStructLitsExpr m ++ args.foldl (fun acc a => acc ++ collectStructLitsExpr a) #[]
-    | .crosscallInvokeValueTyped t m v args _ =>
-        collectStructLitsExpr t ++ collectStructLitsExpr m ++ collectStructLitsExpr v ++ args.foldl (fun acc a => acc ++ collectStructLitsExpr a) #[]
-    | .crosscallCreate value _ => collectStructLitsExpr value
-    | .crosscallCreate2 value salt _ => collectStructLitsExpr value ++ collectStructLitsExpr salt
-    | .nearCrosscallInvokePool accountIndex methodId args deposit =>
-        collectStructLitsExpr accountIndex ++ collectStructLitsExpr methodId ++
-          collectStructLitsExpr deposit ++ args.foldl (fun acc a => acc ++ collectStructLitsExpr a) #[]
-    | .nearPromiseThen parentPromise callbackMethod args deposit =>
-        collectStructLitsExpr parentPromise ++ collectStructLitsExpr callbackMethod ++
-          collectStructLitsExpr deposit ++ args.foldl (fun acc a => acc ++ collectStructLitsExpr a) #[]
-    | .nearPromiseResultsCount => #[]
-    | .nearPromiseResultStatus index => collectStructLitsExpr index
-    | .nearPromiseResultU64 index => collectStructLitsExpr index
-    | .effect eff => collectStructLitsEffect eff
-  partial def collectStructLitsPathSegment (segment : StoragePathSegment) : Array String :=
-    match segment with
-    | .field _ => #[]
-    | .index index => collectStructLitsExpr index
-    | .mapKey key => collectStructLitsExpr key
-  partial def collectStructLitsPath (path : Array StoragePathSegment) : Array String :=
-    path.foldl (fun acc segment => acc ++ collectStructLitsPathSegment segment) #[]
-  partial def collectStructLitsEffect (eff : Effect) : Array String :=
-    match eff with
-    | .storageScalarWrite _ v | .storageScalarAssignOp _ _ v => collectStructLitsExpr v
-    | .storageMapContains _ k | .storageMapGet _ k => collectStructLitsExpr k
-    | .storageMapInsert _ k v | .storageMapSet _ k v => collectStructLitsExpr k ++ collectStructLitsExpr v
-    | .storageArrayRead _ i => collectStructLitsExpr i
-    | .storageArrayWrite _ i v => collectStructLitsExpr i ++ collectStructLitsExpr v
-    | .storageArrayStructFieldRead _ i _ => collectStructLitsExpr i
-    | .storageArrayStructFieldWrite _ i _ v => collectStructLitsExpr i ++ collectStructLitsExpr v
-    | .storageDynamicArrayPush _ v => collectStructLitsExpr v
-    | .storageDynamicArrayPop _ => #[]
-    | .memoryArraySet _ i v => collectStructLitsExpr i ++ collectStructLitsExpr v
-    | .storageStructFieldRead _ _ => #[]
-    | .storageStructFieldWrite _ _ v => collectStructLitsExpr v
-    | .storagePathRead _ path => collectStructLitsPath path
-    | .storagePathWrite _ path v => collectStructLitsPath path ++ collectStructLitsExpr v
-    | .storagePathAssignOp _ path _ v => collectStructLitsPath path ++ collectStructLitsExpr v
-    | .contextRead _ => #[]
-    | .eventEmit _ fields => fields.foldl (fun acc f => acc ++ collectStructLitsExpr f.snd) #[]
-    | .eventEmitIndexed _ indexedFields dataFields =>
-        let indexed := indexedFields.foldl (fun acc f => acc ++ collectStructLitsExpr f.snd) #[]
-        dataFields.foldl (fun acc f => acc ++ collectStructLitsExpr f.snd) indexed
-    | .storageScalarRead _ => #[]
 end
-
--- Statements
-partial def collectArrayLitsStmt (s : Statement) : Array (ValueType × Nat) :=
-  match s with
-  | .letBind _ _ v | .letMutBind _ _ v => collectArrayLitsExpr v
-  | .assign _ v | .assignOp _ _ v => collectArrayLitsExpr v
-  | .effect eff => collectArrayLitsEffect eff
-  | .assert c _ _ => collectArrayLitsExpr c
-  | .assertEq a b _ _ => collectArrayLitsExpr a ++ collectArrayLitsExpr b
-  | .ifElse c t e => collectArrayLitsExpr c ++ t.foldl (fun acc st => acc ++ collectArrayLitsStmt st) #[] ++ e.foldl (fun acc st => acc ++ collectArrayLitsStmt st) #[]
-  | .boundedFor _ _ _ body => body.foldl (fun acc st => acc ++ collectArrayLitsStmt st) #[]
-  | .whileLoop c body => collectArrayLitsExpr c ++ body.foldl (fun acc st => acc ++ collectArrayLitsStmt st) #[]
-  | .release _ | .revert _ | .revertWithError _ => #[]
-  | .return v => collectArrayLitsExpr v
-def dedupArrayLits (xs : Array (ValueType × Nat)) : Array (ValueType × Nat) :=
-  xs.foldl (fun acc x => if acc.any (fun y => y.1 == x.1 && y.2 == x.2) then acc else acc.push x) #[]
-def moduleArrayLits (mod : ProofForge.IR.Module) : Array (ValueType × Nat) :=
-  dedupArrayLits (mod.entrypoints.foldl (fun acc ep => acc ++ ep.body.foldl (fun a st => a ++ collectArrayLitsStmt st) #[]) #[])
-def arrLitFunc (elemType : ValueType) (len : Nat) : Func :=
-  let w := scalarWidth elemType
-  { name := arrayLitName elemType len,
-    params := (Array.range len).map (fun i => { name := s!"e{i}", type := wasmTypeOf elemType }),
-    results := #[.i32],
-    locals := #[{ name := "p", type := .i32 }],
-    body := { insns :=
-      #[.i64Const (len * w), .call arrAllocName, .localSet "p"] ++
-      ((Array.range len).map fun i => #[
-        .i32Const (w * i), .localGet "p", .plain "i32.add",
-        .localGet s!"e{i}", .store (storeOpFor elemType) 0
-      ]).flatten ++ #[.localGet "p"] } }
-def arrLitHelperFuncs (mod : ProofForge.IR.Module) : Array Func :=
-  moduleArrayLits mod |>.map (fun (e, n) => arrLitFunc e n)
-/-- `__pf_arr_eq_<elem>_<len>(pa, pb) -> i32`: element-wise equality.
-    Returns 1 if all len elements match, 0 on first mismatch. -/
-def arrEqFunc (elemType : ValueType) (len : Nat) : Func :=
-  let w   := scalarWidth elemType
-  let lop := loadOpFor elemType
-  let neq := if elemType == .u64 then "i64.ne" else "i32.ne"
-  { name := arrEqName elemType len,
-    params := #[{ name := "pa", type := .i32 }, { name := "pb", type := .i32 }],
-    results := #[.i32],
-    locals := #[{ name := "eq", type := .i32 }, { name := "i", type := .i32 }],
-    body := { insns := #[.i32Const 1, .localSet "eq",
-      .block_ { insns := #[ .loop_ { insns := #[
-        .localGet "i", .i32Const len, .plain "i32.ge_u", .brIf 1,
-        .localGet "pa", .localGet "i", .i32Const w, .plain "i32.mul", .plain "i32.add", .load lop 0,
-        .localGet "pb", .localGet "i", .i32Const w, .plain "i32.mul", .plain "i32.add", .load lop 0,
-        .plain neq,
-        .if_ { insns := #[.i32Const 0, .localSet "eq", .br 2] } { insns := #[] },
-        .localGet "i", .i32Const 1, .plain "i32.add", .localSet "i", .br 0
-      ] } ] },
-      .localGet "eq"] } }
-def arrEqHelperFuncs (mod : ProofForge.IR.Module) : Array Func :=
-  moduleArrayLits mod |>.map (fun (e, n) => arrEqFunc e n)
-/-- `__pf_struct_lit_<name>(f0,f1,..) -> i32`: alloc totalSize bytes, store each
-    field at its cumulative offset, return the base pointer. -/
-def structLitFunc (s : ProofForge.IR.StructDecl) : Func :=
-  let total := structTotalSize s
-  let stores : Array Insn :=
-    (s.fields.foldl (fun st f =>
-        (st.1 + scalarWidth f.type,
-         st.2 ++ #[.i32Const st.1, .localGet "p", .plain "i32.add",
-                   .localGet f.id, .store (storeOpFor f.type) 0]))
-      (0, (#[] : Array Insn))).2
-  { name := structLitName s.name,
-    params := s.fields.map (fun f => { name := f.id, type := wasmTypeOf f.type }),
-    results := #[.i32],
-    locals := #[{ name := "p", type := .i32 }],
-    body := { insns :=
-      #[.i64Const total, .call arrAllocName, .localSet "p"] ++ stores ++ #[.localGet "p"] } }
-partial def collectStructLitsStmt (s : Statement) : Array String :=
-  match s with
-  | .letBind _ _ v | .letMutBind _ _ v => collectStructLitsExpr v
-  | .assign _ v | .assignOp _ _ v => collectStructLitsExpr v
-  | .effect eff => collectStructLitsEffect eff
-  | .assert c _ _ => collectStructLitsExpr c
-  | .assertEq a b _ _ => collectStructLitsExpr a ++ collectStructLitsExpr b
-  | .ifElse c t e => collectStructLitsExpr c ++ t.foldl (fun acc st => acc ++ collectStructLitsStmt st) #[] ++ e.foldl (fun acc st => acc ++ collectStructLitsStmt st) #[]
-  | .boundedFor _ _ _ body => body.foldl (fun acc st => acc ++ collectStructLitsStmt st) #[]
-  | .whileLoop c body => collectStructLitsExpr c ++ body.foldl (fun acc st => acc ++ collectStructLitsStmt st) #[]
-  | .release _ | .revert _ | .revertWithError _ => #[]
-  | .return v => collectStructLitsExpr v
-def dedupStrings (xs : Array String) : Array String :=
-  xs.foldl (fun acc x => if acc.any (fun y => y == x) then acc else acc.push x) #[]
-def moduleStructLitNames (mod : ProofForge.IR.Module) : Array String :=
-  dedupStrings (mod.entrypoints.foldl (fun acc ep => acc ++ ep.body.foldl (fun a st => a ++ collectStructLitsStmt st) #[]) #[])
-def structLitHelperFuncs (mod : ProofForge.IR.Module) : Array Func :=
-  moduleStructLitNames mod |>.filterMap (fun name => (mod.structs.find? (fun s => s.name == name)).map structLitFunc)
-
-def modulePlanUsesArrHeap (plan : ModulePlan) : Bool :=
-  plan.usesArrAlloc || plan.usesArrDealloc
-
-def arrayLitFuncsForModulePlan (plan : ModulePlan) : Array Func :=
-  plan.arrayLitShapes.map (fun (elemType, len) => arrLitFunc elemType len)
-
-def arrayEqFuncsForModulePlan (plan : ModulePlan) : Array Func :=
-  plan.arrayEqShapes.map (fun (elemType, len) => arrEqFunc elemType len)
-
-def structLitFuncsForModulePlan (plan : ModulePlan) (mod : ProofForge.IR.Module) : Array Func :=
-  plan.structLitNames.filterMap (fun name => (mod.structs.find? (fun s => s.name == name)).map structLitFunc)
-
-def arrHeapHelperFuncsForModulePlan (plan : ModulePlan) (cfg : ProofForge.IR.AllocatorConfig) : Array Func :=
-  (if plan.usesArrAlloc then #[arrAllocFunc cfg] else #[]) ++
-    (if plan.usesArrDealloc then #[arrDeallocFunc cfg] else #[])
-
-def aggregateHelperFuncsForModulePlan (plan : ModulePlan) (mod : ProofForge.IR.Module) : Array Func :=
-  arrayLitFuncsForModulePlan plan ++ arrayEqFuncsForModulePlan plan ++
-    structLitFuncsForModulePlan plan mod ++ arrHeapHelperFuncsForModulePlan plan mod.allocator
-
-partial def collectLocalsFrom (acc : LocalTypes) (s : Statement) : Except EmitError LocalTypes := do
-  match s with
-  | .letBind name t _ | .letMutBind name t _ =>
-    if isNumeric t || t == .bool || t == .hash then .ok (acc.push { name := name, vt := t })
-    else match t with
-      | .fixedArray _ _ | .structType _ => .ok (acc.push { name := name, vt := t })
-      | _ => err s!"EmitWat: only U32/U64/Bool/Hash/FixedArray/Struct locals are supported (got `{t.name}`)"
-  | .ifElse _ thenBody elseBody =>
-    let acc ← thenBody.foldlM (init := acc) collectLocalsFrom
-    elseBody.foldlM (init := acc) collectLocalsFrom
-  | .boundedFor indexName _ _ body =>
-    let acc := acc.push { name := indexName, vt := .u64 }
-    body.foldlM (init := acc) collectLocalsFrom
-  | .release _ => .ok acc
-  | _ => .ok acc
-
-def collectLocals (body : Array Statement) : Except EmitError LocalTypes :=
-  body.foldlM (init := #[]) collectLocalsFrom
-
-def exprReturnsNearPromise : Expr → Bool
-  | .crosscallInvoke _ _ _ => true
-  | .crosscallInvokeValueTyped _ _ _ _ _ => true
-  | .nearCrosscallInvokePool _ _ _ _ => true
-  | .nearPromiseThen _ _ _ _ => true
-  | _ => false
 
 def lowerReturn (ctx : Ctx) (env : LocalTypes) (expected : ValueType) (e : Expr)
     : Except EmitError (Array Insn) := do
   let (is, t) ← lowerExpr ctx env e
-  if t != expected then err s!"EmitWat: return expected `{expected.name}`, got `{t.name}`"
-  else if exprReturnsNearPromise e then
-    .ok (is ++ #[.call "promise_return"])
-  else match t with
-    | .u64 => .ok (is ++ #[.call returnU64Name])
-    | .u32 => .ok (is ++ #[.call returnU32Name])
-    | .bool => .ok (is ++ #[.call returnBoolName])
-    | .hash => .ok (#[.i64Const 32] ++ is ++ #[.plain "i64.extend_i32_u", .call "value_return"])
-    | _ => err s!"EmitWat: return type `{t.name}` is not supported"
+  returnInsnsForLoweredExpr expected e is t
 
 partial def lowerEventEmit (ctx : Ctx) (env : LocalTypes) (name : String) (fields : Array (String × Expr))
     : Except EmitError (Array Insn) := do
   let some nameSi ← pure (findString? ctx.strings name) | err s!"EmitWat: event name `{name}` not in string pool"
-  let putc (c : Nat) : Array Insn := #[.i32Const c, .call evtPutcName]
-  let header : Array Insn := #[.call evtStartName] ++ putc 0x7B ++ putc 0x22
-    ++ #[.i32Const EVT_KEY_PTR, .i32Const 5, .call evtPutstrName] ++ putc 0x22 ++ putc 0x3A ++ putc 0x22
-    ++ #[.i32Const nameSi.ptr, .i32Const nameSi.len, .call evtPutstrName] ++ putc 0x22
-  let fieldInsns ← fields.foldlM (init := #[]) fun acc f => do
+  let header := evtHeaderInsns nameSi
+  let fieldInsns ← appendInsnChunksM fields fun f => do
     let (fname, vexpr) := f
     let some fsi ← pure (findString? ctx.strings fname) | err s!"EmitWat: field name `{fname}` not in string pool"
     let (vis, vt) ← lowerExpr ctx env vexpr
-    let valInsn ←
-      match vt with
-      | .u64 => .ok #[.call evtPutu64Name]
-      | .u32 => .ok #[.plain "i64.extend_i32_u", .call evtPutu64Name]
-      | .bool => .ok #[.call evtPutboolName]
-      | .hash => .ok #[.call evtPutHashName]
-      | _ => err s!"EmitWat: event field `{fname}` has unsupported type `{vt.name}`"
-    .ok (acc ++ putc 0x2C ++ putc 0x22 ++ #[.i32Const fsi.ptr, .i32Const fsi.len, .call evtPutstrName]
-            ++ putc 0x22 ++ putc 0x3A ++ vis ++ valInsn)
-  .ok (header ++ fieldInsns ++ putc 0x7D ++ #[.call evtLogName])
+    evtFieldInsns fname fsi vis vt
+  .ok (header ++ fieldInsns ++ evtFooterInsns)
 
 partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
     (s : Statement) : Except EmitError (Array Insn) :=
   match s with
   | .letBind name t e | .letMutBind name t e => do
     let (is, te) ← lowerExpr ctx env e
-    if te != t then err s!"EmitWat: let `{name}` expected `{t.name}`, got `{te.name}`"
-    else .ok (is ++ #[.localSet name])
+    localLetBindInsns name t is te
   | .assign (.local name) e => do
     let (is, _) ← lowerExpr ctx env e
-    if (lookupLocal? env name).isNone then err s!"EmitWat: assignment to unknown local `{name}`"
-    else .ok (is ++ #[.localSet name])
+    localAssignInsns env name is
   | .assign _ _ => err "EmitWat: assignment target must be a local"
   | .assignOp (.local name) op e => do
-    let some lt ← pure (lookupLocal? env name) | err s!"EmitWat: compound assignment to unknown local `{name}`"
-    if !(isNumeric lt) then err "EmitWat: compound assignment requires U32/U64 local"
-    else do
-      let (is, t) ← lowerExpr ctx env e
-      if t != lt then err s!"EmitWat: compound `{assignOpName op}` expected `{lt.name}`, got `{t.name}`"
-      else .ok (#[.localGet name] ++ is ++ #[.plain (widthOf lt ++ "." ++ assignOpName op), .localSet name])
+    let localType ← localAssignOpTargetType env name
+    let (is, t) ← lowerExpr ctx env e
+    localAssignOpInsns name op localType is t
   | .assignOp _ _ _ => err "EmitWat: compound assignment target must be a local"
   | .effect (.storageScalarWrite id e) => do
-    let some s ← pure (findScalarState? ctx.scalars id) | err s!"EmitWat: unknown scalar state `{id}`"
+    let s ← storageScalarStateInfo ctx.scalars id
     let (is, t) ← lowerExpr ctx env e
-    if t != s.type then err s!"EmitWat: scalar write `{id}` expected `{s.type.name}`, got `{t.name}`"
-    else match s.type with
-      | .structType typeName =>
-        match findStruct? ctx.structs typeName with
-        | none => err s!"EmitWat: unknown struct `{typeName}`"
-        | some sd => .ok (#[.i64Const s.keyLen, .i64Const s.keyPtr, .i64Const (structTotalSize sd)]
-                          ++ is ++ #[.plain "i64.extend_i32_u", .i64Const 0, .call "storage_write", .drop])
-      | _ =>
-        let callName := if s.type == .hash then writeHashName else writeName s.type
-        .ok (#[.i32Const s.keyPtr, .i32Const s.keyLen] ++ is ++ #[.call callName])
+    storageScalarWriteInsns ctx.structs s id is t
   | .effect (.storageStructFieldWrite id fieldName value) => do
     lowerScalarStructFieldWrite ctx env id fieldName value
   | .effect (.storagePathWrite id path value) => do
@@ -2412,20 +899,16 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
   | .effect (.storagePathAssignOp id path op value) => do
     lowerStoragePathAssignOp ctx env id path op value
   | .effect (.storageScalarAssignOp id op value) => do
-    let some s ← pure (findScalarState? ctx.scalars id) | err s!"EmitWat: unknown scalar state `{id}`"
-    if s.type == .hash then err s!"EmitWat: storageScalarAssignOp not supported on Hash scalars (`{id}`)"
-    else do
-      let (vis, vt) ← lowerExpr ctx env value
-      if vt != s.type then err s!"EmitWat: scalar assignOp `{id}` expected `{s.type.name}`, got `{vt.name}`"
-      else .ok (#[.i32Const s.keyPtr, .i32Const s.keyLen, .i32Const s.keyPtr, .i32Const s.keyLen,
-                     .call (readName s.type)] ++ vis
-                ++ #[.plain (widthOf s.type ++ "." ++ assignOpName op), .call (writeName s.type)])
+    let s ← storageScalarStateInfo ctx.scalars id
+    let _ ← storageScalarAssignOpTargetType s id
+    let (vis, vt) ← lowerExpr ctx env value
+    storageScalarAssignOpInsns s id op vis vt
   | .effect (.storageMapSet id key value) | .effect (.storageMapInsert id key value) => do
     let (is, _) ← lowerMapWrite ctx env id key value
-    .ok (is ++ #[.drop])
+    .ok (dropResultInsns is)
   | .effect (.storageArrayWrite id index value) => do
     let (is, _) ← lowerStorageArrayWrite ctx env id index value
-    .ok (is ++ #[.drop])
+    .ok (dropResultInsns is)
   | .effect (.storageArrayStructFieldWrite id index fieldName value) => do
     lowerArrayStructFieldWrite ctx env id index fieldName value
   | .effect (.eventEmit name fields) => lowerEventEmit ctx env name fields
@@ -2437,13 +920,7 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
     let (is, t) ← lowerExpr ctx env cond
     if t != .bool then err "EmitWat: assert condition must be Bool"
     else
-      let failInsns := match errorRef? with
-        | none => #[.unreachable]
-        | some ref =>
-          let msg := panicMessage ref
-          match ctx.panics.find? (fun si => si.str == msg) with
-          | none => #[.unreachable]
-          | some si => #[.i64Const si.len, .i64Const si.ptr, .call "panic"]
+      let failInsns := assertFailInsns ctx.panics errorRef?
       .ok (is ++ #[.plain "i32.eqz", .if_ { insns := failInsns } { insns := #[] }])
   | .assertEq a b _ errorRef? => do
     let (la, ta) ← lowerExpr ctx env a
@@ -2454,113 +931,23 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
         | .hash => #[.call hashEqName]
         | .fixedArray elemType len => #[.call (arrEqName elemType len)]
         | _ => #[.plain (widthOf ta ++ ".eq")]
-      let failInsns := match errorRef? with
-        | none => #[.unreachable]
-        | some ref =>
-          let msg := panicMessage ref
-          match ctx.panics.find? (fun si => si.str == msg) with
-          | none => #[.unreachable]
-          | some si => #[.i64Const si.len, .i64Const si.ptr, .call "panic"]
+      let failInsns := assertFailInsns ctx.panics errorRef?
       .ok (la ++ lb ++ eqInsn ++ #[.plain "i32.eqz",
                             .if_ { insns := failInsns } { insns := #[] }])
   | .release name => do
-    let some vt ← pure (lookupLocal? env name) | err s!"EmitWat: release of unknown local `{name}`"
-    match vt with
-    | .fixedArray elemType len =>
-      .ok #[.localGet name, .i64Const (len * scalarWidth elemType), .call "__pf_arr_dealloc"]
-    | .structType typeName =>
-      match findStruct? ctx.structs typeName with
-      | none => err s!"EmitWat: release refers to unknown struct `{typeName}`"
-      | some sd => .ok #[.localGet name, .i64Const (structTotalSize sd), .call "__pf_arr_dealloc"]
-    | _ => err s!"EmitWat: release expects a heap-backed FixedArray/Struct local, got `{vt.name}`"
+    releaseInsns ctx env name
   | .return e => lowerReturn ctx env returns e
   | .ifElse cond thenBody elseBody => do
     let (cis, ct) ← lowerExpr ctx env cond
     if ct != .bool then err "EmitWat: if/else condition must be Bool"
     else do
-      let thenInsns ← thenBody.foldlM (init := #[]) fun acc s => return acc ++ (← lowerStmt ctx env returns s)
-      let elseInsns ← elseBody.foldlM (init := #[]) fun acc s => return acc ++ (← lowerStmt ctx env returns s)
-      .ok (cis ++ #[.if_ { insns := thenInsns } { insns := elseInsns }])
+      let thenInsns ← appendInsnChunksM thenBody fun s => lowerStmt ctx env returns s
+      let elseInsns ← appendInsnChunksM elseBody fun s => lowerStmt ctx env returns s
+      .ok (ifElseInsns cis thenInsns elseInsns)
   | .boundedFor indexName start stop body => do
-    let bodyInsns ← body.foldlM (init := #[]) fun acc s => return acc ++ (← lowerStmt ctx env returns s)
-    .ok (#[.i64Const start, .localSet indexName,
-           .block_ { insns := #[ .loop_ { insns := #[
-             .localGet indexName, .i64Const stop, .plain "i64.ge_u", .brIf 1 ] ++ bodyInsns ++ #[
-             .localGet indexName, .i64Const 1, .plain "i64.add", .localSet indexName, .br 0 ] } ] } ])
+    let bodyInsns ← appendInsnChunksM body fun s => lowerStmt ctx env returns s
+    .ok (boundedForInsns indexName start stop bodyInsns)
   | _ => err "EmitWat: this statement form is not yet supported"
-
-/-- Build the Borsh input prologue: env.input -> INPUT_BUF, then load each
-    param at its cumulative Borsh offset into a local. Entrypoint params have
-    no wasm-level params; they are decoded from input and held in locals.
-
-    Scalar types (u32/u64/bool) load directly. Hash loads 32 bytes into a
-    param hash slot. Fixed arrays of scalars and flat structs are decoded
-    from Borsh (fields/elements laid out sequentially) into heap-allocated
-    memory, with the local holding an i32 pointer. -/
-def loadParams (structs : Array ProofForge.IR.StructDecl)
-    (params : Array (String × ValueType))
-    : Except EmitError (Array Insn × Array Local) := do
-  let prologue : Array Insn :=
-    #[.i64Const 0, .call "input", .i64Const 0, .i64Const INPUT_BUF, .call "read_register"]
-  let result ← params.foldlM (init := (prologue, (#[] : Array Local), 0, 0))
-    fun (insns, locals, offset, hslot) p =>
-      let (name, vt) := p
-      match vt with
-      | .u32 | .u64 | .bool =>
-        let loadInsns := #[.i32Const (INPUT_BUF + offset), .load (loadOpFor vt) 0, .localSet name]
-        .ok (insns ++ loadInsns, locals.push { name := name, type := wasmTypeOf vt }, offset + scalarWidth vt, hslot)
-      | .hash =>
-        let slot := PARAM_HASH_BUF + hslot * 32
-        let loadInsns := #[.i32Const slot, .i32Const (INPUT_BUF + offset), .i32Const 32, .call memcpyName,
-                           .i32Const slot, .localSet name]
-        .ok (insns ++ loadInsns, locals.push { name := name, type := wasmTypeOf vt }, offset + 32, hslot + 1)
-      | .fixedArray elemType n =>
-        if !(isScalarBorshType elemType) then
-          err s!"EmitWat: param `{name}` has unsupported fixedArray element type `{elemType.name}` (only scalar elements supported in Borsh params)"
-        else
-          let elemWidth := scalarWidth elemType
-          let totalBytes := n * elemWidth
-          let loadInsns :=
-            #[.i64Const totalBytes, .call arrAllocName, .localSet name] ++
-            (Array.range n).foldl (fun (acc : Array Insn) i =>
-              let srcOff := INPUT_BUF + offset + i * elemWidth
-              let dstOff := i * elemWidth
-              let loadElem :=
-                if elemType == ProofForge.IR.ValueType.hash then
-                  #[.i32Const dstOff, .localGet name, .plain "i32.add",
-                    .i32Const srcOff, .i32Const 32, .call memcpyName]
-                else
-                  #[.i32Const dstOff, .localGet name, .plain "i32.add",
-                    .i32Const srcOff, .load (loadOpFor elemType) 0,
-                    .store (storeOpFor elemType) 0]
-              acc ++ loadElem) #[]
-          .ok (insns ++ loadInsns, locals.push { name := name, type := .i32 }, offset + totalBytes, hslot)
-      | .structType typeName =>
-        match structs.find? (fun s => s.name == typeName) with
-        | none => err s!"EmitWat: param `{name}` references unknown struct `{typeName}`"
-        | some sd =>
-          if !structStorageFieldsSupported sd then
-            err s!"EmitWat: param `{name}` struct `{typeName}` has non-scalar fields (only u32/u64/bool/hash supported in Borsh params)"
-          else
-            let totalBytes := structTotalSize sd
-            let loadInsns :=
-              #[.i64Const totalBytes, .call arrAllocName, .localSet name] ++
-              sd.fields.foldl (fun (acc : Array Insn) f =>
-                let fieldOff := structFieldOffset? sd f.id |>.getD 0
-                let srcOff := INPUT_BUF + offset + fieldOff
-                let dstOff := fieldOff
-                let loadField :=
-                  if f.type == ProofForge.IR.ValueType.hash then
-                    #[.i32Const dstOff, .localGet name, .plain "i32.add",
-                      .i32Const srcOff, .i32Const 32, .call memcpyName]
-                  else
-                    #[.i32Const dstOff, .localGet name, .plain "i32.add",
-                      .i32Const srcOff, .load (loadOpFor f.type) 0,
-                      .store (storeOpFor f.type) 0]
-                acc ++ loadField) #[]
-          .ok (insns ++ loadInsns, locals.push { name := name, type := .i32 }, offset + totalBytes, hslot)
-      | _ => err s!"EmitWat: param `{name}` has unsupported Borsh type `{vt.name}`"
-  pure (result.fst, result.snd.fst)
 
 def lowerEntrypoint (ctx : Ctx) (ep : Entrypoint) : Except EmitError Func := do
   let bodyLocals ← collectLocals ep.body
@@ -2568,52 +955,12 @@ def lowerEntrypoint (ctx : Ctx) (ep : Entrypoint) : Except EmitError Func := do
   let allLocalTypes : LocalTypes :=
     (ep.params.map (fun (n, t) => { name := n, vt := t : LBind })) ++ bodyLocals
   let locals := paramLocals ++ bodyLocals.map (fun b => { name := b.name, type := wasmTypeOf b.vt : Local })
-  let bodyInsns ← ep.body.foldlM (init := #[]) fun acc s => return acc ++ (← lowerStmt ctx allLocalTypes ep.returns s)
+  let bodyInsns ← appendInsnChunksM ep.body fun s => lowerStmt ctx allLocalTypes ep.returns s
   let resetPrefix : Array Insn :=
     if ctx.allocator.usesEntryReset then
       #[.i32Const ctx.allocator.heapBase, .globalSet arrPtrGlobal]
     else #[]
   .ok { name := ep.name, locals := locals, body := { insns := resetPrefix ++ paramPrologue ++ bodyInsns }, exportName := ep.name }
-
-/- Reconstruct a `Ctx` from the plan's layout arrays + read-only metadata. This
-is the Step C plan-driven `Ctx` builder: every `Ctx` field is plan-derived. The
-layout carries the scalar key pointers, map prefix pointers, and the three
-string pools (event/field names, panics, crosscall strings); the read-only
-`structs`/`allocator` come from the seed. There is no lowering-local mutable
-state in `Ctx` (unlike Solana's `locals`/`nextLabel`), so the whole `Ctx` is
-reconstructable from the plan. The frozen scratch-region base addresses
-(`KEY_BUF`, `MAPKEY_BUF`, `STRING_BASE`, `CROSSCALL_STRING_BASE`) are carried
-in `NearLowerCtxSeed` for the plan artifact's inspectability but are not needed
-here — the absolute pointers are already baked into the layout arrays.
-`NearModulePlan.Ctx.fromPlanSeed` delegates here so the plan artifact and the
-lowering share one reconstruction path. -/
-def Ctx.fromPlanSeed
-    (scalars : Array StateInfo) (maps : Array MapInfo)
-    (strings panics crosscallStrings : Array StringInfo)
-    (structs : Array ProofForge.IR.StructDecl)
-    (allocator : ProofForge.IR.AllocatorConfig) : Ctx :=
-  { scalars := scalars, maps := maps, strings := strings, panics := panics,
-    crosscallStrings := crosscallStrings, structs := structs, allocator := allocator }
-
-/- Build the data-layout `Ctx` for a module using the plan-derived path. This is
-the Step C single lowering path: the layout arrays (scalars, maps, strings,
-panics, crosscallStrings) are computed exactly as
-`NearModulePlan.buildNearModulePlan` computes them (reusing `stateLayout`,
-`mapLayout`, `stringPool`, `panicPool`, `crosscallStringInfos` with the same
-frozen `STRING_BASE` / `CROSSCALL_STRING_BASE` bases), then handed to
-`Ctx.fromPlanSeed`. The ad-hoc inline `Ctx` assembly that previously lived at
-the top of `lowerModule` is deleted; the `*ModulePlan` is now the authoritative
-source for lowering decisions, and `lowerModule` is a thin wrapper over the
-plan-derived `Ctx` + the shared `lowerModuleCoreWithCtx` body. -/
-def buildLowerCtx (mod : ProofForge.IR.Module) : Except EmitError Ctx := do
-  let scalars := stateLayout mod
-  let maps := mapLayout mod
-  let strs := stringPool mod
-  let stringPoolEnd := stringInfoEnd STRING_BASE strs
-  let panics := panicPool mod stringPoolEnd
-  let crosscallStrs := crosscallStringInfos mod.nearCrosscallStrings CROSSCALL_STRING_BASE
-  validateScratchCapacities mod strs panics crosscallStrs
-  .ok (Ctx.fromPlanSeed scalars maps strs panics crosscallStrs mod.structs mod.allocator)
 
 /- Core lowering body once the surface `ModulePlan` and the data-layout `Ctx`
 have been derived. Exposed so the plan-driven path
@@ -2624,69 +971,14 @@ function of `(mod, modulePlan, ctx)` — it does not re-derive any layout. -/
 def lowerModuleCoreWithCtx (mod : ProofForge.IR.Module) (modulePlan : ModulePlan)
     (ctx : Ctx) : Except EmitError ProofForge.Compiler.Wasm.Module := do
   let entryFuncs ← mod.entrypoints.mapM (lowerEntrypoint ctx)
-  let scalarData := ctx.scalars.map fun s => { offset := s.keyPtr, bytes := s.id : DataSegment }
-  let mapData := ctx.maps.map fun m => { offset := m.prefixPtr, bytes := m.id ++ ":" : DataSegment }
-  let boolData : Array DataSegment :=
-    #[{ offset := TRUE_PTR, bytes := "true" },
-      { offset := FALSE_PTR, bytes := "false" },
-      { offset := HEX_LUT_PTR, bytes := "0123456789abcdef" }]
-  let evtKeyData : DataSegment := { offset := EVT_KEY_PTR, bytes := "event" }
-  let evtKeySegments := if modulePlan.usesEventApi then #[evtKeyData] else #[]
-  let crosscallArgsData :=
-    if modulePlan.usesPromiseCreate then #[{ offset := CROSSCALL_ARGS_EMPTY_PTR, bytes := "[]" }] else #[]
-  let usesCrosscallStrings := modulePlan.usesPromiseCreate || modulePlan.usesPromiseThen
-  let crosscallStringData :=
-    if usesCrosscallStrings then
-      ctx.crosscallStrings.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
-    else #[]
-  let stringData := ctx.strings.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
-  let panicData := ctx.panics.map fun si => { offset := si.ptr, bytes := si.str : DataSegment }
   let hasPanic := !ctx.panics.isEmpty
-  let sha256Imports := if modulePlanUsesSha256 modulePlan then #[sha256Import] else #[]
-  let baseImportsCore :=
-    (nearImportsForModulePlan modulePlan ++ sha256Imports).push inputImport
-      |> fun imports =>
-        if modulePlan.usesEventApi then
-          imports.push logUtf8Import
-        else
-          imports
-  let baseImports := baseImportsCore ++ (if hasPanic then #[panicImport] else #[])
-  let isHost := mod.allocator.requiresHost
-  let extraImports := hostAllocatorImportsForModulePlan modulePlan mod.allocator
-  let imports := dedupeImports <|
-    baseImports ++ ctxImportsForModulePlan modulePlan ++ promiseCtxImportsForModulePlan modulePlan ++
-      promiseResultImportsForModulePlan modulePlan ++
-      (if modulePlan.usesU64IndexedContains || modulePlan.usesHashIndexedContains
-        then #[storageHasKeyImport]
-        else #[]) ++ extraImports
-  let funcs := scalarStorageHelperFuncsForModulePlan modulePlan ++ returnHelperFuncsForModulePlan modulePlan ++
-    powHelperFuncsForModulePlan modulePlan ++ hashExprHelperFuncsForModulePlan modulePlan ++
-    hashStorageHelperFuncsForModulePlan modulePlan ++ ctxHelperFuncsForModulePlan modulePlan ++
-    evtHelperFuncsForModulePlan modulePlan ++ crosscallArgsHelperFuncsForModulePlan modulePlan ++
-    promiseHelperFuncsForModulePlan modulePlan ++
-    crosscallPoolHelperFuncs ctx.crosscallStrings ++
-    mapHelperFuncsForModulePlan modulePlan ++
-    mapHashHelperFuncsForModulePlan modulePlan ++ aggregateHelperFuncsForModulePlan modulePlan mod ++ entryFuncs
-  let arrPtrDecls :=
-    if isHost || !modulePlanUsesArrHeap modulePlan then #[]
-    else if mod.allocator.usesMinimalMallocShape then
-      #[arrPtrGlobalDecl mod.allocator.heapBase, arrFreeGlobalDecl]
-    else #[arrPtrGlobalDecl mod.allocator.heapBase]
-  let hashGlobals := if modulePlanUsesHashAlloc modulePlan then #[hashPtrGlobalDecl] else #[]
-  let globals := hashGlobals ++ (if modulePlan.usesEventApi then evtGlobals else #[]) ++
-    crosscallGlobalsForModulePlan modulePlan ++ arrPtrDecls
+  let imports := importsForModulePlan modulePlan mod.allocator hasPanic
+  let funcs := helperFuncsForModulePlan modulePlan mod ctx entryFuncs
+  let globals := globalsForModulePlan modulePlan mod.allocator
   .ok { imports := imports, globals := globals, funcs := funcs,
         memory := some { min := 1 },
-        dataSegments := scalarData ++ mapData ++ boolData ++ evtKeySegments ++ stringData ++
-          crosscallStringData ++ crosscallArgsData ++ (if hasPanic then panicData else #[]) }
+        dataSegments := dataSegmentsForModulePlan modulePlan ctx }
 
-/- Step C (RFC 0014 Phase 4): the lowering flows through the plan-derived
-`Ctx`. The inline ad-hoc `Ctx` assembly (calling `stateLayout`/`mapLayout`/
-`stringPool`/`panicPool`/`crosscallStringInfos` and assembling `Ctx` field-by-field)
-is deleted; `buildLowerCtx` derives the `Ctx` via `Ctx.fromPlanSeed`, the same
-reconstruction `NearModulePlan.Ctx.fromPlanSeed` uses, so the `*ModulePlan` is
-the authoritative source for lowering decisions. The shared
-`lowerModuleCoreWithCtx` body is unchanged. -/
 def lowerModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBridge := ProofForge.Target.HostBridge.near) : Except EmitError ProofForge.Compiler.Wasm.Module := do
   if bridge == ProofForge.Target.HostBridge.cosmWasm then
     err "EmitWat: CosmWasm bridge lowering is implemented in Backend.CosmWasm.EmitWat; use that module for wasm-cosmwasm"
@@ -2696,29 +988,9 @@ def lowerModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBri
     match buildModulePlan mod with
     | .ok plan => pure plan
     | .error planErr => err s!"EmitWat: {planErr.message}"
-  let ctx ← buildLowerCtx mod
+  let ctx := loweringCtxForModule mod
+  validateScratchCapacities mod ctx.strings ctx.panics ctx.crosscallStrings
   lowerModuleCoreWithCtx mod modulePlan ctx
-
-/-! EmitWat supports the same capability surface as the `wasmNear` target profile,
-    plus `controlConditional` and `controlBoundedLoop` (if/else + boundedFor are
-    lowered natively in WAT). This set is intentionally kept in sync with the
-    `wasmNear` profile so that the target-adapter capability gate and EmitWat's
-    own gate reject the same shapes. Aggregate entrypoint params (structs/arrays)
-    and cross-contract calls are enabled for EmitWat via Promise lowering even
-    though wasm-near Rust sourcegen v0 still rejects them. -/
-def emitWatCapabilities : ProofForge.Target.CapabilitySet :=
-  (ProofForge.Target.wasmNear.capabilities.push .crosscallInvoke).push .nearPromise
-
-def checkCapabilities (mod : ProofForge.IR.Module) : Except EmitError Unit :=
-  mod.capabilities.foldlM (fun _ c =>
-    if emitWatCapabilities.contains c then .ok ()
-    else .error { message := s!"EmitWat: capability `{c.id}` is not supported by the EmitWat backend" }) ()
-
-def checkTargetPlan (plan : ProofForge.Target.CapabilityPlan) : Except EmitError Unit :=
-  if plan.targetId == ProofForge.Target.wasmNear.id then
-    .ok ()
-  else
-    .error { message := s!"EmitWat plan requires target `wasm-near`, got `{plan.targetId}`" }
 
 def renderCheckedModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBridge := .near) :
     Except EmitError String := do

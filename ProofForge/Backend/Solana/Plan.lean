@@ -176,7 +176,7 @@ def buildStateFieldPlan (module : Module) (acctDataOff : Nat) : Array SolanaStat
           byteSize := stateDeclSize decl
           absOff := field.absOff }
 
-def buildAccountPlan (module : Module) (extensions : ProgramExtensions)
+def buildAccountPlan (_module : Module) (_extensions : ProgramExtensions)
     (accounts : Array AccountEntry) (specs : Array (Nat × Bool)) : Array SolanaAccountPlan :=
   accounts.mapIdx fun idx account =>
     let (dataSize, _) := specs[idx]?.getD (0, false)
@@ -187,7 +187,7 @@ def buildAccountPlan (module : Module) (extensions : ProgramExtensions)
       owner := account.owner
       dataSize := dataSize }
 
-def scalarParamPlan? (epName : String) (name : String) (ty : ValueType) (offset : Nat) :
+def scalarParamPlan? (_epName : String) (name : String) (ty : ValueType) (offset : Nat) :
     Except PlanError (Option (SolanaInstructionParamPlan × Nat)) :=
   match scalarParamSize? ty with
   | none => .ok none
@@ -290,7 +290,7 @@ def renderNat (n : Nat) : String := toString n
 def renderBool (b : Bool) : String := if b then "true" else "false"
 
 def indent (n : Nat) (s : String) : String :=
-  String.mk (List.replicate n ' ') ++ s
+  String.ofList (List.replicate n ' ') ++ s
 
 def joinLines (lines : List String) : String :=
   String.intercalate "\n" lines

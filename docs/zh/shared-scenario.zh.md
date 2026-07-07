@@ -56,7 +56,7 @@ v0 不需要原生代币转账、跨合约调用或事件（v1 中可选 `events
 |---|---|---|
 | `evm` | 合约存储槽 | Foundry + `vm.etch` |
 | `wasm-cosmwasm` | 宿主 KV 中的字符串键 `"count"` | `cosmwasm-check` + instantiate/execute/query |
-| `solana-sbpf-asm` | 账户数据字段 | `sbpf test` (Mollusk) + Surfpool/Web3.js live smoke |
+| `solana-sbpf-asm` | 账户数据字段 | `sbpf test` (Mollusk) + Surfpool/Rust live smoke |
 | `move-aptos` | 签名者账户下的 `Counter` 资源 | `aptos move test` |
 | `psy-dpn` | Psy 存储字段，在 v0 中可能是 `Felt`/`U32` | `dargo compile` + 内存冒烟测试 |
 
@@ -77,7 +77,7 @@ v0 不需要原生代币转账、跨合约调用或事件（v1 中可选 `events
 
 - [ ] `--emit-sbpf-asm` 产生可被 `sbpf build` 接受的有效 `.s`。
 - [ ] `sbpf build` 产生可加载的 eBPF ELF (`.so`)。
-- [ ] 在 `sbpf test` (Mollusk) 和 Surfpool/Web3.js live smoke 中执行 initialize → increment → read counter。
+- [ ] 在 `sbpf test` (Mollusk) 和 Surfpool/Rust live smoke 中执行 initialize → increment → read counter。
 - [ ] 指令 manifest (`manifest.toml`) 记录账户布局。
 - [ ] 能力检查器用包含 target id 的诊断拒绝不支持的能力。
 
@@ -188,9 +188,10 @@ cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --sce
 |---|---|---|
 | **所有主链** | `Examples/Shared/Counter.lean`、`Examples/Shared/ValueVault.lean`（`contract_source`） | **代码库中** — `just portable-counter-multi-target`、`just portable-value-vault` |
 | EVM | `Examples/Evm/Contracts/Counter.lean` | **代码库中**（EVM 示例树） |
-| CosmWasm | `Examples/CosmWasm/Counter.lean` | 已规划，不在代码库中 |
+| CosmWasm | `Examples/CosmWasm/Counter.golden.wat` | **代码库中 (Spike)** — 通过 `proof-forge emit --target wasm-cosmwasm --fixture counter` 生成 golden WAT；`just cosmwasm-counter-smoke` |
 | Solana | `Examples/Solana/Counter.lean` + manifest | **代码库中**（IR fixture 参考） |
-| Aptos | `Examples/Move/Aptos/Counter/` | 已规划，不在代码库中 |
+| Aptos | `Examples/Aptos/Counter/golden/` | **代码库中 (Spike)** — golden Move module；`just aptos-counter-smoke` |
+| Cloudflare Workers | `Examples/CloudflareWorkers/Counter/` + `emit --format ts` | **代码库中 (Spike)** — TS package + `scripts/ts/counter-ir-smoke.sh` |
 | Psy DPN | `Examples/Psy/*.golden.psy`, `scripts/psy/*-smoke.sh` | **代码库中** |
 
 ## v0 范围之外

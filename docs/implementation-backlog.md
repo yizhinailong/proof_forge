@@ -1477,10 +1477,10 @@ partial progress is visible before the full acceptance criteria close:
       body while preserving the Solana input pointer in `r1`. Covered by
       `Tests/SolanaSdk.lean`, `Tests/SolanaSdkManifest.lean`, and
       `scripts/solana/sdk-smoke.sh` with `sbpf build` when available.
-- [x] Surfpool/Web3.js live deployment smoke (V-GATE-SOLANA-04). The optional
+- [x] Surfpool/Rust live deployment smoke (V-GATE-SOLANA-04). The optional
       `scripts/solana/surfpool-web3-smoke.sh` gate builds the Counter ELF,
       starts Surfpool, deploys with the Solana CLI, creates a program-owned
-      counter account via `@solana/web3.js`, invokes initialize/increment/get,
+      counter account via the Rust live harness, invokes initialize/increment/get,
       checks account data 0→1→2, and validates `get` return data. The script
       passes `--solana-sbpf-arch v0` to produce a Solana CLI deploy-compatible
       ELF directly and uses `--use-rpc` for Surfpool.
@@ -1524,8 +1524,9 @@ partial progress is visible before the full acceptance criteria close:
       `runtime.memory` capability metadata and lowers entrypoint actions to
       `sol_memcpy_`, `sol_memcmp_`, and `sol_memset_` helpers over generated
       state-account offsets. The generated manifest and artifact JSON record
-      `[[solana.entrypoint_memory]]` / `memoryActions`; Web3.js verifies copied
-      bytes, compare result, and fill pattern on a program-owned account.
+      `[[solana.entrypoint_memory]]` / `memoryActions`; the Rust live RPC
+      harness verifies copied bytes, moved bytes, compare result, and fill
+      pattern on a program-owned account.
       Covered by `Tests/SolanaMemory.lean` and
       `scripts/solana/memory-web3-smoke.sh`.
 - [x] Return-data and compute-budget target extensions now route Solana-only
@@ -1564,14 +1565,14 @@ partial progress is visible before the full acceptance criteria close:
       layout, signer seed tables, and syscall register setup. Covered by
       `Tests/SolanaCpiPacking.lean`, `Tests/SolanaSdkManifest.lean`, and
       `scripts/solana/sdk-smoke.sh`.
-- [x] System Program transfer CPI now has a live Surfpool/Web3.js behavior
+- [x] System Program transfer CPI now has a live Surfpool/Rust behavior
       gate. `ProofForge.Solana.Examples.SystemCpi` builds a generated
       `--solana-system-cpi-elf` fixture whose entrypoint reads a scalar
       `lamports` instruction parameter, performs a System Program transfer CPI,
       and records the transferred amount in a program-owned state account.
       `scripts/solana/system-cpi-web3-smoke.sh` validates the artifact schema,
-      deploys the ELF on Surfpool with Solana CLI, invokes it through
-      `@solana/web3.js`, and checks both recipient lamport delta and state data.
+      deploys the ELF on Surfpool with Solana CLI, invokes it through the Rust
+      live RPC harness, and checks both recipient lamport delta and state data.
       The sBPF lowering computes the instruction-data pointer from the
       serialized account layout under direct account mapping and keeps it in
       `r9` so internal helper calls do not lose it across callee stack frames.
@@ -1674,19 +1675,20 @@ Completed alpha slices:
   `bumpSeed`, and `paramSeed` descriptors now lower to Solana seed slices,
   `bump?` participates in the effective seed list, and declared PDA accounts
   can be checked against the derived pubkey.
-- PDA/Web3.js derivation fixture: `scripts/solana/pda-web3-smoke.sh` reads the
+- PDA/Rust derivation fixture: `scripts/solana/pda-web3-smoke.sh` reads the
   generated SDK Vault `typedSeeds` artifact data and verifies literal/account/
-  bump descriptor semantics against `PublicKey.findProgramAddressSync` and
-  `PublicKey.createProgramAddressSync`; the harness also covers UTF-8 and
+  bump descriptor semantics against `Address::find_program_address` and
+  `Address::create_program_address`; the harness also covers UTF-8 and
   instruction-parameter resolver behavior.
 - Live System Program transfer CPI fixture:
   `scripts/solana/system-cpi-web3-smoke.sh` builds and deploys a generated
-  transfer CPI program on Surfpool, invokes it through Web3.js, and proves both
-  the lamport movement and state write.
+  transfer CPI program on Surfpool, invokes it through the Rust live RPC harness,
+  and proves both the lamport movement and state write.
 - Live System Program create-account CPI fixture:
   `scripts/solana/system-create-account-cpi-web3-smoke.sh` builds and deploys a
-  generated create-account CPI program on Surfpool, invokes it through Web3.js,
-  and proves the new account owner/space/lamports plus state writes.
+  generated create-account CPI program on Surfpool, invokes it through the Rust
+  live RPC harness, and proves the new account owner/space/lamports plus state
+  writes.
 - Live SPL Token transfer-checked CPI fixture:
   `scripts/solana/spl-token-transfer-cpi-web3-smoke.sh` builds and deploys a
   generated transfer_checked CPI program on Surfpool, creates SPL Token test
@@ -1708,7 +1710,7 @@ Completed alpha slices:
   state write.
 - Live scalar event, pubkey log, and data log fixture: `scripts/solana/log-event-web3-smoke.sh`
   builds and deploys a generated `events.emit` program on Surfpool, invokes it
-  through Web3.js, verifies the generated `sol_log_64_` transaction log
+  through the Rust live RPC harness, verifies the generated `sol_log_64_` transaction log
   contains the stable `AmountEvent` tag and scalar `amount` field, and proves
   the program-owned state account recorded the same value. The same fixture now
   validates Solana-only `logAccountPubkey` metadata, invokes the generated
@@ -1718,13 +1720,14 @@ Completed alpha slices:
   `Program data:` payload for the state-backed `amount` bytes.
 - Live Clock sysvar fixture: `scripts/solana/clock-sysvar-web3-smoke.sh`
   builds and deploys a generated `contextRead checkpointId` program on
-  Surfpool, lowers it to `sol_get_clock_sysvar`, invokes it through Web3.js,
-  and proves the recorded `Clock.slot` matches the observed transaction slot.
+  Surfpool, lowers it to `sol_get_clock_sysvar`, invokes it through the Rust
+  live RPC harness, and proves the recorded `Clock.slot` matches the observed
+  transaction slot.
 - Live memory syscall fixture: `scripts/solana/memory-web3-smoke.sh` builds and
   deploys a generated `runtime.memory` program on Surfpool, invokes it through
-  Web3.js, and proves `sol_memcpy_`, `sol_memmove_`, `sol_memcmp_`, and
-  `sol_memset_` effects by reading copied value, moved value, compare result,
-  and fill bytes from program-owned state.
+  the Rust live RPC harness, and proves `sol_memcpy_`, `sol_memmove_`,
+  `sol_memcmp_`, and `sol_memset_` effects by reading copied value, moved
+  value, compare result, and fill bytes from program-owned state.
 - Return-data/compute-units SDK fixture:
   `Tests/SolanaReturnDataCompute.lean` proves `runtime.return_data` and
   `runtime.compute_units` route through Solana-only capability metadata, rejects
@@ -1734,33 +1737,35 @@ Completed alpha slices:
   `scripts/solana/return-data-compute-web3-smoke.sh` builds and deploys the
   generated `--solana-return-data-compute-elf` fixture on Surfpool, validates
   artifact action metadata, verifies no-data `sol_get_return_data` reads,
-  confirms `sol_set_return_data` through Web3.js simulation returnData, checks a
-  same-instruction set/get roundtrip including program id words, records a
-  nonzero remaining-compute-units value, and confirms compute-unit logging.
+  confirms `sol_set_return_data` through Rust RPC simulation return data,
+  checks a same-instruction set/get roundtrip including program id words,
+  records a nonzero remaining-compute-units value, and confirms compute-unit
+  logging through transaction logs.
 - Live SHA-256/Keccak-256/Blake3 syscall fixture:
   `scripts/solana/crypto-hash-web3-smoke.sh` builds and deploys a generated
   Solana-only `crypto.hash` program on Surfpool, invokes `set_preimage`,
-  `hash_preimage`, `keccak_preimage`, and `blake3_preimage` through Web3.js, and
-  proves the account-stored 32-byte digests match Node SHA-256 and
-  `@noble/hashes` Keccak-256/Blake3 references for the same little-endian
+  `hash_preimage`, `keccak_preimage`, and `blake3_preimage` through the Rust
+  live RPC harness, and proves the account-stored 32-byte digests match Rust
+  SHA-256, Keccak-256, and Blake3 references for the same little-endian
   preimage. The Blake3 action is recorded as feature-gated in manifest and
   artifact metadata.
 - Live Rent sysvar fixture: `scripts/solana/rent-sysvar-web3-smoke.sh` builds
   and deploys a generated Solana-only `sysvar` target-extension program on
-  Surfpool, invokes `record_rent` through Web3.js, and proves the recorded
-  `Rent.lamports_per_byte_year` matches the Rent sysvar account data.
+  Surfpool, invokes `record_rent` through the Rust live RPC harness, and proves
+  the recorded `Rent.lamports_per_byte_year` matches the Rent sysvar account
+  data.
 - Live EpochSchedule sysvar fixture:
   `scripts/solana/epoch-schedule-sysvar-web3-smoke.sh` builds and deploys a
   generated Solana-only `sysvar` target-extension program on Surfpool, invokes
-  `record_epoch_schedule` through Web3.js, and proves the recorded
-  `EpochSchedule.slots_per_epoch`,
+  `record_epoch_schedule` through the Rust live RPC harness, and proves the
+  recorded `EpochSchedule.slots_per_epoch`,
   `EpochSchedule.leader_schedule_slot_offset`, `EpochSchedule.warmup`,
   `EpochSchedule.first_normal_epoch`, and `EpochSchedule.first_normal_slot`
   match RPC `getEpochSchedule()` fields.
 - Live EpochRewards sysvar fixture:
   `scripts/solana/epoch-rewards-sysvar-web3-smoke.sh` builds and deploys a
   generated Solana-only `sysvar` target-extension program on Surfpool, invokes
-  `record_epoch_rewards` through Web3.js, and proves that
+  `record_epoch_rewards` through the Rust live RPC harness, and proves that
   `sol_get_epoch_rewards_sysvar` records `EpochRewards` fields into state.
   `parent_blockhash` is exposed as four little-endian `u64` word views and
   `total_points` is exposed as low/high `u64` word views until the portable
@@ -1768,10 +1773,10 @@ Completed alpha slices:
 - Live LastRestartSlot sysvar fixture:
   `scripts/solana/last-restart-slot-sysvar-web3-smoke.sh` builds and deploys a
   generated Solana-only `sysvar` target-extension program on Surfpool, invokes
-  `record_last_restart_slot` through Web3.js, and proves the feature-gated
-  `LastRestartSlot.last_restart_slot` read lowers through `sol_get_sysvar` and
-  matches the LastRestartSlot sysvar account data. The action is marked
-  `feature_gated` in manifest and artifact metadata.
+  `record_last_restart_slot` through the Rust live RPC harness, and proves the
+  feature-gated `LastRestartSlot.last_restart_slot` read lowers through
+  `sol_get_sysvar` and matches the LastRestartSlot sysvar account data. The
+  action is marked `feature_gated` in manifest and artifact metadata.
 
 Completed beta scaffolding slices:
 
@@ -1786,7 +1791,7 @@ Completed beta scaffolding slices:
 - Pinocchio System transfer live-equivalence harness:
   `scripts/solana/pinocchio-system-transfer-live-equivalence.sh` is wired to
   build the ProofForge ELF and the checked-in Pinocchio reference ELF, deploy
-  both programs to one Surfpool instance, invoke the same Web3.js transfer
+  both programs to one Surfpool instance, invoke the same Rust live transfer
   scenario for each, and compare recipient lamport deltas plus state writes.
   The harness currently skips when `cargo-build-sbf` cannot find Solana rustc/
   platform-tools.
@@ -1823,7 +1828,7 @@ Completed beta scaffolding slices:
 - Pinocchio System create-account live-equivalence harness:
   `scripts/solana/pinocchio-system-create-account-live-equivalence.sh` is
   wired to build the ProofForge ELF and the checked-in Pinocchio reference ELF,
-  deploy both programs to one Surfpool instance, invoke the same Web3.js
+  deploy both programs to one Surfpool instance, invoke the same Rust
   create-account scenario for each, and compare lamports/space inputs plus
   both state writes. The harness currently skips when `cargo-build-sbf` cannot
   find Solana rustc/platform-tools.
@@ -2689,8 +2694,8 @@ Tasks:
   Solana Token-2022 plan path from Learn source.
 - Done: add `scripts/evm/learn-token-erc20-vm-smoke.sh` / `just
   learn-token-evm-vm` to deploy the generated ERC-20 creation bytecode in an
-  EthereumJS VM and validate standard ERC-20 calls, Transfer/Approval topics,
-  and insufficient-balance revert behavior.
+  in-process Rust `revm` harness and validate standard ERC-20 calls,
+  Transfer/Approval topics, and insufficient-balance revert behavior.
 - Done: implement Solana SPL Token / Token-2022 deployment plan rendering at
   the Lean `TokenSpec` layer. `solanaTokenDeploymentPlan` now records mint
   account creation, associated token accounts, `mint_to`, `transfer_checked`,
@@ -2703,8 +2708,8 @@ Tasks:
   `non_transferable` combination.
 - Done: extend `scripts/portable/learn-token-smoke.sh` so the legacy `.learn`
   input path reuses the Lean `TokenSpec` plan, emits both SPL Token and
-  Token-2022 structured plan JSON, and validates the plan offline with
-  `@solana/spl-token` / `@solana/web3.js` instruction builders.
+  Token-2022 structured plan JSON, and validates the plan offline with the
+  Rust `token_plan_smoke` harness.
 - Done: add `scripts/solana/token-plan-web3-smoke.sh` / `just
   solana-token-plan-web3` to execute the structured legacy SPL Token plan on
   Surfpool. The live runner creates the mint and associated token accounts,

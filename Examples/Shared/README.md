@@ -1,63 +1,41 @@
-# Shared portable examples
+# Shared Portable Examples
 
-These modules are the canonical **multi-target** authoring demos: one
-`contract_source` module, three primary-chain builds via `--target`.
+`Examples/Shared` is the canonical place for reusable `contract_source`
+examples. A shared example keeps business logic in one Lean file and lets
+`proof-forge build --target ...` choose the chain artifact.
 
-## Counter
+Target directories such as `Examples/Evm`, `Examples/Solana`, and
+`Examples/WasmNear` should only keep chain-specific fixtures, golden files, and
+compatibility entrypoints. New portable product examples should start here.
 
-Source: [Counter.lean](Counter.lean) (`contract_source`, self-contained for
-`ContractLoader`).
+## Primary Multi-Target Examples
 
-The compiler test fixture with equivalent semantics lives in
-`ProofForge/Contract/Examples/Counter.lean`.
+These examples are checked as one source across EVM, Solana sBPF, and
+NEAR/Wasm:
 
-| Target | Command | Primary artifact |
+| Example | Source | Checked demo |
 |---|---|---|
-| `evm` | `proof-forge build --target evm --root . -o build/portable-counter/Counter.bin Examples/Shared/Counter.lean` | Yul + runtime bytecode |
-| `solana-sbpf-asm` | `proof-forge build --target solana-sbpf-asm --root . -o build/portable-counter/Counter.s Examples/Shared/Counter.lean` | sBPF assembly + manifest |
-| `wasm-near` | `proof-forge build --target wasm-near --root . -o build/portable-counter/near Examples/Shared/Counter.lean` | WAT (+ optional Wasm) |
+| Counter | [Counter.lean](Counter.lean) | `just portable-counter-multi-target` |
+| ValueVault | [ValueVault.lean](ValueVault.lean) | `just portable-value-vault` |
+| RoleGatedToken | [RoleGatedToken.lean](RoleGatedToken.lean) | `scripts/portable/role-gated-token-multi-target.sh` |
+| StakingVault | [StakingVault.lean](StakingVault.lean) | `scripts/portable/staking-vault-multi-target.sh` |
 
-Run the checked demo:
+Each file carries the concrete `evm`, `solana-sbpf-asm`, and `wasm-near`
+commands in its header. The compiler test fixtures with equivalent Counter and
+ValueVault semantics live in `ProofForge/Contract/Examples/`.
 
-```bash
-scripts/portable/counter-multi-target.sh
-```
+## High-Level Intent Examples
 
-Or from the repo root:
+These examples are not protocol-specific contract code. They describe a
+product-level intent once and let target routing choose the chain form:
 
-```bash
-just portable-counter-multi-target
-```
-
-The business logic lives in `ProofForge/Contract/Examples/Counter.lean`
-(`contract_source`). Application repos should follow the same pattern: portable
-Lean SDK syntax in one module, chain choice at build time.
-
-## ValueVault
-
-Source: [ValueVault.lean](ValueVault.lean) (`contract_source`, self-contained
-for `ContractLoader`).
-
-The compiler test fixture with equivalent semantics lives in
-`ProofForge/Contract/Examples/ValueVault.lean`.
-
-| Target | Command | Primary artifact |
+| Example | Source | Current target status |
 |---|---|---|
-| `evm` | `proof-forge build --target evm --root . -o build/portable/value-vault/evm/ValueVault.bin --yul-output build/portable/value-vault/evm/ValueVault.yul Examples/Shared/ValueVault.lean` | Yul + runtime bytecode + metadata |
-| `solana-sbpf-asm` | `proof-forge build --target solana-sbpf-asm --root . -o build/portable/value-vault/solana/ValueVault.s Examples/Shared/ValueVault.lean` | sBPF assembly + manifest + IDL + TS client |
-| `wasm-near` | `proof-forge build --target wasm-near --root . -o build/portable/value-vault/near Examples/Shared/ValueVault.lean` | WAT/Wasm + deploy metadata |
+| FungibleToken | [FungibleToken.lean](FungibleToken.lean) | `TokenSpec` lowers to an EVM ERC-20-compatible artifact or a Solana SPL Token / Token-2022 plan; NEAR token lowering is still gated |
 
-Run the checked demo:
+The source does not mention ERC-20, SPL Token, Token-2022, or NEP-141. Those
+names are target outputs chosen below the shared intent layer.
 
-```bash
-scripts/portable/value-vault-smoke.sh
-```
-
-Or from the repo root:
-
-```bash
-just portable-value-vault
-```
-
-Legacy `.learn` ValueVault remains an equivalence fixture; new product examples
-should use ordinary `.lean` files with `contract_source`.
+Legacy `.learn` examples remain parser/equivalence fixtures. New product
+examples should use ordinary `.lean` files with `contract_source` or a
+higher-level intent SDK such as `TokenSpec`.

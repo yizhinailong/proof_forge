@@ -180,7 +180,7 @@ portable-value-vault:
 learn-token-smoke:
     scripts/portable/learn-token-smoke.sh
 
-# Run the Learn-token ERC-20 artifact in a local EthereumJS VM.
+# Run the Learn-token ERC-20 artifact in a local Rust/revm VM.
 learn-token-evm-vm:
     scripts/evm/learn-token-erc20-vm-smoke.sh
 
@@ -264,15 +264,15 @@ solana-token-2022-transfer-fee-web3:
 solana-token-2022-non-transferable-web3:
     scripts/solana/token-2022-non-transferable-web3-smoke.sh
 
-# Run Solana PDA typed-seed Web3.js derivation smoke. Skips when Node/npm are unavailable.
+# Run Solana PDA typed-seed Rust derivation smoke.
 solana-pda-web3:
     scripts/solana/pda-web3-smoke.sh
 
-# Run a live System Program transfer CPI smoke on Surfpool with Web3.js.
+# Run a live System Program transfer CPI smoke on Surfpool with the Rust harness.
 solana-system-cpi-web3:
     scripts/solana/system-cpi-web3-smoke.sh
 
-# Run a live Memo Program CPI smoke on Surfpool with Web3.js.
+# Run a live Memo Program CPI smoke on Surfpool with the Rust harness.
 solana-memo-cpi-web3:
     scripts/solana/memo-cpi-web3-smoke.sh
 
@@ -328,7 +328,7 @@ solana-pinocchio-live-equivalence:
 solana-pinocchio-install-sbf-tools:
     PATH="$HOME/.cargo/bin:$PATH" cargo-build-sbf --install-only --force-tools-install --tools-version v1.52
 
-# Run a live System Program create_account CPI smoke on Surfpool with Web3.js.
+# Run a live System Program create_account CPI smoke on Surfpool with the Rust RPC harness.
 solana-system-create-account-cpi-web3:
     scripts/solana/system-create-account-cpi-web3-smoke.sh
 
@@ -364,39 +364,39 @@ solana-spl-token-2022-pausable-cpi-web3:
 solana-spl-token-2022-transfer-hook-web3:
     scripts/solana/spl-token-2022-transfer-hook-web3-smoke.sh
 
-# Run a live Solana log/event smoke on Surfpool with Web3.js.
+# Run a live Solana log/event smoke on Surfpool with the Rust RPC harness.
 solana-log-event-web3:
     scripts/solana/log-event-web3-smoke.sh
 
-# Run a live Solana Clock sysvar smoke on Surfpool with Web3.js.
+# Run a live Solana Clock sysvar smoke on Surfpool with the Rust RPC harness.
 solana-clock-sysvar-web3:
     scripts/solana/clock-sysvar-web3-smoke.sh
 
-# Run a live Solana Rent sysvar smoke on Surfpool with Web3.js.
+# Run a live Solana Rent sysvar smoke on Surfpool with the Rust RPC harness.
 solana-rent-sysvar-web3:
     scripts/solana/rent-sysvar-web3-smoke.sh
 
-# Run a live Solana EpochSchedule sysvar smoke on Surfpool with Web3.js.
+# Run a live Solana EpochSchedule sysvar smoke on Surfpool with the Rust RPC harness.
 solana-epoch-schedule-sysvar-web3:
     scripts/solana/epoch-schedule-sysvar-web3-smoke.sh
 
-# Run a live Solana EpochRewards sysvar smoke on Surfpool with Web3.js.
+# Run a live Solana EpochRewards sysvar smoke on Surfpool with the Rust RPC harness.
 solana-epoch-rewards-sysvar-web3:
     scripts/solana/epoch-rewards-sysvar-web3-smoke.sh
 
-# Run a live Solana LastRestartSlot sysvar smoke on Surfpool with Web3.js.
+# Run a live Solana LastRestartSlot sysvar smoke on Surfpool with the Rust RPC harness.
 solana-last-restart-slot-sysvar-web3:
     scripts/solana/last-restart-slot-sysvar-web3-smoke.sh
 
-# Run a live Solana memory syscall smoke on Surfpool with Web3.js.
+# Run a live Solana memory syscall smoke on Surfpool with the Rust RPC harness.
 solana-memory-web3:
     scripts/solana/memory-web3-smoke.sh
 
-# Run a live Solana SHA-256/Keccak-256 syscall smoke on Surfpool with Web3.js.
+# Run a live Solana SHA-256/Keccak-256/Blake3 syscall smoke on Surfpool with the Rust RPC harness.
 solana-crypto-hash-web3:
     scripts/solana/crypto-hash-web3-smoke.sh
 
-# Run a live Solana return-data/compute-units syscall smoke on Surfpool with Web3.js.
+# Run a live Solana return-data/compute-units syscall smoke on Surfpool with the Rust RPC harness.
 solana-return-data-compute-web3:
     scripts/solana/return-data-compute-web3-smoke.sh
 
