@@ -295,6 +295,14 @@ theorem StepFEReductionChain.append
       simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using
         StepFEReductionChain.cons head htail
 
+theorem StepFEReductionChain.single
+    {state nextState : State}
+    (reduction : StepFEReduction state nextState) :
+    StepFEReductionChain state 1 nextState := by
+  simpa using
+    StepFEReductionChain.cons reduction
+      (StepFEReductionChain.nil nextState)
+
 theorem runSteps_of_reductionChain
     {fuel : Nat} {state finalState : State}
     (chain : StepFEReductionChain state fuel finalState) :
@@ -317,6 +325,35 @@ structure ReductionChainProvider
         StepFEReductionChain state fuel finalState ∧
           post state finalState
 
+theorem reductionChainProvider_append
+    {leftPre rightPre : State → Prop}
+    {leftFuel rightFuel : Nat}
+    {leftPost rightPost combinedPost : State → State → Prop}
+    (leftProvider :
+      ReductionChainProvider leftPre leftFuel leftPost)
+    (rightProvider :
+      ReductionChainProvider rightPre rightFuel rightPost)
+    (rightPre_of_leftPost :
+      ∀ {state midState},
+        leftPre state → leftPost state midState → rightPre midState)
+    (combine :
+      ∀ {state midState finalState},
+        leftPre state →
+        leftPost state midState →
+        rightPost midState finalState →
+        combinedPost state finalState) :
+    ReductionChainProvider leftPre (leftFuel + rightFuel) combinedPost where
+  chain := by
+    intro state hleftPre
+    obtain ⟨midState, leftChain, hleftPost⟩ :=
+      leftProvider.chain hleftPre
+    obtain ⟨finalState, rightChain, hrightPost⟩ :=
+      rightProvider.chain
+        (rightPre_of_leftPost hleftPre hleftPost)
+    exact ⟨finalState,
+      StepFEReductionChain.append leftChain rightChain,
+      combine hleftPre hleftPost hrightPost⟩
+
 theorem segmentProvider_of_reductionChainProvider
     {pre : State → Prop} {fuel : Nat}
     {post : State → State → Prop}
@@ -336,8 +373,8 @@ theorem runSteps_post_of_reductionChainProvider
       runSteps state fuel =
         .ok (finalState, (#[] : Array ObservableStep)) ∧
       post state finalState := by
-  exact runSteps_post_of_segmentProvider
-    (segmentProvider_of_reductionChainProvider provider) hpre
+  obtain ⟨finalState, chain, hpost⟩ := provider.chain hpre
+  exact ⟨finalState, runSteps_of_reductionChain chain, hpost⟩
 
 theorem stepFEPath_two {s0 s1 s2 : State}
     (hr0 : s0.halt = .Running)

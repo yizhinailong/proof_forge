@@ -175,10 +175,18 @@ theorem twoSlotReader_getBalance_reductionChain
   have stopReduction : StepFEReduction s2 s3 :=
     ProofForge.Backend.Evm.PowdrExec.StepFEReduction.of_readyOpcodeAt
       hstopAt hstopStep
+  have pushChain : StepFEReductionChain s0 1 s1 :=
+    ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.single
+      pushReduction
+  have sloadChain : StepFEReductionChain s1 1 s2 :=
+    ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.single
+      sloadReduction
   have prefixChain : StepFEReductionChain s0 2 s2 :=
-    .cons pushReduction (.cons sloadReduction (.nil s2))
+    ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.append
+      pushChain sloadChain
   have stopChain : StepFEReductionChain s2 1 s3 :=
-    .cons stopReduction (.nil s3)
+    ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.single
+      stopReduction
   have chain : StepFEReductionChain s0 3 s3 :=
     ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.append
       prefixChain stopChain
@@ -373,10 +381,9 @@ theorem mstore_word_runSteps
                   (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps) :
                     Operation)) hat.ready.gas).consumeMemExp offset.toNat 32 hmem).toMachineState
               offset value }.replaceStackAndIncrPC rest) :=
-    .cons
+    ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.single
       (ProofForge.Backend.Evm.PowdrExec.StepFEReduction.of_readyOpcodeAt
         hat hstep)
-      (.nil _)
   exact ProofForge.Backend.Evm.PowdrExec.runSteps_of_reductionChain chain
 
 end ProofForge.Backend.Evm.PowdrExecSmoke
