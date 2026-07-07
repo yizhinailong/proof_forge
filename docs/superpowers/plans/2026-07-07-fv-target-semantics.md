@@ -169,6 +169,15 @@ surface. Remaining EVM work is E3.
 >
 > **Do this instead (replaces the per-step derivation approach):**
 >
+> **Precise EVM goal:** the deliverable is **not** "a bigger Counter proof"; it is a
+> contract-agnostic symbolic-reduction layer for the powdr EVM. Counter is only the first
+> harness. The intended theorem shape is: for every ProofForge module in the EVM supported
+> fragment and every accepted input, IR execution and powdr execution of the compiled
+> bytecode produce the same observable; modules outside the fragment are rejected at
+> compile time. `PowdrExec` is the reusable reducer that discharges target-side bytecode
+> segments for any emitted contract, while `CounterRefinement.lean` / ValueVault only supply
+> bytecode facts and instantiate the generic reducer.
+>
 > **1. New contract-agnostic module `EvmRefinement/PowdrExec.lean`** (NOT inside
 > `CounterRefinement.lean`). A small library of GENERIC lemmas over powdr's
 > `stepF`/`runBytecode`, each proven **once**, parameterized by the pre-state, **never by
