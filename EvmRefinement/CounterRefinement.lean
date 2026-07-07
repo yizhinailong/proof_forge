@@ -358,6 +358,30 @@ theorem counterState_of_stepFE_push0_ok
     rw [hrunning] at hnotRunning
     contradiction
 
+theorem counterCallStack_of_stepFE_push0_ok
+    {state nextState : EvmState}
+    {argOpt : Option (EvmSemantics.UInt256 × Nat)}
+    (hrunning : state.halt = .Running)
+    (hprecompile :
+      EvmSemantics.EVM.Precompile.isPrecompile state.executionEnv.fork
+        state.executionEnv.codeAddr = false)
+    (hdecoded : state.decoded = some (.Push counterPush0Op, argOpt))
+    (hstackOk :
+      ¬ state.stack.length +
+          (.Push counterPush0Op : EvmSemantics.Operation).pushArity >
+        1024 + (.Push counterPush0Op : EvmSemantics.Operation).popArity)
+    (hgas :
+      EvmSemantics.EVM.Gas.baseCost state.fork
+        (.Push counterPush0Op : EvmSemantics.Operation) ≤ state.gasAvailable)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    nextState.callStack = state.callStack := by
+  have hstate :=
+    counterState_of_stepFE_push0_ok hrunning hprecompile hdecoded
+      hstackOk hgas hstep
+  rw [hstate]
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
+
 theorem counterStack_of_push1_ok
     {state gasState nextState : EvmState}
     {value : EvmSemantics.UInt256} {argBytes : Nat}
@@ -450,6 +474,31 @@ theorem counterState_of_stepFE_push1_ok
     rw [hrunning] at hnotRunning
     contradiction
 
+theorem counterCallStack_of_stepFE_push1_ok
+    {state nextState : EvmState}
+    {value : EvmSemantics.UInt256} {argBytes : Nat}
+    (hrunning : state.halt = .Running)
+    (hprecompile :
+      EvmSemantics.EVM.Precompile.isPrecompile state.executionEnv.fork
+        state.executionEnv.codeAddr = false)
+    (hdecoded :
+      state.decoded = some (.Push counterPush1Op, some (value, argBytes)))
+    (hstackOk :
+      ¬ state.stack.length +
+          (.Push counterPush1Op : EvmSemantics.Operation).pushArity >
+        1024 + (.Push counterPush1Op : EvmSemantics.Operation).popArity)
+    (hgas :
+      EvmSemantics.EVM.Gas.baseCost state.fork
+        (.Push counterPush1Op : EvmSemantics.Operation) ≤ state.gasAvailable)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    nextState.callStack = state.callStack := by
+  have hstate :=
+    counterState_of_stepFE_push1_ok hrunning hprecompile hdecoded
+      hstackOk hgas hstep
+  rw [hstate]
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
+
 theorem counterState_of_push4_ok
     {state gasState nextState : EvmState}
     {value : EvmSemantics.UInt256} {argBytes : Nat}
@@ -498,6 +547,31 @@ theorem counterState_of_stepFE_push4_ok
   · rename_i hnotRunning
     rw [hrunning] at hnotRunning
     contradiction
+
+theorem counterCallStack_of_stepFE_push4_ok
+    {state nextState : EvmState}
+    {value : EvmSemantics.UInt256} {argBytes : Nat}
+    (hrunning : state.halt = .Running)
+    (hprecompile :
+      EvmSemantics.EVM.Precompile.isPrecompile state.executionEnv.fork
+        state.executionEnv.codeAddr = false)
+    (hdecoded :
+      state.decoded = some (.Push counterPush4Op, some (value, argBytes)))
+    (hstackOk :
+      ¬ state.stack.length +
+          (.Push counterPush4Op : EvmSemantics.Operation).pushArity >
+        1024 + (.Push counterPush4Op : EvmSemantics.Operation).popArity)
+    (hgas :
+      EvmSemantics.EVM.Gas.baseCost state.fork
+        (.Push counterPush4Op : EvmSemantics.Operation) ≤ state.gasAvailable)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    nextState.callStack = state.callStack := by
+  have hstate :=
+    counterState_of_stepFE_push4_ok hrunning hprecompile hdecoded
+      hstackOk hgas hstep
+  rw [hstate]
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
 
 theorem counterState_of_env_calldataload_ok
     {state gasState nextState : EvmState}
@@ -560,6 +634,36 @@ theorem counterState_of_stepFE_env_calldataload_ok
   · rename_i hnotRunning
     rw [hrunning] at hnotRunning
     contradiction
+
+theorem counterCallStack_of_stepFE_env_calldataload_ok
+    {state nextState : EvmState}
+    {offset : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
+    (hrunning : state.halt = .Running)
+    (hprecompile :
+      EvmSemantics.EVM.Precompile.isPrecompile state.executionEnv.fork
+        state.executionEnv.codeAddr = false)
+    (hdecoded :
+      state.decoded =
+        some (.Env (.CALLDATALOAD : EvmSemantics.Operation.EnvOps), none))
+    (hstack : state.stack = offset :: rest)
+    (hstackOk :
+      ¬ state.stack.length +
+          (.Env (.CALLDATALOAD : EvmSemantics.Operation.EnvOps) :
+            EvmSemantics.Operation).pushArity >
+        1024 + (.Env (.CALLDATALOAD : EvmSemantics.Operation.EnvOps) :
+            EvmSemantics.Operation).popArity)
+    (hgas :
+      EvmSemantics.EVM.Gas.baseCost state.fork
+        (.Env (.CALLDATALOAD : EvmSemantics.Operation.EnvOps) :
+          EvmSemantics.Operation) ≤ state.gasAvailable)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    nextState.callStack = state.callStack := by
+  have hstate :=
+    counterState_of_stepFE_env_calldataload_ok hrunning hprecompile hdecoded
+      hstack hstackOk hgas hstep
+  rw [hstate]
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
 
 theorem counterStack_of_dup1_ok
     {state gasState nextState : EvmState}
@@ -652,6 +756,31 @@ theorem counterState_of_stepFE_dup1_ok
   · rename_i hnotRunning
     rw [hrunning] at hnotRunning
     contradiction
+
+theorem counterCallStack_of_stepFE_dup1_ok
+    {state nextState : EvmState}
+    {top : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
+    (hrunning : state.halt = .Running)
+    (hprecompile :
+      EvmSemantics.EVM.Precompile.isPrecompile state.executionEnv.fork
+        state.executionEnv.codeAddr = false)
+    (hdecoded : state.decoded = some (.Dup counterDup1Op, none))
+    (hstack : state.stack = top :: rest)
+    (hstackOk :
+      ¬ state.stack.length +
+          (.Dup counterDup1Op : EvmSemantics.Operation).pushArity >
+        1024 + (.Dup counterDup1Op : EvmSemantics.Operation).popArity)
+    (hgas :
+      EvmSemantics.EVM.Gas.baseCost state.fork
+        (.Dup counterDup1Op : EvmSemantics.Operation) ≤ state.gasAvailable)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    nextState.callStack = state.callStack := by
+  have hstate :=
+    counterState_of_stepFE_dup1_ok hrunning hprecompile hdecoded hstack
+      hstackOk hgas hstep
+  rw [hstate]
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
 
 theorem counterStack_of_compBit_shl_ok
     {state gasState nextState : EvmState}
@@ -808,6 +937,36 @@ theorem counterState_of_stepFE_compBit_shr_ok
     rw [hrunning] at hnotRunning
     contradiction
 
+theorem counterCallStack_of_stepFE_compBit_shr_ok
+    {state nextState : EvmState}
+    {shift value : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
+    (hrunning : state.halt = .Running)
+    (hprecompile :
+      EvmSemantics.EVM.Precompile.isPrecompile state.executionEnv.fork
+        state.executionEnv.codeAddr = false)
+    (hdecoded :
+      state.decoded =
+        some (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps), none))
+    (hstack : state.stack = shift :: value :: rest)
+    (hstackOk :
+      ¬ state.stack.length +
+          (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps) :
+            EvmSemantics.Operation).pushArity >
+        1024 + (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps) :
+            EvmSemantics.Operation).popArity)
+    (hgas :
+      EvmSemantics.EVM.Gas.baseCost state.fork
+        (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps) :
+          EvmSemantics.Operation) ≤ state.gasAvailable)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    nextState.callStack = state.callStack := by
+  have hstate :=
+    counterState_of_stepFE_compBit_shr_ok hrunning hprecompile hdecoded
+      hstack hstackOk hgas hstep
+  rw [hstate]
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
+
 theorem counterState_of_compBit_eq_ok
     {state gasState nextState : EvmState}
     {a b : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
@@ -863,6 +1022,36 @@ theorem counterState_of_stepFE_compBit_eq_ok
   · rename_i hnotRunning
     rw [hrunning] at hnotRunning
     contradiction
+
+theorem counterCallStack_of_stepFE_compBit_eq_ok
+    {state nextState : EvmState}
+    {a b : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
+    (hrunning : state.halt = .Running)
+    (hprecompile :
+      EvmSemantics.EVM.Precompile.isPrecompile state.executionEnv.fork
+        state.executionEnv.codeAddr = false)
+    (hdecoded :
+      state.decoded =
+        some (.CompBit (.EQ : EvmSemantics.Operation.CompareBitwiseOps), none))
+    (hstack : state.stack = a :: b :: rest)
+    (hstackOk :
+      ¬ state.stack.length +
+          (.CompBit (.EQ : EvmSemantics.Operation.CompareBitwiseOps) :
+            EvmSemantics.Operation).pushArity >
+        1024 + (.CompBit (.EQ : EvmSemantics.Operation.CompareBitwiseOps) :
+            EvmSemantics.Operation).popArity)
+    (hgas :
+      EvmSemantics.EVM.Gas.baseCost state.fork
+        (.CompBit (.EQ : EvmSemantics.Operation.CompareBitwiseOps) :
+          EvmSemantics.Operation) ≤ state.gasAvailable)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    nextState.callStack = state.callStack := by
+  have hstate :=
+    counterState_of_stepFE_compBit_eq_ok hrunning hprecompile hdecoded
+      hstack hstackOk hgas hstep
+  rw [hstate]
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
 
 theorem counterStack_of_compBit_not_ok
     {state gasState nextState : EvmState}
@@ -1260,6 +1449,34 @@ theorem counterState_of_stepFE_stackMemFlow_jumpdest_ok
     rw [hrunning] at hnotRunning
     contradiction
 
+theorem counterCallStack_of_stepFE_stackMemFlow_jumpdest_ok
+    {state nextState : EvmState}
+    (hrunning : state.halt = .Running)
+    (hprecompile :
+      EvmSemantics.EVM.Precompile.isPrecompile state.executionEnv.fork
+        state.executionEnv.codeAddr = false)
+    (hdecoded :
+      state.decoded =
+        some (.StackMemFlow
+          (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps), none))
+    (hstackOk :
+      ¬ state.stack.length +
+          (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps) :
+            EvmSemantics.Operation).pushArity >
+        1024 + (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps) :
+            EvmSemantics.Operation).popArity)
+    (hgas :
+      EvmSemantics.EVM.Gas.baseCost state.fork
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps) :
+          EvmSemantics.Operation) ≤ state.gasAvailable)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    nextState.callStack = state.callStack := by
+  have hstate :=
+    counterState_of_stepFE_stackMemFlow_jumpdest_ok hrunning hprecompile
+      hdecoded hstackOk hgas hstep
+  rw [hstate]
+  simp [EvmSemantics.EVM.State.consumeGas, EvmSemantics.EVM.State.incrPC]
+
 theorem counterState_of_stackMemFlow_jump_ok
     {state gasState nextState : EvmState}
     {dest : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
@@ -1320,6 +1537,39 @@ theorem counterState_of_stepFE_stackMemFlow_jump_ok
   · rename_i hnotRunning
     rw [hrunning] at hnotRunning
     contradiction
+
+theorem counterCallStack_of_stepFE_stackMemFlow_jump_ok
+    {state nextState : EvmState}
+    {dest : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
+    (hrunning : state.halt = .Running)
+    (hprecompile :
+      EvmSemantics.EVM.Precompile.isPrecompile state.executionEnv.fork
+        state.executionEnv.codeAddr = false)
+    (hdecoded :
+      state.decoded =
+        some (.StackMemFlow
+          (.JUMP : EvmSemantics.Operation.StackMemFlowOps), none))
+    (hstack : state.stack = dest :: rest)
+    (hvalid :
+      EvmSemantics.EVM.Decode.isValidJumpDest state.executionEnv.code
+        dest.toNat = true)
+    (hstackOk :
+      ¬ state.stack.length +
+          (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps) :
+            EvmSemantics.Operation).pushArity >
+        1024 + (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps) :
+            EvmSemantics.Operation).popArity)
+    (hgas :
+      EvmSemantics.EVM.Gas.baseCost state.fork
+        (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps) :
+          EvmSemantics.Operation) ≤ state.gasAvailable)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    nextState.callStack = state.callStack := by
+  have hstate :=
+    counterState_of_stepFE_stackMemFlow_jump_ok hrunning hprecompile
+      hdecoded hstack hvalid hstackOk hgas hstep
+  rw [hstate]
+  simp [EvmSemantics.EVM.State.consumeGas]
 
 theorem counterState_of_stackMemFlow_jumpi_taken_ok
     {state gasState nextState : EvmState}
@@ -1383,6 +1633,40 @@ theorem counterState_of_stepFE_stackMemFlow_jumpi_taken_ok
   · rename_i hnotRunning
     rw [hrunning] at hnotRunning
     contradiction
+
+theorem counterCallStack_of_stepFE_stackMemFlow_jumpi_taken_ok
+    {state nextState : EvmState}
+    {dest cond : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
+    (hrunning : state.halt = .Running)
+    (hprecompile :
+      EvmSemantics.EVM.Precompile.isPrecompile state.executionEnv.fork
+        state.executionEnv.codeAddr = false)
+    (hdecoded :
+      state.decoded =
+        some (.StackMemFlow
+          (.JUMPI : EvmSemantics.Operation.StackMemFlowOps), none))
+    (hstack : state.stack = dest :: cond :: rest)
+    (hcond : cond.toNat ≠ 0)
+    (hvalid :
+      EvmSemantics.EVM.Decode.isValidJumpDest state.executionEnv.code
+        dest.toNat = true)
+    (hstackOk :
+      ¬ state.stack.length +
+          (.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps) :
+            EvmSemantics.Operation).pushArity >
+        1024 + (.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps) :
+            EvmSemantics.Operation).popArity)
+    (hgas :
+      EvmSemantics.EVM.Gas.baseCost state.fork
+        (.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps) :
+          EvmSemantics.Operation) ≤ state.gasAvailable)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    nextState.callStack = state.callStack := by
+  have hstate :=
+    counterState_of_stepFE_stackMemFlow_jumpi_taken_ok hrunning hprecompile
+      hdecoded hstack hcond hvalid hstackOk hgas hstep
+  rw [hstate]
+  simp [EvmSemantics.EVM.State.consumeGas]
 
 theorem counterReadPadded_zero_zero (bytes : ByteArray) :
     EvmSemantics.MachineState.readPadded bytes 0 0 = ByteArray.empty := by
@@ -3435,6 +3719,89 @@ theorem counterState_of_initialize_trampoline_stepFE_to_body_ok
   refine ⟨hfinalAt, counterPreparedInitializeBodyJumpdest_decoded hfinalAt, ?_⟩
   rw [hstate4]
 
+theorem counterCallStack_of_initialize_trampoline_stepFE_to_body_ok
+    {s0 s1 s2 s3 s4 : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (h0 : s0.stack = rest)
+    (hat0 : counterCompiledStateAt s0 counterInitializeTrampolineOffset)
+    (hready0 :
+      counterStepFEReady s0
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hat1 : counterCompiledStateAt s1 (counterInitializeTrampolineOffset + 1))
+    (hready1 : counterStepFEReady s1 (.Push counterPush1Op))
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hat2 : counterCompiledStateAt s2 (counterInitializeTrampolineOffset + 3))
+    (hready2 : counterStepFEReady s2 (.Push counterPush1Op))
+    (hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hat3 : counterCompiledStateAt s3 (counterInitializeTrampolineOffset + 5))
+    (hready3 :
+      counterStepFEReady s3
+        (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4) :
+    s4.callStack = s0.callStack := by
+  rcases hready0 with ⟨hrunning0, hprecompile0, hstackOk0, hgas0⟩
+  rcases hready1 with ⟨hrunning1, hprecompile1, hstackOk1, hgas1⟩
+  rcases hready2 with ⟨hrunning2, hprecompile2, hstackOk2, hgas2⟩
+  rcases hready3 with ⟨hrunning3, hprecompile3, hstackOk3, hgas3⟩
+  have hstate1 :=
+    counterState_of_stepFE_stackMemFlow_jumpdest_ok hrunning0 hprecompile0
+      (counterPreparedInitializeTrampolineJumpdest_decoded hat0) hstackOk0
+      hgas0 hstep0
+  have hstack1 : s1.stack = rest := by
+    rw [hstate1]
+    simp [EvmSemantics.EVM.State.consumeGas, EvmSemantics.EVM.State.incrPC, h0]
+  have hcallStack1 : s1.callStack = s0.callStack :=
+    counterCallStack_of_stepFE_stackMemFlow_jumpdest_ok hrunning0 hprecompile0
+      (counterPreparedInitializeTrampolineJumpdest_decoded hat0) hstackOk0
+      hgas0 hstep0
+  have hstate2 :=
+    counterState_of_stepFE_push1_ok hrunning1 hprecompile1
+      (counterPreparedInitializeTrampolineReturnPush_decoded hat1) hstackOk1
+      hgas1 hstep1
+  have hstack2 :
+      s2.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeReturnOffset :: rest := by
+    rw [hstate2]
+    simp [EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack1]
+  have hcallStack2 : s2.callStack = s1.callStack :=
+    counterCallStack_of_stepFE_push1_ok hrunning1 hprecompile1
+      (counterPreparedInitializeTrampolineReturnPush_decoded hat1) hstackOk1
+      hgas1 hstep1
+  have hstate3 :=
+    counterState_of_stepFE_push1_ok hrunning2 hprecompile2
+      (counterPreparedInitializeTrampolineBodyPush_decoded hat2) hstackOk2
+      hgas2 hstep2
+  have hstack3 :
+      s3.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeBodyOffset ::
+          EvmSemantics.UInt256.ofNat counterInitializeReturnOffset :: rest := by
+    rw [hstate3]
+    simp [EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack2]
+  have hcallStack3 : s3.callStack = s2.callStack :=
+    counterCallStack_of_stepFE_push1_ok hrunning2 hprecompile2
+      (counterPreparedInitializeTrampolineBodyPush_decoded hat2) hstackOk2
+      hgas2 hstep2
+  have hdecoded3 := counterPreparedInitializeTrampolineJump_decoded hat3
+  rcases hat3 with ⟨hcode3, _hpc3, _hfork3⟩
+  have hvalid :
+      EvmSemantics.EVM.Decode.isValidJumpDest s3.executionEnv.code
+        (EvmSemantics.UInt256.ofNat counterInitializeBodyOffset).toNat = true := by
+    rw [hcode3]
+    have hbodyNat :
+        (EvmSemantics.UInt256.ofNat counterInitializeBodyOffset).toNat =
+          counterInitializeBodyOffset := by
+      native_decide
+    rw [hbodyNat]
+    exact counterCompiledRuntimeCode_valid_initialize_body_jumpdest
+  have hcallStack4 : s4.callStack = s3.callStack :=
+    counterCallStack_of_stepFE_stackMemFlow_jump_ok hrunning3 hprecompile3
+      hdecoded3 hstack3 hvalid hstackOk3 hgas3 hstep3
+  exact hcallStack4.trans
+    (hcallStack3.trans (hcallStack2.trans hcallStack1))
+
 theorem counterPreparedInitializeFirstPush0_decoded
     {state : EvmState}
     (hat : counterCompiledStateAt state (counterInitializeBodyOffset + 1)) :
@@ -3580,6 +3947,167 @@ theorem counterState_of_dispatcher_trampoline_stepFE_to_initialize_first_opcode_
       hat11 hready11 hstep11 hat12 hready12 hstep12
   exact counterState_of_initialize_body_jumpdest_stepFE_to_first_opcode_ok
     hstack13 hat13 hready13 hstep13
+
+theorem counterCallStack_of_dispatcher_trampoline_stepFE_to_initialize_first_opcode_ok
+    {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (h0 : s0.stack = rest)
+    (hat0 : counterCompiledStateAt s0 0)
+    (hready0 : counterStepFEReady s0 (.Push counterPush0Op))
+    (hstep0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hcalldata0 : s0.executionEnv.calldata = counterCallCalldata .initialize)
+    (hready1 :
+      counterStepFEReady s1
+        (.Env (.CALLDATALOAD : EvmSemantics.Operation.EnvOps)))
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hready2 : counterStepFEReady s2 (.Push counterPush1Op))
+    (hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hready3 :
+      counterStepFEReady s3
+        (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4)
+    (hready4 : counterStepFEReady s4 (.Dup counterDup1Op))
+    (hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5)
+    (hready5 : counterStepFEReady s5 (.Push counterPush4Op))
+    (hstep5 : EvmSemantics.EVM.stepFE s5 = .ok s6)
+    (hready6 :
+      counterStepFEReady s6
+        (.CompBit (.EQ : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep6 : EvmSemantics.EVM.stepFE s6 = .ok s7)
+    (hready7 : counterStepFEReady s7 (.Push counterPush1Op))
+    (hstep7 : EvmSemantics.EVM.stepFE s7 = .ok s8)
+    (hready8 :
+      counterStepFEReady s8
+        (.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep8 : EvmSemantics.EVM.stepFE s8 = .ok s9)
+    (hready9 :
+      counterStepFEReady s9
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep9 : EvmSemantics.EVM.stepFE s9 = .ok s10)
+    (hat10 : counterCompiledStateAt s10 (counterInitializeTrampolineOffset + 1))
+    (hready10 : counterStepFEReady s10 (.Push counterPush1Op))
+    (hstep10 : EvmSemantics.EVM.stepFE s10 = .ok s11)
+    (hat11 : counterCompiledStateAt s11 (counterInitializeTrampolineOffset + 3))
+    (hready11 : counterStepFEReady s11 (.Push counterPush1Op))
+    (hstep11 : EvmSemantics.EVM.stepFE s11 = .ok s12)
+    (hat12 : counterCompiledStateAt s12 (counterInitializeTrampolineOffset + 5))
+    (hready12 :
+      counterStepFEReady s12
+        (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep12 : EvmSemantics.EVM.stepFE s12 = .ok s13)
+    (hready13 :
+      counterStepFEReady s13
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep13 : EvmSemantics.EVM.stepFE s13 = .ok s14) :
+    s14.callStack = s0.callStack := by
+  obtain ⟨hat1, _hdecoded1, hstack1, hcalldata1From0⟩ :=
+    counterState_of_dispatcher_first_push0_stepFE_to_calldataload_ok
+      h0 hat0 hready0 hstep0
+  have hcalldata1 : s1.executionEnv.calldata = counterCallCalldata .initialize := by
+    rw [hcalldata1From0, hcalldata0]
+  obtain ⟨hat2, _hdecoded2, hstack2⟩ :=
+    counterState_of_dispatcher_calldataload_stepFE_to_shift_push_ok
+      hstack1 hcalldata1 hat1 hready1 hstep1
+  obtain ⟨hat3, _hdecoded3, hstack3⟩ :=
+    counterState_of_dispatcher_selector_shift_push_stepFE_to_shr_ok
+      hstack2 hat2 hready2 hstep2
+  obtain ⟨hat4, _hdecoded4, hstack4⟩ :=
+    counterState_of_dispatcher_selector_shr_stepFE_to_dup_ok
+      hstack3 hat3 hready3 hstep3
+  obtain ⟨hat5, _hdecoded5, hstack5⟩ :=
+    counterState_of_dispatcher_selector_dup_stepFE_to_selector_push_ok
+      hstack4 hat4 hready4 hstep4
+  obtain ⟨hat6, _hdecoded6, hstack6⟩ :=
+    counterState_of_dispatcher_initialize_selector_push_stepFE_to_eq_ok
+      hstack5 hat5 hready5 hstep5
+  obtain ⟨hat7, _hdecoded7, hstack7⟩ :=
+    counterState_of_dispatcher_initialize_eq_stepFE_to_trampoline_push_ok
+      hstack6 hat6 hready6 hstep6
+  obtain ⟨hat8, _hdecoded8, hstack8⟩ :=
+    counterState_of_dispatcher_trampoline_push_stepFE_to_jumpi_ok
+      hstack7 hat7 hready7 hstep7
+  obtain ⟨hat9, _hdecoded9, hstack9⟩ :=
+    counterState_of_dispatcher_initialize_jumpi_stepFE_to_trampoline_ok
+      hstack8 hat8 hready8 hstep8
+  obtain ⟨hat13, _hdecoded13, hstack13⟩ :=
+    counterState_of_initialize_trampoline_stepFE_to_body_ok
+      hstack9 hat9 hready9 hstep9 hat10 hready10 hstep10
+      hat11 hready11 hstep11 hat12 hready12 hstep12
+  rcases hready0 with ⟨hrunning0, hprecompile0, hstackOk0, hgas0⟩
+  rcases hready1 with ⟨hrunning1, hprecompile1, hstackOk1, hgas1⟩
+  rcases hready2 with ⟨hrunning2, hprecompile2, hstackOk2, hgas2⟩
+  rcases hready3 with ⟨hrunning3, hprecompile3, hstackOk3, hgas3⟩
+  rcases hready4 with ⟨hrunning4, hprecompile4, hstackOk4, hgas4⟩
+  rcases hready5 with ⟨hrunning5, hprecompile5, hstackOk5, hgas5⟩
+  rcases hready6 with ⟨hrunning6, hprecompile6, hstackOk6, hgas6⟩
+  rcases hready7 with ⟨hrunning7, hprecompile7, hstackOk7, hgas7⟩
+  rcases hready8 with ⟨hrunning8, hprecompile8, hstackOk8, hgas8⟩
+  rcases hready13 with ⟨hrunning13, hprecompile13, hstackOk13, hgas13⟩
+  have hcallStack1 : s1.callStack = s0.callStack :=
+    counterCallStack_of_stepFE_push0_ok hrunning0 hprecompile0
+      (counterPreparedDispatcherFirstPush0_decoded hat0) hstackOk0 hgas0 hstep0
+  have hcallStack2 : s2.callStack = s1.callStack :=
+    counterCallStack_of_stepFE_env_calldataload_ok hrunning1 hprecompile1
+      (counterPreparedDispatcherCalldataload_decoded hat1) hstack1 hstackOk1
+      hgas1 hstep1
+  have hcallStack3 : s3.callStack = s2.callStack :=
+    counterCallStack_of_stepFE_push1_ok hrunning2 hprecompile2
+      (counterPreparedDispatcherSelectorShiftPush224_decoded hat2)
+      hstackOk2 hgas2 hstep2
+  have hcallStack4 : s4.callStack = s3.callStack :=
+    counterCallStack_of_stepFE_compBit_shr_ok hrunning3 hprecompile3
+      (counterPreparedDispatcherSelectorShr_decoded hat3) hstack3 hstackOk3
+      hgas3 hstep3
+  have hcallStack5 : s5.callStack = s4.callStack :=
+    counterCallStack_of_stepFE_dup1_ok hrunning4 hprecompile4
+      (counterPreparedDispatcherSelectorDup1_decoded hat4) hstack4 hstackOk4
+      hgas4 hstep4
+  have hcallStack6 : s6.callStack = s5.callStack :=
+    counterCallStack_of_stepFE_push4_ok hrunning5 hprecompile5
+      (counterPreparedDispatcherInitializeSelectorPush4_decoded hat5)
+      hstackOk5 hgas5 hstep5
+  have hcallStack7 : s7.callStack = s6.callStack :=
+    counterCallStack_of_stepFE_compBit_eq_ok hrunning6 hprecompile6
+      (counterPreparedDispatcherInitializeEq_decoded hat6) hstack6 hstackOk6
+      hgas6 hstep6
+  have hcallStack8 : s8.callStack = s7.callStack :=
+    counterCallStack_of_stepFE_push1_ok hrunning7 hprecompile7
+      (counterPreparedDispatcherInitializeTrampolinePush_decoded hat7)
+      hstackOk7 hgas7 hstep7
+  rcases hat8 with ⟨hcode8, _hpc8, _hfork8⟩
+  have hdestNat :
+      (EvmSemantics.UInt256.ofNat counterInitializeTrampolineOffset).toNat =
+        counterInitializeTrampolineOffset := by
+    native_decide
+  have hvalid :
+      EvmSemantics.EVM.Decode.isValidJumpDest s8.executionEnv.code
+        (EvmSemantics.UInt256.ofNat counterInitializeTrampolineOffset).toNat =
+        true := by
+    rw [hcode8, hdestNat]
+    exact counterCompiledRuntimeCode_valid_initialize_trampoline_jumpdest
+  have hcallStack9 : s9.callStack = s8.callStack :=
+    counterCallStack_of_stepFE_stackMemFlow_jumpi_taken_ok hrunning8 hprecompile8
+      (counterPreparedDispatcherInitializeJumpi_decoded ⟨hcode8, _hpc8, _hfork8⟩)
+      hstack8 counterInitialize_selector_condition_nonzero hvalid hstackOk8 hgas8
+      hstep8
+  have hcallStack13 : s13.callStack = s9.callStack :=
+    counterCallStack_of_initialize_trampoline_stepFE_to_body_ok
+      hstack9 hat9 hready9 hstep9 hat10 hready10 hstep10
+      hat11 hready11 hstep11 hat12 hready12 hstep12
+  have hcallStack14 : s14.callStack = s13.callStack :=
+    counterCallStack_of_stepFE_stackMemFlow_jumpdest_ok hrunning13 hprecompile13
+      (counterPreparedInitializeBodyJumpdest_decoded hat13) hstackOk13 hgas13
+      hstep13
+  exact hcallStack14.trans
+    (hcallStack13.trans
+      (hcallStack9.trans
+        (hcallStack8.trans
+          (hcallStack7.trans
+            (hcallStack6.trans
+              (hcallStack5.trans
+                (hcallStack4.trans
+                  (hcallStack3.trans
+                    (hcallStack2.trans hcallStack1)))))))))
 
 theorem counterPreparedInitializeSetValuePush192_decoded
     {state : EvmState}
@@ -6078,6 +6606,7 @@ theorem counterRunBytecode_initialize_dispatcher_body_and_return_ok
           (counterStorageValue counterContractAddress counterCountSlot s26) ∧
       s36.callStack = s31.callStack ∧
       s36.callStack = s14.callStack ∧
+      s36.callStack = s0.callStack ∧
       counterObservableFromResult .initialize s36.toResult = .ok .none := by
   obtain ⟨hat14, _hdecoded14, hstack14⟩ :=
     counterState_of_dispatcher_trampoline_stepFE_to_initialize_first_opcode_ok
@@ -6109,6 +6638,14 @@ theorem counterRunBytecode_initialize_dispatcher_body_and_return_ok
       hready35 hstep35
   rcases hrunTail with
     ⟨_hrunTail, hhalt, hstorage, hcallStackReturn, hcallStackBody, hobs⟩
+  have hcallStackDispatcher : s14.callStack = s0.callStack :=
+    counterCallStack_of_dispatcher_trampoline_stepFE_to_initialize_first_opcode_ok
+      h0 hat0 hready0 hstep0 hcalldata0 hready1 hstep1
+      hready2 hstep2 hready3 hstep3 hready4 hstep4
+      hready5 hstep5 hready6 hstep6 hready7 hstep7
+      hready8 hstep8 hready9 hstep9 hat10 hready10 hstep10
+      hat11 hready11 hstep11 hat12 hready12 hstep12
+      hready13 hstep13
   have hrun :
       ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 36 =
         .ok (s36, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) := by
@@ -6126,7 +6663,8 @@ theorem counterRunBytecode_initialize_dispatcher_body_and_return_ok
         hready27 hstep27 hready28 hstep28 hready29 hstep29
         hready30 hstep30 hready31 hstep31 hready32 hstep32
         hready33 hstep33 hready34 hstep34 hready35 hstep35)
-  exact ⟨hrun, hhalt, hstorage, hcallStackReturn, hcallStackBody, hobs⟩
+  exact ⟨hrun, hhalt, hstorage, hcallStackReturn, hcallStackBody,
+    hcallStackBody.trans hcallStackDispatcher, hobs⟩
 
 def counterPowdrPreparedTraceStep (cfg : PowdrCounterConfig) (preparedState : EvmState)
     (call : CounterCall) : Except String (EvmState × ObservableReturn) := do
