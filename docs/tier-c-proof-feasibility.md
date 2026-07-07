@@ -375,6 +375,8 @@ ProofForge's default build still avoids powdr/mathlib imports.
     mask/set-value expression equals the storage model; the specialized
     `counterStack_of_initialize_sload_and_or_storageWord_ok` helper now returns
     that model value after the SLOAD/AND/OR sequence.
+    `counterStack_of_initialize_prefix_to_sload_ok` proves the initialize-body
+    prefix constructs the exact stack consumed by the SLOAD helper.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).

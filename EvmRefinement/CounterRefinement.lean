@@ -246,6 +246,203 @@ def setCounterStorageWord (address : EvmSemantics.AccountAddress)
       word := by
   simp [counterStorageValue, counterAccount]
 
+def counterPush0Op : EvmSemantics.Operation.PushOp :=
+  { width := ⟨0, by decide⟩ }
+
+def counterPush1Op : EvmSemantics.Operation.PushOp :=
+  { width := ⟨1, by decide⟩ }
+
+def counterDup1Op : EvmSemantics.Operation.DupOp :=
+  { idx := ⟨0, by decide⟩ }
+
+theorem counterStack_of_push0_ok
+    {state gasState nextState : EvmState}
+    (hstep :
+      EvmSemantics.EVM.stepF.push state gasState counterPush0Op none =
+        .ok nextState) :
+    nextState.stack = EvmSemantics.UInt256.ofNat 0 :: state.stack := by
+  unfold EvmSemantics.EVM.stepF.push counterPush0Op at hstep
+  simp at hstep
+  cases hstep
+  simp [EvmSemantics.EVM.State.replaceStackAndIncrPC,
+    EvmSemantics.UInt256.ofNat]
+
+theorem counterStack_of_push1_ok
+    {state gasState nextState : EvmState}
+    {value : EvmSemantics.UInt256} {argBytes : Nat}
+    (hstep :
+      EvmSemantics.EVM.stepF.push state gasState counterPush1Op
+        (some (value, argBytes)) = .ok nextState) :
+    nextState.stack = value :: state.stack := by
+  unfold EvmSemantics.EVM.stepF.push counterPush1Op at hstep
+  simp at hstep
+  cases hstep
+  simp [EvmSemantics.EVM.State.replaceStackAndIncrPC]
+
+theorem counterStack_of_dup1_ok
+    {state gasState nextState : EvmState}
+    {top : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
+    (hstack : state.stack = top :: rest)
+    (hstep :
+      EvmSemantics.EVM.stepF.dup state gasState counterDup1Op =
+        .ok nextState) :
+    nextState.stack = top :: top :: rest := by
+  unfold EvmSemantics.EVM.stepF.dup counterDup1Op at hstep
+  simp [hstack] at hstep
+  cases hstep
+  simp [EvmSemantics.EVM.State.replaceStackAndIncrPC]
+
+theorem counterStack_of_compBit_shl_ok
+    {state gasState nextState : EvmState}
+    {shift value : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
+    (hstack : state.stack = shift :: value :: rest)
+    (hstep :
+      EvmSemantics.EVM.stepF.compBit state gasState
+        (.SHL : EvmSemantics.Operation.CompareBitwiseOps) = .ok nextState) :
+    nextState.stack = EvmSemantics.UInt256.shiftLeft value shift :: rest := by
+  unfold EvmSemantics.EVM.stepF.compBit at hstep
+  simp [hstack] at hstep
+  cases hstep
+  simp [EvmSemantics.EVM.State.replaceStackAndIncrPC]
+
+theorem counterStack_of_compBit_not_ok
+    {state gasState nextState : EvmState}
+    {value : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
+    (hstack : state.stack = value :: rest)
+    (hstep :
+      EvmSemantics.EVM.stepF.compBit state gasState
+        (.NOT : EvmSemantics.Operation.CompareBitwiseOps) = .ok nextState) :
+    nextState.stack = EvmSemantics.UInt256.lnot value :: rest := by
+  unfold EvmSemantics.EVM.stepF.compBit at hstep
+  simp [hstack] at hstep
+  cases hstep
+  simp [EvmSemantics.EVM.State.replaceStackAndIncrPC]
+
+theorem counterStack_of_stopArith_sub_ok
+    {state gasState nextState : EvmState}
+    {a b : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
+    (hstack : state.stack = a :: b :: rest)
+    (hstep :
+      EvmSemantics.EVM.stepF.stopArith state gasState
+        (.SUB : EvmSemantics.Operation.StopArithOps) = .ok nextState) :
+    nextState.stack = (a - b) :: rest := by
+  unfold EvmSemantics.EVM.stepF.stopArith at hstep
+  simp [hstack] at hstep
+  cases hstep
+  simp [EvmSemantics.EVM.State.replaceStackAndIncrPC]
+
+theorem counterInitializeU64MaskBase_eq :
+    (EvmSemantics.UInt256.shiftLeft
+        (EvmSemantics.UInt256.ofNat 1)
+        (EvmSemantics.UInt256.ofNat 64) -
+      EvmSemantics.UInt256.ofNat 1) =
+      EvmSemantics.UInt256.ofNat (2 ^ 64 - 1) := by
+  native_decide
+
+theorem counterCountSlot_eq_zero :
+    counterCountSlot = EvmSemantics.UInt256.ofNat 0 := by
+  rfl
+
+theorem counterStack_of_initialize_prefix_to_sload_ok
+    {s0 g0 s1 g1 s2 g2 s3 g3 s4 g4 s5 g5 s6 g6 s7 g7 s8 g8
+      s9 g9 s10 g10 s11 g11 s12 : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (h0 : s0.stack = rest)
+    (hp0 :
+      EvmSemantics.EVM.stepF.push s0 g0 counterPush0Op none = .ok s1)
+    (hp192a :
+      EvmSemantics.EVM.stepF.push s1 g1 counterPush1Op
+        (some (EvmSemantics.UInt256.ofNat 192, 1)) = .ok s2)
+    (hshlSet :
+      EvmSemantics.EVM.stepF.compBit s2 g2
+        (.SHL : EvmSemantics.Operation.CompareBitwiseOps) = .ok s3)
+    (hp1a :
+      EvmSemantics.EVM.stepF.push s3 g3 counterPush1Op
+        (some (EvmSemantics.UInt256.ofNat 1, 1)) = .ok s4)
+    (hdup1 :
+      EvmSemantics.EVM.stepF.dup s4 g4 counterDup1Op = .ok s5)
+    (hp64 :
+      EvmSemantics.EVM.stepF.push s5 g5 counterPush1Op
+        (some (EvmSemantics.UInt256.ofNat 64, 1)) = .ok s6)
+    (hshl64 :
+      EvmSemantics.EVM.stepF.compBit s6 g6
+        (.SHL : EvmSemantics.Operation.CompareBitwiseOps) = .ok s7)
+    (hsub :
+      EvmSemantics.EVM.stepF.stopArith s7 g7
+        (.SUB : EvmSemantics.Operation.StopArithOps) = .ok s8)
+    (hp192b :
+      EvmSemantics.EVM.stepF.push s8 g8 counterPush1Op
+        (some (EvmSemantics.UInt256.ofNat 192, 1)) = .ok s9)
+    (hshlMask :
+      EvmSemantics.EVM.stepF.compBit s9 g9
+        (.SHL : EvmSemantics.Operation.CompareBitwiseOps) = .ok s10)
+    (hnot :
+      EvmSemantics.EVM.stepF.compBit s10 g10
+        (.NOT : EvmSemantics.Operation.CompareBitwiseOps) = .ok s11)
+    (hp0Slot :
+      EvmSemantics.EVM.stepF.push s11 g11 counterPush0Op none = .ok s12) :
+    s12.stack =
+      counterCountSlot :: counterInitializeLowMask ::
+        counterInitializeSetValue :: rest := by
+  have h1 : s1.stack = EvmSemantics.UInt256.ofNat 0 :: rest := by
+    rw [counterStack_of_push0_ok hp0, h0]
+  have h2 :
+      s2.stack =
+        EvmSemantics.UInt256.ofNat 192 ::
+          EvmSemantics.UInt256.ofNat 0 :: rest := by
+    rw [counterStack_of_push1_ok hp192a, h1]
+  have h3 : s3.stack = counterInitializeSetValue :: rest := by
+    rw [counterStack_of_compBit_shl_ok h2 hshlSet]
+    rfl
+  have h4 :
+      s4.stack =
+        EvmSemantics.UInt256.ofNat 1 :: counterInitializeSetValue :: rest := by
+    rw [counterStack_of_push1_ok hp1a, h3]
+  have h5 :
+      s5.stack =
+        EvmSemantics.UInt256.ofNat 1 :: EvmSemantics.UInt256.ofNat 1 ::
+          counterInitializeSetValue :: rest := by
+    rw [counterStack_of_dup1_ok h4 hdup1]
+  have h6 :
+      s6.stack =
+        EvmSemantics.UInt256.ofNat 64 :: EvmSemantics.UInt256.ofNat 1 ::
+          EvmSemantics.UInt256.ofNat 1 :: counterInitializeSetValue ::
+            rest := by
+    rw [counterStack_of_push1_ok hp64, h5]
+  have h7 :
+      s7.stack =
+        EvmSemantics.UInt256.shiftLeft
+          (EvmSemantics.UInt256.ofNat 1)
+          (EvmSemantics.UInt256.ofNat 64) ::
+          EvmSemantics.UInt256.ofNat 1 :: counterInitializeSetValue ::
+            rest := by
+    rw [counterStack_of_compBit_shl_ok h6 hshl64]
+  have h8 :
+      s8.stack =
+        EvmSemantics.UInt256.ofNat (2 ^ 64 - 1) ::
+          counterInitializeSetValue :: rest := by
+    rw [counterStack_of_stopArith_sub_ok h7 hsub,
+      counterInitializeU64MaskBase_eq]
+  have h9 :
+      s9.stack =
+        EvmSemantics.UInt256.ofNat 192 ::
+          EvmSemantics.UInt256.ofNat (2 ^ 64 - 1) ::
+            counterInitializeSetValue :: rest := by
+    rw [counterStack_of_push1_ok hp192b, h8]
+  have h10 :
+      s10.stack =
+        EvmSemantics.UInt256.shiftLeft
+          (EvmSemantics.UInt256.ofNat (2 ^ 64 - 1))
+          (EvmSemantics.UInt256.ofNat 192) ::
+          counterInitializeSetValue :: rest := by
+    rw [counterStack_of_compBit_shl_ok h9 hshlMask]
+  have h11 :
+      s11.stack = counterInitializeLowMask :: counterInitializeSetValue ::
+        rest := by
+    rw [counterStack_of_compBit_not_ok h10 hnot]
+    rfl
+  rw [counterStack_of_push0_ok hp0Slot, h11, counterCountSlot_eq_zero]
+
 theorem counterStack_of_sload_stackMemFlow_ok
     {state gasState nextState : EvmState} {slot : EvmSemantics.UInt256}
     {rest : List EvmSemantics.UInt256}
