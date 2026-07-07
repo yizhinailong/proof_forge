@@ -10,6 +10,17 @@ which proofs pay for themselves first. Tasks are tracked in
 
 ## What already exists
 
+> **Coverage boundary — read before citing the rows below.** The in-Lean
+> executable target traces (Solana sBPF and Wasm/NEAR) are `native_decide`
+> checks over a **fixed set of fixtures** — Counter, ValueVault, and a few
+> storage probes — at **single inputs**, on a scalar plus focused map/array
+> subset. They are **pointwise, not universal**: they prove nothing about other
+> contracts or other inputs, and they do not cover CPI/PDA/syscalls/Promise/async
+> (those stay in external differential gates). A green executable-trace theorem
+> means "these fixtures/probes match the IR at these inputs", **not** "the
+> target semantics is covered". Universal coverage of a defined *supported fragment* is
+> the C-proof track (see the tier table), not these fixtures.
+
 The NEAR work contributed the first three formal anchors, now on `main`:
 
 | Anchor | Module | What it gives us |

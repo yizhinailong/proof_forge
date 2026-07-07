@@ -424,3 +424,52 @@ P2 IR 归纳(部分已落) ─┬─→ S6 (Solana C-proof)
 再把执行从外部 Rust host 搬进 Lean）——这一步只需 P1、现在就能动，且立刻把 Solana 从
 "子串检查"、WASM 从"外部执行"升级成"in-Lean 真执行检查"。C-proof（S6/W6）是叠加在
 P2 归纳之上的后一层。
+
+### 7.6 优先级修正：从逐点 fixture 到全称覆盖（"IR 覆盖所有链"的正确路径）
+
+> 观测确认：现有目标可执行-trace 定理覆盖 **2 个合约（Counter/ValueVault）+
+> 2 个存储 probe（fixed array / u64 map）**，仍然是逐点 `native_decide`、
+> 标量 + 少量 map/array 子集。本小节据此**修正 7.1/7.2 的优先级**：先立支持片段 +
+> 首个全称证明，再扩广度。
+
+**为什么加 fixture 到不了"覆盖所有语义"**：`native_decide` 本质逐点求值一个闭合项，
+证的是"这一个合约/fixture、这一组输入"。加 ERC20/DEX 就是加 N 条 fixture + 每次扩解释器，
+**线性跑步机，永远到不了"所有合约/所有输入"**（连 ValueVault 都只验默认输入一个点）。
+**逐点绿定理 ≠ 语义被覆盖。**
+
+**修正后的优先级（先全称、再广度，取代 S4/S5 早于 S6 的排法）**：
+
+1. **[上移] 支持片段谓词（Track 1.4）**：每个目标定义可判定的
+   `SupportedFragment(target, module) : Bool`，精确圈定"该目标能忠实下降的 IR
+   节点/形状"。**单一真相源**，替代散在三层的拒绝逻辑（capability / validate / Phase-1）。
+2. **[上移] 首个全称 C-proof（哪怕只 Counter）**：把 `counter_*_executable_trace_ok`
+   从 `native_decide`（单输入）升级成 `∀ input, observe(target)=observe(IR)`（对所有
+   调用序列/输入全称），用 `IRTraceMatches` 归纳 + per-entrypoint 模拟引理。**这是
+   验证"全称路走得通"的关键点。** 前置：Track 1.1（IR 解释器 total 化）。
+3. **[然后才] 按节点扩广度（原 S4/S5 及 WASM 深化）**：每扩一类节点
+   （map/struct/events/hashing/位宽），三件事同步——(a) 扩 `SupportedFragment` 谓词、
+   (b) 扩解释器、(c) 扩模拟引理。**全称定理自动覆盖用到该节点的所有合约**，不再一合约
+   一 fixture。
+4. **片段外**：`SupportedFragment = false` 的模块**编译期拒绝**（接 Track 0 的能力/校验门，
+   顺带修 0.1/0.2/0.3 的漏）。
+
+**"IR 覆盖所有链"的准确机制**：不是"给每条链手写 N 个合约 fixture"，而是对每个目标证
+
+> `∀ module ∈ SupportedFragment(target), ∀ input,`
+> `  observe(target(module,input)) = observe(IR(module,input))`，片段外编译期拒绝。
+
+**一条谓词 + 一条全称定理，覆盖片段内无穷多合约**；换链 = 换一份目标 Lean 语义（自建，
+或引入 EVMYulLean / Cairo formal-proofs / Lampe，见第六节）+ 重新实例化同一
+`TargetSemantics` 接口（P1）。这才是 IR 通吃所有链的机制，而不是 fixture 堆叠。
+
+**修订依赖顺序（取代 7.5 的图）**：
+
+```text
+P1 共享接口
+  └→ Track 1.1 IR total 化 ─→ [支持片段谓词] ─→ [首个全称 C-proof: Counter] ─→ 广度×全称同步推进
+                             （原逐点 C-diff 解释器 S1..W5 作为回归 smoke 保留）
+```
+
+**诚实边界**：全称也只覆盖**支持片段**，非任意图灵完备逻辑；全套链运行时
+（CPI/syscall/Promise/账户模型）永远留外部差分（Mollusk/wasmtime），是 non-goal。
+"覆盖所有链" = "覆盖每条链的支持片段、全称，片段外拒绝"，不是"任意合约都能证"。
