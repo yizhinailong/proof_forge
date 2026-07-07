@@ -9521,6 +9521,11 @@ structure CounterPreparedInitializeSegmentModel (s0 s36 : EvmState) where
     ProofForge.Backend.Evm.PowdrExec.ExecutionSegment 36
       counterPreparedInitializeSegmentPost s0 s36
 
+structure CounterPreparedInitializeReductionChainModel (s0 s36 : EvmState) where
+  chain :
+    ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain s0 36 s36
+  postcondition : counterPreparedInitializeSegmentPost s0 s36
+
 theorem counterCompiledPreparedInitialize_storage_model_of_dispatcher_body_and_return_ok
     {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17
       s18 s19 s20 s21 s22 s23 s24 s25 s26 s27 s28 s29 s30 s31 s32 s33
@@ -9723,6 +9728,30 @@ theorem counterPreparedInitializeSegmentModel_of_stepFE_path
   refine ⟨hhalt, hcallStackPrepared, ?_, hobs⟩
   rw [hstorageRun, hstoragePrefix]
 
+def counterPreparedInitializeReductionChainModel_of_segmentModel
+    {s0 s36 : EvmState}
+    (path : CounterPreparedInitializeStepFEPath s0 s36)
+    (model : CounterPreparedInitializeSegmentModel s0 s36) :
+    CounterPreparedInitializeReductionChainModel s0 s36 where
+  chain := counterPreparedInitializeStepFEPath_to_reductionChain path
+  postcondition := model.segment.postcondition
+
+def counterPreparedInitializeSegmentModel_of_reductionChainModel
+    {s0 s36 : EvmState}
+    (model : CounterPreparedInitializeReductionChainModel s0 s36) :
+    CounterPreparedInitializeSegmentModel s0 s36 where
+  segment :=
+    ProofForge.Backend.Evm.PowdrExec.executionSegment_of_reductionChain
+      model.chain model.postcondition
+
+def counterPreparedInitializeReductionChainModel_of_stepFE_path
+    {s0 s36 : EvmState}
+    (hprepared : CounterPreparedCall counterCompiledPowdrConfig .initialize s0)
+    (path : CounterPreparedInitializeStepFEPath s0 s36) :
+    CounterPreparedInitializeReductionChainModel s0 s36 :=
+  counterPreparedInitializeReductionChainModel_of_segmentModel path
+    (counterPreparedInitializeSegmentModel_of_stepFE_path hprepared path)
+
 theorem counterCompiledPreparedInitialize_storage_model_of_segment_model_ok
     {s0 s36 : EvmState}
     (hprepared : CounterPreparedCall counterCompiledPowdrConfig .initialize s0)
@@ -9744,6 +9773,27 @@ theorem counterCompiledPreparedInitialize_storage_model_of_segment_model_ok
       hprepared hrun hreturned hcallStack hobservable
   exact ⟨s36, hstep, hstorageModel⟩
 
+theorem counterCompiledPreparedInitialize_storage_model_of_reduction_chain_model_ok
+    {s0 s36 : EvmState}
+    (hprepared : CounterPreparedCall counterCompiledPowdrConfig .initialize s0)
+    (model : CounterPreparedInitializeReductionChainModel s0 s36) :
+    ∃ nextEvm,
+      counterPowdrPreparedTraceStep counterCompiledPowdrConfig s0 .initialize =
+        .ok (nextEvm, .none) ∧
+      counterStorageValue counterContractAddress counterCountSlot nextEvm =
+        counterInitializeStorageWord
+          (counterStorageValue counterContractAddress counterCountSlot s0) := by
+  rcases model.postcondition with
+    ⟨hreturned, hcallStack, hstorageModel, hobservable⟩
+  have hrun :
+      ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 36 =
+        .ok (s36, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) :=
+    ProofForge.Backend.Evm.PowdrExec.runSteps_of_reductionChain model.chain
+  have hstep :=
+    counterPowdrPreparedTraceStep_initialize_of_run36_returned_prepared_ok
+      hprepared hrun hreturned hcallStack hobservable
+  exact ⟨s36, hstep, hstorageModel⟩
+
 theorem counterCompiledPreparedInitialize_storage_model_of_stepFE_path_ok
     {s0 s36 : EvmState}
     (hprepared : CounterPreparedCall counterCompiledPowdrConfig .initialize s0)
@@ -9756,6 +9806,20 @@ theorem counterCompiledPreparedInitialize_storage_model_of_stepFE_path_ok
           (counterStorageValue counterContractAddress counterCountSlot s0) := by
   exact counterCompiledPreparedInitialize_storage_model_of_segment_model_ok
     hprepared (counterPreparedInitializeSegmentModel_of_stepFE_path hprepared path)
+
+theorem counterCompiledPreparedInitialize_storage_model_of_stepFE_path_chain_ok
+    {s0 s36 : EvmState}
+    (hprepared : CounterPreparedCall counterCompiledPowdrConfig .initialize s0)
+    (path : CounterPreparedInitializeStepFEPath s0 s36) :
+    ∃ nextEvm,
+      counterPowdrPreparedTraceStep counterCompiledPowdrConfig s0 .initialize =
+        .ok (nextEvm, .none) ∧
+      counterStorageValue counterContractAddress counterCountSlot nextEvm =
+        counterInitializeStorageWord
+          (counterStorageValue counterContractAddress counterCountSlot s0) := by
+  exact counterCompiledPreparedInitialize_storage_model_of_reduction_chain_model_ok
+    hprepared
+    (counterPreparedInitializeReductionChainModel_of_stepFE_path hprepared path)
 
 abbrev CounterPreparedInitializeSegmentProvider :=
   ProofForge.Backend.Evm.PowdrExec.SegmentProvider
