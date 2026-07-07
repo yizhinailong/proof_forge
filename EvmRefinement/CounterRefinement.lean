@@ -138,6 +138,52 @@ def setCounterStorageWord (address : EvmSemantics.AccountAddress)
       word := by
   simp [counterStorageValue, counterAccount]
 
+theorem counterStorageValue_of_sstore_stackMemFlow_ok
+    {state gasState nextState : EvmState} {slot value : EvmSemantics.UInt256}
+    {rest : List EvmSemantics.UInt256}
+    (haddr : state.executionEnv.address = counterContractAddress)
+    (hstack : state.stack = slot :: value :: rest)
+    (hslot : slot = counterCountSlot)
+    (hstep :
+      EvmSemantics.EVM.stepF.stackMemFlow state gasState
+        (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) = .ok nextState) :
+    counterStorageValue counterContractAddress counterCountSlot nextState = value := by
+  unfold EvmSemantics.EVM.stepF.stackMemFlow at hstep
+  cases hperm : state.executionEnv.permitStateMutation
+  · simp [hperm, EvmSemantics.EVM.static] at hstep
+  · simp [hperm] at hstep
+    by_cases hsentry :
+        EvmSemantics.EVM.Gas.sstoreSentry state.fork gasState.gasAvailable
+    · simp [hsentry] at hstep
+    · simp [hsentry, hstack] at hstep
+      by_cases hgas :
+          EvmSemantics.EVM.Gas.sstoreCost state.fork
+              (state.substate.originalStorage state.executionEnv.address slot)
+              ((state.accountMap state.executionEnv.address).storage slot) value +
+            EvmSemantics.EVM.Gas.sstoreColdSurcharge state slot ≤ gasState.gasAvailable
+      · simp [hgas] at hstep
+        cases hstep
+        simp [counterStorageValue, counterAccount,
+          EvmSemantics.EVM.State.replaceStackAndIncrPC, haddr, hslot]
+      · simp [hgas] at hstep
+
+theorem counterInitializeStorageValue_of_sstore_stackMemFlow_ok
+    {state gasState nextState : EvmState} {rest : List EvmSemantics.UInt256}
+    (haddr : state.executionEnv.address = counterContractAddress)
+    (hstack :
+      state.stack =
+        counterCountSlot ::
+          counterInitializeStorageWord
+            (counterStorageValue counterContractAddress counterCountSlot state) ::
+          rest)
+    (hstep :
+      EvmSemantics.EVM.stepF.stackMemFlow state gasState
+        (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) = .ok nextState) :
+    counterStorageValue counterContractAddress counterCountSlot nextState =
+      counterInitializeStorageWord
+        (counterStorageValue counterContractAddress counterCountSlot state) :=
+  counterStorageValue_of_sstore_stackMemFlow_ok haddr hstack rfl hstep
+
 def irCounterCount? (state : IRState) : Option Nat :=
   match state.read "count" with
   | some (.u64 count) => some count

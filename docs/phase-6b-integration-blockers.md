@@ -203,6 +203,10 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   names the exact remaining prepared-frame storage-model surface, and the
   compiled `counterCompiledPowdr_safe_trace_simulates_*_prepared_storage_models`
   theorems connect that surface directly to the safe universal trace theorems.
+  The SSTORE slice now has
+  `counterInitializeStorageValue_of_sstore_stackMemFlow_ok`, proving that a
+  successful powdr `SSTORE` helper step with the initialize model value on the
+  stack writes that value into Counter slot 0.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -254,6 +258,10 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   and `counterCompiledPowdr_safe_trace_simulates_from_state_safe_prepared_storage_models`
   — green under `lake build EvmRefinement`; compiled prepared-frame storage
   models imply the existing safe universal IR/powdr trace theorems.
+- `counterInitializeStorageValue_of_sstore_stackMemFlow_ok` — green under
+  `lake build EvmRefinement`; the final SSTORE helper branch writes the
+  initialize storage model into Counter slot 0 when the dispatcher/body proof
+  establishes the required stack shape.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 
@@ -280,4 +288,5 @@ per-entrypoint obligation surface now also carries this boundary through
 `CounterStepSafe`, and the safe trace theorem carries it through universal trace
 induction. `CounterTraceSafeAtState` is the current state/input predicate form;
 the remaining Phase 6c work is to prove the compiled runtime's prepared-frame
-EVM-only powdr storage models.
+EVM-only powdr storage models, starting with the dispatcher/body path to the
+initialize SSTORE stack shape.
