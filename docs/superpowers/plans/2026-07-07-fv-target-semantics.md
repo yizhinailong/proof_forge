@@ -156,6 +156,52 @@ surface. Remaining EVM work is E3.
 
 ## Task E3 — First real IR↔EVM refinement (Counter, against powdr's `Step`)
 
+> ### ⚠️ COURSE CORRECTION (2026-07-08) — STOP hand-deriving `initialize`; build ONE reusable symbolic-execution layer
+>
+> **What went wrong.** The universal EVM Counter refinement was already green at ~1,100
+> lines via `native_decide` on powdr's `stepF`. The follow-on path — hand-deriving powdr's
+> `runBytecode` opcode-by-opcode, step-by-step ("first step → first four steps") for
+> `initialize` — has grown to **9,544 lines**, covers **only `initialize`**
+> (`counterRunBytecode_increment*` / `_get*` are both **0**), produced **no reusable
+> machinery** (~3,044 Counter-specific mentions; no contract-agnostic module), and **does not
+> build** (unsolved goal at `CounterRefinement.lean:8170`, the `OutOfGas` branch). This will
+> not scale — increment/get/ValueVault would each need a fresh multi-thousand-line grind.
+>
+> **Do this instead (replaces the per-step derivation approach):**
+>
+> **1. New contract-agnostic module `EvmRefinement/PowdrExec.lean`** (NOT inside
+> `CounterRefinement.lean`). A small library of GENERIC lemmas over powdr's
+> `stepF`/`runBytecode`, each proven **once**, parameterized by the pre-state, **never by
+> "Counter"**:
+> - a fuel/step driver (`runSteps` + an unfolding lemma);
+> - **per-opcode transition lemmas** — `PUSH`, `DUP`/`SWAP`, `CALLDATALOAD`, `EQ`,
+>   `JUMP`/`JUMPI`, `SLOAD`, `SSTORE`, `ADD`, `RETURN`, `STOP` — each stating: "if the next
+>   opcode is X, `stepF` yields this post-state (stack/storage/pc)";
+> - **gas handled ONCE** — prove a single `stepF_not_out_of_gas (h : s.gas ≥ bound) : …` (or
+>   thread a `GasSufficient` precondition through the driver). **This is how you fix 8170 — do
+>   NOT re-derive the `OutOfGas` branch per segment.**
+>
+> **2. Each entrypoint becomes a SHORT composition (target < ~100 lines each):**
+> - `initialize` = dispatch ∘ `SSTORE 0` ∘ `STOP`/`RETURN`
+> - `increment` = dispatch ∘ `SLOAD` ∘ `ADD 1` ∘ `SSTORE` ∘ `RETURN`
+> - `get` = dispatch ∘ `SLOAD` ∘ `RETURN`
+> Compose the generic opcode lemmas; do **not** re-derive execution step-by-step.
+>
+> **3. Genericity test (definition of done).** A **second, different contract** (e.g. a
+> two-slot counter, or ValueVault's `get_balance`) must discharge its obligations by
+> **reusing the same `PowdrExec` lemmas** with a short proof. If it needs fresh
+> hand-derivation, the layer isn't generic yet.
+>
+> **Revised acceptance:** `PowdrExec.lean` holds contract-agnostic opcode + gas lemmas;
+> `initialize`/`increment`/`get` each discharged by composing them (short proofs;
+> `counterRunBytecode_increment*` / `_get*` > 0); `lake build EvmRefinement` green; a second
+> contract reuses `PowdrExec`.
+>
+> **Fallback.** If generic symbolic execution over powdr is too costly, the
+> `native_decide`-on-`stepF` discharge (already green at ~1,100 lines) is acceptable — bank
+> it, document "we trust powdr's conformance-tested `stepF` via `native_decide`", and move to
+> breadth / Solana / WASM. **Either way, stop hand-deriving `initialize` step-by-step.**
+
 - **① Read first:** `ProofForge/Backend/Refinement/CounterUniversal.lean` (the proof shape:
   per-entrypoint simulation + generic trace induction, currently against a toy `targetStep`);
   `docs/tier-c-proof-feasibility.md` §3 (the target-obligation shape).
@@ -482,6 +528,91 @@ external dependency, but the external differential gate stays (Background "Two-h
   `increment` (`native_decide` is fine — this is C-diff, not C-proof).
 - **Acceptance:** `R`-holds theorems for the Counter scenario `#check` and pass.
 - **Depends on:** S1.
+
+---
+
+## Solana C-proof lane (SOL-1–SOL-4) — the self-build twin of EVM E3
+
+> **This is EVM E3 done self-build**, and it **bakes in the EVM COURSE CORRECTION from day
+> one** (see Task E3): build ONE generic per-instruction layer first, then thin per-entrypoint
+> proofs. Do NOT hand-derive `initialize` step-by-step (that was the 9,544-line EVM rabbit hole).
+>
+> **Where Solana stands now:** the executable interpreter is done — `SbpfInterpreter.lean`
+> (`SbpfState` :48, `step` :215, fuel `run` :273), plugged into the shared `TargetSemantics`
+> (`solanaSbpfTargetSemantics`), with C-diff `native_decide` obligations green (Counter /
+> ValueVault / map / array). MISSING is the C-proof: per-instruction lemmas + universal (`∀`
+> call list) IR↔sBPF refinement. Solana is exactly where EVM was *before* E3.
+>
+> **Differences from EVM (all in Solana's favour):**
+> - **No E1/E2** — we do NOT import an external semantics; the interpreter is our own pure
+>   Lean, already in the default build (no lake dep, no mathlib).
+> - **We OWN `step`** — so we can shape it reduction-friendly and prove per-instruction lemmas
+>   cleanly. EVM's pain came from reverse-engineering an external black box (powdr) with a
+>   stack machine + gas/`OutOfGas` branch. sBPF is a **register machine, no stack, no gas
+>   branch** → the generic layer is far smaller. Solana should avoid the EVM rabbit hole.
+> - **Two-hop trust (keep forever)** — "our interpreter ≈ real sBPF VM" is NOT proven in Lean;
+>   it stays checked by the external **Mollusk/Surfpool** differential gate. Never delete it.
+>
+> **Non-goals (stay in Mollusk/Surfpool):** CPI, PDA derivation, syscalls beyond the storage
+> read/write stub, the account model. The Lean interpreter covers straight-line compute +
+> scalar storage + U64/Unit returns (the Counter fragment).
+
+## Task SOL-1 — Generic per-instruction sBPF step-lemma layer (`SbpfExec.lean`)
+
+- **① Read first:** the ⚠️ COURSE CORRECTION under Task E3 (the "generic layer, not
+  per-entrypoint hand-derivation" lesson); `docs/solana-sbpf-executable-trace.md`.
+- **② Context to load:** `ProofForge/Backend/Solana/SbpfInterpreter.lean` (`SbpfState` :48,
+  `step` :215, `run` :273); `ProofForge/Backend/Solana/Asm.lean` (`Opcode`/`Inst`).
+- **③ Do:** create `ProofForge/Backend/Solana/SbpfExec.lean` — a **contract-agnostic** library
+  of per-instruction step lemmas over `SbpfInterpreter.step`, each proven **once**,
+  parameterized by the pre-state, **never by "Counter"**: `mov64`/`add64`/`sub64`/`mul64`/
+  `lsh64`, `ldxdw`/`ldxw` (load), `stxdw`/`stxw` (store), `jeq`/`jne`/`ja` (branch), `exit`,
+  and `call` (storage read/write syscall stub) — each: "if the instruction at `pc` is X,
+  `step` yields this post-state (regs/mem/pc)". Add a `run` unfolding lemma (`run_succ`). If
+  `step` is not reduction-friendly, refactor it (we own it — unlike powdr).
+- **Acceptance:** `SbpfExec.lean` holds per-instruction step lemmas, contract-agnostic (no
+  "Counter" in the statements); `lake build` green. Expect this MUCH smaller than EVM's
+  PowdrExec (register machine, no stack, no gas).
+- **Depends on:** none (interpreter already exists).
+
+## Task SOL-2 — Per-entrypoint simulation via composition (thin proofs)
+
+- **② Context to load:** `SbpfExec` (SOL-1); `ProofForge/Backend/Solana/SbpfAsm.lean`
+  (`lowerModule` — the emitted instruction sequence per entrypoint);
+  `ProofForge/Backend/Refinement/CounterUniversal.lean` (the IR-side per-entrypoint sim lemmas).
+- **③ Do:** for `initialize`/`increment`/`get`, **compose** the `SbpfExec` lemmas over the
+  emitted sBPF sequence to derive each entrypoint's post-state: `initialize` = dispatch ∘
+  store-count-0 ∘ `exit`; `increment` = dispatch ∘ `ldxdw` ∘ `add64` ∘ `stxdw` ∘ `exit`;
+  `get` = dispatch ∘ `ldxdw` ∘ set-return-data ∘ `exit`. Keep each proof SHORT (a composition),
+  NOT a step-by-step hand-derivation.
+- **Acceptance:** 3 per-entrypoint simulation theorems, short proofs, green.
+- **Depends on:** SOL-1.
+
+## Task SOL-3 — Universal IR↔sBPF refinement (the E3 payoff, self-build)
+
+- **② Context to load:** `ProofForge/Backend/Solana/StateLayout.lean` (the `R` account-data
+  offset); `solanaSbpfTargetSemantics` (`Solana/Refinement.lean`); the shared
+  `ProofForge.Backend.Refinement.traceSimulation_lift` + `CounterUniversal` induction; the
+  `counterTraceSafe` overflow predicate (from the EVM lane / CounterUniversal).
+- **③ Do:** define/reuse `R : IR.State ↔ SbpfState` (IR `count` ↔ account-data U64 at the
+  `StateLayout` offset); prove per-entrypoint IR↔sBPF simulation from SOL-2; lift to the
+  **universal** theorem `∀ safe Counter calls, IR trace ⟷ sBPF interpreter trace` via the
+  SHARED induction — **same shape as EVM E3, nearly free once the per-entrypoint sims exist.**
+  Handle overflow via `counterTraceSafe` (sBPF `add64` wraps at 64 bits; the safe predicate
+  bounds it — the FV-5 overflow boundary on the Solana side).
+- **Acceptance:** a universal (`∀` safe calls, by `induction`, NOT `native_decide`) IR↔sBPF
+  refinement theorem for Counter; `just solana-light` / `lake build` green; keep the existing
+  `native_decide` obligations as regression smoke.
+- **Depends on:** SOL-2; P1 (landed); the generic trace induction (landed).
+
+## Task SOL-4 — Genericity test (proves `SbpfExec` actually scales)
+
+- **③ Do:** a **second, different contract** (a two-slot counter, or ValueVault's
+  `get_balance`) discharges its per-entrypoint simulation by **reusing the same `SbpfExec`
+  lemmas** with a short proof. If it needs fresh per-instruction hand-derivation, `SbpfExec`
+  isn't generic yet — go back to SOL-1.
+- **Acceptance:** a second contract reuses `SbpfExec`; short proof; green.
+- **Depends on:** SOL-3.
 
 ## Task W1 — WASM executable-trace design note (docs only)
 
