@@ -439,19 +439,30 @@ P2 归纳之上的后一层。
 
 **修正后的优先级（先全称、再广度，取代 S4/S5 早于 S6 的排法）**：
 
-1. **[上移] 支持片段谓词（Track 1.4）**：每个目标定义可判定的
-   `SupportedFragment(target, module) : Bool`，精确圈定"该目标能忠实下降的 IR
-   节点/形状"。**单一真相源**，替代散在三层的拒绝逻辑（capability / validate / Phase-1）。
+1. **[先落] IR Counter 片段 total 化（Track 1.1）**：把全称证明要用的
+   Counter IR 解释路径从 `partial def` 旁路出来，改成 fuel-indexed total `def`，并给
+   `initialize/get/increment` 建 per-entrypoint 全状态 lemma。
 2. **[上移] 首个全称 C-proof（哪怕只 Counter）**：把 `counter_*_executable_trace_ok`
    从 `native_decide`（单输入）升级成 `∀ input, observe(target)=observe(IR)`（对所有
    调用序列/输入全称），用 `IRTraceMatches` 归纳 + per-entrypoint 模拟引理。**这是
-   验证"全称路走得通"的关键点。** 前置：Track 1.1（IR 解释器 total 化）。
-3. **[然后才] 按节点扩广度（原 S4/S5 及 WASM 深化）**：每扩一类节点
+   验证"全称路走得通"的关键点。**
+3. **[接上] 支持片段谓词（Track 1.4）**：每个目标定义可判定的
+   `SupportedFragment(target, module) : Bool`，精确圈定"该目标能忠实下降的 IR
+   节点/形状"。**单一真相源**，替代散在三层的拒绝逻辑（capability / validate / Phase-1）。
+4. **[然后才] 按节点扩广度（原 S4/S5 及 WASM 深化）**：每扩一类节点
    （map/struct/events/hashing/位宽），三件事同步——(a) 扩 `SupportedFragment` 谓词、
    (b) 扩解释器、(c) 扩模拟引理。**全称定理自动覆盖用到该节点的所有合约**，不再一合约
    一 fixture。
-4. **片段外**：`SupportedFragment = false` 的模块**编译期拒绝**（接 Track 0 的能力/校验门，
+5. **片段外**：`SupportedFragment = false` 的模块**编译期拒绝**（接 Track 0 的能力/校验门，
    顺带修 0.1/0.2/0.3 的漏）。
+
+**当前落地状态（2026-07-07）**：`ProofForge/IR/CounterSemantics.lean` 已把 Counter
+IR 片段 total 化；`ProofForge/Backend/Refinement/CounterUniversal.lean` 已证明
+Counter per-entrypoint simulation 与任意 Counter call list 的 trace 归纳（目标是很小的
+`counter-model`，不是 EVM/Solana/Wasm VM）；`ProofForge/Backend/Refinement/Core.lean`
+新增 `TargetSemantics.supportedFragment`，目前只声明/接受 canonical Counter 片段并拒绝
+checked/renamed Counter。对应 smoke：`just ir-counter-semantics-smoke`、
+`just counter-universal-refinement-smoke`、`just supported-fragment-smoke`。
 
 **"IR 覆盖所有链"的准确机制**：不是"给每条链手写 N 个合约 fixture"，而是对每个目标证
 

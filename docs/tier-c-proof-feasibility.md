@@ -181,6 +181,20 @@ Concretely, the pieces are:
   inductive predicate agree with the existing `runTrace` on the Counter
   scenario. `just ir-step-semantics-smoke` runs it and is wired into
   `just check` (Lean-only, ~2.5s).
+- Track 1.1 now has a total Counter IR fragment in
+  `ProofForge/IR/CounterSemantics.lean`: fuel-indexed total `def`s for the
+  Counter subset plus per-entrypoint all-state lemmas for `initialize`, `get`,
+  and `increment`. `just ir-counter-semantics-smoke` pins the surface.
+- `ProofForge/Backend/Refinement/CounterUniversal.lean` adds the first
+  Counter C-proof-shaped simulation layer: per-entrypoint simulation lemmas,
+  an induction theorem over every Counter call list from related states, and
+  an init-prefixed theorem from arbitrary IR states. The target is a deliberately
+  tiny `counter-model`, not EVM/Yul bytecode or another chain VM.
+- `ProofForge/Backend/Refinement/Core.lean` now gives `TargetSemantics` a
+  `supportedFragments` boundary plus `supportedFragment` /
+  `requireSupportedFragment`. `Tests/SupportedFragment.lean` pins that the
+  `counter-model` accepts canonical Counter and rejects checked/renamed Counter
+  modules outside the proved fragment.
 
 **Design choice (b) — big-step induction over the call list.** We keep the
 existing big-step interpreter `IR.Semantics.runEntrypointWithArgs` as the
