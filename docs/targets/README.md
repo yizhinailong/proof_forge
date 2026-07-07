@@ -92,7 +92,8 @@ spike is scheduled.
 | [Algorand AVM](algorand-avm.md) | Source package generation | Parked behind a later sourcegen-lane exit. |
 | [Cardano Plutus/Aiken](cardano-plutus-aiken.md) | eUTXO validator sourcegen | Parked behind a later sourcegen-lane exit. |
 | [Tezos Michelson/LIGO](tezos-michelson-ligo.md) | Source package generation | Parked behind a later sourcegen-lane exit. |
-| [Starknet Cairo](starknet-cairo.md) | Cairo/Sierra/CASM sourcegen | Candidate for the first non-Move sourcegen pick after Aptos and the sourcegen-lane exit. |
+| [Starknet Cairo](starknet-cairo.md) | Cairo/Sierra/CASM sourcegen **+ FV-import** | First non-Move sourcegen pick after Aptos; **ZK-import group** — has a Lean 4 semantics (`starkware-libs/formal-proofs`) for IR↔Cairo refinement once codegen lands. |
+| [Noir (Aztec)](noir-aztec.md) | ZK-circuit sourcegen **+ FV-import** | **ZK-import group** — has a Lean 4 semantics (Reilabs `lampe`); gated on IR→Noir codegen. Not in the repo yet. |
 | [TON TVM](ton-tvm.md) | TVM sourcegen | Parked behind a later sourcegen-lane exit. |
 | [Bitcoin Script/Miniscript](bitcoin-script-miniscript.md) | Policy family | Opens only when the separate `policy.*` lane is scheduled. |
 | [Zcash Shielded](zcash-shielded.md) | Privacy UTXO / ZK payment | Follows a working Bitcoin policy lane. |
@@ -121,6 +122,7 @@ spike is scheduled.
 - [Cardano Plutus/Aiken target](cardano-plutus-aiken.md)
 - [Tezos Michelson/LIGO target](tezos-michelson-ligo.md)
 - [Starknet Cairo target](starknet-cairo.md)
+- [Noir (Aztec) target](noir-aztec.md)
 - [Aleo Leo target](aleo-leo.md)
 - [TON TVM target](ton-tvm.md)
 - [Bitcoin Script/Miniscript target](bitcoin-script-miniscript.md)
