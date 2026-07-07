@@ -208,7 +208,12 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   successful powdr `SSTORE` helper step with the initialize model value on the
   stack writes that value into Counter slot 0. `counterStack_of_initialize_sload_and_or_ok`
   composes the powdr `SLOAD`, `AND`, and `OR` helper steps into the value
-  shape that feeds that SSTORE.
+  shape that feeds that SSTORE. `counterInitializeSetValue_eq_zero`,
+  `counterInitializeLowMask_eq`, `counterInitializeBodyWriteWord_eq_storageWord`,
+  and `counterInitializeBodyWriteWord_rel_zero` prove that the concrete mask and
+  set value produced by the initialize body exactly match
+  `counterInitializeStorageWord`; `counterStack_of_initialize_sload_and_or_storageWord_ok`
+  specializes the SLOAD/AND/OR helper sequence to that storage model value.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -267,6 +272,10 @@ Yul→bytecode `solc` step as an explicit trust boundary.
 - `counterStack_of_initialize_sload_and_or_ok` — green under
   `lake build EvmRefinement`; the SLOAD/AND/OR helper sequence forms the
   storage value that is later consumed by the SSTORE proof.
+- `counterInitializeBodyWriteWord_eq_storageWord` and
+  `counterStack_of_initialize_sload_and_or_storageWord_ok` — green under
+  `lake build EvmRefinement`; the concrete initialize mask/set-value expression
+  equals the storage model consumed by the SSTORE helper proof.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 
@@ -294,5 +303,4 @@ per-entrypoint obligation surface now also carries this boundary through
 induction. `CounterTraceSafeAtState` is the current state/input predicate form;
 the remaining Phase 6c work is to prove the compiled runtime's prepared-frame
 EVM-only powdr storage models, starting with the dispatcher/body path to the
-initialize SLOAD/AND/OR/SSTORE stack shape and the concrete mask/set-value
-facts.
+initialize SLOAD/AND/OR/PUSH0/SSTORE stack shapes consumed by the helper facts.
