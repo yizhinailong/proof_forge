@@ -395,11 +395,14 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterStack_of_stepFE_stackMemFlow_sload_ok`,
     `counterStack_of_stepFE_compBit_and_ok`,
     `counterStack_of_stepFE_compBit_or_ok`,
-    `counterStorageValue_of_stepFE_stackMemFlow_sstore_ok`, and
+    `counterStorageValue_of_stepFE_stackMemFlow_sstore_ok`,
+    `counterStack_of_stepFE_stackMemFlow_sstore_ok`, and
     `counterStorageValue_of_initialize_tail_stepFE_ok` extend the same
     top-level bridge through SLOAD/AND/OR/PUSH0/SSTORE and prove the tail writes
-    the initialize storage model value. The trampoline bridge now has concrete
-    decode facts plus `counterState_of_initialize_trampoline_stepFE_to_body_ok`
+    the initialize storage model value. `counterStack_of_initialize_tail_stepFE_ok`
+    also fixes the stack tail after SSTORE, preserving the return address and
+    selector needed by the final return segment. The trampoline bridge now has
+    concrete decode facts plus `counterState_of_initialize_trampoline_stepFE_to_body_ok`
     and `counterState_of_initialize_body_jumpdest_stepFE_to_first_opcode_ok`,
     proving the top-level `stepFE` trampoline lands at the initialize body and
     advances to the first body opcode. The initialize selector dispatcher is now
@@ -434,9 +437,9 @@ ProofForge's default build still avoids powdr/mathlib imports.
     per-entrypoint obligations then follow from the bridge/conversion theorems.
     The next concrete proof slice is to connect the composed
     dispatcher/trampoline/body `stepFE` path to the prepared-frame
-    `counterPowdrPreparedTraceStep` result, prove the final return/jump segment
-    executes to the `.none` observable, and instantiate the prepared-frame
-    initialize storage model.
+    `counterPowdrPreparedTraceStep` result, prove the now-stack-shaped final
+    return/jump segment executes to the `.none` observable, and instantiate the
+    prepared-frame initialize storage model.
 - **Deliverable (revised):** a clean powdr-target seam plus the opt-in
   dependency path and wrapper. The conformance-tested EVM bytecode semantics is
   now callable from the `EvmRefinement` target; the implementation agent's next

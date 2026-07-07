@@ -290,10 +290,13 @@ surface. Remaining EVM work is E3.
   `counterStack_of_stepFE_stackMemFlow_sload_ok`,
   `counterStack_of_stepFE_compBit_and_ok`,
   `counterStack_of_stepFE_compBit_or_ok`,
-  `counterStorageValue_of_stepFE_stackMemFlow_sstore_ok`, tail decode facts
-  through `SSTORE`, and `counterStorageValue_of_initialize_tail_stepFE_ok`
-  prove the top-level `stepFE` SLOAD/AND/OR/PUSH0/SSTORE sequence writes the
-  initialize storage model value. The initialize trampoline is bridged too:
+  `counterStorageValue_of_stepFE_stackMemFlow_sstore_ok`,
+  `counterStack_of_stepFE_stackMemFlow_sstore_ok`, tail decode facts through
+  `SSTORE`, `counterStorageValue_of_initialize_tail_stepFE_ok`, and
+  `counterStack_of_initialize_tail_stepFE_ok` prove the top-level `stepFE`
+  SLOAD/AND/OR/PUSH0/SSTORE sequence writes the initialize storage model value
+  and preserves the return-address/selector stack tail needed by the final
+  return path. The initialize trampoline is bridged too:
   `counterCompiledRuntimeCode_decodes_initialize_trampoline_*`,
   `counterPreparedInitializeTrampoline*_decoded`,
   `counterState_of_stepFE_stackMemFlow_jumpdest_ok`,
@@ -351,9 +354,9 @@ surface. Remaining EVM work is E3.
   remains an explicit trust boundary. The remaining E3 work is to discharge those
   prepared-frame storage models against the concrete runtime by connecting the
   composed dispatcher/trampoline/body `stepFE` path to the prepared-frame
-  `counterPowdrPreparedTraceStep` result, proving the final return/jump segment
-  executes to the `.none` observable, and instantiating the prepared-frame
-  initialize storage model.
+  `counterPowdrPreparedTraceStep` result, proving the now-stack-shaped final
+  return/jump segment executes to the `.none` observable, and instantiating the
+  prepared-frame initialize storage model.
 - **Acceptance:** a universally-quantified refinement theorem (IR Counter ⟷ powdr EVM
   `Step`, by `induction`, **not** `native_decide`) type-checks under the opt-in target;
   `docs/formal-verification.md` EVM Tier C-proof row updated from aspirational/blocked to

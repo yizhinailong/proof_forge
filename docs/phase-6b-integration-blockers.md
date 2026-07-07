@@ -238,10 +238,12 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   `counterStack_of_stepFE_stackMemFlow_sload_ok`,
   `counterStack_of_stepFE_compBit_and_ok`,
   `counterStack_of_stepFE_compBit_or_ok`,
-  `counterStorageValue_of_stepFE_stackMemFlow_sstore_ok`, tail decode facts
-  through `SSTORE`, and `counterStorageValue_of_initialize_tail_stepFE_ok`
-  prove the tail writes the initialize storage model value. The trampoline is
-  bridged as well:
+  `counterStorageValue_of_stepFE_stackMemFlow_sstore_ok`,
+  `counterStack_of_stepFE_stackMemFlow_sstore_ok`, tail decode facts through
+  `SSTORE`, `counterStorageValue_of_initialize_tail_stepFE_ok`, and
+  `counterStack_of_initialize_tail_stepFE_ok` prove the tail writes the
+  initialize storage model value and leaves the return-address/selector stack
+  tail ready for the final return path. The trampoline is bridged as well:
   `counterCompiledRuntimeCode_decodes_initialize_trampoline_*`,
   `counterPreparedInitializeTrampoline*_decoded`,
   `counterState_of_stepFE_stackMemFlow_jumpdest_ok`,
@@ -377,11 +379,13 @@ Yul→bytecode `solc` step as an explicit trust boundary.
 - `counterStack_of_stepFE_stackMemFlow_sload_ok`,
   `counterStack_of_stepFE_compBit_and_ok`,
   `counterStack_of_stepFE_compBit_or_ok`,
-  `counterStorageValue_of_stepFE_stackMemFlow_sstore_ok`, and
-  `counterStorageValue_of_initialize_tail_stepFE_ok` — green under
+  `counterStorageValue_of_stepFE_stackMemFlow_sstore_ok`,
+  `counterStack_of_stepFE_stackMemFlow_sstore_ok`,
+  `counterStorageValue_of_initialize_tail_stepFE_ok`, and
+  `counterStack_of_initialize_tail_stepFE_ok` — green under
   `lake build EvmRefinement`; the tail bridge now composes concrete top-level
-  `stepFE` executions through SLOAD/AND/OR/PUSH0/SSTORE and proves the
-  initialize storage model is written.
+  `stepFE` executions through SLOAD/AND/OR/PUSH0/SSTORE, proves the initialize
+  storage model is written, and preserves the stack tail for the final return path.
 - `counterCompiledRuntimeCode_decodes_initialize_trampoline_*`,
   `counterPreparedInitializeTrampoline*_decoded`,
   `counterState_of_initialize_trampoline_stepFE_to_body_ok`, and
@@ -453,5 +457,5 @@ induction. `CounterTraceSafeAtState` is the current state/input predicate form;
 the remaining Phase 6c work is to prove the compiled runtime's prepared-frame
 EVM-only powdr storage models by connecting the composed dispatcher/trampoline/body
 `stepFE` path to the prepared-frame `counterPowdrPreparedTraceStep` result and
-proving the final return/jump segment executes to the `.none` observable before
-instantiating the prepared-frame initialize storage model.
+proving the now-stack-shaped final return/jump segment executes to the `.none`
+observable before instantiating the prepared-frame initialize storage model.

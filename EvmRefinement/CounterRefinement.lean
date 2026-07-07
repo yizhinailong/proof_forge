@@ -1487,6 +1487,69 @@ theorem counterStorageValue_of_stepFE_stackMemFlow_sstore_ok
     rw [hrunning] at hnotRunning
     contradiction
 
+theorem counterStack_of_sstore_stackMemFlow_ok
+    {state gasState nextState : EvmState} {slot value : EvmSemantics.UInt256}
+    {rest : List EvmSemantics.UInt256}
+    (hstack : state.stack = slot :: value :: rest)
+    (hstep :
+      EvmSemantics.EVM.stepF.stackMemFlow state gasState
+        (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) = .ok nextState) :
+    nextState.stack = rest := by
+  unfold EvmSemantics.EVM.stepF.stackMemFlow at hstep
+  cases hperm : state.executionEnv.permitStateMutation
+  · simp [hperm, EvmSemantics.EVM.static] at hstep
+  · simp [hperm] at hstep
+    by_cases hsentry :
+        EvmSemantics.EVM.Gas.sstoreSentry state.fork gasState.gasAvailable
+    · simp [hsentry] at hstep
+    · simp [hsentry, hstack] at hstep
+      by_cases hgas :
+          EvmSemantics.EVM.Gas.sstoreCost state.fork
+              (state.substate.originalStorage state.executionEnv.address slot)
+              ((state.accountMap state.executionEnv.address).storage slot) value +
+            EvmSemantics.EVM.Gas.sstoreColdSurcharge state slot ≤ gasState.gasAvailable
+      · simp [hgas] at hstep
+        cases hstep
+        simp [EvmSemantics.EVM.State.replaceStackAndIncrPC]
+      · simp [hgas] at hstep
+
+theorem counterStack_of_stepFE_stackMemFlow_sstore_ok
+    {state nextState : EvmState} {slot value : EvmSemantics.UInt256}
+    {rest : List EvmSemantics.UInt256}
+    (hrunning : state.halt = .Running)
+    (hprecompile :
+      EvmSemantics.EVM.Precompile.isPrecompile state.executionEnv.fork
+        state.executionEnv.codeAddr = false)
+    (hdecoded :
+      state.decoded =
+        some (.StackMemFlow
+          (.SSTORE : EvmSemantics.Operation.StackMemFlowOps), none))
+    (hstack : state.stack = slot :: value :: rest)
+    (hstackOk :
+      ¬ state.stack.length +
+          (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+            EvmSemantics.Operation).pushArity >
+        1024 + (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+            EvmSemantics.Operation).popArity)
+    (hgas :
+      EvmSemantics.EVM.Gas.baseCost state.fork
+        (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+          EvmSemantics.Operation) ≤ state.gasAvailable)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    nextState.stack = rest := by
+  unfold EvmSemantics.EVM.stepFE at hstep
+  simp only [Id.run] at hstep
+  split at hstep
+  · split at hstep
+    · rename_i hprecompileActual
+      rw [hprecompile] at hprecompileActual
+      contradiction
+    · simp [hdecoded, hstackOk, hgas] at hstep
+      exact counterStack_of_sstore_stackMemFlow_ok hstack hstep
+  · rename_i hnotRunning
+    rw [hrunning] at hnotRunning
+    contradiction
+
 theorem counterInitializeStorageValue_of_sstore_stackMemFlow_ok
     {state gasState nextState : EvmState} {rest : List EvmSemantics.UInt256}
     (haddr : state.executionEnv.address = counterContractAddress)
@@ -3604,6 +3667,88 @@ theorem counterStorageValue_of_initialize_tail_stepFE_ok
   exact counterStorageValue_of_stepFE_stackMemFlow_sstore_ok hrunningSstore
     hprecompileSstore (counterPreparedInitializeSstore_decoded hatSstore)
     haddrSstore hsstoreStack rfl hstackOkSstore hgasSstore hsstore
+
+theorem counterStack_of_initialize_tail_stepFE_ok
+    {sloadState afterSload afterAnd afterOr sstoreState nextState : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (haddrSload : sloadState.executionEnv.address = counterContractAddress)
+    (hstack :
+      sloadState.stack =
+        counterCountSlot :: counterInitializeLowMask ::
+          counterInitializeSetValue :: rest)
+    (hatSload : counterCompiledStateAt sloadState (counterInitializeBodyOffset + 17))
+    (hreadySload :
+      counterStepFEReady sloadState
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps)))
+    (hsload : EvmSemantics.EVM.stepFE sloadState = .ok afterSload)
+    (hatAnd : counterCompiledStateAt afterSload (counterInitializeBodyOffset + 18))
+    (hreadyAnd :
+      counterStepFEReady afterSload
+        (.CompBit (.AND : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hand : EvmSemantics.EVM.stepFE afterSload = .ok afterAnd)
+    (hatOr : counterCompiledStateAt afterAnd (counterInitializeBodyOffset + 19))
+    (hreadyOr :
+      counterStepFEReady afterAnd
+        (.CompBit (.OR : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hor : EvmSemantics.EVM.stepFE afterAnd = .ok afterOr)
+    (hatPush :
+      counterCompiledStateAt afterOr (counterInitializeBodyOffset + 20))
+    (hreadyPush : counterStepFEReady afterOr (.Push counterPush0Op))
+    (hpush : EvmSemantics.EVM.stepFE afterOr = .ok sstoreState)
+    (hatSstore : counterCompiledStateAt sstoreState (counterInitializeBodyOffset + 21))
+    (hreadySstore :
+      counterStepFEReady sstoreState
+        (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps)))
+    (hsstore : EvmSemantics.EVM.stepFE sstoreState = .ok nextState) :
+    nextState.stack = rest := by
+  rcases hreadySload with ⟨hrunningSload, hprecompileSload, hstackOkSload,
+    hgasSload⟩
+  rcases hreadyAnd with ⟨hrunningAnd, hprecompileAnd, hstackOkAnd, hgasAnd⟩
+  rcases hreadyOr with ⟨hrunningOr, hprecompileOr, hstackOkOr, hgasOr⟩
+  rcases hreadyPush with ⟨hrunningPush, hprecompilePush, hstackOkPush, hgasPush⟩
+  rcases hreadySstore with ⟨hrunningSstore, hprecompileSstore, hstackOkSstore,
+    hgasSstore⟩
+  have hsloadStack :
+      afterSload.stack =
+        counterStorageValue counterContractAddress counterCountSlot sloadState ::
+          counterInitializeLowMask :: counterInitializeSetValue :: rest :=
+    counterStack_of_stepFE_stackMemFlow_sload_ok hrunningSload
+      hprecompileSload (counterPreparedInitializeSload_decoded hatSload)
+      haddrSload hstack rfl hstackOkSload hgasSload hsload
+  have handStack :
+      afterAnd.stack =
+        EvmSemantics.UInt256.land
+          (counterStorageValue counterContractAddress counterCountSlot sloadState)
+          counterInitializeLowMask :: counterInitializeSetValue :: rest :=
+    counterStack_of_stepFE_compBit_and_ok hrunningAnd hprecompileAnd
+      (counterPreparedInitializeAnd_decoded hatAnd) hsloadStack hstackOkAnd
+      hgasAnd hand
+  have horStack :
+      afterOr.stack =
+        counterInitializeStorageWord
+          (counterStorageValue counterContractAddress counterCountSlot sloadState) ::
+          rest := by
+    rw [counterStack_of_stepFE_compBit_or_ok hrunningOr hprecompileOr
+      (counterPreparedInitializeOr_decoded hatOr) handStack hstackOkOr hgasOr hor]
+    change counterInitializeBodyWriteWord
+        (counterStorageValue counterContractAddress counterCountSlot sloadState) ::
+          rest =
+      counterInitializeStorageWord
+        (counterStorageValue counterContractAddress counterCountSlot sloadState) ::
+          rest
+    rw [counterInitializeBodyWriteWord_eq_storageWord]
+  have hsstoreStack :
+      sstoreState.stack =
+        counterCountSlot ::
+          counterInitializeStorageWord
+            (counterStorageValue counterContractAddress counterCountSlot sloadState) ::
+          rest := by
+    rw [counterStack_of_stepFE_push0_ok hrunningPush hprecompilePush
+      (counterPreparedInitializeSstoreSlotPush0_decoded hatPush) hstackOkPush
+      hgasPush hpush, horStack, counterCountSlot_eq_zero]
+  exact counterStack_of_stepFE_stackMemFlow_sstore_ok hrunningSstore
+    hprecompileSstore (counterPreparedInitializeSstore_decoded hatSstore)
+    hsstoreStack hstackOkSstore hgasSstore hsstore
 
 theorem counterStorageValue_of_initialize_body_stepFE_from_first_opcode_ok
     {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17 :
