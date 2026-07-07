@@ -607,11 +607,23 @@ external dependency, but the external differential gate stays (Background "Two-h
 
 ## Task SOL-4 — Genericity test (proves `SbpfExec` actually scales)
 
-- **③ Do:** a **second, different contract** (a two-slot counter, or ValueVault's
-  `get_balance`) discharges its per-entrypoint simulation by **reusing the same `SbpfExec`
-  lemmas** with a short proof. If it needs fresh per-instruction hand-derivation, `SbpfExec`
-  isn't generic yet — go back to SOL-1.
-- **Acceptance:** a second contract reuses `SbpfExec`; short proof; green.
+> **A simple second contract does NOT prove genericity.** Counter (SOL-2/3) only proves
+> `SbpfExec` *works*; a near-identical "two-slot counter" is a weak test — you could pass it
+> with a layer that only covers Counter's opcodes. The validation contract must be
+> **complex/different enough to exercise the layer in new combinations.**
+
+- **③ Do (two parts):**
+  - **(a) A genuinely different contract — use `ValueVault`, NOT a two-slot counter.** It has
+    multiple storage fields, multi-step checked arithmetic (deposit/release/fees), events, and
+    an accounting invariant, so it exercises `SbpfExec`'s storage/arith/event lemmas in new
+    orderings. Discharge its per-entrypoint simulations by **reusing** `SbpfExec` with short
+    proofs — no fresh per-instruction hand-derivation.
+  - **(b) Full-opcode coverage.** `SbpfExec` must have a lemma for **every opcode the Solana
+    lowering (`SbpfAsm.lowerModule`) can emit**, not just Counter's subset — so ANY contract
+    in the supported fragment can reuse it. Cross-check the lemma set against `Asm.Opcode`.
+- **Acceptance:** ValueVault's obligations discharged by reusing `SbpfExec` (short proofs);
+  `SbpfExec` covers the full lowered-opcode set; green. If ValueVault needs fresh
+  per-instruction derivation, `SbpfExec` isn't generic yet — go back to SOL-1.
 - **Depends on:** SOL-3.
 
 ## Task W1 — WASM executable-trace design note (docs only)
@@ -674,6 +686,100 @@ external dependency, but the external differential gate stays (Background "Two-h
   on the Counter scenario after each entrypoint.
 - **Acceptance:** `R`-holds theorems `#check` and pass.
 - **Depends on:** W2, W3.
+
+---
+
+## WASM C-proof lane (WASM-1–WASM-5) — the chain-FAMILY twin of Solana
+
+> **Strategic point (answers "do I formalize all WASM chains?"): NO — one generic core, thin
+> per-chain hosts.** Do NOT formalize NEAR/CosmWasm/ICP separately (that is N copies of the
+> WASM stack machine — the CosmWasm-forks-EmitWat mistake, on the semantics side). Instead:
+> **ONE generic WASM core (`WasmExec`, the stack machine — shared by ALL WASM chains) + a thin
+> per-chain HOST model, parameterized by `HostBridge`.** Consider all chains at the
+> ARCHITECTURE level (the core must serve all of them); IMPLEMENT the core once + one host at a
+> time. This is the semantics-side of W0 (HostBridge-driven EmitWat, execution-plan §2.2).
+>
+> **Where WASM stands now (= Solana):** the executable interpreter is done
+> (`WasmInterpreter.lean` 607 lines, already carries a `bridge : HostBridge` field), plugged
+> into `wasmNearTargetSemantics`, C-diff green (Counter / ValueVault / array / map, 44
+> `native_decide`). MISSING: the generic core is **not separated** (`runNearHostCall` is
+> inlined at :226), no per-instruction lemmas, no C-proof.
+>
+> **Chain order — NEAR → CosmWasm → ICP:**
+> - **NEAR** — the reference (interpreter exists; synchronous host storage read/write).
+> - **CosmWasm** — the second chain; **proves the core is chain-generic** (just swap the host
+>   model: `db_read`/`db_write`). This is the killer test of the WASM-family thesis.
+> - **ICP — DEFERRED.** Its async inter-canister + update/query split + Candid + cycles do NOT
+>   fit the current synchronous IR effect set; it needs the **"IR async effect" design first**
+>   (execution-plan §2.4). Do NOT start ICP on adapter momentum — it is not a host-model swap.
+>
+> **Two-hop trust (keep forever):** "our WASM interpreter ≈ real wasmtime" stays checked by the
+> external offline-host / wasmtime differential gate. **Non-goals (external gate):** NEAR
+> Promise / async / cross-contract.
+
+## Task WASM-1 — Extract the generic WASM core `WasmExec.lean` (chain-agnostic)
+
+- **① Read first:** the ⚠️ COURSE CORRECTION under Task E3; Solana Task SOL-1 (same shape).
+- **② Context to load:** `ProofForge/Backend/WasmNear/WasmInterpreter.lean` (`WasmState` :115,
+  `runHostCall` :309, `runNearHostCall` :226 — currently NEAR-inlined);
+  `ProofForge/Compiler/Wasm/AST.lean`; `ProofForge/Target/HostBridge.lean`.
+- **③ Do:** create `ProofForge/Backend/WasmNear/WasmExec.lean` — a **chain-agnostic** library
+  of per-instruction step lemmas over the WASM stack machine, each proven **once**,
+  parameterized by the pre-state, **never by NEAR or "Counter"**: `i64.const/add/sub/mul`,
+  `local.get/set/tee`, `i64.load/store`, `block/loop/br/br_if/if/return`, and `call` where the
+  **host call is a parameterized hook** (dispatch to a `HostBridge`-provided host model, NOT
+  inlined). Add a `run` unfolding lemma. Move NEAR-specific host handling OUT of the core.
+- **Acceptance:** `WasmExec.lean` holds chain-agnostic per-instruction lemmas (no NEAR/Counter
+  in the statements); the host call is a hook; `lake build` green.
+- **Depends on:** none (interpreter exists).
+
+## Task WASM-2 — NEAR host model `NearHost.lean` (first chain instantiation)
+
+- **② Context to load:** `WasmExec` (WASM-1); `runNearHostCall` (`WasmInterpreter.lean:226`);
+  `ProofForge/Target/HostBridge.lean` (the NEAR imports); `runtime/offline-host/src/main.rs`.
+- **③ Do:** the NEAR host model — `env.storage_read`/`storage_write`, `value_return`, register
+  ABI, `signer_account_id`, `attached_deposit` — as transitions over the abstract host state,
+  plugged into `WasmExec`'s host hook. Prove the host-op step lemmas (storage read-after-write,
+  etc.). Reference host; CosmWasm/ICP hosts mirror it later.
+- **Acceptance:** NEAR host lemmas prove; `WasmExec` + `NearHost` reproduce the Counter host
+  boundary; green.
+- **Depends on:** WASM-1.
+
+## Task WASM-3 — Per-entrypoint simulation via composition (Counter, NEAR)
+
+- **③ Do:** for `initialize`/`increment`/`get`, **compose** `WasmExec` + `NearHost` lemmas
+  over the emitted WAT sequence to derive each entrypoint's post-state. Short proofs, NOT
+  step-by-step hand-derivation.
+- **Acceptance:** 3 per-entrypoint simulation theorems, short proofs, green.
+- **Depends on:** WASM-2.
+
+## Task WASM-4 — Universal IR↔WASM refinement (NEAR)
+
+- **② Context to load:** `ProofForge/Backend/WasmNear/Layout.lean` (`R` via Borsh keys);
+  `wasmNearTargetSemantics`; the shared `traceSimulation_lift` + `CounterUniversal` induction;
+  `counterTraceSafe`.
+- **③ Do:** define/reuse `R : IR.State ↔ WasmState host storage`; prove per-entrypoint IR↔WASM
+  simulation from WASM-3; lift to the **universal** `∀ safe Counter calls, IR ⟷ WASM(NEAR)
+  trace` via the SHARED induction (same as Solana SOL-3, nearly free). Overflow via
+  `counterTraceSafe` (WASM `i64.add` wraps at 64 bits).
+- **Acceptance:** a universal (`∀` safe calls, by `induction`) IR↔WASM refinement theorem for
+  Counter on NEAR; green; keep `native_decide` obligations as regression smoke.
+- **Depends on:** WASM-3; P1 (landed); generic induction (landed).
+
+## Task WASM-5 — Double genericity test (contract axis AND chain axis)
+
+> WASM needs **two** genericity tests, not one — because the whole point is a shared core
+> across many chains.
+
+- **③ Do:**
+  - **(a) Second CONTRACT:** ValueVault reuses `WasmExec` + `NearHost` (like Solana SOL-4);
+    full-opcode coverage of what the EmitWat lowering emits.
+  - **(b) Second CHAIN — the killer test:** create `CosmWasmHost.lean` (`db_read`/`db_write`)
+    and discharge Counter's obligations **reusing the SAME `WasmExec` core**, only swapping the
+    host model. If the core needs changes to serve CosmWasm, it isn't chain-generic yet.
+- **Acceptance:** ValueVault reuses `WasmExec`+`NearHost`; CosmWasm Counter reuses `WasmExec` +
+  a new `CosmWasmHost`; both green. (ICP stays deferred — see the lane header.)
+- **Depends on:** WASM-4.
 
 ## Later tasks — C-proof layer (after P2) and deeper slices
 
