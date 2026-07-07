@@ -2562,6 +2562,46 @@ def lowerEntrypoint (ctx : Ctx) (ep : Entrypoint) : Except EmitError Func := do
     else #[]
   .ok { name := ep.name, locals := locals, body := { insns := resetPrefix ++ paramPrologue ++ bodyInsns }, exportName := ep.name }
 
+/- Reconstruct a `Ctx` from the plan's layout arrays + read-only metadata. This
+is the Step C plan-driven `Ctx` builder: every `Ctx` field is plan-derived. The
+layout carries the scalar key pointers, map prefix pointers, and the three
+string pools (event/field names, panics, crosscall strings); the read-only
+`structs`/`allocator` come from the seed. There is no lowering-local mutable
+state in `Ctx` (unlike Solana's `locals`/`nextLabel`), so the whole `Ctx` is
+reconstructable from the plan. The frozen scratch-region base addresses
+(`KEY_BUF`, `MAPKEY_BUF`, `STRING_BASE`, `CROSSCALL_STRING_BASE`) are carried
+in `NearLowerCtxSeed` for the plan artifact's inspectability but are not needed
+here — the absolute pointers are already baked into the layout arrays.
+`NearModulePlan.Ctx.fromPlanSeed` delegates here so the plan artifact and the
+lowering share one reconstruction path. -/
+def Ctx.fromPlanSeed
+    (scalars : Array StateInfo) (maps : Array MapInfo)
+    (strings panics crosscallStrings : Array StringInfo)
+    (structs : Array ProofForge.IR.StructDecl)
+    (allocator : ProofForge.IR.AllocatorConfig) : Ctx :=
+  { scalars := scalars, maps := maps, strings := strings, panics := panics,
+    crosscallStrings := crosscallStrings, structs := structs, allocator := allocator }
+
+/- Build the data-layout `Ctx` for a module using the plan-derived path. This is
+the Step C single lowering path: the layout arrays (scalars, maps, strings,
+panics, crosscallStrings) are computed exactly as
+`NearModulePlan.buildNearModulePlan` computes them (reusing `stateLayout`,
+`mapLayout`, `stringPool`, `panicPool`, `crosscallStringInfos` with the same
+frozen `STRING_BASE` / `CROSSCALL_STRING_BASE` bases), then handed to
+`Ctx.fromPlanSeed`. The ad-hoc inline `Ctx` assembly that previously lived at
+the top of `lowerModule` is deleted; the `*ModulePlan` is now the authoritative
+source for lowering decisions, and `lowerModule` is a thin wrapper over the
+plan-derived `Ctx` + the shared `lowerModuleCoreWithCtx` body. -/
+def buildLowerCtx (mod : ProofForge.IR.Module) : Except EmitError Ctx := do
+  let scalars := stateLayout mod
+  let maps := mapLayout mod
+  let strs := stringPool mod
+  let stringPoolEnd := stringInfoEnd STRING_BASE strs
+  let panics := panicPool mod stringPoolEnd
+  let crosscallStrs := crosscallStringInfos mod.nearCrosscallStrings CROSSCALL_STRING_BASE
+  validateScratchCapacities mod strs panics crosscallStrs
+  .ok (Ctx.fromPlanSeed scalars maps strs panics crosscallStrs mod.structs mod.allocator)
+
 /- Core lowering body once the surface `ModulePlan` and the data-layout `Ctx`
 have been derived. Exposed so the plan-driven path
 (`ProofForge.Backend.WasmNear.NearModulePlan.lowerModuleFromPlan`) can reuse the
@@ -2627,6 +2667,13 @@ def lowerModuleCoreWithCtx (mod : ProofForge.IR.Module) (modulePlan : ModulePlan
         dataSegments := scalarData ++ mapData ++ boolData ++ evtKeySegments ++ stringData ++
           crosscallStringData ++ crosscallArgsData ++ (if hasPanic then panicData else #[]) }
 
+/- Step C (RFC 0014 Phase 4): the lowering flows through the plan-derived
+`Ctx`. The inline ad-hoc `Ctx` assembly (calling `stateLayout`/`mapLayout`/
+`stringPool`/`panicPool`/`crosscallStringInfos` and assembling `Ctx` field-by-field)
+is deleted; `buildLowerCtx` derives the `Ctx` via `Ctx.fromPlanSeed`, the same
+reconstruction `NearModulePlan.Ctx.fromPlanSeed` uses, so the `*ModulePlan` is
+the authoritative source for lowering decisions. The shared
+`lowerModuleCoreWithCtx` body is unchanged. -/
 def lowerModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBridge := ProofForge.Target.HostBridge.near) : Except EmitError ProofForge.Compiler.Wasm.Module := do
   if bridge == ProofForge.Target.HostBridge.cosmWasm then
     err "EmitWat: CosmWasm bridge lowering is implemented in Backend.CosmWasm.EmitWat; use that module for wasm-cosmwasm"
@@ -2636,16 +2683,7 @@ def lowerModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBri
     match buildModulePlan mod with
     | .ok plan => pure plan
     | .error planErr => err s!"EmitWat: {planErr.message}"
-  let scalars := stateLayout mod
-  let maps := mapLayout mod
-  let strs := stringPool mod
-  let stringPoolEnd := stringInfoEnd STRING_BASE strs
-  let panics := panicPool mod stringPoolEnd
-  let crosscallStrs := crosscallStringInfos mod.nearCrosscallStrings CROSSCALL_STRING_BASE
-  validateScratchCapacities mod strs panics crosscallStrs
-  let ctx := {
-    scalars := scalars, maps := maps, strings := strs, panics := panics,
-    crosscallStrings := crosscallStrs, structs := mod.structs, allocator := mod.allocator : Ctx }
+  let ctx ← buildLowerCtx mod
   lowerModuleCoreWithCtx mod modulePlan ctx
 
 /-! EmitWat supports the same capability surface as the `wasmNear` target profile,

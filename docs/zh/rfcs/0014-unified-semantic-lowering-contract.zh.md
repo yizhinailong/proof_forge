@@ -446,9 +446,22 @@ spike、没有真正的 lowering（`SuiModulePlan` 需要先于真正的 Move lo
   `EvmStorageStructProbe: MATCH 3375 chars`。覆盖现已横跨标量 / map / array /
   struct 状态形状；内联 `Ctx` 构建仍保留（双路径）直到 Step C，此时已有广泛覆盖
   证据可依赖。
-- Step C（切换默认）：parity 稳定后，将默认切到 v2，删除内联 `Ctx` 构建，并让
-  `WasmNear/Refinement.lean` 从重新推导 export/import 改为读取
-  `NearModulePlan.surface` + `NearModulePlan.layout`。
+- Step C（切换默认）—— **已落地（2026-07-07）。** plan-driven 路径现在是唯一的
+  lowering 路径。`EmitWat.lowerModule` 顶部的内联 ad-hoc `Ctx` 装配已删除；
+  `lowerModule` 现在通过 `EmitWat.buildLowerCtx` → `EmitWat.Ctx.fromPlanSeed`
+  派生其 `Ctx`（由拥有 `Ctx` 类型的 `EmitWat` 拥有；`NearModulePlan.Ctx.fromPlanSeed`
+  委托给它，保持 import 图单向）。共享的 `lowerModuleCoreWithCtx` 体不变。
+  `NearModulePlan.lowerModuleFromPlan` 现在运行与 lowering 入口相同的
+  `EmitWat.validateScratchCapacities` gate，弥补了 Step B 的一个缺口。双路径
+  parity 检查已退役（没有第二条路径需要一致）；`Tests/NearModulePlan.lean`
+  现在是单路径回归 gate（plan golden diff + `--render` 确认 plan-driven lowering
+  仍能发出 WAT，字符数在 CI 日志中可见）。`WasmNear/Refinement.lean` 通过其
+  现有的 `EmitWat.lowerModule` 调用点（现已 plan-driven）自动读取 plan-driven
+  输出；无需修改 `Refinement.lean` 代码。验证：`lake build` 通过；`just
+  near-plan-smoke` 通过（4/4）；`just wasm-near-plan` 通过；冻结的 WAT golden
+  和所有 `plan.txt` golden 不变；render 字符数与 Step B.2 parity 结果完全一致
+  （Counter 2228、EvmMapProbe 3498、EvmStorageArrayProbe 4703、
+  EvmStorageStructProbe 3375），确认字节稳定。
 
 **改动清单：**
 
@@ -465,8 +478,14 @@ spike、没有真正的 lowering（`SuiModulePlan` 需要先于真正的 Move lo
   `arraySubModule` / `structSubModule`）、`scripts/near/plan-smoke.sh`
   （多 fixture 循环）、`Examples/WasmNear/{EvmMapProbe,EvmStorageArrayProbe,
   EvmStorageStructProbe}/golden/plan.txt`（新 golden）。
-- Step C：`ProofForge/Backend/WasmNear/EmitWat.lean`、
-  `ProofForge/Backend/WasmNear/Refinement.lean`。
+- Step C：`ProofForge/Backend/WasmNear/EmitWat.lean`（新增 `Ctx.fromPlanSeed` +
+  `buildLowerCtx`；删除 `lowerModule` 中的内联 `Ctx` 装配，改为通过 `buildLowerCtx`
+  → `Ctx.fromPlanSeed` 路由）、`ProofForge/Backend/WasmNear/NearModulePlan.lean`
+  （`Ctx.fromPlanSeed` 委托给 `EmitWat.Ctx.fromPlanSeed`；`lowerModuleFromPlan`
+  运行 `validateScratchCapacities`）、`Tests/NearModulePlan.lean`（双路径 parity
+  检查转为单路径 `--render` 回归 gate）、`scripts/near/plan-smoke.sh`
+  （`--parity` → `--render`）。`ProofForge/Backend/WasmNear/Refinement.lean` 不变
+  —— 其 `EmitWat.lowerModule` 调用点现在自动通过 plan-driven `Ctx` 降级。
 
 **风险：** WAT golden 变更；离线宿主 smoke 必须保持字节稳定。与 Phase 2 相同的
 feature-flag 策略（CI 中同时跑两条路径，parity 稳定后切换默认）。

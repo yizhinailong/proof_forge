@@ -1,6 +1,6 @@
 # Multi-backend ModulePlan — feasibility assessment and design
 
-Status: **Phase 4 Step A + Step B + Step B.2 landed** (plan-driven NEAR lowering, dual-path parity green across scalar/map/array/struct state)
+Status: **Phase 4 Step A + Step B + Step B.2 + Step C landed** (plan-driven NEAR lowering is the only path; inline `Ctx` deleted; dual-path parity retired)
 
 Date: 2026-07-07
 
@@ -302,18 +302,53 @@ construction is replaced by `Ctx.fromSeed`, which produces the same fields).
   `EvmMapProbe`/`EvmStorageArrayProbe`/`EvmStorageStructProbe` already cover
   the non-scalar state shapes and mirror Solana's fixture set exactly.
 
-**Step C — Switch default.**
-- After parity holds over N consecutive CI runs, flip the default to v2 and delete
-  the inline `Ctx` construction.
-- `WasmNear/Refinement.lean` switches from re-deriving exports/imports to reading
-  `NearModulePlan.surface` + `NearModulePlan.layout`.
+**Step C — Switch default. — LANDED (2026-07-07).**
+- The plan-driven path is the ONLY lowering path. The inline ad-hoc `Ctx`
+  assembly at the top of `EmitWat.lowerModule` (the lines that called
+  `stateLayout`/`mapLayout`/`stringPool`/`panicPool`/`crosscallStringInfos` and
+  assembled `Ctx` field-by-field) is deleted. `EmitWat.lowerModule` now
+  derives its `Ctx` via `EmitWat.buildLowerCtx` → `EmitWat.Ctx.fromPlanSeed`,
+  the same reconstruction `NearModulePlan.Ctx.fromPlanSeed` uses, so the
+  `*ModulePlan` is the authoritative source for lowering decisions and the
+  two paths cannot drift. The shared `lowerModuleCoreWithCtx` body is
+  unchanged.
+- `EmitWat.Ctx.fromPlanSeed` is owned by `EmitWat` (which owns the `Ctx`
+  type); `NearModulePlan.Ctx.fromPlanSeed` delegates to it. This keeps the
+  import graph one-directional (`NearModulePlan` imports `EmitWat`, not vice
+  versa) and ensures the plan artifact and the lowering entry share one
+  reconstruction path.
+- `NearModulePlan.lowerModuleFromPlan` now runs the same
+  `EmitWat.validateScratchCapacities` gate as the lowering entry, closing a
+  Step B gap where the plan path skipped scratch-capacity validation.
+- The dual-path parity check that landed in Step B/B.2 is retired: there is
+  no second path to agree with. `Tests/NearModulePlan.lean` is now a
+  single-path regression gate — the plan golden diff pins the layout artifact
+  and the `--render` flag confirms the plan-driven lowering still emits WAT
+  for each fixture, with the char count surfaced in CI logs so byte-churn is
+  observable. `scripts/near/plan-smoke.sh` switches `--parity` to `--render`.
+- `WasmNear/Refinement.lean` reads the plan-driven output automatically:
+  its `EmitWat.lowerModule` call sites now lower through the plan-derived
+  `Ctx`, so the plan is the authoritative source for the refinement
+  obligations too. No `Refinement.lean` code change was needed — the dispatch
+  switch in `EmitWat.lowerModule` itself routes through the plan.
+- Verification: `lake build` green; `just near-plan-smoke` passes (4/4
+  fixtures, plan golden diff + plan-driven render); `just wasm-near-plan`
+  passes (WAT surface pruning unchanged); frozen WAT goldens
+  (`Counter.golden.wat`, `ValueVault.golden.wat`) and all `plan.txt` goldens
+  unchanged. Render char counts match the Step B.2 parity results exactly
+  (Counter 2228, EvmMapProbe 3498, EvmStorageArrayProbe 4703,
+  EvmStorageStructProbe 3375), confirming byte-stability.
 
 **Byte-stability guard.** The existing `Examples/WasmNear/Counter.golden.wat` and
 `ValueVault.golden.wat` pin the WAT output. The `just wasm-near-plan` smoke pins the
 host-import/helper surface. `just near-plan-smoke` pins the layout plan as a golden
-text artifact (Step A) AND asserts dual-path WAT parity (Step B), mirroring
-`solana-plan-smoke`. Step B's extraction is purely additive to the lowering body,
-so the inline path and the frozen WAT goldens are unchanged.
+text artifact (Step A) and, since Step C, asserts the plan-driven lowering still
+emits WAT for each fixture (the `--render` flag), mirroring `solana-plan-smoke`.
+Step B's extraction was purely additive to the lowering body, so the inline path
+and the frozen WAT goldens were unchanged through Step B.2; Step C deleted the
+inline path only after the wider parity coverage proved the plan-driven path
+preserves semantics across scalar / map / array / struct state shapes. The
+frozen WAT goldens and all `plan.txt` goldens are unchanged by Step C.
 
 ## 7. Deferred backends
 
@@ -354,11 +389,12 @@ backend is correctly listed in RFC 0014 non-goals ("extending the contract to ..
 Move (Sui/Aptos) ... in the initial scope. Those may follow once the four primary
 backends are aligned").
 
-## 8. Landed stub + Step B wiring: `NearModulePlan.lean`
+## 8. Landed stub + Step B/B.2/C wiring: `NearModulePlan.lean`
 
 Because NEAR is confirmed easy and the stub is purely additive (no lowering-path
-changes), Step A delivered a minimal type-only stub, and Step B wired it into
-lowering:
+changes), Step A delivered a minimal type-only stub, Step B wired it into
+lowering (dual-path), Step B.2 widened parity coverage, and Step C made the
+plan-driven path the only path:
 
 Step A (commit 61cfa7a9):
 
@@ -402,6 +438,33 @@ Step B.2 (2026-07-07):
   `EvmStorageStructProbe: MATCH 3375 chars`.
 - Coverage now spans scalar / map / array / struct state shapes; the inline
   `Ctx` construction is still kept (dual-path) until Step C.
+
+Step C (2026-07-07):
+
+- The plan-driven path is the ONLY lowering path. The inline ad-hoc `Ctx`
+  assembly at the top of `EmitWat.lowerModule` is deleted; `lowerModule`
+  now derives its `Ctx` via `EmitWat.buildLowerCtx` →
+  `EmitWat.Ctx.fromPlanSeed` (owned by `EmitWat`, which owns the `Ctx` type).
+  `NearModulePlan.Ctx.fromPlanSeed` delegates to it, keeping the import
+  graph one-directional and ensuring the plan artifact and the lowering entry
+  share one reconstruction path.
+- `NearModulePlan.lowerModuleFromPlan` now runs the same
+  `EmitWat.validateScratchCapacities` gate as the lowering entry, closing a
+  Step B gap where the plan path skipped scratch-capacity validation.
+- `Tests/NearModulePlan.lean` converted from a dual-path parity check to a
+  single-path regression gate: the `--parity` flag (plan-driven WAT vs inline
+  WAT) is replaced by `--render` (plan-driven WAT emits cleanly, char count
+  surfaced in CI logs). The plan golden diff remains. The 4 fixtures
+  (Counter, EvmMapProbe, EvmStorageArrayProbe, EvmStorageStructProbe) stay
+  as the coverage set.
+- `scripts/near/plan-smoke.sh` switches `--parity` to `--render`.
+- `WasmNear/Refinement.lean` reads the plan-driven output automatically via
+  its existing `EmitWat.lowerModule` call sites (now plan-driven); no code
+  change needed.
+- Verification: `lake build` green; `just near-plan-smoke` passes (4/4);
+  `just wasm-near-plan` passes; frozen WAT goldens and all `plan.txt`
+  goldens unchanged. Render char counts match Step B.2 parity results
+  exactly, confirming byte-stability.
 
 ## 9. RFC 0014 Phase 4 update summary
 

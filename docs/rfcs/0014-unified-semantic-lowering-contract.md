@@ -580,9 +580,26 @@ real lowering (a `SuiModulePlan` would have to precede building one).
   `EvmStorageStructProbe: MATCH 3375 chars`. Coverage now spans scalar / map /
   array / struct state shapes; the inline `Ctx` construction is still kept
   (dual-path) until Step C, which now has wide coverage evidence to lean on.
-- Step C (switch default): after parity holds, flip the default to v2, delete the
-  inline `Ctx` construction, and switch `WasmNear/Refinement.lean` from re-deriving
-  exports/imports to reading `NearModulePlan.surface` + `NearModulePlan.layout`.
+- Step C (switch default) — **LANDED (2026-07-07).** The plan-driven path is
+  the ONLY lowering path. The inline ad-hoc `Ctx` assembly at the top of
+  `EmitWat.lowerModule` is deleted; `lowerModule` now derives its `Ctx` via
+  `EmitWat.buildLowerCtx` → `EmitWat.Ctx.fromPlanSeed` (owned by `EmitWat`,
+  which owns the `Ctx` type; `NearModulePlan.Ctx.fromPlanSeed` delegates to
+  it, keeping the import graph one-directional). The shared
+  `lowerModuleCoreWithCtx` body is unchanged. `NearModulePlan.lowerModuleFromPlan`
+  now runs the same `EmitWat.validateScratchCapacities` gate as the lowering
+  entry, closing a Step B gap. The dual-path parity check is retired (there
+  is no second path to agree with); `Tests/NearModulePlan.lean` is now a
+  single-path regression gate (plan golden diff + `--render` confirms the
+  plan-driven lowering still emits WAT, char count surfaced in CI logs).
+  `WasmNear/Refinement.lean` reads the plan-driven output automatically via
+  its existing `EmitWat.lowerModule` call sites (now plan-driven); no
+  `Refinement.lean` code change was needed. Verification: `lake build` green;
+  `just near-plan-smoke` passes (4/4); `just wasm-near-plan` passes; frozen
+  WAT goldens and all `plan.txt` goldens unchanged; render char counts match
+  Step B.2 parity results exactly (Counter 2228, EvmMapProbe 3498,
+  EvmStorageArrayProbe 4703, EvmStorageStructProbe 3375), confirming
+  byte-stability.
 
 **Touch list:**
 
@@ -600,8 +617,16 @@ real lowering (a `SuiModulePlan` would have to precede building one).
   `arraySubModule` / `structSubModule`), `scripts/near/plan-smoke.sh`
   (multi-fixture loop), `Examples/WasmNear/{EvmMapProbe,EvmStorageArrayProbe,
   EvmStorageStructProbe}/golden/plan.txt` (new goldens).
-- Step C: `ProofForge/Backend/WasmNear/EmitWat.lean`,
-  `ProofForge/Backend/WasmNear/Refinement.lean`.
+- Step C: `ProofForge/Backend/WasmNear/EmitWat.lean` (`Ctx.fromPlanSeed` +
+  `buildLowerCtx` added; inline `Ctx` assembly in `lowerModule` deleted;
+  `lowerModule` now routes through the plan-derived `Ctx`),
+  `ProofForge/Backend/WasmNear/NearModulePlan.lean` (`Ctx.fromPlanSeed`
+  delegates to `EmitWat.Ctx.fromPlanSeed`; `lowerModuleFromPlan` runs
+  `validateScratchCapacities`), `Tests/NearModulePlan.lean` (dual-path
+  parity → single-path `--render` gate), `scripts/near/plan-smoke.sh`
+  (`--parity` → `--render`). `ProofForge/Backend/WasmNear/Refinement.lean`
+  is unchanged — its `EmitWat.lowerModule` call sites now lower through the
+  plan-derived `Ctx` automatically.
 
 **Risks:** WAT golden churn; offline-host smokes must remain byte-stable. Same
 feature-flag strategy as Phase 2 (run both paths in CI, flip default after parity).
