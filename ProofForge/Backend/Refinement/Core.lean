@@ -296,6 +296,56 @@ theorem traceSimulation_lift {IRState TargetState Call Obs : Type}
       · exact runTraceListGen_cons_ok targetStep call rest targetState nextTarget observable
           finalTarget restObservables htargetStep htargetRest
 
+/-- Executable paired-step simulation check for one call.
+
+This is the smallest target-specific S6/W6 obligation: from related concrete
+states, one IR call and one target call must emit the same observable and land
+in related states. It is still executable/pointwise; universal proofs replace
+the concrete states with quantified `Rel irState targetState` hypotheses and
+feed the resulting premise into `traceSimulation_lift`. -/
+def executableStepSimulationOk {IRState TargetState Call Obs : Type}
+    [DecidableEq Obs]
+    (irStep : IRState → Call → Except String (IRState × Obs))
+    (targetStep : TargetState → Call → Except String (TargetState × Obs))
+    (Rel : IRState → TargetState → Bool)
+    (call : Call) (irState : IRState) (targetState : TargetState) : Bool :=
+  match irStep irState call, targetStep targetState call with
+  | .ok (nextIr, irObs), .ok (nextTarget, targetObs) =>
+      if irObs = targetObs then
+        Rel nextIr nextTarget
+      else
+        false
+  | _, _ => false
+
+/-- Soundness of the executable paired-step checker. -/
+theorem executableStepSimulationOk_sound {IRState TargetState Call Obs : Type}
+    [DecidableEq Obs]
+    (irStep : IRState → Call → Except String (IRState × Obs))
+    (targetStep : TargetState → Call → Except String (TargetState × Obs))
+    (Rel : IRState → TargetState → Bool)
+    (call : Call) (irState : IRState) (targetState : TargetState)
+    (h : executableStepSimulationOk irStep targetStep Rel call irState targetState = true) :
+    ∃ nextIr nextTarget observable,
+      irStep irState call = .ok (nextIr, observable) ∧
+      targetStep targetState call = .ok (nextTarget, observable) ∧
+      Rel nextIr nextTarget = true := by
+  unfold executableStepSimulationOk at h
+  cases hir : irStep irState call with
+  | error _ =>
+      simp [hir] at h
+  | ok irResult =>
+      cases htarget : targetStep targetState call with
+      | error _ =>
+          simp [hir, htarget] at h
+      | ok targetResult =>
+          rcases irResult with ⟨nextIr, irObs⟩
+          rcases targetResult with ⟨nextTarget, targetObs⟩
+          by_cases hobs : irObs = targetObs
+          · simp [hir, htarget, hobs] at h
+            refine ⟨nextIr, nextTarget, irObs, rfl, ?_, h⟩
+            simp [hobs]
+          · simp [hir, htarget, hobs] at h
+
 /-- Executable paired-step simulation check.
 
 This is the C-diff companion to `traceSimulation_lift`: it runs the IR and

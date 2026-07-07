@@ -25,6 +25,18 @@ def counterTraceEntrypoints : Array Entrypoint := #[
   ProofForge.IR.Examples.Counter.get
 ]
 
+def counterInitializeCall : TraceCall := {
+  entrypoint := ProofForge.IR.Examples.Counter.initializeEntrypoint
+}
+
+def counterGetCall : TraceCall := {
+  entrypoint := ProofForge.IR.Examples.Counter.get
+}
+
+def counterIncrementCall : TraceCall := {
+  entrypoint := ProofForge.IR.Examples.Counter.increment
+}
+
 def counterExpectedTrace : Array ObservableStep := #[
   { entrypointName := "initialize", returnValue := .none },
   { entrypointName := "get", returnValue := .u64 0 },
@@ -190,6 +202,165 @@ def counterWasmSimulationRel
   ProofForge.Backend.WasmNear.WasmInterpreter.ROptional
     ProofForge.IR.Examples.Counter.module "count" irState machine.state
 
+def counterWasmInitialTarget
+    (wasm : ProofForge.Compiler.Wasm.Module) : WasmNearMachineState :=
+  { wasm, state := ProofForge.Backend.WasmNear.WasmInterpreter.initialState wasm }
+
+def counterWasmStateAfterPrefix
+    (wasm : ProofForge.Compiler.Wasm.Module)
+    (callPrefix : List TraceCall) :
+    Except String (ProofForge.IR.Semantics.State × WasmNearMachineState) := do
+  let (irState, _) ← ProofForge.IR.StepSemantics.runTraceListGen
+    runEntrypointObservable callPrefix ProofForge.IR.Semantics.State.empty
+  let (targetState, _) ← ProofForge.IR.StepSemantics.runTraceListGen
+    WasmNearMachineState.traceStep callPrefix (counterWasmInitialTarget wasm)
+  .ok (irState, targetState)
+
+def counterWasmStepSimulationOkAfter
+    (callPrefix : List TraceCall) (call : TraceCall) : Bool :=
+  match ProofForge.Backend.WasmNear.EmitWat.lowerModule
+      ProofForge.IR.Examples.Counter.module with
+  | .error _ => false
+  | .ok wasm =>
+      match counterWasmStateAfterPrefix wasm callPrefix with
+      | .error _ => false
+      | .ok (irState, targetState) =>
+          executableStepSimulationOk
+            runEntrypointObservable
+            WasmNearMachineState.traceStep
+            counterWasmSimulationRel
+            call
+            irState
+            targetState
+
+theorem counter_wasm_step_simulation_sound_after
+    (callPrefix : List TraceCall) (call : TraceCall) :
+    counterWasmStepSimulationOkAfter callPrefix call = true →
+      match ProofForge.Backend.WasmNear.EmitWat.lowerModule
+          ProofForge.IR.Examples.Counter.module with
+      | .error _ => True
+      | .ok wasm =>
+          match counterWasmStateAfterPrefix wasm callPrefix with
+          | .error _ => True
+          | .ok (irState, targetState) =>
+              ∃ nextIr nextTarget observable,
+                runEntrypointObservable irState call =
+                  .ok (nextIr, observable) ∧
+                WasmNearMachineState.traceStep targetState call =
+                  .ok (nextTarget, observable) ∧
+                counterWasmSimulationRel nextIr nextTarget = true := by
+  intro h
+  unfold counterWasmStepSimulationOkAfter at h
+  cases hmod : ProofForge.Backend.WasmNear.EmitWat.lowerModule
+      ProofForge.IR.Examples.Counter.module with
+  | error _ =>
+      trivial
+  | ok wasm =>
+      simp [hmod] at h
+      cases hprefix : counterWasmStateAfterPrefix wasm callPrefix with
+      | error _ =>
+          simp [hprefix]
+      | ok pair =>
+          rcases pair with ⟨irState, targetState⟩
+          simp [hprefix] at h
+          simpa [hmod, hprefix] using executableStepSimulationOk_sound
+            runEntrypointObservable
+            WasmNearMachineState.traceStep
+            counterWasmSimulationRel
+            call
+            irState
+            targetState
+            h
+
+theorem counter_wasm_initialize_step_simulation_ok :
+    counterWasmStepSimulationOkAfter [] counterInitializeCall = true := by
+  native_decide
+
+theorem counter_wasm_get_after_initialize_step_simulation_ok :
+    counterWasmStepSimulationOkAfter [counterInitializeCall] counterGetCall = true := by
+  native_decide
+
+theorem counter_wasm_increment_after_initialize_step_simulation_ok :
+    counterWasmStepSimulationOkAfter [counterInitializeCall] counterIncrementCall = true := by
+  native_decide
+
+theorem counter_wasm_get_after_increment_step_simulation_ok :
+    counterWasmStepSimulationOkAfter
+      [counterInitializeCall, counterIncrementCall] counterGetCall = true := by
+  native_decide
+
+theorem counter_wasm_initialize_step_simulation_sound_checked :
+    match ProofForge.Backend.WasmNear.EmitWat.lowerModule
+        ProofForge.IR.Examples.Counter.module with
+    | .error _ => True
+    | .ok wasm =>
+        match counterWasmStateAfterPrefix wasm [] with
+        | .error _ => True
+        | .ok (irState, targetState) =>
+            ∃ nextIr nextTarget observable,
+              runEntrypointObservable irState counterInitializeCall =
+                .ok (nextIr, observable) ∧
+              WasmNearMachineState.traceStep targetState counterInitializeCall =
+                .ok (nextTarget, observable) ∧
+              counterWasmSimulationRel nextIr nextTarget = true :=
+  counter_wasm_step_simulation_sound_after
+    [] counterInitializeCall counter_wasm_initialize_step_simulation_ok
+
+theorem counter_wasm_get_after_initialize_step_simulation_sound_checked :
+    match ProofForge.Backend.WasmNear.EmitWat.lowerModule
+        ProofForge.IR.Examples.Counter.module with
+    | .error _ => True
+    | .ok wasm =>
+        match counterWasmStateAfterPrefix wasm [counterInitializeCall] with
+        | .error _ => True
+        | .ok (irState, targetState) =>
+            ∃ nextIr nextTarget observable,
+              runEntrypointObservable irState counterGetCall =
+                .ok (nextIr, observable) ∧
+              WasmNearMachineState.traceStep targetState counterGetCall =
+                .ok (nextTarget, observable) ∧
+              counterWasmSimulationRel nextIr nextTarget = true :=
+  counter_wasm_step_simulation_sound_after
+    [counterInitializeCall] counterGetCall
+    counter_wasm_get_after_initialize_step_simulation_ok
+
+theorem counter_wasm_increment_after_initialize_step_simulation_sound_checked :
+    match ProofForge.Backend.WasmNear.EmitWat.lowerModule
+        ProofForge.IR.Examples.Counter.module with
+    | .error _ => True
+    | .ok wasm =>
+        match counterWasmStateAfterPrefix wasm [counterInitializeCall] with
+        | .error _ => True
+        | .ok (irState, targetState) =>
+            ∃ nextIr nextTarget observable,
+              runEntrypointObservable irState counterIncrementCall =
+                .ok (nextIr, observable) ∧
+              WasmNearMachineState.traceStep targetState counterIncrementCall =
+                .ok (nextTarget, observable) ∧
+              counterWasmSimulationRel nextIr nextTarget = true :=
+  counter_wasm_step_simulation_sound_after
+    [counterInitializeCall] counterIncrementCall
+    counter_wasm_increment_after_initialize_step_simulation_ok
+
+theorem counter_wasm_get_after_increment_step_simulation_sound_checked :
+    match ProofForge.Backend.WasmNear.EmitWat.lowerModule
+        ProofForge.IR.Examples.Counter.module with
+    | .error _ => True
+    | .ok wasm =>
+        match counterWasmStateAfterPrefix wasm
+            [counterInitializeCall, counterIncrementCall] with
+        | .error _ => True
+        | .ok (irState, targetState) =>
+            ∃ nextIr nextTarget observable,
+              runEntrypointObservable irState counterGetCall =
+                .ok (nextIr, observable) ∧
+              WasmNearMachineState.traceStep targetState counterGetCall =
+                .ok (nextTarget, observable) ∧
+              counterWasmSimulationRel nextIr nextTarget = true :=
+  counter_wasm_step_simulation_sound_after
+    [counterInitializeCall, counterIncrementCall] counterGetCall
+    counter_wasm_get_after_increment_step_simulation_ok
+
 def counterWasmTraceSimulationOk : Bool :=
   match ProofForge.Backend.WasmNear.EmitWat.lowerModule
       ProofForge.IR.Examples.Counter.module with
@@ -201,7 +372,7 @@ def counterWasmTraceSimulationOk : Bool :=
         counterWasmSimulationRel
         counterTraceObligation.calls.toList
         ProofForge.IR.Semantics.State.empty
-        { wasm, state := ProofForge.Backend.WasmNear.WasmInterpreter.initialState wasm }
+        (counterWasmInitialTarget wasm)
 
 theorem counter_wasm_trace_simulation_ok :
     counterWasmTraceSimulationOk = true := by

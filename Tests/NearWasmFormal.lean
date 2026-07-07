@@ -63,6 +63,14 @@ theorem release_then_sum_ownership_ok :
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_offline_host_execution_surface_ok
 #check ProofForge.Backend.WasmNear.WasmInterpreter.counter_interpreter_smoke_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_wasm_executable_trace_ok
+#check ProofForge.Backend.WasmNear.Refinement.counter_wasm_initialize_step_simulation_ok
+#check ProofForge.Backend.WasmNear.Refinement.counter_wasm_get_after_initialize_step_simulation_ok
+#check ProofForge.Backend.WasmNear.Refinement.counter_wasm_increment_after_initialize_step_simulation_ok
+#check ProofForge.Backend.WasmNear.Refinement.counter_wasm_get_after_increment_step_simulation_ok
+#check ProofForge.Backend.WasmNear.Refinement.counter_wasm_initialize_step_simulation_sound_checked
+#check ProofForge.Backend.WasmNear.Refinement.counter_wasm_get_after_initialize_step_simulation_sound_checked
+#check ProofForge.Backend.WasmNear.Refinement.counter_wasm_increment_after_initialize_step_simulation_sound_checked
+#check ProofForge.Backend.WasmNear.Refinement.counter_wasm_get_after_increment_step_simulation_sound_checked
 #check ProofForge.Backend.WasmNear.Refinement.counter_wasm_trace_simulation_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_wasm_trace_simulation_sound_checked
 #check ProofForge.Backend.WasmNear.WasmInterpreter.counter_R_after_initialize_ok
@@ -109,5 +117,5 @@ theorem release_then_sum_ownership_ok :
 end ProofForge.Tests.NearWasmFormal
 
 def main : IO UInt32 := do
-  IO.println "formal-anchors: ValueVault FV-8 IR invariants, NEAR artifact/offline-host/Counter+ValueVault+array/map executable traces, Counter paired simulation, backend surfaces, and EVM FV-2/FV-4 IR trace anchors checked"
+  IO.println "formal-anchors: ValueVault FV-8 IR invariants, NEAR artifact/offline-host/Counter+ValueVault+array/map executable traces, Counter entrypoint/trace paired simulation, backend surfaces, and EVM FV-2/FV-4 IR trace anchors checked"
   return 0

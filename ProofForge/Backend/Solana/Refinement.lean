@@ -110,6 +110,18 @@ The canonical cross-target acceptance scenario. Same IR fixture and same
 observable-shape expectation as the EVM and NEAR refinement layers. -/
 
 /-- Counter `initialize → get → increment → get` observable trace. -/
+def counterInitializeCall : TraceCall := {
+  entrypoint := ProofForge.IR.Examples.Counter.initializeEntrypoint
+}
+
+def counterGetCall : TraceCall := {
+  entrypoint := ProofForge.IR.Examples.Counter.get
+}
+
+def counterIncrementCall : TraceCall := {
+  entrypoint := ProofForge.IR.Examples.Counter.increment
+}
+
 def counterExpectedTrace : Array ObservableStep := #[
   { entrypointName := "initialize", returnValue := .none },
   { entrypointName := "get", returnValue := .u64 0 },
@@ -135,6 +147,177 @@ def counterSbpfSimulationRel
   ProofForge.Backend.Solana.SbpfInterpreter.RMemoryOptional
     ProofForge.IR.Examples.Counter.module "count" irState machine.memory
 
+def counterSbpfInitialTarget
+    (program : ProofForge.Backend.Solana.SbpfInterpreter.SbpfProgram) :
+    SolanaSbpfMachineState :=
+  { program,
+    module := ProofForge.IR.Examples.Counter.module,
+    memory := #[] }
+
+def counterSbpfStateAfterPrefix
+    (program : ProofForge.Backend.Solana.SbpfInterpreter.SbpfProgram)
+    (callPrefix : List TraceCall) :
+    Except String (ProofForge.IR.Semantics.State × SolanaSbpfMachineState) := do
+  let (irState, _) ← ProofForge.IR.StepSemantics.runTraceListGen
+    runEntrypointObservable callPrefix ProofForge.IR.Semantics.State.empty
+  let (targetState, _) ← ProofForge.IR.StepSemantics.runTraceListGen
+    SolanaSbpfMachineState.traceStep callPrefix (counterSbpfInitialTarget program)
+  .ok (irState, targetState)
+
+def counterSbpfStepSimulationOkAfter
+    (callPrefix : List TraceCall) (call : TraceCall) : Bool :=
+  match ProofForge.Backend.Solana.SbpfAsm.lowerModule
+      ProofForge.IR.Examples.Counter.module with
+  | .error _ => false
+  | .ok nodes =>
+      let program := ProofForge.Backend.Solana.SbpfInterpreter.collectProgram nodes
+      match counterSbpfStateAfterPrefix program callPrefix with
+      | .error _ => false
+      | .ok (irState, targetState) =>
+          executableStepSimulationOk
+            runEntrypointObservable
+            SolanaSbpfMachineState.traceStep
+            counterSbpfSimulationRel
+            call
+            irState
+            targetState
+
+theorem counter_sbpf_step_simulation_sound_after
+    (callPrefix : List TraceCall) (call : TraceCall) :
+    counterSbpfStepSimulationOkAfter callPrefix call = true →
+      match ProofForge.Backend.Solana.SbpfAsm.lowerModule
+          ProofForge.IR.Examples.Counter.module with
+      | .error _ => True
+      | .ok nodes =>
+          let program :=
+            ProofForge.Backend.Solana.SbpfInterpreter.collectProgram nodes
+          match counterSbpfStateAfterPrefix program callPrefix with
+          | .error _ => True
+          | .ok (irState, targetState) =>
+              ∃ nextIr nextTarget observable,
+                runEntrypointObservable irState call =
+                  .ok (nextIr, observable) ∧
+                SolanaSbpfMachineState.traceStep targetState call =
+                  .ok (nextTarget, observable) ∧
+                counterSbpfSimulationRel nextIr nextTarget = true := by
+  intro h
+  unfold counterSbpfStepSimulationOkAfter at h
+  cases hmod : ProofForge.Backend.Solana.SbpfAsm.lowerModule
+      ProofForge.IR.Examples.Counter.module with
+  | error _ =>
+      trivial
+  | ok nodes =>
+      simp [hmod] at h
+      let program := ProofForge.Backend.Solana.SbpfInterpreter.collectProgram nodes
+      cases hprefix : counterSbpfStateAfterPrefix program callPrefix with
+      | error _ =>
+          simp [program] at hprefix
+          simp [hprefix]
+      | ok pair =>
+          rcases pair with ⟨irState, targetState⟩
+          simp [program, hprefix] at h
+          simpa [hmod, program, hprefix] using executableStepSimulationOk_sound
+            runEntrypointObservable
+            SolanaSbpfMachineState.traceStep
+            counterSbpfSimulationRel
+            call
+            irState
+            targetState
+            h
+
+theorem counter_sbpf_initialize_step_simulation_ok :
+    counterSbpfStepSimulationOkAfter [] counterInitializeCall = true := by
+  native_decide
+
+theorem counter_sbpf_get_after_initialize_step_simulation_ok :
+    counterSbpfStepSimulationOkAfter [counterInitializeCall] counterGetCall = true := by
+  native_decide
+
+theorem counter_sbpf_increment_after_initialize_step_simulation_ok :
+    counterSbpfStepSimulationOkAfter [counterInitializeCall] counterIncrementCall = true := by
+  native_decide
+
+theorem counter_sbpf_get_after_increment_step_simulation_ok :
+    counterSbpfStepSimulationOkAfter
+      [counterInitializeCall, counterIncrementCall] counterGetCall = true := by
+  native_decide
+
+theorem counter_sbpf_initialize_step_simulation_sound_checked :
+    match ProofForge.Backend.Solana.SbpfAsm.lowerModule
+        ProofForge.IR.Examples.Counter.module with
+    | .error _ => True
+    | .ok nodes =>
+        let program := ProofForge.Backend.Solana.SbpfInterpreter.collectProgram nodes
+        match counterSbpfStateAfterPrefix program [] with
+        | .error _ => True
+        | .ok (irState, targetState) =>
+            ∃ nextIr nextTarget observable,
+              runEntrypointObservable irState counterInitializeCall =
+                .ok (nextIr, observable) ∧
+              SolanaSbpfMachineState.traceStep targetState counterInitializeCall =
+                .ok (nextTarget, observable) ∧
+              counterSbpfSimulationRel nextIr nextTarget = true :=
+  counter_sbpf_step_simulation_sound_after
+    [] counterInitializeCall counter_sbpf_initialize_step_simulation_ok
+
+theorem counter_sbpf_get_after_initialize_step_simulation_sound_checked :
+    match ProofForge.Backend.Solana.SbpfAsm.lowerModule
+        ProofForge.IR.Examples.Counter.module with
+    | .error _ => True
+    | .ok nodes =>
+        let program := ProofForge.Backend.Solana.SbpfInterpreter.collectProgram nodes
+        match counterSbpfStateAfterPrefix program [counterInitializeCall] with
+        | .error _ => True
+        | .ok (irState, targetState) =>
+            ∃ nextIr nextTarget observable,
+              runEntrypointObservable irState counterGetCall =
+                .ok (nextIr, observable) ∧
+              SolanaSbpfMachineState.traceStep targetState counterGetCall =
+                .ok (nextTarget, observable) ∧
+              counterSbpfSimulationRel nextIr nextTarget = true :=
+  counter_sbpf_step_simulation_sound_after
+    [counterInitializeCall] counterGetCall
+    counter_sbpf_get_after_initialize_step_simulation_ok
+
+theorem counter_sbpf_increment_after_initialize_step_simulation_sound_checked :
+    match ProofForge.Backend.Solana.SbpfAsm.lowerModule
+        ProofForge.IR.Examples.Counter.module with
+    | .error _ => True
+    | .ok nodes =>
+        let program := ProofForge.Backend.Solana.SbpfInterpreter.collectProgram nodes
+        match counterSbpfStateAfterPrefix program [counterInitializeCall] with
+        | .error _ => True
+        | .ok (irState, targetState) =>
+            ∃ nextIr nextTarget observable,
+              runEntrypointObservable irState counterIncrementCall =
+                .ok (nextIr, observable) ∧
+              SolanaSbpfMachineState.traceStep targetState counterIncrementCall =
+                .ok (nextTarget, observable) ∧
+              counterSbpfSimulationRel nextIr nextTarget = true :=
+  counter_sbpf_step_simulation_sound_after
+    [counterInitializeCall] counterIncrementCall
+    counter_sbpf_increment_after_initialize_step_simulation_ok
+
+theorem counter_sbpf_get_after_increment_step_simulation_sound_checked :
+    match ProofForge.Backend.Solana.SbpfAsm.lowerModule
+        ProofForge.IR.Examples.Counter.module with
+    | .error _ => True
+    | .ok nodes =>
+        let program := ProofForge.Backend.Solana.SbpfInterpreter.collectProgram nodes
+        match counterSbpfStateAfterPrefix program
+            [counterInitializeCall, counterIncrementCall] with
+        | .error _ => True
+        | .ok (irState, targetState) =>
+            ∃ nextIr nextTarget observable,
+              runEntrypointObservable irState counterGetCall =
+                .ok (nextIr, observable) ∧
+              SolanaSbpfMachineState.traceStep targetState counterGetCall =
+                .ok (nextTarget, observable) ∧
+              counterSbpfSimulationRel nextIr nextTarget = true :=
+  counter_sbpf_step_simulation_sound_after
+    [counterInitializeCall, counterIncrementCall] counterGetCall
+    counter_sbpf_get_after_increment_step_simulation_ok
+
 def counterSbpfTraceSimulationOk : Bool :=
   match ProofForge.Backend.Solana.SbpfAsm.lowerModule
       ProofForge.IR.Examples.Counter.module with
@@ -147,9 +330,7 @@ def counterSbpfTraceSimulationOk : Bool :=
         counterSbpfSimulationRel
         counterTraceObligation.calls.toList
         ProofForge.IR.Semantics.State.empty
-        { program,
-          module := ProofForge.IR.Examples.Counter.module,
-          memory := #[] }
+        (counterSbpfInitialTarget program)
 
 theorem counter_sbpf_trace_simulation_ok :
     counterSbpfTraceSimulationOk = true := by

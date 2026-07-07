@@ -63,13 +63,20 @@ interpreters too.
 ## Task graph
 
 ```text
-P1 (shared interface) ─┬─→ S1 → S2 → S3 → S4 → S5   (Solana C-diff)
-                       └─→ W1 → W2 → W3 → W4 → W5   (WASM C-diff)
-P2 (trace induction, landed generically in IR/StepSemantics.lean) ─┬─→ S6 (Solana C-proof)
-                                                                   └─→ W6 (WASM C-proof)
+P1 (shared interface, LANDED) ──→ E1 → E2 → E3   (EVM C-proof via powdr — REFERENCE, do first)
+                               ├→ S1 → S2 → S3 → S4 → S5   (Solana C-diff)
+                               └→ W1 → W2 → W3 → W4 → W5   (WASM C-diff)
+P2 (trace induction, landed generically) ─┬─→ S6 (Solana C-proof, copies E3)
+                                          └─→ W6 (WASM C-proof, copies E3)
 ```
 
-Start with **P1** (unblocks both lanes) or **W1** (pure docs, zero code risk).
+**EVM is the reference lane — do E1–E3 first.** EVM *imports* an external Lean semantics
+(`powdr-labs/evm-semantics`), so its C-proof lands fastest and gives Solana/WASM a worked
+template: S6/W6 copy E3's shape, swapping powdr's `Step` for the self-built
+`SbpfInterpreter` / `WasmInterpreter` `Step`. **Already LANDED** (commits `4c4ec279`…`5de2c414`):
+P1 shared interface, the generic trace induction, and the EVM seam switched to powdr's
+`State`/`Step`/`stepF` shape (`173b9d4f`, builds mathlib-free). Remaining EVM work is E1–E3.
+(For the self-built lanes, start with **S1** or **W1**.)
 
 ---
 
@@ -90,6 +97,77 @@ Start with **P1** (unblocks both lanes) or **W1** (pure docs, zero code risk).
 - **Acceptance:** `lake build` green; existing Refinement theorems still `#check`;
   `just check` passes; the three local `ObservableReturn` copies are gone.
 - **Depends on:** none.
+
+---
+
+## EVM lane (E1–E3) — REFERENCE, do first (import `powdr-labs/evm-semantics`)
+
+> EVM does NOT self-build semantics — it **imports** `powdr-labs/evm-semantics` (Lean
+> `v4.31.0`, toolchain-compatible; relational `Step` + executable `stepF`). Facts +
+> rationale: [tier-c-proof-feasibility.md §2](../../tier-c-proof-feasibility.md),
+> [phase-6b-integration-blockers.md](../../phase-6b-integration-blockers.md). The seam
+> `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` already mirrors powdr's
+> `State`/`Step`/`stepF` and builds mathlib-free (commit `173b9d4f`). E1–E3 wire the real
+> dependency and prove the first IR↔EVM refinement — the template S6/W6 then copy.
+
+## Task E1 — Opt-in lake target for `powdr-labs/evm-semantics` + mathlib (network-heavy)
+
+- **① Read first:** `docs/phase-6b-integration-blockers.md` §(b) `require` syntax + §(d)
+  resolution path #0 + "Recommended next action"; `docs/tier-c-proof-feasibility.md` §2.
+- **② Context to load:** `lakefile.lean` (currently mathlib-free — verified); the seam
+  docstring in `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` (lists the required
+  `EvmSemantics.EVM.*` imports).
+- **③ Do:** add a **separate opt-in lake target** (a distinct `lean_lib`, e.g.
+  `EvmRefinement`, **not** in the default target graph) that `require`s
+  `powdr-labs/evm-semantics` pinned to a **literal commit SHA** (+ transitive
+  `mathlib @ v4.31.0`). Run `lake update` in a **network** environment; capture the pinned
+  commit into `lake-manifest.json`. The default `lake build` / `just check` MUST stay
+  mathlib-free and green.
+- **Acceptance:** default `lake build` unchanged (mathlib-free, green); the opt-in
+  `EvmRefinement` target resolves and builds powdr + mathlib in a network env; the pinned
+  commit is recorded in `lake-manifest.json`.
+- **Depends on:** none — **but needs network + a long mathlib build.** This is the one
+  heavy, environment-dependent task; run it where network and build time exist.
+
+## Task E2 — Replace the EVM seam stubs with real powdr imports
+
+- **② Context to load:** `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` (stub
+  `State`/`Step`/`stepF`/`runBytecode` + the docstring import list: `EvmSemantics.EVM.State`
+  / `Step` / `BigStep` / `StepF`).
+- **③ Do:** under the opt-in target only, replace the stub bodies with imports from
+  `EvmSemantics.EVM.*`, keeping the public surface and all `Refinement.lean` callers
+  unchanged. Keep the mathlib-free stub as the default-build fallback (gate the real import
+  behind the opt-in target so the default build never pulls mathlib).
+- **Acceptance:** opt-in target type-checks against the real powdr `State`/`Step`/`stepF`;
+  default build still mathlib-free + green; no `Refinement.lean` theorem statement changes.
+- **Depends on:** E1.
+
+## Task E3 — First real IR↔EVM refinement (Counter, against powdr's `Step`)
+
+- **① Read first:** `ProofForge/Backend/Refinement/CounterUniversal.lean` (the proof shape:
+  per-entrypoint simulation + generic trace induction, currently against a toy `targetStep`);
+  `docs/tier-c-proof-feasibility.md` §3 (the target-obligation shape).
+- **② Context to load:** `CounterUniversal.lean` (`targetStep` / `counterModelTargetSemantics`
+  — the toy to replace for EVM); the real powdr `Step` (from E2); the EVM storage layout
+  (`ProofForge/Backend/Evm/Plan/Storage.lean`, for the `R` relation);
+  `ProofForge/Backend/Evm/Refinement.lean`.
+- **③ Do:** instantiate a `TargetSemantics` for EVM whose `Step` is powdr's relational
+  `Step` over the compiled Counter; define `R : IR.State ↔ EvmSemantics.EVM.State` (IR
+  `count` binding ↔ the storage slot from the EVM plan's layout); prove per-entrypoint
+  simulation (`initialize`/`get`/`increment`) against powdr's `Step`; lift to the **universal**
+  trace theorem via the already-landed generic induction. This is Phase 6c — the first
+  universal (`∀` call list) **IR↔EVM-bytecode** refinement. Also confirm whether powdr
+  exposes a **Yul-level** relation; if not, document the Yul→bytecode (`solc`) step as an
+  explicit trust boundary (the §2 granularity caveat).
+- **Acceptance:** a universally-quantified refinement theorem (IR Counter ⟷ powdr EVM
+  `Step`, by `induction`, **not** `native_decide`) type-checks under the opt-in target;
+  `docs/formal-verification.md` EVM Tier C-proof row updated from aspirational/blocked to
+  "Counter refinement against powdr (opt-in)".
+- **Depends on:** E1, E2, P1 (landed), generic trace induction (landed).
+
+**Then Solana/WASM copy E3.** S6/W6 mirror E3's per-entrypoint-simulation + induction shape,
+swapping powdr's `Step` for the self-built `SbpfInterpreter` / `WasmInterpreter` `Step` — no
+external dependency, but the external differential gate stays (Background "Two-hop trust").
 
 ## Task S1 — sBPF interpreter (state + step)
 
@@ -209,16 +287,18 @@ These are lower-priority; they build on the C-diff tasks above.
   IR/target call preserves `R` and emits the same observable, then the whole call list
   emits the same observable array. `CounterUniversal.lean` instantiates this as
   `counter_trace_simulates_all_related_via_framework`. The same core module now also
-  provides `executableSimulationTraceOk_sound`, which converts a concrete paired-step
-  executable check into Lean evidence of matching observable arrays plus final relation.
+  provides `executableStepSimulationOk_sound` and `executableSimulationTraceOk_sound`,
+  which convert concrete paired-step executable checks into Lean evidence for one
+  entrypoint or a concrete call list.
 - **S6 / W6 — refinement lemmas:** per-entrypoint simulation
   `R s s' → R (stepIR …) (runTarget …)`, then apply `traceSimulation_lift` to get
   whole-trace equality by induction over the call list. The shared lift is landed, and
-  both real target runners now have the first Counter paired-step soundness checks:
+  both real target runners now have Counter entrypoint-level paired-step soundness checks
+  for the concrete `initialize`/`get`/`increment` prefixes, plus whole-trace checks:
   `counter_sbpf_trace_simulation_sound_checked` and
   `counter_wasm_trace_simulation_sound_checked`. The remaining target-specific work is
-  to replace these fixed-trace paired checks with real per-entrypoint simulation lemmas
-  for the sBPF and Wasm interpreters.
+  to replace these pointwise entrypoint checks with universally quantified
+  per-entrypoint simulation lemmas for the sBPF and Wasm interpreters.
   Depends on P1 + P2 + (S3 / W5).
 - **S4 / S5 — Solana deeper slices:** ValueVault multiple scalar slots (S4), then
   maps/arrays by porting the IR storage-slot model to sBPF scratch memory (S5).
