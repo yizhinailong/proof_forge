@@ -392,6 +392,43 @@ theorem counterStorageRel_prepareCounterCall
   rw [counterStorageValue_prepareCounterCall]
   exact hstorage
 
+@[simp] theorem prepareCounterCall_gasAvailable
+    (runtimeCode : ByteArray) (call : CounterCall) (state : EvmState) :
+    (prepareCounterCall runtimeCode call state).gasAvailable =
+      counterRuntimeGasAvailable := rfl
+
+@[simp] theorem prepareCounterCall_pc
+    (runtimeCode : ByteArray) (call : CounterCall) (state : EvmState) :
+    (prepareCounterCall runtimeCode call state).pc = EvmSemantics.UInt256.ofNat 0 := rfl
+
+@[simp] theorem prepareCounterCall_stack
+    (runtimeCode : ByteArray) (call : CounterCall) (state : EvmState) :
+    (prepareCounterCall runtimeCode call state).stack = [] := rfl
+
+@[simp] theorem prepareCounterCall_halt
+    (runtimeCode : ByteArray) (call : CounterCall) (state : EvmState) :
+    (prepareCounterCall runtimeCode call state).halt = .Running := rfl
+
+@[simp] theorem prepareCounterCall_callStack
+    (runtimeCode : ByteArray) (call : CounterCall) (state : EvmState) :
+    (prepareCounterCall runtimeCode call state).callStack = [] := rfl
+
+@[simp] theorem prepareCounterCall_calldata
+    (runtimeCode : ByteArray) (call : CounterCall) (state : EvmState) :
+    (prepareCounterCall runtimeCode call state).executionEnv.calldata =
+      counterCallCalldata call := rfl
+
+@[simp] theorem prepareCounterCall_code
+    (runtimeCode : ByteArray) (call : CounterCall) (state : EvmState) :
+    (prepareCounterCall runtimeCode call state).executionEnv.code =
+      runtimeCode := rfl
+
+@[simp] theorem prepareCounterCall_isDone
+    (runtimeCode : ByteArray) (call : CounterCall) (state : EvmState) :
+    (prepareCounterCall runtimeCode call state).isDone = false := by
+  simp [prepareCounterCall, EvmSemantics.EVM.State.isDone,
+    EvmSemantics.EVM.State.isHalted, EvmSemantics.EVM.State.isRunning]
+
 structure PowdrCounterConfig where
   runtimeCode : ByteArray
   fuel : Nat
@@ -468,6 +505,37 @@ def counterPowdrTraceStep (cfg : PowdrCounterConfig) (state : EvmState)
 def CounterPreparedCall (cfg : PowdrCounterConfig) (call : CounterCall)
     (state : EvmState) : Prop :=
   ∃ sourceState, state = prepareCounterCall cfg.runtimeCode call sourceState
+
+theorem counterPreparedCall_isDone
+    {cfg : PowdrCounterConfig} {call : CounterCall} {state : EvmState}
+    (hprepared : CounterPreparedCall cfg call state) :
+    state.isDone = false := by
+  rcases hprepared with ⟨sourceState, rfl⟩
+  exact prepareCounterCall_isDone cfg.runtimeCode call sourceState
+
+theorem counterPreparedCall_not_isDone
+    {cfg : PowdrCounterConfig} {call : CounterCall} {state : EvmState}
+    (hprepared : CounterPreparedCall cfg call state) :
+    ¬ state.isDone := by
+  rw [counterPreparedCall_isDone hprepared]
+  simp
+
+theorem counterPreparedCall_stepF_ok
+    {cfg : PowdrCounterConfig} {call : CounterCall} {state : EvmState}
+    (hprepared : CounterPreparedCall cfg call state) :
+    ProofForge.Backend.Evm.PowdrAdapter.stepF state =
+      .ok (ProofForge.Backend.Evm.PowdrAdapter.rawStepF state) := by
+  unfold ProofForge.Backend.Evm.PowdrAdapter.stepF
+  rw [counterPreparedCall_isDone hprepared]
+  rfl
+
+theorem counterPreparedCall_stepF_step
+    {cfg : PowdrCounterConfig} {call : CounterCall} {state : EvmState}
+    (hprepared : CounterPreparedCall cfg call state) :
+    ProofForge.Backend.Evm.PowdrAdapter.Step state
+      (ProofForge.Backend.Evm.PowdrAdapter.rawStepF state) :=
+  ProofForge.Backend.Evm.PowdrAdapter.raw_stepF_sound state
+    (counterPreparedCall_not_isDone hprepared)
 
 theorem counterPowdrTraceStep_steps {cfg : PowdrCounterConfig}
     {state finalState : EvmState} {call : CounterCall}
