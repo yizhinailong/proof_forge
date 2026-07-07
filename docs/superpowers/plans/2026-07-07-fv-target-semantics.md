@@ -278,15 +278,18 @@ surface. Remaining EVM work is E3.
   `counterStack_of_stepFE_push0_ok` start the dispatcher-to-helper bridge by
   proving the compiled initialize body's first post-`JUMPDEST` opcode decodes
   as `PUSH0` and that top-level `stepFE` has the same stack effect as the
-  helper.
+  helper. The bridge now also has `stepFE` stack-effect lemmas for `PUSH1`,
+  `DUP1`, `SHL`, `SUB`, and `NOT`, plus compiled-runtime decode facts for the
+  initialize prefix opcodes through the mask-building `NOT`.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
   remains an explicit trust boundary. The remaining E3 work is to discharge those
   prepared-frame storage models against the concrete runtime by proving the
   dispatcher/JUMPDEST path reaches the proven initialize-body helper sequence,
-  extending the first `stepFE` opcode bridge across the remaining initialize
-  body opcodes and instantiating the prepared-frame initialize storage model.
+  composing the new prefix opcode bridges into a concrete prefix path, extending
+  the bridge across SLOAD/AND/OR/PUSH0/SSTORE, and instantiating the prepared-frame
+  initialize storage model.
 - **Acceptance:** a universally-quantified refinement theorem (IR Counter ⟷ powdr EVM
   `Step`, by `induction`, **not** `native_decide`) type-checks under the opt-in target;
   `docs/formal-verification.md` EVM Tier C-proof row updated from aspirational/blocked to
