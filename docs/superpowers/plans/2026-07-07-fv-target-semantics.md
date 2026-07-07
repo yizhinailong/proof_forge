@@ -337,7 +337,10 @@ surface. Remaining EVM work is E3.
   `counterStorageValue_of_initialize_body_stepFE_from_first_opcode_ok` composes
   the first initialize body opcode through the prefix and SLOAD/AND/OR/PUSH0/SSTORE
   tail, proving the concrete `stepFE` body writes `counterInitializeStorageWord`
-  relative to the SLOAD-state storage word.
+  relative to the SLOAD-state storage word. Its companion
+  `counterStack_of_initialize_body_stepFE_from_first_opcode_ok` proves the same
+  body path preserves the return-address/selector stack tail for the final
+  return path.
   `counterCompiledPreparedInitialize_entry_facts` records the compiled prepared
   initialize frame's PC0/code/fork, empty stack, initialize calldata, and
   contract address facts needed to instantiate the composed path from a real

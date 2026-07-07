@@ -421,7 +421,9 @@ ProofForge's default build still avoids powdr/mathlib imports.
     composes through the trampoline and body `JUMPDEST` to the first initialize
     body opcode. `counterStorageValue_of_initialize_body_stepFE_from_first_opcode_ok`
     then composes that first opcode through SSTORE and proves the body writes
-    `counterInitializeStorageWord` relative to the SLOAD-state storage word.
+    `counterInitializeStorageWord` relative to the SLOAD-state storage word;
+    `counterStack_of_initialize_body_stepFE_from_first_opcode_ok` proves the
+    same body path preserves the return-address/selector stack tail.
     `counterCompiledPreparedInitialize_entry_facts` records the prepared
     initialize frame facts needed to instantiate the composed path from a real
     `CounterPreparedCall`. The body final `JUMP` plus

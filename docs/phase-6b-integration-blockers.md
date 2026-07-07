@@ -416,10 +416,11 @@ Yul→bytecode `solc` step as an explicit trust boundary.
 - `counterState_of_dispatcher_trampoline_stepFE_to_initialize_first_opcode_ok`
   — green under `lake build EvmRefinement`; the dispatcher, trampoline, and body
   `JUMPDEST` now compose to the first initialize body opcode.
-- `counterStorageValue_of_initialize_body_stepFE_from_first_opcode_ok` — green
-  under `lake build EvmRefinement`; the initialize body now composes from its
-  first opcode through SSTORE and writes `counterInitializeStorageWord` relative
-  to the SLOAD-state storage word.
+- `counterStorageValue_of_initialize_body_stepFE_from_first_opcode_ok` and
+  `counterStack_of_initialize_body_stepFE_from_first_opcode_ok` — green under
+  `lake build EvmRefinement`; the initialize body now composes from its first
+  opcode through SSTORE, writes `counterInitializeStorageWord` relative to the
+  SLOAD-state storage word, and preserves the stack tail for the final return path.
 - `counterCompiledPreparedInitialize_entry_facts` — green under
   `lake build EvmRefinement`; the compiled prepared initialize frame has the
   PC0/code/fork, stack, calldata, and address facts needed by the composed path.
