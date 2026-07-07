@@ -257,8 +257,9 @@ def counterDup1Op : EvmSemantics.Operation.DupOp :=
 
 theorem counterStack_of_push0_ok
     {state gasState nextState : EvmState}
+    {argOpt : Option (EvmSemantics.UInt256 × Nat)}
     (hstep :
-      EvmSemantics.EVM.stepF.push state gasState counterPush0Op none =
+      EvmSemantics.EVM.stepF.push state gasState counterPush0Op argOpt =
         .ok nextState) :
     nextState.stack = EvmSemantics.UInt256.ofNat 0 :: state.stack := by
   unfold EvmSemantics.EVM.stepF.push counterPush0Op at hstep
@@ -266,6 +267,36 @@ theorem counterStack_of_push0_ok
   cases hstep
   simp [EvmSemantics.EVM.State.replaceStackAndIncrPC,
     EvmSemantics.UInt256.ofNat]
+
+theorem counterStack_of_stepFE_push0_ok
+    {state nextState : EvmState}
+    {argOpt : Option (EvmSemantics.UInt256 × Nat)}
+    (hrunning : state.halt = .Running)
+    (hprecompile :
+      EvmSemantics.EVM.Precompile.isPrecompile state.executionEnv.fork
+        state.executionEnv.codeAddr = false)
+    (hdecoded : state.decoded = some (.Push counterPush0Op, argOpt))
+    (hstackOk :
+      ¬ state.stack.length +
+          (.Push counterPush0Op : EvmSemantics.Operation).pushArity >
+        1024 + (.Push counterPush0Op : EvmSemantics.Operation).popArity)
+    (hgas :
+      EvmSemantics.EVM.Gas.baseCost state.fork
+        (.Push counterPush0Op : EvmSemantics.Operation) ≤ state.gasAvailable)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    nextState.stack = EvmSemantics.UInt256.ofNat 0 :: state.stack := by
+  unfold EvmSemantics.EVM.stepFE at hstep
+  simp only [Id.run] at hstep
+  split at hstep
+  · split at hstep
+    · rename_i hprecompileActual
+      rw [hprecompile] at hprecompileActual
+      contradiction
+    · simp [hdecoded, hstackOk, hgas] at hstep
+      exact counterStack_of_push0_ok hstep
+  · rename_i hnotRunning
+    rw [hrunning] at hnotRunning
+    contradiction
 
 theorem counterStack_of_push1_ok
     {state gasState nextState : EvmState}
@@ -938,6 +969,31 @@ theorem counterCompiledRuntimeCode_has_initialize_body :
     byteArrayHasSliceAt counterCompiledRuntimeCode
       counterInitializeBodyBytes counterInitializeBodyOffset = true := by
   native_decide
+
+theorem counterCompiledRuntimeCode_decodes_initialize_first_push0 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterInitializeBodyOffset + 1) =
+      some (.Push counterPush0Op,
+        some (EvmSemantics.UInt256.ofNat 0, 0)) := by
+  native_decide
+
+theorem counterPreparedInitializeFirstPush0_decoded
+    {state : EvmState}
+    (hcode : state.executionEnv.code = counterCompiledRuntimeCode)
+    (hpc :
+      state.pc =
+        EvmSemantics.UInt256.ofNat (counterInitializeBodyOffset + 1))
+    (hfork : EvmSemantics.Fork.Shanghai ≤ state.executionEnv.fork) :
+    state.decoded =
+      some (.Push counterPush0Op,
+        some (EvmSemantics.UInt256.ofNat 0, 0)) := by
+  have hpcNat :
+      (EvmSemantics.UInt256.ofNat (counterInitializeBodyOffset + 1)).toNat =
+        counterInitializeBodyOffset + 1 := by
+    native_decide
+  unfold EvmSemantics.EVM.State.decoded
+  rw [hcode, hpc, hpcNat, counterCompiledRuntimeCode_decodes_initialize_first_push0]
+  simp [EvmSemantics.Operation.availableInFork, counterPush0Op, hfork]
 
 def counterRuntimeGasAvailable : Nat := 1000000
 

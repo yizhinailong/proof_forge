@@ -382,6 +382,11 @@ ProofForge's default build still avoids powdr/mathlib imports.
     resulting state writes the initialize storage model into Counter slot 0.
     `counterStorageValue_of_initialize_body_helpers_ok` composes the complete
     initialize-body helper sequence from the prefix through SSTORE.
+    `counterCompiledRuntimeCode_decodes_initialize_first_push0`,
+    `counterPreparedInitializeFirstPush0_decoded`, and
+    `counterStack_of_stepFE_push0_ok` start the concrete opcode bridge from
+    compiled bytecode decode through top-level `stepFE` to the helper stack
+    effect.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).

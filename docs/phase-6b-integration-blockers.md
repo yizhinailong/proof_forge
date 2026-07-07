@@ -221,6 +221,11 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   writes the initialize storage model into Counter slot 0.
   `counterStorageValue_of_initialize_body_helpers_ok` composes the complete
   initialize-body helper sequence from the prefix through SSTORE.
+  `counterCompiledRuntimeCode_decodes_initialize_first_push0`,
+  `counterPreparedInitializeFirstPush0_decoded`, and
+  `counterStack_of_stepFE_push0_ok` start the concrete opcode bridge by proving
+  the first post-`JUMPDEST` initialize opcode decodes as `PUSH0` and that
+  top-level `stepFE` matches the helper stack effect.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -293,6 +298,11 @@ Yul→bytecode `solc` step as an explicit trust boundary.
 - `counterStorageValue_of_initialize_body_helpers_ok` — green under
   `lake build EvmRefinement`; the complete initialize-body helper sequence
   writes `counterInitializeStorageWord`.
+- `counterCompiledRuntimeCode_decodes_initialize_first_push0`,
+  `counterPreparedInitializeFirstPush0_decoded`, and
+  `counterStack_of_stepFE_push0_ok` — green under `lake build EvmRefinement`;
+  the first concrete initialize opcode is bridged from compiled bytecode decode
+  through top-level `stepFE` to the helper stack effect.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 
@@ -320,5 +330,6 @@ per-entrypoint obligation surface now also carries this boundary through
 induction. `CounterTraceSafeAtState` is the current state/input predicate form;
 the remaining Phase 6c work is to prove the compiled runtime's prepared-frame
 EVM-only powdr storage models, starting with the dispatcher/JUMPDEST path to the
-proven initialize-body helper sequence, including the full opcode/gas-state
-bridge needed to instantiate the prepared-frame initialize storage model.
+proven initialize-body helper sequence, extending the first `stepFE` opcode
+bridge across the remaining initialize body opcodes and instantiating the
+prepared-frame initialize storage model.
