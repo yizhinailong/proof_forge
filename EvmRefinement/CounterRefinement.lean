@@ -6751,6 +6751,39 @@ theorem counterPowdrPreparedTraceStep_initialize_of_run36_returned_prepared_ok
   exact counterPowdrPreparedTraceStep_initialize_of_run36_returned_top_level_ok
     hrun hhalt (hcallStackPrepared.trans (counterPreparedCall_callStack hprepared)) hobs
 
+theorem counterCompiledPreparedInitialize_storage_model_of_run36_returned_sload_ok
+    {preparedState sloadState finalState : EvmState}
+    (hprepared :
+      CounterPreparedCall counterCompiledPowdrConfig .initialize preparedState)
+    (hrun :
+      ProofForge.Backend.Evm.PowdrAdapter.runBytecode preparedState 36 =
+        .ok (finalState, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)))
+    (hhalt : finalState.halt = .Returned)
+    (hcallStackPrepared : finalState.callStack = preparedState.callStack)
+    (hstorageRun :
+      counterStorageValue counterContractAddress counterCountSlot finalState =
+        counterInitializeStorageWord
+          (counterStorageValue counterContractAddress counterCountSlot sloadState))
+    (hstoragePrefix :
+      counterStorageValue counterContractAddress counterCountSlot sloadState =
+        counterStorageValue counterContractAddress counterCountSlot preparedState)
+    (hobs : counterObservableFromResult .initialize finalState.toResult = .ok .none) :
+    ∃ nextEvm,
+      counterPowdrPreparedTraceStep counterCompiledPowdrConfig preparedState .initialize =
+        .ok (nextEvm, .none) ∧
+      counterStorageValue counterContractAddress counterCountSlot nextEvm =
+        counterInitializeStorageWord
+          (counterStorageValue counterContractAddress counterCountSlot preparedState) := by
+  have hstep :=
+    counterPowdrPreparedTraceStep_initialize_of_run36_returned_prepared_ok
+      hprepared hrun hhalt hcallStackPrepared hobs
+  have hstorage :
+      counterStorageValue counterContractAddress counterCountSlot finalState =
+        counterInitializeStorageWord
+          (counterStorageValue counterContractAddress counterCountSlot preparedState) := by
+    rw [hstorageRun, hstoragePrefix]
+  exact ⟨finalState, hstep, hstorage⟩
+
 theorem counterCompiledPreparedInitialize_entry_facts
     {preparedState : EvmState}
     (hprepared :
