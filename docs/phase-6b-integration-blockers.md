@@ -233,7 +233,14 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   to prepared-like states; `counterCompiledRuntimeCode_decodes_initialize_sload_slot_push0`
   covers the final slot `PUSH0`; and
   `counterStack_of_initialize_prefix_stepFE_to_sload_ok` composes the
-  top-level `stepFE` prefix path to the stack shape consumed by `SLOAD`.
+  top-level `stepFE` prefix path to the stack shape consumed by `SLOAD`. The
+  top-level bridge also now covers SLOAD/AND/OR/PUSH0/SSTORE:
+  `counterStack_of_stepFE_stackMemFlow_sload_ok`,
+  `counterStack_of_stepFE_compBit_and_ok`,
+  `counterStack_of_stepFE_compBit_or_ok`,
+  `counterStorageValue_of_stepFE_stackMemFlow_sstore_ok`, tail decode facts
+  through `SSTORE`, and `counterStorageValue_of_initialize_tail_stepFE_ok`
+  prove the tail writes the initialize storage model value.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -317,14 +324,22 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   `counterStack_of_stepFE_compBit_not_ok` — green under
   `lake build EvmRefinement`; these cover the helper opcodes used by the
   initialize prefix.
-- `counterCompiledRuntimeCode_decodes_initialize_*` prefix facts — green under
+- `counterCompiledRuntimeCode_decodes_initialize_*` facts — green under
   `lake build EvmRefinement`; the compiled runtime decodes through the
-  final slot `PUSH0` before `SLOAD`.
+  tail `SSTORE`.
 - `counterCompiledStateAt`, `counterPreparedInitialize*_decoded`, and
   `counterStack_of_initialize_prefix_stepFE_to_sload_ok` — green under
   `lake build EvmRefinement`; the prefix bridge now composes concrete
   top-level `stepFE` executions through the final slot `PUSH0` and proves the
   exact stack shape consumed by `SLOAD`.
+- `counterStack_of_stepFE_stackMemFlow_sload_ok`,
+  `counterStack_of_stepFE_compBit_and_ok`,
+  `counterStack_of_stepFE_compBit_or_ok`,
+  `counterStorageValue_of_stepFE_stackMemFlow_sstore_ok`, and
+  `counterStorageValue_of_initialize_tail_stepFE_ok` — green under
+  `lake build EvmRefinement`; the tail bridge now composes concrete top-level
+  `stepFE` executions through SLOAD/AND/OR/PUSH0/SSTORE and proves the
+  initialize storage model is written.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 
@@ -352,6 +367,5 @@ per-entrypoint obligation surface now also carries this boundary through
 induction. `CounterTraceSafeAtState` is the current state/input predicate form;
 the remaining Phase 6c work is to prove the compiled runtime's prepared-frame
 EVM-only powdr storage models, starting with the dispatcher/JUMPDEST path to the
-proven initialize-body helper sequence, extending the top-level bridge across
-SLOAD/AND/OR/PUSH0/SSTORE, and instantiating the prepared-frame initialize
+proven initialize-body sequence and instantiating the prepared-frame initialize
 storage model.

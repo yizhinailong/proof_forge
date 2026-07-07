@@ -392,6 +392,13 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterCompiledStateAt`, `counterPreparedInitialize*_decoded`, and
     `counterStack_of_initialize_prefix_stepFE_to_sload_ok` then compose those
     decode and `stepFE` facts into the concrete prefix path consumed by `SLOAD`.
+    `counterStack_of_stepFE_stackMemFlow_sload_ok`,
+    `counterStack_of_stepFE_compBit_and_ok`,
+    `counterStack_of_stepFE_compBit_or_ok`,
+    `counterStorageValue_of_stepFE_stackMemFlow_sstore_ok`, and
+    `counterStorageValue_of_initialize_tail_stepFE_ok` extend the same
+    top-level bridge through SLOAD/AND/OR/PUSH0/SSTORE and prove the tail writes
+    the initialize storage model value.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).

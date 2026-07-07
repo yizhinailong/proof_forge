@@ -286,14 +286,20 @@ surface. Remaining EVM work is E3.
   those decode facts to prepared-like states through the final slot `PUSH0`;
   `counterStack_of_initialize_prefix_stepFE_to_sload_ok` now composes the
   top-level `stepFE` prefix path and proves it reaches the exact stack consumed
-  by `SLOAD`.
+  by `SLOAD`. The bridge also now covers the initialize tail:
+  `counterStack_of_stepFE_stackMemFlow_sload_ok`,
+  `counterStack_of_stepFE_compBit_and_ok`,
+  `counterStack_of_stepFE_compBit_or_ok`,
+  `counterStorageValue_of_stepFE_stackMemFlow_sstore_ok`, tail decode facts
+  through `SSTORE`, and `counterStorageValue_of_initialize_tail_stepFE_ok`
+  prove the top-level `stepFE` SLOAD/AND/OR/PUSH0/SSTORE sequence writes the
+  initialize storage model value.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
   remains an explicit trust boundary. The remaining E3 work is to discharge those
   prepared-frame storage models against the concrete runtime by proving the
-  dispatcher/JUMPDEST path reaches the proven initialize-body helper sequence,
-  extending the top-level bridge across SLOAD/AND/OR/PUSH0/SSTORE, and
+  dispatcher/JUMPDEST path reaches the proven initialize-body sequence and by
   instantiating the prepared-frame initialize storage model.
 - **Acceptance:** a universally-quantified refinement theorem (IR Counter ⟷ powdr EVM
   `Step`, by `induction`, **not** `native_decide`) type-checks under the opt-in target;
