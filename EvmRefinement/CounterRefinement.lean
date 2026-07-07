@@ -4348,6 +4348,46 @@ theorem counterInitializeObservable_of_returned_empty :
       (.returned ByteArray.empty) = .ok .none := by
   simp [counterObservableFromResult, counterUnitObservableFromResult]
 
+theorem counterInitializeReturn_preserves_storage_model_stepFE_ok
+    {s0 s1 s2 s3 s4 s5 sloadState : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (hstorage0 :
+      counterStorageValue counterContractAddress counterCountSlot s0 =
+        counterInitializeStorageWord
+          (counterStorageValue counterContractAddress counterCountSlot sloadState))
+    (h0 :
+      s0.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeReturnOffset :: rest)
+    (hat0 : counterCompiledStateAt s0 (counterInitializeBodyOffset + 22))
+    (hready0 :
+      counterStepFEReady s0
+        (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hready1 :
+      counterStepFEReady s1
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hready2 : counterStepFEReady s2 (.Push counterPush0Op))
+    (hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hready3 : counterStepFEReady s3 (.Dup counterDup1Op))
+    (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4)
+    (hready4 :
+      counterStepFEReady s4
+        (.System (.RETURN : EvmSemantics.Operation.SystemOps)))
+    (hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5) :
+    counterStorageValue counterContractAddress counterCountSlot s5 =
+        counterInitializeStorageWord
+          (counterStorageValue counterContractAddress counterCountSlot sloadState) ∧
+      counterObservableFromResult .initialize s5.toResult = .ok .none := by
+  obtain ⟨_hhalt, _hreturn, hresult, _hstack, hstorage⟩ :=
+    counterState_of_initialize_return_stepFE_to_returned_empty_ok
+      h0 hat0 hready0 hstep0 hready1 hstep1 hready2 hstep2 hready3 hstep3
+      hready4 hstep4
+  constructor
+  · rw [hstorage, hstorage0]
+  · rw [hresult]
+    exact counterInitializeObservable_of_returned_empty
+
 def counterPowdrPreparedTraceStep (cfg : PowdrCounterConfig) (preparedState : EvmState)
     (call : CounterCall) : Except String (EvmState × ObservableReturn) := do
   let (finalState, _observations) ←

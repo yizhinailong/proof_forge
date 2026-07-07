@@ -436,6 +436,9 @@ ProofForge's default build still avoids powdr/mathlib imports.
     frame halts with `Returned ByteArray.empty` while preserving Counter
     storage. `counterInitializeObservable_of_returned_empty` maps that result to
     the Counter `initialize` observable `.none`.
+    `counterInitializeReturn_preserves_storage_model_stepFE_ok` packages the
+    return-path bridge from an already-established initialize storage model to
+    the final halted frame plus `.none` observable.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
