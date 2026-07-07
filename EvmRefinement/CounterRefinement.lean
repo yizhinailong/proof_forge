@@ -255,6 +255,13 @@ def counterPush1Op : EvmSemantics.Operation.PushOp :=
 def counterDup1Op : EvmSemantics.Operation.DupOp :=
   { idx := ⟨0, by decide⟩ }
 
+def counterStepFEReady (state : EvmState) (op : EvmSemantics.Operation) : Prop :=
+  state.halt = .Running ∧
+    EvmSemantics.EVM.Precompile.isPrecompile state.executionEnv.fork
+      state.executionEnv.codeAddr = false ∧
+    ¬ state.stack.length + op.pushArity > 1024 + op.popArity ∧
+    EvmSemantics.EVM.Gas.baseCost state.fork op ≤ state.gasAvailable
+
 theorem counterStack_of_push0_ok
     {state gasState nextState : EvmState}
     {argOpt : Option (EvmSemantics.UInt256 × Nat)}
@@ -1211,23 +1218,406 @@ theorem counterCompiledRuntimeCode_decodes_initialize_mask_not :
       some (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps), none) := by
   native_decide
 
+theorem counterCompiledRuntimeCode_decodes_initialize_sload_slot_push0 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterInitializeBodyOffset + 16) =
+      some (.Push counterPush0Op,
+        some (EvmSemantics.UInt256.ofNat 0, 0)) := by
+  native_decide
+
+def counterCompiledStateAt (state : EvmState) (pc : Nat) : Prop :=
+  state.executionEnv.code = counterCompiledRuntimeCode ∧
+    state.pc = EvmSemantics.UInt256.ofNat pc ∧
+    EvmSemantics.Fork.Shanghai ≤ state.executionEnv.fork
+
+theorem counterState_decoded_of_code_pc
+    {state : EvmState}
+    {pc : Nat} {op : EvmSemantics.Operation}
+    {argOpt : Option (EvmSemantics.UInt256 × Nat)}
+    (hcode : state.executionEnv.code = counterCompiledRuntimeCode)
+    (hpc : state.pc = EvmSemantics.UInt256.ofNat pc)
+    (hpcNat : (EvmSemantics.UInt256.ofNat pc).toNat = pc)
+    (hdecode :
+      EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode pc =
+        some (op, argOpt))
+    (havailable : op.availableInFork state.executionEnv.fork = true) :
+    state.decoded =
+      some (op, argOpt) := by
+  unfold EvmSemantics.EVM.State.decoded
+  rw [hcode, hpc, hpcNat, hdecode]
+  change (if op.availableInFork state.executionEnv.fork then some (op, argOpt)
+    else none) = some (op, argOpt)
+  simp [havailable]
+
 theorem counterPreparedInitializeFirstPush0_decoded
     {state : EvmState}
-    (hcode : state.executionEnv.code = counterCompiledRuntimeCode)
-    (hpc :
-      state.pc =
-        EvmSemantics.UInt256.ofNat (counterInitializeBodyOffset + 1))
-    (hfork : EvmSemantics.Fork.Shanghai ≤ state.executionEnv.fork) :
+    (hat : counterCompiledStateAt state (counterInitializeBodyOffset + 1)) :
     state.decoded =
       some (.Push counterPush0Op,
         some (EvmSemantics.UInt256.ofNat 0, 0)) := by
+  rcases hat with ⟨hcode, hpc, hfork⟩
   have hpcNat :
       (EvmSemantics.UInt256.ofNat (counterInitializeBodyOffset + 1)).toNat =
         counterInitializeBodyOffset + 1 := by
     native_decide
-  unfold EvmSemantics.EVM.State.decoded
-  rw [hcode, hpc, hpcNat, counterCompiledRuntimeCode_decodes_initialize_first_push0]
-  simp [EvmSemantics.Operation.availableInFork, counterPush0Op, hfork]
+  have havailable :
+      ((.Push counterPush0Op : EvmSemantics.Operation).availableInFork
+        state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork, counterPush0Op, hfork]
+  exact counterState_decoded_of_code_pc hcode hpc hpcNat
+    counterCompiledRuntimeCode_decodes_initialize_first_push0 havailable
+
+theorem counterPreparedInitializeSetValuePush192_decoded
+    {state : EvmState}
+    (hat : counterCompiledStateAt state (counterInitializeBodyOffset + 2)) :
+    state.decoded =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat 192, 1)) := by
+  rcases hat with ⟨hcode, hpc, _hfork⟩
+  have hpcNat :
+      (EvmSemantics.UInt256.ofNat (counterInitializeBodyOffset + 2)).toNat =
+        counterInitializeBodyOffset + 2 := by
+    native_decide
+  have havailable :
+      ((.Push counterPush1Op : EvmSemantics.Operation).availableInFork
+        state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork, counterPush1Op]
+  exact counterState_decoded_of_code_pc hcode hpc hpcNat
+    counterCompiledRuntimeCode_decodes_initialize_setvalue_push192 havailable
+
+theorem counterPreparedInitializeSetValueShl_decoded
+    {state : EvmState}
+    (hat : counterCompiledStateAt state (counterInitializeBodyOffset + 4)) :
+    state.decoded =
+      some (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  rcases hat with ⟨hcode, hpc, hfork⟩
+  have hpcNat :
+      (EvmSemantics.UInt256.ofNat (counterInitializeBodyOffset + 4)).toNat =
+        counterInitializeBodyOffset + 4 := by
+    native_decide
+  have hconstantinople :
+      EvmSemantics.Fork.Constantinople ≤ state.executionEnv.fork := by
+    change EvmSemantics.Fork.Shanghai.toOrd ≤
+      state.executionEnv.fork.toOrd at hfork
+    change EvmSemantics.Fork.Constantinople.toOrd ≤
+      state.executionEnv.fork.toOrd
+    exact Nat.le_trans (by decide) hfork
+  have havailable :
+      ((.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps) :
+        EvmSemantics.Operation).availableInFork state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork, hconstantinople]
+  exact counterState_decoded_of_code_pc hcode hpc hpcNat
+    counterCompiledRuntimeCode_decodes_initialize_setvalue_shl havailable
+
+theorem counterPreparedInitializeMaskPush1_decoded
+    {state : EvmState}
+    (hat : counterCompiledStateAt state (counterInitializeBodyOffset + 5)) :
+    state.decoded =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat 1, 1)) := by
+  rcases hat with ⟨hcode, hpc, _hfork⟩
+  have hpcNat :
+      (EvmSemantics.UInt256.ofNat (counterInitializeBodyOffset + 5)).toNat =
+        counterInitializeBodyOffset + 5 := by
+    native_decide
+  have havailable :
+      ((.Push counterPush1Op : EvmSemantics.Operation).availableInFork
+        state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork, counterPush1Op]
+  exact counterState_decoded_of_code_pc hcode hpc hpcNat
+    counterCompiledRuntimeCode_decodes_initialize_mask_push1 havailable
+
+theorem counterPreparedInitializeMaskDup1_decoded
+    {state : EvmState}
+    (hat : counterCompiledStateAt state (counterInitializeBodyOffset + 7)) :
+    state.decoded = some (.Dup counterDup1Op, none) := by
+  rcases hat with ⟨hcode, hpc, _hfork⟩
+  have hpcNat :
+      (EvmSemantics.UInt256.ofNat (counterInitializeBodyOffset + 7)).toNat =
+        counterInitializeBodyOffset + 7 := by
+    native_decide
+  have havailable :
+      ((.Dup counterDup1Op : EvmSemantics.Operation).availableInFork
+        state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork]
+  exact counterState_decoded_of_code_pc hcode hpc hpcNat
+    counterCompiledRuntimeCode_decodes_initialize_mask_dup1 havailable
+
+theorem counterPreparedInitializeMaskPush64_decoded
+    {state : EvmState}
+    (hat : counterCompiledStateAt state (counterInitializeBodyOffset + 8)) :
+    state.decoded =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat 64, 1)) := by
+  rcases hat with ⟨hcode, hpc, _hfork⟩
+  have hpcNat :
+      (EvmSemantics.UInt256.ofNat (counterInitializeBodyOffset + 8)).toNat =
+        counterInitializeBodyOffset + 8 := by
+    native_decide
+  have havailable :
+      ((.Push counterPush1Op : EvmSemantics.Operation).availableInFork
+        state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork, counterPush1Op]
+  exact counterState_decoded_of_code_pc hcode hpc hpcNat
+    counterCompiledRuntimeCode_decodes_initialize_mask_push64 havailable
+
+theorem counterPreparedInitializeMaskShl64_decoded
+    {state : EvmState}
+    (hat : counterCompiledStateAt state (counterInitializeBodyOffset + 10)) :
+    state.decoded =
+      some (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  rcases hat with ⟨hcode, hpc, hfork⟩
+  have hpcNat :
+      (EvmSemantics.UInt256.ofNat (counterInitializeBodyOffset + 10)).toNat =
+        counterInitializeBodyOffset + 10 := by
+    native_decide
+  have hconstantinople :
+      EvmSemantics.Fork.Constantinople ≤ state.executionEnv.fork := by
+    change EvmSemantics.Fork.Shanghai.toOrd ≤
+      state.executionEnv.fork.toOrd at hfork
+    change EvmSemantics.Fork.Constantinople.toOrd ≤
+      state.executionEnv.fork.toOrd
+    exact Nat.le_trans (by decide) hfork
+  have havailable :
+      ((.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps) :
+        EvmSemantics.Operation).availableInFork state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork, hconstantinople]
+  exact counterState_decoded_of_code_pc hcode hpc hpcNat
+    counterCompiledRuntimeCode_decodes_initialize_mask_shl64 havailable
+
+theorem counterPreparedInitializeMaskSub_decoded
+    {state : EvmState}
+    (hat : counterCompiledStateAt state (counterInitializeBodyOffset + 11)) :
+    state.decoded =
+      some (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps), none) := by
+  rcases hat with ⟨hcode, hpc, _hfork⟩
+  have hpcNat :
+      (EvmSemantics.UInt256.ofNat (counterInitializeBodyOffset + 11)).toNat =
+        counterInitializeBodyOffset + 11 := by
+    native_decide
+  have havailable :
+      ((.StopArith (.SUB : EvmSemantics.Operation.StopArithOps) :
+        EvmSemantics.Operation).availableInFork state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork]
+  exact counterState_decoded_of_code_pc hcode hpc hpcNat
+    counterCompiledRuntimeCode_decodes_initialize_mask_sub havailable
+
+theorem counterPreparedInitializeMaskPush192_decoded
+    {state : EvmState}
+    (hat : counterCompiledStateAt state (counterInitializeBodyOffset + 12)) :
+    state.decoded =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat 192, 1)) := by
+  rcases hat with ⟨hcode, hpc, _hfork⟩
+  have hpcNat :
+      (EvmSemantics.UInt256.ofNat (counterInitializeBodyOffset + 12)).toNat =
+        counterInitializeBodyOffset + 12 := by
+    native_decide
+  have havailable :
+      ((.Push counterPush1Op : EvmSemantics.Operation).availableInFork
+        state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork, counterPush1Op]
+  exact counterState_decoded_of_code_pc hcode hpc hpcNat
+    counterCompiledRuntimeCode_decodes_initialize_mask_push192 havailable
+
+theorem counterPreparedInitializeMaskShl192_decoded
+    {state : EvmState}
+    (hat : counterCompiledStateAt state (counterInitializeBodyOffset + 14)) :
+    state.decoded =
+      some (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  rcases hat with ⟨hcode, hpc, hfork⟩
+  have hpcNat :
+      (EvmSemantics.UInt256.ofNat (counterInitializeBodyOffset + 14)).toNat =
+        counterInitializeBodyOffset + 14 := by
+    native_decide
+  have hconstantinople :
+      EvmSemantics.Fork.Constantinople ≤ state.executionEnv.fork := by
+    change EvmSemantics.Fork.Shanghai.toOrd ≤
+      state.executionEnv.fork.toOrd at hfork
+    change EvmSemantics.Fork.Constantinople.toOrd ≤
+      state.executionEnv.fork.toOrd
+    exact Nat.le_trans (by decide) hfork
+  have havailable :
+      ((.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps) :
+        EvmSemantics.Operation).availableInFork state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork, hconstantinople]
+  exact counterState_decoded_of_code_pc hcode hpc hpcNat
+    counterCompiledRuntimeCode_decodes_initialize_mask_shl192 havailable
+
+theorem counterPreparedInitializeMaskNot_decoded
+    {state : EvmState}
+    (hat : counterCompiledStateAt state (counterInitializeBodyOffset + 15)) :
+    state.decoded =
+      some (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  rcases hat with ⟨hcode, hpc, _hfork⟩
+  have hpcNat :
+      (EvmSemantics.UInt256.ofNat (counterInitializeBodyOffset + 15)).toNat =
+        counterInitializeBodyOffset + 15 := by
+    native_decide
+  have havailable :
+      ((.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps) :
+        EvmSemantics.Operation).availableInFork state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork]
+  exact counterState_decoded_of_code_pc hcode hpc hpcNat
+    counterCompiledRuntimeCode_decodes_initialize_mask_not havailable
+
+theorem counterPreparedInitializeSloadSlotPush0_decoded
+    {state : EvmState}
+    (hat : counterCompiledStateAt state (counterInitializeBodyOffset + 16)) :
+    state.decoded =
+      some (.Push counterPush0Op,
+        some (EvmSemantics.UInt256.ofNat 0, 0)) := by
+  rcases hat with ⟨hcode, hpc, hfork⟩
+  have hpcNat :
+      (EvmSemantics.UInt256.ofNat (counterInitializeBodyOffset + 16)).toNat =
+        counterInitializeBodyOffset + 16 := by
+    native_decide
+  have havailable :
+      ((.Push counterPush0Op : EvmSemantics.Operation).availableInFork
+        state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork, counterPush0Op, hfork]
+  exact counterState_decoded_of_code_pc hcode hpc hpcNat
+    counterCompiledRuntimeCode_decodes_initialize_sload_slot_push0 havailable
+
+theorem counterStack_of_initialize_prefix_stepFE_to_sload_ok
+    {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (h0 : s0.stack = rest)
+    (hat0 : counterCompiledStateAt s0 (counterInitializeBodyOffset + 1))
+    (hready0 : counterStepFEReady s0 (.Push counterPush0Op))
+    (hstep0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hat1 : counterCompiledStateAt s1 (counterInitializeBodyOffset + 2))
+    (hready1 : counterStepFEReady s1 (.Push counterPush1Op))
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hat2 : counterCompiledStateAt s2 (counterInitializeBodyOffset + 4))
+    (hready2 :
+      counterStepFEReady s2
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hat3 : counterCompiledStateAt s3 (counterInitializeBodyOffset + 5))
+    (hready3 : counterStepFEReady s3 (.Push counterPush1Op))
+    (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4)
+    (hat4 : counterCompiledStateAt s4 (counterInitializeBodyOffset + 7))
+    (hready4 : counterStepFEReady s4 (.Dup counterDup1Op))
+    (hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5)
+    (hat5 : counterCompiledStateAt s5 (counterInitializeBodyOffset + 8))
+    (hready5 : counterStepFEReady s5 (.Push counterPush1Op))
+    (hstep5 : EvmSemantics.EVM.stepFE s5 = .ok s6)
+    (hat6 : counterCompiledStateAt s6 (counterInitializeBodyOffset + 10))
+    (hready6 :
+      counterStepFEReady s6
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep6 : EvmSemantics.EVM.stepFE s6 = .ok s7)
+    (hat7 : counterCompiledStateAt s7 (counterInitializeBodyOffset + 11))
+    (hready7 :
+      counterStepFEReady s7
+        (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps)))
+    (hstep7 : EvmSemantics.EVM.stepFE s7 = .ok s8)
+    (hat8 : counterCompiledStateAt s8 (counterInitializeBodyOffset + 12))
+    (hready8 : counterStepFEReady s8 (.Push counterPush1Op))
+    (hstep8 : EvmSemantics.EVM.stepFE s8 = .ok s9)
+    (hat9 : counterCompiledStateAt s9 (counterInitializeBodyOffset + 14))
+    (hready9 :
+      counterStepFEReady s9
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep9 : EvmSemantics.EVM.stepFE s9 = .ok s10)
+    (hat10 : counterCompiledStateAt s10 (counterInitializeBodyOffset + 15))
+    (hready10 :
+      counterStepFEReady s10
+        (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep10 : EvmSemantics.EVM.stepFE s10 = .ok s11)
+    (hat11 : counterCompiledStateAt s11 (counterInitializeBodyOffset + 16))
+    (hready11 : counterStepFEReady s11 (.Push counterPush0Op))
+    (hstep11 : EvmSemantics.EVM.stepFE s11 = .ok s12) :
+    s12.stack =
+      counterCountSlot :: counterInitializeLowMask ::
+        counterInitializeSetValue :: rest := by
+  rcases hready0 with ⟨hrunning0, hprecompile0, hstackOk0, hgas0⟩
+  rcases hready1 with ⟨hrunning1, hprecompile1, hstackOk1, hgas1⟩
+  rcases hready2 with ⟨hrunning2, hprecompile2, hstackOk2, hgas2⟩
+  rcases hready3 with ⟨hrunning3, hprecompile3, hstackOk3, hgas3⟩
+  rcases hready4 with ⟨hrunning4, hprecompile4, hstackOk4, hgas4⟩
+  rcases hready5 with ⟨hrunning5, hprecompile5, hstackOk5, hgas5⟩
+  rcases hready6 with ⟨hrunning6, hprecompile6, hstackOk6, hgas6⟩
+  rcases hready7 with ⟨hrunning7, hprecompile7, hstackOk7, hgas7⟩
+  rcases hready8 with ⟨hrunning8, hprecompile8, hstackOk8, hgas8⟩
+  rcases hready9 with ⟨hrunning9, hprecompile9, hstackOk9, hgas9⟩
+  rcases hready10 with ⟨hrunning10, hprecompile10, hstackOk10, hgas10⟩
+  rcases hready11 with ⟨hrunning11, hprecompile11, hstackOk11, hgas11⟩
+  have h1 : s1.stack = EvmSemantics.UInt256.ofNat 0 :: rest := by
+    rw [counterStack_of_stepFE_push0_ok hrunning0 hprecompile0
+      (counterPreparedInitializeFirstPush0_decoded hat0) hstackOk0 hgas0 hstep0,
+      h0]
+  have h2 :
+      s2.stack =
+        EvmSemantics.UInt256.ofNat 192 ::
+          EvmSemantics.UInt256.ofNat 0 :: rest := by
+    rw [counterStack_of_stepFE_push1_ok hrunning1 hprecompile1
+      (counterPreparedInitializeSetValuePush192_decoded hat1) hstackOk1 hgas1
+      hstep1, h1]
+  have h3 : s3.stack = counterInitializeSetValue :: rest := by
+    rw [counterStack_of_stepFE_compBit_shl_ok hrunning2 hprecompile2
+      (counterPreparedInitializeSetValueShl_decoded hat2) h2 hstackOk2 hgas2 hstep2]
+    rfl
+  have h4 :
+      s4.stack =
+        EvmSemantics.UInt256.ofNat 1 :: counterInitializeSetValue :: rest := by
+    rw [counterStack_of_stepFE_push1_ok hrunning3 hprecompile3
+      (counterPreparedInitializeMaskPush1_decoded hat3) hstackOk3 hgas3 hstep3, h3]
+  have h5 :
+      s5.stack =
+        EvmSemantics.UInt256.ofNat 1 :: EvmSemantics.UInt256.ofNat 1 ::
+          counterInitializeSetValue :: rest := by
+    rw [counterStack_of_stepFE_dup1_ok hrunning4 hprecompile4
+      (counterPreparedInitializeMaskDup1_decoded hat4) h4 hstackOk4 hgas4 hstep4]
+  have h6 :
+      s6.stack =
+        EvmSemantics.UInt256.ofNat 64 :: EvmSemantics.UInt256.ofNat 1 ::
+          EvmSemantics.UInt256.ofNat 1 :: counterInitializeSetValue ::
+            rest := by
+    rw [counterStack_of_stepFE_push1_ok hrunning5 hprecompile5
+      (counterPreparedInitializeMaskPush64_decoded hat5) hstackOk5 hgas5 hstep5, h5]
+  have h7 :
+      s7.stack =
+        EvmSemantics.UInt256.shiftLeft
+          (EvmSemantics.UInt256.ofNat 1)
+          (EvmSemantics.UInt256.ofNat 64) ::
+          EvmSemantics.UInt256.ofNat 1 :: counterInitializeSetValue ::
+            rest := by
+    rw [counterStack_of_stepFE_compBit_shl_ok hrunning6 hprecompile6
+      (counterPreparedInitializeMaskShl64_decoded hat6) h6 hstackOk6 hgas6 hstep6]
+  have h8 :
+      s8.stack =
+        EvmSemantics.UInt256.ofNat (2 ^ 64 - 1) ::
+          counterInitializeSetValue :: rest := by
+    rw [counterStack_of_stepFE_stopArith_sub_ok hrunning7 hprecompile7
+      (counterPreparedInitializeMaskSub_decoded hat7) h7 hstackOk7 hgas7 hstep7,
+      counterInitializeU64MaskBase_eq]
+  have h9 :
+      s9.stack =
+        EvmSemantics.UInt256.ofNat 192 ::
+          EvmSemantics.UInt256.ofNat (2 ^ 64 - 1) ::
+            counterInitializeSetValue :: rest := by
+    rw [counterStack_of_stepFE_push1_ok hrunning8 hprecompile8
+      (counterPreparedInitializeMaskPush192_decoded hat8) hstackOk8 hgas8
+      hstep8, h8]
+  have h10 :
+      s10.stack =
+        EvmSemantics.UInt256.shiftLeft
+          (EvmSemantics.UInt256.ofNat (2 ^ 64 - 1))
+          (EvmSemantics.UInt256.ofNat 192) ::
+          counterInitializeSetValue :: rest := by
+    rw [counterStack_of_stepFE_compBit_shl_ok hrunning9 hprecompile9
+      (counterPreparedInitializeMaskShl192_decoded hat9) h9 hstackOk9 hgas9 hstep9]
+  have h11 :
+      s11.stack = counterInitializeLowMask :: counterInitializeSetValue ::
+        rest := by
+    rw [counterStack_of_stepFE_compBit_not_ok hrunning10 hprecompile10
+      (counterPreparedInitializeMaskNot_decoded hat10) h10 hstackOk10 hgas10 hstep10]
+    rfl
+  rw [counterStack_of_stepFE_push0_ok hrunning11 hprecompile11
+    (counterPreparedInitializeSloadSlotPush0_decoded hat11) hstackOk11 hgas11
+    hstep11, h11, counterCountSlot_eq_zero]
 
 def counterRuntimeGasAvailable : Nat := 1000000
 

@@ -388,7 +388,10 @@ ProofForge's default build still avoids powdr/mathlib imports.
     compiled bytecode decode through top-level `stepFE` to the helper stack
     effect. The bridge now also has `stepFE` stack-effect lemmas for `PUSH1`,
     `DUP1`, `SHL`, `SUB`, and `NOT`, plus compiled-runtime decode facts for the
-    initialize prefix through the mask-building `NOT`.
+    initialize prefix through the final slot `PUSH0` before `SLOAD`.
+    `counterCompiledStateAt`, `counterPreparedInitialize*_decoded`, and
+    `counterStack_of_initialize_prefix_stepFE_to_sload_ok` then compose those
+    decode and `stepFE` facts into the concrete prefix path consumed by `SLOAD`.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
