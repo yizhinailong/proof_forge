@@ -7724,6 +7724,117 @@ theorem counterCompiledPreparedInitialize_first_two_stepFE_ok
       (by simpa using hstack1) hcalldata1 hat1 hreadyForHelper hstep1
   exact ⟨s1, s2, hstep0, hstep1, hat2, hdecoded2, by simpa using hstack2⟩
 
+theorem counterCompiledPreparedInitialize_third_ready
+    {preparedState s1 s2 : EvmState}
+    (hprepared :
+      CounterPreparedCall counterCompiledPowdrConfig .initialize preparedState)
+    (hstep0 : EvmSemantics.EVM.stepFE preparedState = .ok s1)
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2) :
+    counterStepFEReady s2 (.Push counterPush1Op) := by
+  obtain ⟨hat0, hstack0, _hcalldata0, _haddr0, _hcallStack0⟩ :=
+    counterCompiledPreparedInitialize_entry_facts hprepared
+  have hready0 := counterCompiledPreparedInitialize_first_ready hprepared
+  have hready0ForState := hready0
+  rcases hready0 with ⟨hrunning0, hprecompile0, hstackOk0, hgas0⟩
+  have hstate1 :=
+    counterState_of_stepFE_push0_ok hrunning0 hprecompile0
+      (counterPreparedDispatcherFirstPush0_decoded hat0) hstackOk0 hgas0 hstep0
+  obtain ⟨hat1, _hdecoded1, hstack1, _hcalldata1⟩ :=
+    counterState_of_dispatcher_first_push0_stepFE_to_calldataload_ok
+      hstack0 hat0 hready0ForState hstep0
+  have hready1 := counterCompiledPreparedInitialize_second_ready hprepared hstep0
+  rcases hready1 with ⟨hrunning1, hprecompile1, hstackOk1, hgas1⟩
+  have hstate2 :=
+    counterState_of_stepFE_env_calldataload_ok hrunning1 hprecompile1
+      (counterPreparedDispatcherCalldataload_decoded hat1)
+      (by simpa using hstack1) hstackOk1 hgas1 hstep1
+  rcases hprepared with ⟨sourceState, rfl⟩
+  have hs1Fork : s1.fork = EvmSemantics.Fork.Cancun := by
+    rw [hstate1]
+    simp [counterCompiledPowdrConfig, prepareCounterCall, counterCallExecutionEnv,
+      EvmSemantics.EVM.State.fork, EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC]
+  have hs1Gas :
+      s1.gasAvailable =
+        counterRuntimeGasAvailable -
+          EvmSemantics.EVM.Gas.baseCost EvmSemantics.Fork.Cancun
+            (.Push counterPush0Op : EvmSemantics.Operation) := by
+    rw [hstate1]
+    simp [counterCompiledPowdrConfig, prepareCounterCall, counterCallExecutionEnv,
+      EvmSemantics.EVM.State.fork, EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC]
+  rw [hstate2]
+  unfold counterStepFEReady
+  simp [counterRuntimeGasAvailable, EvmSemantics.EVM.State.fork,
+    EvmSemantics.EVM.State.consumeGas, EvmSemantics.EVM.State.replaceStackAndIncrPC,
+    hrunning1, hs1Fork, hs1Gas]
+  constructor
+  · simpa [EvmSemantics.EVM.State.fork, hs1Fork] using hprecompile1
+  · constructor
+    · native_decide
+    · native_decide
+
+theorem counterCompiledPreparedInitialize_first_three_stepFE_ok
+    {preparedState : EvmState}
+    (hprepared :
+      CounterPreparedCall counterCompiledPowdrConfig .initialize preparedState) :
+    ∃ s1 s2 s3,
+      EvmSemantics.EVM.stepFE preparedState = .ok s1 ∧
+      EvmSemantics.EVM.stepFE s1 = .ok s2 ∧
+      EvmSemantics.EVM.stepFE s2 = .ok s3 ∧
+      counterCompiledStateAt s3 4 ∧
+      s3.decoded =
+        some (.CompBit
+          (.SHR : EvmSemantics.Operation.CompareBitwiseOps), none) ∧
+      s3.stack =
+        EvmSemantics.UInt256.ofNat 224 :: counterInitializeCalldataWord :: [] := by
+  obtain ⟨s1, s2, hstep0, hstep1, hat2, hdecoded2, hstack2⟩ :=
+    counterCompiledPreparedInitialize_first_two_stepFE_ok hprepared
+  have hready2 :=
+    counterCompiledPreparedInitialize_third_ready hprepared hstep0 hstep1
+  have hreadyForHelper := hready2
+  rcases hready2 with ⟨hrunning2, hprecompile2, hstackOk2, hgas2⟩
+  let s3 :=
+    (s2.consumeGas
+      (EvmSemantics.EVM.Gas.baseCost s2.fork
+        (.Push counterPush1Op : EvmSemantics.Operation)) hgas2).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.ofNat 224 :: s2.stack) (pcΔ := 2)
+  have hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3 := by
+    unfold s3
+    unfold EvmSemantics.EVM.stepFE
+    simp only [Id.run]
+    split
+    · split
+      · rename_i hprecompileActual
+        rw [hprecompile2] at hprecompileActual
+        contradiction
+      · simp [hdecoded2, EvmSemantics.EVM.stepF.push, counterPush1Op]
+        by_cases hoverflow :
+            1024 + (EvmSemantics.Operation.Push { width := 1 }).popArity <
+              s2.stack.length +
+                (EvmSemantics.Operation.Push { width := 1 }).pushArity
+        · rw [hstack2] at hoverflow
+          have hnoOverflow :
+              ¬ 1024 + (EvmSemantics.Operation.Push { width := 1 }).popArity <
+                1 + (EvmSemantics.Operation.Push { width := 1 }).pushArity := by
+            native_decide
+          exact False.elim (hnoOverflow hoverflow)
+        · simp [hoverflow]
+          have hgasIf :
+              EvmSemantics.EVM.Gas.baseCost (EvmSemantics.EVM.State.fork s2)
+                  (EvmSemantics.Operation.Push { width := 1 }) ≤
+                s2.gasAvailable := by
+            simpa [counterPush1Op] using hgas2
+          simp [hgasIf, hstack2, EvmSemantics.EVM.State.consumeGas,
+            EvmSemantics.EVM.State.replaceStackAndIncrPC, EvmSemantics.UInt256.ofNat]
+    · rename_i hnotRunning
+      rw [hrunning2] at hnotRunning
+      contradiction
+  obtain ⟨hat3, hdecoded3, hstack3⟩ :=
+    counterState_of_dispatcher_selector_shift_push_stepFE_to_shr_ok
+      hstack2 hat2 hreadyForHelper hstep2
+  exact ⟨s1, s2, s3, hstep0, hstep1, hstep2, hat3, hdecoded3, by simpa using hstack3⟩
+
 structure CounterPreparedInitializeStepFEPath (s0 s36 : EvmState) where
   s1 : EvmState
   s2 : EvmState
