@@ -1402,12 +1402,12 @@ Tasks:
 - Add `--solana-elf` CLI mode: emit `.s` then invoke `sbpf build`.
 - Generate instruction manifest (`manifest.toml`) alongside the `.s`.
 - Create `Examples/Solana/Counter.lean` + manifest.
-- Run `sbpf test` (Mollusk) and a Surfpool/Web3.js live deployment smoke.
+- Run `sbpf test` (Mollusk) and a Surfpool/Rust live deployment smoke.
 
 Acceptance criteria:
 
 - Counter scenario (initialize, increment, get) passes `sbpf test`.
-- Surfpool/Web3.js live smoke passes (optional, gated on tool availability).
+- Surfpool/Rust live smoke passes (optional, gated on tool availability).
 - Capability checker rejects IR modules using unsupported capabilities with a
   clear diagnostic citing target id and capability id.
 - Same portable IR Counter module lowers to both EVM and Solana.
@@ -1478,7 +1478,7 @@ partial progress is visible before the full acceptance criteria close:
       `Tests/SolanaSdk.lean`, `Tests/SolanaSdkManifest.lean`, and
       `scripts/solana/sdk-smoke.sh` with `sbpf build` when available.
 - [x] Surfpool/Rust live deployment smoke (V-GATE-SOLANA-04). The optional
-      `scripts/solana/surfpool-web3-smoke.sh` gate builds the Counter ELF,
+      `scripts/solana/counter-live-smoke.sh` gate builds the Counter ELF,
       starts Surfpool, deploys with the Solana CLI, creates a program-owned
       counter account via the Rust live harness, invokes initialize/increment/get,
       checks account data 0→1→2, and validates `get` return data. The script
@@ -1502,7 +1502,7 @@ partial progress is visible before the full acceptance criteria close:
       account when `account?` is present. Covered by `Tests/SolanaSdk.lean`,
       `Tests/SolanaSdkManifest.lean`, `Tests/SolanaPdaSeeds.lean`,
       `scripts/solana/sdk-smoke.sh`, and
-      `scripts/solana/pda-web3-smoke.sh`.
+      `scripts/solana/pda-rust-smoke.sh`.
 - [x] Standard Solana protocol SDK helpers now cover System Program
       transfer/create-account and SPL Token transfer_checked/mint_to/burn/
       approve/revoke/close_account/set_authority. They route through target capability
@@ -1528,7 +1528,7 @@ partial progress is visible before the full acceptance criteria close:
       harness verifies copied bytes, moved bytes, compare result, and fill
       pattern on a program-owned account.
       Covered by `Tests/SolanaMemory.lean` and
-      `scripts/solana/memory-web3-smoke.sh`.
+      `scripts/solana/memory-live-smoke.sh`.
 - [x] Return-data and compute-budget target extensions now route Solana-only
       SDK actions through `runtime.return_data` and `runtime.compute_units`
       capability metadata. Return-data actions lower state-backed byte slices
@@ -1570,30 +1570,30 @@ partial progress is visible before the full acceptance criteria close:
       `--solana-system-cpi-elf` fixture whose entrypoint reads a scalar
       `lamports` instruction parameter, performs a System Program transfer CPI,
       and records the transferred amount in a program-owned state account.
-      `scripts/solana/system-cpi-web3-smoke.sh` validates the artifact schema,
+      `scripts/solana/system-cpi-live-smoke.sh` validates the artifact schema,
       deploys the ELF on Surfpool with Solana CLI, invokes it through the Rust
       live RPC harness, and checks both recipient lamport delta and state data.
       The sBPF lowering computes the instruction-data pointer from the
       serialized account layout under direct account mapping and keeps it in
       `r9` so internal helper calls do not lose it across callee stack frames.
       Coverage: `just solana-system-cpi-web3` / V-GATE-SOLANA-10.
-- [x] System Program `create_account` CPI now has a live Surfpool/Web3.js
+- [x] System Program `create_account` CPI now has a live Surfpool/Rust
       behavior gate. `ProofForge.Solana.Examples.SystemCreateAccountCpi`
       builds a generated `--solana-system-create-account-cpi-elf` fixture whose
       entrypoint reads scalar `lamports` and `space` instruction parameters,
       performs a System Program `create_account` CPI with payer and new-account
       signers, creates a program-owned account, and records both values in the
-      existing program-owned state account. The Web3.js harness checks the new
+      existing program-owned state account. The Rust live RPC harness checks the new
       account owner, data length, lamports, and recorded state values. Coverage:
       `just solana-system-create-account-cpi-web3` / V-GATE-SOLANA-11.
-- [x] SPL Token `transfer_checked` CPI now has a live Surfpool/Web3.js behavior
+- [x] SPL Token `transfer_checked` CPI now has a live Surfpool/Rust behavior
       gate. `ProofForge.Solana.Examples.SplTokenTransferCheckedCpi` builds a
       generated `--solana-spl-token-transfer-cpi-elf` fixture whose entrypoint
       reads a scalar `amount` instruction parameter, performs an SPL Token
       `transfer_checked` CPI with the source authority signer, and records the
-      amount in program-owned state. The Web3.js harness creates a mint plus
-      source/destination token accounts through `@solana/spl-token`, checks the
-      token balance deltas, and checks the state record. The sBPF lowering now
+      amount in program-owned state. The Rust live RPC harness creates a mint
+      plus source/destination token accounts, checks the token balance deltas,
+      and checks the state record. The sBPF lowering now
       builds a runtime account pointer table in each entry/helper stack frame so
       variable-size SPL Token account data does not invalidate account offsets
       across internal helper calls. Coverage:
@@ -1624,7 +1624,7 @@ Reference docs driving this roadmap:
   <https://github.com/anza-xyz/pinocchio>.
 
 Baseline: as of 2026-07-02, the Solana path has direct sBPF assembly emission,
-Counter deployment through Surfpool/Web3.js, SDK capability metadata, generated
+Counter deployment through Surfpool/Rust, SDK capability metadata, generated
 manifest/artifact output, module-wide multi-account schemas, standard
 System/SPL Token CPI data packing, bump-allocator metadata, scalar entrypoint
 parameter decoding, typed PDA seed lowering, live System Program transfer plus
@@ -1661,7 +1661,7 @@ the current direct-assembly architecture staying stable, and local
 
 | Level | Estimated effort | Done when |
 |---|---:|---|
-| SDK alpha: usable Solana programs | 3-5 focused engineering days | Simple programs can use state, PDA seeds, scalar instruction parameters, System Program CPI, SPL Token CPI, logs/return data, and Web3.js behavior tests without hand-written assembly patches. |
+| SDK alpha: usable Solana programs | 3-5 focused engineering days | Simple programs can use state, PDA seeds, scalar instruction parameters, System Program CPI, SPL Token CPI, logs/return data, and Rust live behavior tests without hand-written assembly patches. |
 | SDK beta: reference-comparable Solana backend | 2-3 focused weeks | ProofForge output is compared against Rust/Pinocchio fixtures for the same account schema, covers key syscalls, validates live CPI behavior, and supports per-entrypoint account schemas. |
 | Anchor/Pinocchio-class developer surface | 4-6 focused weeks after beta | The SDK offers account constraints, typed account/data helpers, IDL/client generation, richer SPL/Token-2022 coverage, and stable diagnostics comparable to a framework-level workflow. |
 
@@ -1675,40 +1675,39 @@ Completed alpha slices:
   `bumpSeed`, and `paramSeed` descriptors now lower to Solana seed slices,
   `bump?` participates in the effective seed list, and declared PDA accounts
   can be checked against the derived pubkey.
-- PDA/Rust derivation fixture: `scripts/solana/pda-web3-smoke.sh` reads the
+- PDA/Rust derivation fixture: `scripts/solana/pda-rust-smoke.sh` reads the
   generated SDK Vault `typedSeeds` artifact data and verifies literal/account/
   bump descriptor semantics against `Address::find_program_address` and
   `Address::create_program_address`; the harness also covers UTF-8 and
   instruction-parameter resolver behavior.
 - Live System Program transfer CPI fixture:
-  `scripts/solana/system-cpi-web3-smoke.sh` builds and deploys a generated
+  `scripts/solana/system-cpi-live-smoke.sh` builds and deploys a generated
   transfer CPI program on Surfpool, invokes it through the Rust live RPC harness,
   and proves both the lamport movement and state write.
 - Live System Program create-account CPI fixture:
-  `scripts/solana/system-create-account-cpi-web3-smoke.sh` builds and deploys a
+  `scripts/solana/system-create-account-cpi-live-smoke.sh` builds and deploys a
   generated create-account CPI program on Surfpool, invokes it through the Rust
   live RPC harness, and proves the new account owner/space/lamports plus state
   writes.
 - Live SPL Token transfer-checked CPI fixture:
-  `scripts/solana/spl-token-transfer-cpi-web3-smoke.sh` builds and deploys a
-  generated transfer_checked CPI program on Surfpool, creates SPL Token test
-  accounts with `@solana/spl-token`, invokes it through Web3.js, and proves the
-  source/destination token balance deltas plus state writes.
+  `scripts/solana/spl-token-transfer-cpi-live-smoke.sh` builds and deploys a
+  generated transfer_checked CPI program on Surfpool, invokes it through the
+  Rust live RPC harness, and proves the source/destination token balance deltas
+  plus state writes.
 - Live SPL Token ops CPI fixture:
-  `scripts/solana/spl-token-ops-cpi-web3-smoke.sh` builds and deploys a
+  `scripts/solana/spl-token-ops-cpi-live-smoke.sh` builds and deploys a
   generated `mint_to`/`burn`/`approve`/`revoke` CPI program on Surfpool,
-  validates the generated four-entrypoint artifact schema, creates SPL Token
-  test accounts with `@solana/spl-token`, invokes all four generated
-  entrypoints through Web3.js, and proves supply/balance/delegate changes plus
-  state writes.
+  validates the generated four-entrypoint artifact schema, invokes all four
+  generated entrypoints through the Rust live RPC harness, and proves
+  supply/balance/delegate changes plus state writes.
 - Live SPL Token authority CPI fixture:
-  `scripts/solana/spl-token-authority-cpi-web3-smoke.sh` builds and deploys a
+  `scripts/solana/spl-token-authority-cpi-live-smoke.sh` builds and deploys a
   generated `set_authority` CPI program on Surfpool, validates the generated
-  single-entrypoint artifact schema, creates an SPL Token mint through
-  `@solana/spl-token`, invokes the generated entrypoint through Web3.js, and
+  single-entrypoint artifact schema, creates an SPL Token mint through the Rust
+  live RPC harness, invokes the generated entrypoint through the Rust harness, and
   proves mint authority moved to the requested new authority plus the marker
   state write.
-- Live scalar event, pubkey log, and data log fixture: `scripts/solana/log-event-web3-smoke.sh`
+- Live scalar event, pubkey log, and data log fixture: `scripts/solana/log-event-live-smoke.sh`
   builds and deploys a generated `events.emit` program on Surfpool, invokes it
   through the Rust live RPC harness, verifies the generated `sol_log_64_` transaction log
   contains the stable `AmountEvent` tag and scalar `amount` field, and proves
@@ -1718,12 +1717,12 @@ Completed alpha slices:
   account's base58 pubkey. It also validates Solana-only `logStateData`
   metadata, invokes `log_state_data`, and proves `sol_log_data` emits a base64
   `Program data:` payload for the state-backed `amount` bytes.
-- Live Clock sysvar fixture: `scripts/solana/clock-sysvar-web3-smoke.sh`
+- Live Clock sysvar fixture: `scripts/solana/clock-sysvar-live-smoke.sh`
   builds and deploys a generated `contextRead checkpointId` program on
   Surfpool, lowers it to `sol_get_clock_sysvar`, invokes it through the Rust
   live RPC harness, and proves the recorded `Clock.slot` matches the observed
   transaction slot.
-- Live memory syscall fixture: `scripts/solana/memory-web3-smoke.sh` builds and
+- Live memory syscall fixture: `scripts/solana/memory-live-smoke.sh` builds and
   deploys a generated `runtime.memory` program on Surfpool, invokes it through
   the Rust live RPC harness, and proves `sol_memcpy_`, `sol_memmove_`,
   `sol_memcmp_`, and `sol_memset_` effects by reading copied value, moved
@@ -1734,7 +1733,7 @@ Completed alpha slices:
   on EVM, and render manifest sections plus sBPF helper calls for
   `sol_set_return_data`, `sol_get_return_data`, feature-gated
   `sol_remaining_compute_units`, and `sol_log_compute_units_`.
-  `scripts/solana/return-data-compute-web3-smoke.sh` builds and deploys the
+  `scripts/solana/return-data-compute-live-smoke.sh` builds and deploys the
   generated `--solana-return-data-compute-elf` fixture on Surfpool, validates
   artifact action metadata, verifies no-data `sol_get_return_data` reads,
   confirms `sol_set_return_data` through Rust RPC simulation return data,
@@ -1742,20 +1741,20 @@ Completed alpha slices:
   records a nonzero remaining-compute-units value, and confirms compute-unit
   logging through transaction logs.
 - Live SHA-256/Keccak-256/Blake3 syscall fixture:
-  `scripts/solana/crypto-hash-web3-smoke.sh` builds and deploys a generated
+  `scripts/solana/crypto-hash-live-smoke.sh` builds and deploys a generated
   Solana-only `crypto.hash` program on Surfpool, invokes `set_preimage`,
   `hash_preimage`, `keccak_preimage`, and `blake3_preimage` through the Rust
   live RPC harness, and proves the account-stored 32-byte digests match Rust
   SHA-256, Keccak-256, and Blake3 references for the same little-endian
   preimage. The Blake3 action is recorded as feature-gated in manifest and
   artifact metadata.
-- Live Rent sysvar fixture: `scripts/solana/rent-sysvar-web3-smoke.sh` builds
+- Live Rent sysvar fixture: `scripts/solana/rent-sysvar-live-smoke.sh` builds
   and deploys a generated Solana-only `sysvar` target-extension program on
   Surfpool, invokes `record_rent` through the Rust live RPC harness, and proves
   the recorded `Rent.lamports_per_byte_year` matches the Rent sysvar account
   data.
 - Live EpochSchedule sysvar fixture:
-  `scripts/solana/epoch-schedule-sysvar-web3-smoke.sh` builds and deploys a
+  `scripts/solana/epoch-schedule-sysvar-live-smoke.sh` builds and deploys a
   generated Solana-only `sysvar` target-extension program on Surfpool, invokes
   `record_epoch_schedule` through the Rust live RPC harness, and proves the
   recorded `EpochSchedule.slots_per_epoch`,
@@ -1763,7 +1762,7 @@ Completed alpha slices:
   `EpochSchedule.first_normal_epoch`, and `EpochSchedule.first_normal_slot`
   match RPC `getEpochSchedule()` fields.
 - Live EpochRewards sysvar fixture:
-  `scripts/solana/epoch-rewards-sysvar-web3-smoke.sh` builds and deploys a
+  `scripts/solana/epoch-rewards-sysvar-live-smoke.sh` builds and deploys a
   generated Solana-only `sysvar` target-extension program on Surfpool, invokes
   `record_epoch_rewards` through the Rust live RPC harness, and proves that
   `sol_get_epoch_rewards_sysvar` records `EpochRewards` fields into state.
@@ -1771,7 +1770,7 @@ Completed alpha slices:
   `total_points` is exposed as low/high `u64` word views until the portable
   scalar layer has first-class wide-value output states.
 - Live LastRestartSlot sysvar fixture:
-  `scripts/solana/last-restart-slot-sysvar-web3-smoke.sh` builds and deploys a
+  `scripts/solana/last-restart-slot-sysvar-live-smoke.sh` builds and deploys a
   generated Solana-only `sysvar` target-extension program on Surfpool, invokes
   `record_last_restart_slot` through the Rust live RPC harness, and proves the
   feature-gated `LastRestartSlot.last_restart_slot` read lowers through
@@ -1801,7 +1800,7 @@ Completed beta scaffolding slices:
   0.2.2` installed failed all five live dual-deploy children at ProofForge
   program deployment. `solana program deploy --use-rpc` rejects the generated
   ProofForge ELF with `Failed to parse ELF file: invalid file header` before
-  the Pinocchio reference deployment or Web3.js behavior checks run. Triage
+  the Pinocchio reference deployment or Rust live behavior checks run. Triage
   showed the current blueshift `sbpf build --arch v0` output is a one-segment
   bare ELF with no section table and `e_flags = 3`; Agave's embedded
   `solana-sbpf 0.13.1` strict loader expects a Solana-compatible v3 layout
@@ -1846,9 +1845,9 @@ Completed beta scaffolding slices:
 - Pinocchio SPL Token transfer live-equivalence harness:
   `scripts/solana/pinocchio-spl-token-transfer-live-equivalence.sh` is wired to
   build the ProofForge ELF and the checked-in Pinocchio Token reference ELF,
-  deploy both programs to one Surfpool instance, invoke the same Web3.js +
-  `@solana/spl-token` transfer_checked scenario for each, and compare
-  source/destination token balance deltas plus the amount state write. The
+  deploy both programs to one Surfpool instance, invoke the same Rust live RPC
+  transfer_checked scenario for each, and compare source/destination token
+  balance deltas plus the amount state write. The
   harness currently skips when `cargo-build-sbf` cannot find Solana rustc/
   platform-tools.
 - Pinocchio SPL Token ops reference contract:
@@ -1865,10 +1864,10 @@ Completed beta scaffolding slices:
 - Pinocchio SPL Token ops live-equivalence harness:
   `scripts/solana/pinocchio-spl-token-ops-live-equivalence.sh` is wired to
   build the ProofForge ELF and the checked-in Pinocchio Token ops reference
-  ELF, deploy both programs to one Surfpool instance, invoke the same Web3.js +
-  `@solana/spl-token` mint/burn/approve/revoke scenario for each, and compare
-  token effects plus all four amount/marker state writes. The harness currently
-  skips when `cargo-build-sbf` cannot find Solana rustc/platform-tools.
+  ELF, deploy both programs to one Surfpool instance, invoke the same Rust live
+  RPC mint/burn/approve/revoke scenario for each, and compare token effects plus
+  all four amount/marker state writes. The harness currently skips when
+  `cargo-build-sbf` cannot find Solana rustc/platform-tools.
 - Pinocchio SPL Token authority reference contract:
   `references/solana/pinocchio/spl-token-authority` contains a checked-in
   no-allocator Pinocchio reference for the same SPL Token `set_authority`
@@ -1883,8 +1882,8 @@ Completed beta scaffolding slices:
   `scripts/solana/pinocchio-spl-token-authority-live-equivalence.sh` is wired
   to build the ProofForge ELF and the checked-in Pinocchio Token authority
   reference ELF, deploy both programs to one Surfpool instance, invoke the same
-  Web3.js + `@solana/spl-token` mint-authority transfer scenario for each, and
-  compare mint authority plus marker state writes. The harness currently skips
+  Rust live RPC mint-authority transfer scenario for each, and compare mint
+  authority plus marker state writes. The harness currently skips
   when `cargo-build-sbf` cannot find Solana rustc/platform-tools.
 
 Completed developer-surface slices:
@@ -2009,13 +2008,13 @@ Completed developer-surface slices:
   `invoke ... system_create_account(...) owner ...` forms.
   `ProofForge.Solana.Examples.SystemCreateAccountCpi` uses those forms instead
   of the lower-level builder API while preserving the existing generated
-  assembly, manifest, artifact, and Surfpool/Web3.js behavior gate.
+  assembly, manifest, artifact, and Surfpool/Rust behavior gate.
 - SPL Token authority source syntax:
   `ProofForge.Contract.Source` now exposes source-level
   `cpi ... spl_token_set_authority(...) authority_type(...) signer_seeds [...]`
   and `invoke ... spl_token_set_authority(...) authority_type(...) signer_seeds
   [...]` forms. `ProofForge.Solana.Examples.SplTokenAuthorityCpi` uses those
-  forms in a Lean `.lean` fixture, and the generated artifact, Surfpool/Web3.js
+  forms in a Lean `.lean` fixture, and the generated artifact, Surfpool/Rust
   behavior gate, and Pinocchio reference gates all validate the same lowering
   boundary.
 - SPL Token close-account source syntax:
@@ -2028,12 +2027,12 @@ Completed developer-surface slices:
   CPI data length, and the generated CPI helper call. The fixture is available
   through target-first CLI as `emit --target solana-sbpf-asm --fixture
   spl-token-close-account-cpi --format s|elf` and through the matching legacy
-  compatibility flags. `scripts/solana/spl-token-close-account-cpi-web3-smoke.sh`
-  adds the live Surfpool/Web3.js behavior gate: it deploys the generated
-  program, creates an empty SPL Token account, invokes the generated
-  `close_account` CPI path, proves the token account is removed, verifies the
-  rent lamports moved to the destination account, and checks the marker state
-  write. Pinocchio equivalence for this specific SPL helper remains a
+  compatibility flags. `scripts/solana/spl-token-close-account-cpi-live-smoke.sh`
+  adds the live Surfpool/Rust behavior gate: it deploys the generated program,
+  creates an empty SPL Token account through the Rust live RPC harness, invokes
+  the generated `close_account` CPI path, proves the token account is removed,
+  verifies the rent lamports moved to the destination account, and checks the
+  marker state write. Pinocchio equivalence for this specific SPL helper remains a
   reference-breadth follow-up.
 - Target-stage ABI selector hydration:
   the Learn/ValueVault CLI emit paths derive EVM selectors from each
@@ -2101,7 +2100,7 @@ Remaining priority slices:
    checked Token-2022 extension routes and remaining SPL variants beyond the
    covered mint-authority `set_authority` path. Associated Token account setup
    now has `create_idempotent` builder/surface/source syntax, sBPF packing,
-   target-first fixture routing, and a Surfpool/Web3.js behavior gate, without
+   target-first fixture routing, and a Surfpool/Rust behavior gate, without
    moving those details into portable IR.
 6. Developer ergonomics and framework surface (3-5 days per iteration): extend
    the new surface layer toward Lean `.lean`/Lean SDK contract syntax with richer
@@ -2689,13 +2688,16 @@ Tasks:
   `ProofForge.Contract.Token.Evm`, `Tests/TokenEvm.lean`, standard ERC-20
   selectors/events in metadata, Yul generation, and `solc --strict-assembly`
   bytecode validation through `--learn-token --target evm`.
-- Done: add `scripts/portable/learn-token-smoke.sh` / `just
-  learn-token-smoke` to validate the EVM ERC-20 token artifact path and the
-  Solana Token-2022 plan path from Learn source.
-- Done: add `scripts/evm/learn-token-erc20-vm-smoke.sh` / `just
-  learn-token-evm-vm` to deploy the generated ERC-20 creation bytecode in an
-  in-process Rust `revm` harness and validate standard ERC-20 calls,
-  Transfer/Approval topics, and insufficient-balance revert behavior.
+- Done: add `scripts/portable/token-intent-smoke.sh` / `just
+  token-intent-smoke` to validate the shared Lean `TokenSpec` intent path and
+  keep the legacy Learn token path as an equivalence fixture; `just
+  learn-token-smoke` remains a compatibility alias.
+- Done: add `scripts/evm/token-intent-evm-vm-smoke.sh` / `just
+  token-intent-evm-vm` to deploy the generated ERC-20 creation bytecode from
+  the shared Lean `TokenSpec` intent in an in-process Rust `revm` harness and
+  validate standard ERC-20 calls, Transfer/Approval topics, and
+  insufficient-balance revert behavior; `scripts/evm/learn-token-erc20-vm-smoke.sh`
+  / `just learn-token-evm-vm` remain compatibility entrypoints.
 - Done: implement Solana SPL Token / Token-2022 deployment plan rendering at
   the Lean `TokenSpec` layer. `solanaTokenDeploymentPlan` now records mint
   account creation, associated token accounts, `mint_to`, `transfer_checked`,
@@ -2706,35 +2708,43 @@ Tasks:
   Token-2022 extension metadata rather than custom per-token programs. The
   planner rejects the documented incompatible `transfer_fee` +
   `non_transferable` combination.
-- Done: extend `scripts/portable/learn-token-smoke.sh` so the legacy `.learn`
-  input path reuses the Lean `TokenSpec` plan, emits both SPL Token and
-  Token-2022 structured plan JSON, and validates the plan offline with the
-  Rust `token_plan_smoke` harness.
-- Done: add `scripts/solana/token-plan-web3-smoke.sh` / `just
-  solana-token-plan-web3` to execute the structured legacy SPL Token plan on
-  Surfpool. The live runner creates the mint and associated token accounts,
-  mints initial supply, executes the planned `mint_to`, `transfer_checked`,
-  `approve`, `burn`, `revoke`, and mint-authority `set_authority` operations,
-  and validates balances, supply, delegate state, and authority revocation with
-  Web3.js reads.
-- Done: add `scripts/solana/token-2022-transfer-fee-web3-smoke.sh` / `just
-  solana-token-2022-transfer-fee-web3` to execute the structured Token-2022
-  transfer-fee plan on Surfpool. The live runner initializes `TransferFeeConfig`,
-  creates Token-2022 associated token accounts, mints initial supply, executes
+- Done: extend `scripts/portable/token-intent-smoke.sh` so
+  `Examples/Shared/FungibleToken.lean`, `Examples/Shared/FeeToken.lean`, and
+  the legacy `.learn` input paths all reuse the Lean `TokenSpec` plan, emit
+  structured Solana SPL Token / Token-2022 plan JSON, and validate the plans
+  offline with the Rust `token_plan_smoke` harness.
+- Done: add `scripts/solana/token-plan-live-smoke.sh` / `just
+  solana-token-plan-live` to execute the structured SPL Token plan from
+  `Examples/Shared/FungibleToken.lean` on Surfpool with a Rust harness. The
+  former `solana-token-plan-web3` entrypoint remains as a compatibility alias.
+  The live runner creates the mint and
+  associated token accounts, mints initial supply, executes the planned
+  `mint_to`, `transfer_checked`, `approve`, `burn`, `revoke`, and
+  mint-authority `set_authority` operations, and validates balances, supply,
+  delegate state, and authority revocation with Rust RPC account reads.
+- Done: add `scripts/solana/token-2022-transfer-fee-live-smoke.sh` / `just
+  solana-token-2022-transfer-fee-live` to execute the structured Token-2022
+  transfer-fee plan from `Examples/Shared/FeeToken.lean` on Surfpool with a
+  Rust harness. The former `solana-token-2022-transfer-fee-web3` entrypoint
+  remains as a compatibility alias. The live runner initializes
+  `TransferFeeConfig`, creates Token-2022
+  associated token accounts, mints initial supply, executes
   `TransferCheckedWithFee`, validates the source balance, recipient net balance,
   and recipient withheld fee, directly withdraws withheld fees from a token
   account, then runs a second transfer, harvests withheld fees to the mint,
   withdraws them from the mint, and validates the fee receiver balance plus
-  cleared account/mint withheld amounts with Web3.js reads.
+  cleared account/mint withheld amounts with Rust RPC account reads.
 - Done: add `ProofForge.Contract.Token.Examples.SoulboundToken`,
   `Tests/TokenPlanEmit.lean`,
-  `scripts/solana/token-2022-non-transferable-web3-smoke.sh`, and `just
-  solana-token-2022-non-transferable-web3` to execute a Lean `.lean`
-  TokenSpec-backed Token-2022 non-transferable plan on Surfpool. The live
-  runner initializes `NonTransferable`, creates Token-2022 associated token
-  accounts, mints initial supply, verifies mint/account extensions, proves
-  `TransferChecked` is rejected, then burns the token and validates balances
-  and supply with Web3.js reads.
+  `scripts/solana/token-2022-non-transferable-live-smoke.sh`, and `just
+  solana-token-2022-non-transferable-live` to execute a Lean `.lean`
+  TokenSpec-backed Token-2022 non-transferable plan on Surfpool with a Rust
+  harness. The former `solana-token-2022-non-transferable-web3` entrypoint
+  remains as a compatibility alias. The live runner initializes
+  `NonTransferable`, creates Token-2022 associated token accounts, mints
+  initial supply, verifies mint/account extensions, proves `TransferChecked`
+  is rejected, then burns the token and validates balances and supply with
+  Rust RPC account reads.
 - Implement EVM ERC-20 lowering: ABI/selectors, balance/allowance storage,
   total supply, transfer/approve/transferFrom, mint/burn options, events, and
   broader Foundry/Web3 behavior tests.
@@ -3501,7 +3511,7 @@ land in `contract_source` / Token SDK syntax, not Builder fixtures.
   and sBPF instruction-data packing for tag `9`, covered by
   `Tests/SolanaCpiPacking.lean`, `Tests/LearnSource.lean`, and
   `Tests/CliTargetFirst.lean`. `just solana-spl-token-close-account-cpi-web3`
-  now covers the live Surfpool/Web3.js validation path for closing an empty SPL
+  now covers the live Surfpool/Rust validation path for closing an empty SPL
   Token account through CPI, destination rent lamport recovery, and marker
   state recording. Pinocchio equivalence for close-account remains a
   reference-breadth follow-up.
@@ -3523,22 +3533,26 @@ land in `contract_source` / Token SDK syntax, not Builder fixtures.
   `initialize_permanent_delegate`, `initialize_interest_bearing_mint`, and
   `enable_required_memo_transfers`, `initialize_transfer_hook`,
   `initialize_pausable_config`, `pause`, and `resume`; generated-program
-  Token-2022 direct-CPI Surfpool/Web3.js gates verify the initialized extension
-  state and Pausable pause/resume transitions.
+  Token-2022 direct-CPI Surfpool/Rust gate verifies the initialized extension
+  state, while the Pausable direct-CPI Surfpool/Rust gate verifies
+  `PausableConfig` plus pause/resume transitions.
 - ✅ P1: Token-2022 transfer-hook execute/extra-account-meta routing now has a
   generated hook-program fixture with external `Execute` discriminator
   dispatch, per-entrypoint account constraints, PDA signer seeds for the
   validation account, static extra-account-meta TLV serialization, manifest/IDL
   metadata, target-first fixture routing, and
-  `just solana-spl-token-2022-transfer-hook-web3` Surfpool/Web3.js validation
-  for initializing the validation PDA, routing two static extra accounts through
-  Web3.js, accepting an allowed transfer, and rejecting an over-limit transfer.
+  `just solana-spl-token-2022-transfer-hook-live` Surfpool/Rust validation for
+  initializing the validation PDA, routing two static extra accounts through a
+  Rust-built Token-2022 transfer-checked instruction with hook accounts,
+  accepting an allowed transfer, and rejecting an over-limit transfer. The old
+  `just solana-spl-token-2022-transfer-hook-web3` recipe remains a compatibility
+  alias.
 - ✅ P1: Associated Token `create_idempotent` CPI now has builder helpers,
   typed `Surface` wrappers, `contract_source` syntax, target-first fixture
   routing, manifest/IDL/artifact metadata including the selected token program,
   sBPF data packing for `associated-token.create_idempotent`, a separated
   6-account CPI account-meta frame, and `just solana-associated-token-cpi-web3`
-  Surfpool/Web3.js validation that creates the canonical ATA and re-invokes the
+  Surfpool/Rust validation that creates the canonical ATA and re-invokes the
   idempotent path.
 - P1: Memo/Stake/Vote CPI, confidential_transfer,
   Pinocchio reference ≥10, Metaplex NFT, Anchor-style derive macro,

@@ -26,6 +26,11 @@ pub struct LiveAccountInfo {
     pub owner: Address,
 }
 
+pub struct ExpectedTransactionFailure {
+    pub signature: Option<String>,
+    pub err: String,
+}
+
 impl LiveRpc {
     pub fn new(url: impl Into<String>) -> Self {
         Self {
@@ -47,6 +52,10 @@ impl LiveRpc {
 
     pub fn epoch_schedule(&self) -> Result<EpochSchedule> {
         self.call("getEpochSchedule", json!([]))
+    }
+
+    pub fn epoch_info(&self) -> Result<EpochInfo> {
+        self.call("getEpochInfo", json!([{ "commitment": "confirmed" }]))
     }
 
     pub fn balance(&self, account: Address) -> Result<u64> {
@@ -85,6 +94,38 @@ impl LiveRpc {
         )?;
         self.confirm_signature(&signature)?;
         Ok(signature)
+    }
+
+    pub fn send_and_confirm_expect_failure(
+        &self,
+        instructions: &[Instruction],
+        signers: &[&Keypair],
+    ) -> Result<ExpectedTransactionFailure> {
+        let encoded = self.encode_signed_transaction(instructions, signers)?;
+        let signature: String = match self.call(
+            "sendTransaction",
+            json!([
+                encoded,
+                {
+                    "encoding": "base64",
+                    "skipPreflight": true,
+                    "preflightCommitment": "confirmed"
+                }
+            ]),
+        ) {
+            Ok(signature) => signature,
+            Err(err) => {
+                return Ok(ExpectedTransactionFailure {
+                    signature: None,
+                    err: err.to_string(),
+                });
+            }
+        };
+        self.confirm_signature_expect_failure(&signature)
+            .map(|err| ExpectedTransactionFailure {
+                signature: Some(signature),
+                err,
+            })
     }
 
     pub fn simulate_return_data(
@@ -245,6 +286,28 @@ impl LiveRpc {
         bail!("timed out waiting for transaction {signature} confirmation")
     }
 
+    fn confirm_signature_expect_failure(&self, signature: &str) -> Result<String> {
+        for _ in 0..60 {
+            let response: SignatureStatusesResponse = self.call(
+                "getSignatureStatuses",
+                json!([[signature], { "searchTransactionHistory": true }]),
+            )?;
+            if let Some(Some(status)) = response.value.into_iter().next() {
+                if let Some(err) = status.err {
+                    return Ok(err.to_string());
+                }
+                match status.confirmation_status.as_deref() {
+                    Some("confirmed") | Some("finalized") => {
+                        bail!("transaction {signature} unexpectedly succeeded")
+                    }
+                    _ => {}
+                }
+            }
+            thread::sleep(Duration::from_millis(500));
+        }
+        bail!("timed out waiting for failed transaction {signature} confirmation")
+    }
+
     fn call<T: DeserializeOwned>(&self, method: &str, params: Value) -> Result<T> {
         let response: RpcResponse<T> = self
             .client
@@ -398,6 +461,11 @@ pub struct EpochSchedule {
     pub first_normal_epoch: u64,
     #[serde(rename = "firstNormalSlot")]
     pub first_normal_slot: u64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EpochInfo {
+    pub epoch: u64,
 }
 
 #[derive(Debug, Deserialize)]
