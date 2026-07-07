@@ -600,6 +600,48 @@ theorem counterInitializeStorageValue_of_sstore_stackMemFlow_ok
         (counterStorageValue counterContractAddress counterCountSlot state) :=
   counterStorageValue_of_sstore_stackMemFlow_ok haddr hstack rfl hstep
 
+theorem counterStorageValue_of_initialize_sload_and_or_push_sstore_ok
+    {sloadState sloadGas afterSload andGas afterAnd orGas afterOr pushGas
+      sstoreState sstoreGas nextState : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (haddrSload : sloadState.executionEnv.address = counterContractAddress)
+    (haddrSstore : sstoreState.executionEnv.address = counterContractAddress)
+    (hstack :
+      sloadState.stack =
+        counterCountSlot :: counterInitializeLowMask ::
+          counterInitializeSetValue :: rest)
+    (hsload :
+      EvmSemantics.EVM.stepF.stackMemFlow sloadState sloadGas
+        (.SLOAD : EvmSemantics.Operation.StackMemFlowOps) = .ok afterSload)
+    (hand :
+      EvmSemantics.EVM.stepF.compBit afterSload andGas
+        (.AND : EvmSemantics.Operation.CompareBitwiseOps) = .ok afterAnd)
+    (hor :
+      EvmSemantics.EVM.stepF.compBit afterAnd orGas
+        (.OR : EvmSemantics.Operation.CompareBitwiseOps) = .ok afterOr)
+    (hpushSlot :
+      EvmSemantics.EVM.stepF.push afterOr pushGas counterPush0Op none =
+        .ok sstoreState)
+    (hsstore :
+      EvmSemantics.EVM.stepF.stackMemFlow sstoreState sstoreGas
+        (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) = .ok nextState) :
+    counterStorageValue counterContractAddress counterCountSlot nextState =
+      counterInitializeStorageWord
+        (counterStorageValue counterContractAddress counterCountSlot sloadState) := by
+  have horStack :=
+    counterStack_of_initialize_sload_and_or_storageWord_ok haddrSload hstack
+      hsload hand hor
+  have hsstoreStack :
+      sstoreState.stack =
+        counterCountSlot ::
+          counterInitializeStorageWord
+            (counterStorageValue counterContractAddress counterCountSlot sloadState) ::
+          rest := by
+    rw [counterStack_of_push0_ok hpushSlot, horStack]
+    rw [← counterCountSlot_eq_zero]
+  exact counterStorageValue_of_sstore_stackMemFlow_ok haddrSstore
+    hsstoreStack rfl hsstore
+
 def irCounterCount? (state : IRState) : Option Nat :=
   match state.read "count" with
   | some (.u64 count) => some count

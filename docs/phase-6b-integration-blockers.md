@@ -216,6 +216,9 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   specializes the SLOAD/AND/OR helper sequence to that storage model value.
   `counterStack_of_initialize_prefix_to_sload_ok` proves the initialize-body
   prefix constructs the exact stack consumed by the SLOAD helper.
+  `counterStorageValue_of_initialize_sload_and_or_push_sstore_ok` stitches
+  SLOAD/AND/OR through the final `PUSH0; SSTORE` and proves the resulting state
+  writes the initialize storage model into Counter slot 0.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -282,6 +285,9 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   `lake build EvmRefinement`; the concrete initialize-body prefix constructs
   `counterCountSlot :: counterInitializeLowMask :: counterInitializeSetValue`
   before SLOAD.
+- `counterStorageValue_of_initialize_sload_and_or_push_sstore_ok` — green under
+  `lake build EvmRefinement`; the SLOAD/AND/OR result plus final PUSH0/SSTORE
+  writes the initialize storage model into Counter slot 0.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 
@@ -309,5 +315,5 @@ per-entrypoint obligation surface now also carries this boundary through
 induction. `CounterTraceSafeAtState` is the current state/input predicate form;
 the remaining Phase 6c work is to prove the compiled runtime's prepared-frame
 EVM-only powdr storage models, starting with the dispatcher/JUMPDEST path to the
-proven initialize-body prefix and the final PUSH0/SSTORE stitching after
-SLOAD/AND/OR.
+proven initialize-body helper sequence and connecting that sequence to the
+prepared-frame initialize storage model.
