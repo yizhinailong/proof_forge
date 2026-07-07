@@ -26,24 +26,27 @@ IR interpreter; a small-step relation (Phase 6c prerequisite) is left to 6b+.
 -/
 
 /-- Generic list-fold runner mirroring `Refinement.runTraceList` but abstract
-over the atomic per-call step. Threaded through `IR.Semantics.State`. The
-atomic step returns a pair; we use a named-tuple lambda (no anonymous
-pattern match) so `Except.bind` reduces by `rfl`/`simp`. -/
-def runTraceListGen {Call Obs : Type} (step : State → Call → Except String (State × Obs))
-    : List Call → State → Except String (State × Array Obs)
+over the machine state and atomic per-call step. The atomic step returns a
+pair; we use a named-tuple lambda (no anonymous pattern match) so
+`Except.bind` reduces by `rfl`/`simp`. -/
+def runTraceListGen {MachineState Call Obs : Type}
+    (step : MachineState → Call → Except String (MachineState × Obs))
+    : List Call → MachineState → Except String (MachineState × Array Obs)
   | [], s => .ok (s, #[])
   | c :: rest, s =>
     (step s c).bind fun so =>
     (runTraceListGen step rest so.1).bind fun soso =>
     .ok (soso.1, #[so.2] ++ soso.2)
 
-@[simp] theorem runTraceListGen_nil {Call Obs : Type}
-    (step : State → Call → Except String (State × Obs)) (s : State) :
+@[simp] theorem runTraceListGen_nil {MachineState Call Obs : Type}
+    (step : MachineState → Call → Except String (MachineState × Obs))
+    (s : MachineState) :
     runTraceListGen step [] s = .ok (s, #[]) := rfl
 
-@[simp] theorem runTraceListGen_cons_ok {Call Obs : Type}
-    (step : State → Call → Except String (State × Obs)) (c : Call) (rest : List Call)
-    (s s' : State) (o : Obs) (sFinal : State) (os : Array Obs)
+@[simp] theorem runTraceListGen_cons_ok {MachineState Call Obs : Type}
+    (step : MachineState → Call → Except String (MachineState × Obs))
+    (c : Call) (rest : List Call)
+    (s s' : MachineState) (o : Obs) (sFinal : MachineState) (os : Array Obs)
     (h1 : step s c = .ok (s', o))
     (h2 : runTraceListGen step rest s' = .ok (sFinal, os)) :
     runTraceListGen step (c :: rest) s = .ok (sFinal, #[o] ++ os) := by
@@ -51,15 +54,17 @@ def runTraceListGen {Call Obs : Type} (step : State → Call → Except String (
   show (runTraceListGen step rest s').bind (fun soso => .ok (soso.fst, #[o] ++ soso.snd)) = _
   rw [h2]; rfl
 
-@[simp] theorem runTraceListGen_cons_err_step {Call Obs : Type}
-    (step : State → Call → Except String (State × Obs)) (c : Call) (rest : List Call)
-    (s : State) (e : String) (h1 : step s c = .error e) :
+@[simp] theorem runTraceListGen_cons_err_step {MachineState Call Obs : Type}
+    (step : MachineState → Call → Except String (MachineState × Obs))
+    (c : Call) (rest : List Call)
+    (s : MachineState) (e : String) (h1 : step s c = .error e) :
     runTraceListGen step (c :: rest) s = .error e := by
   rw [runTraceListGen, h1]; rfl
 
-@[simp] theorem runTraceListGen_cons_err_rest {Call Obs : Type}
-    (step : State → Call → Except String (State × Obs)) (c : Call) (rest : List Call)
-    (s s' : State) (o : Obs) (e : String)
+@[simp] theorem runTraceListGen_cons_err_rest {MachineState Call Obs : Type}
+    (step : MachineState → Call → Except String (MachineState × Obs))
+    (c : Call) (rest : List Call)
+    (s s' : MachineState) (o : Obs) (e : String)
     (h1 : step s c = .ok (s', o))
     (h2 : runTraceListGen step rest s' = .error e) :
     runTraceListGen step (c :: rest) s = .error e := by
@@ -70,8 +75,9 @@ def runTraceListGen {Call Obs : Type} (step : State → Call → Except String (
 /-- Inductive trace-matches predicate, structurally recursive over the call
 list. `IRTraceMatches step s calls os` holds iff running `step` over `calls`
 from `s` yields exactly `os`, matching `runTraceListGen step calls s`. -/
-inductive IRTraceMatches {Call Obs : Type} (step : State → Call → Except String (State × Obs))
-    : State → List Call → Array Obs → Prop where
+inductive IRTraceMatches {MachineState Call Obs : Type}
+    (step : MachineState → Call → Except String (MachineState × Obs))
+    : MachineState → List Call → Array Obs → Prop where
   | nil : IRTraceMatches step s [] #[]
   | cons (h : step s c = .ok (s', o)) (hrest : IRTraceMatches step s' rest os) :
       IRTraceMatches step s (c :: rest) (#[o] ++ os)
@@ -80,9 +86,9 @@ inductive IRTraceMatches {Call Obs : Type} (step : State → Call → Except Str
 ALL states and ALL call lists. This is the first universally-quantified lemma
 in the Tier C-proof chain. Discharged by `induction calls generalizing s`
 (not `native_decide`). -/
-theorem runTraceListGen_sound {Call Obs : Type}
-    (step : State → Call → Except String (State × Obs))
-    (calls : List Call) (s : State) :
+theorem runTraceListGen_sound {MachineState Call Obs : Type}
+    (step : MachineState → Call → Except String (MachineState × Obs))
+    (calls : List Call) (s : MachineState) :
     match runTraceListGen step calls s with
     | .ok (_, os) => IRTraceMatches step s calls os
     | .error _ => True := by
@@ -113,9 +119,9 @@ theorem runTraceListGen_sound {Call Obs : Type}
 
 /-- Completeness: any `IRTraceMatches` derivation is realized by the runner.
 Proven by induction on the `IRTraceMatches` derivation. -/
-theorem IRTraceMatches_complete {Call Obs : Type}
-    (step : State → Call → Except String (State × Obs))
-    {s : State} {calls : List Call} {os : Array Obs}
+theorem IRTraceMatches_complete {MachineState Call Obs : Type}
+    (step : MachineState → Call → Except String (MachineState × Obs))
+    {s : MachineState} {calls : List Call} {os : Array Obs}
     (h : IRTraceMatches step s calls os) :
     ∃ s', runTraceListGen step calls s = .ok (s', os) := by
   induction h with
@@ -127,9 +133,9 @@ theorem IRTraceMatches_complete {Call Obs : Type}
 
 /-- `IRTraceMatches` holds iff the runner returns the matching observable
 array. Combines soundness and completeness into a usable iff. -/
-theorem IRTraceMatches_iff_runTraceListGen {Call Obs : Type}
-    (step : State → Call → Except String (State × Obs))
-    (s : State) (calls : List Call) (os : Array Obs) :
+theorem IRTraceMatches_iff_runTraceListGen {MachineState Call Obs : Type}
+    (step : MachineState → Call → Except String (MachineState × Obs))
+    (s : MachineState) (calls : List Call) (os : Array Obs) :
     IRTraceMatches step s calls os ↔
       ∃ s', runTraceListGen step calls s = .ok (s', os) :=
   ⟨IRTraceMatches_complete step, fun ⟨_, h⟩ => by
@@ -142,8 +148,9 @@ compare the observable array. This is what lets `native_decide` re-prove the
 Counter/ValueVault theorems as `IRTraceMatches` instances without changing
 their truth values. -/
 instance irTraceMatchesDecidable {Call Obs : Type}
-    (step : State → Call → Except String (State × Obs))
-    [DecidableEq Obs] (s : State) (calls : List Call) (os : Array Obs) :
+    {MachineState : Type}
+    (step : MachineState → Call → Except String (MachineState × Obs))
+    [DecidableEq Obs] (s : MachineState) (calls : List Call) (os : Array Obs) :
     Decidable (IRTraceMatches step s calls os) := by
   cases h : runTraceListGen step calls s with
   | error _ =>
