@@ -8714,6 +8714,31 @@ theorem counterCompiledPreparedInitialize_storage_model_of_stepFE_path_ok
   exact counterCompiledPreparedInitialize_storage_model_of_segment_model_ok
     hprepared (counterPreparedInitializeSegmentModel_of_stepFE_path hprepared path)
 
+structure CounterPreparedInitializeSegmentProvider where
+  initialize_segment_model :
+    ∀ {preparedState},
+      CounterPreparedCall counterCompiledPowdrConfig .initialize preparedState →
+      ∃ finalState,
+        CounterPreparedInitializeSegmentModel preparedState finalState
+
+theorem counterCompiledPreparedInitialize_storage_model_of_segment_provider_ok
+    (provider : CounterPreparedInitializeSegmentProvider) :
+    ∀ {preparedState},
+      CounterPreparedCall counterCompiledPowdrConfig .initialize preparedState →
+      ∃ nextEvm,
+        counterPowdrPreparedTraceStep counterCompiledPowdrConfig preparedState
+            .initialize =
+          .ok (nextEvm, .none) ∧
+        counterStorageValue counterContractAddress counterCountSlot nextEvm =
+          counterInitializeStorageWord
+            (counterStorageValue counterContractAddress counterCountSlot
+              preparedState) := by
+  intro preparedState hprepared
+  obtain ⟨finalState, model⟩ :=
+    provider.initialize_segment_model hprepared
+  exact counterCompiledPreparedInitialize_storage_model_of_segment_model_ok
+    hprepared model
+
 theorem counterPreparedCall_isDone
     {cfg : PowdrCounterConfig} {call : CounterCall} {state : EvmState}
     (hprepared : CounterPreparedCall cfg call state) :
@@ -9542,6 +9567,42 @@ abbrev CounterCompiledPowdrPreparedEvmPostconditions :=
 
 abbrev CounterCompiledPowdrPreparedStorageModels :=
   CounterPowdrPreparedStorageModels counterCompiledPowdrConfig
+
+def counterCompiledPowdrPreparedStorageModelsOfInitializeSegmentProvider
+    (provider : CounterPreparedInitializeSegmentProvider)
+    (increment_writes_succ :
+      ∀ {preparedState count},
+        CounterPreparedCall counterCompiledPowdrConfig .increment preparedState →
+        count + 1 < counterU64Modulus →
+        CounterStorageWordRel
+          (counterStorageValue counterContractAddress counterCountSlot
+            preparedState) count →
+        ∃ nextEvm,
+          counterPowdrPreparedTraceStep counterCompiledPowdrConfig preparedState
+              .increment =
+            .ok (nextEvm, .none) ∧
+          CounterStorageWordRel
+            (counterStorageValue counterContractAddress counterCountSlot nextEvm)
+            (count + 1))
+    (get_returns_count :
+      ∀ {preparedState count},
+        CounterPreparedCall counterCompiledPowdrConfig .get preparedState →
+        count < counterU64Modulus →
+        CounterStorageWordRel
+          (counterStorageValue counterContractAddress counterCountSlot
+            preparedState) count →
+        ∃ nextEvm,
+          counterPowdrPreparedTraceStep counterCompiledPowdrConfig preparedState
+              .get =
+            .ok (nextEvm, .u64 count) ∧
+          CounterStorageWordRel
+            (counterStorageValue counterContractAddress counterCountSlot nextEvm)
+            count) :
+    CounterCompiledPowdrPreparedStorageModels where
+  initialize_writes_storage_model :=
+    counterCompiledPreparedInitialize_storage_model_of_segment_provider_ok provider
+  increment_writes_succ := increment_writes_succ
+  get_returns_count := get_returns_count
 
 def counterCompiledPowdrEvmPostconditionsOfPrepared
     (post : CounterCompiledPowdrPreparedEvmPostconditions) :
