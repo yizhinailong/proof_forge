@@ -8468,16 +8468,21 @@ theorem counterPreparedInitializeStepFEPath_to_path
     path.hready32 path.hstep32 path.hready33 path.hstep33
     path.hready34 path.hstep34 path.hready35 path.hstep35
 
-structure CounterPreparedInitializeSegmentModel (s0 s36 : EvmState) where
-  path : EvmStepFEPath s0 36 s36
-  returned : s36.halt = .Returned
-  callStack : s36.callStack = s0.callStack
-  storage_model :
-    counterStorageValue counterContractAddress counterCountSlot s36 =
+def counterPreparedInitializeSegmentPre (state : EvmState) : Prop :=
+  CounterPreparedCall counterCompiledPowdrConfig .initialize state
+
+def counterPreparedInitializeSegmentPost (state finalState : EvmState) : Prop :=
+  finalState.halt = .Returned ∧
+    finalState.callStack = state.callStack ∧
+    counterStorageValue counterContractAddress counterCountSlot finalState =
       counterInitializeStorageWord
-        (counterStorageValue counterContractAddress counterCountSlot s0)
-  observable :
-    counterObservableFromResult .initialize s36.toResult = .ok .none
+        (counterStorageValue counterContractAddress counterCountSlot state) ∧
+    counterObservableFromResult .initialize finalState.toResult = .ok .none
+
+structure CounterPreparedInitializeSegmentModel (s0 s36 : EvmState) where
+  segment :
+    ProofForge.Backend.Evm.PowdrExec.ExecutionSegment 36
+      counterPreparedInitializeSegmentPost s0 s36
 
 theorem counterCompiledPreparedInitialize_storage_model_of_dispatcher_body_and_return_ok
     {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17
@@ -8675,11 +8680,10 @@ theorem counterPreparedInitializeSegmentModel_of_stepFE_path
       path.hstep32 path.hready33 path.hstep33 path.hready34 path.hstep34
       path.hready35 path.hstep35
   refine
-    { path := counterPreparedInitializeStepFEPath_to_path path
-      returned := hhalt
-      callStack := hcallStackPrepared
-      storage_model := ?_
-      observable := hobs }
+    { segment :=
+        { path := counterPreparedInitializeStepFEPath_to_path path
+          postcondition := ?_ } }
+  refine ⟨hhalt, hcallStackPrepared, ?_, hobs⟩
   rw [hstorageRun, hstoragePrefix]
 
 theorem counterCompiledPreparedInitialize_storage_model_of_segment_model_ok
@@ -8692,14 +8696,16 @@ theorem counterCompiledPreparedInitialize_storage_model_of_segment_model_ok
       counterStorageValue counterContractAddress counterCountSlot nextEvm =
         counterInitializeStorageWord
           (counterStorageValue counterContractAddress counterCountSlot s0) := by
+  rcases model.segment.postcondition with
+    ⟨hreturned, hcallStack, hstorageModel, hobservable⟩
   have hrun :
       ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 36 =
         .ok (s36, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) :=
-    ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath_done model.path
+    ProofForge.Backend.Evm.PowdrExec.runSteps_of_executionSegment model.segment
   have hstep :=
     counterPowdrPreparedTraceStep_initialize_of_run36_returned_prepared_ok
-      hprepared hrun model.returned model.callStack model.observable
-  exact ⟨s36, hstep, model.storage_model⟩
+      hprepared hrun hreturned hcallStack hobservable
+  exact ⟨s36, hstep, hstorageModel⟩
 
 theorem counterCompiledPreparedInitialize_storage_model_of_stepFE_path_ok
     {s0 s36 : EvmState}
@@ -8714,17 +8720,6 @@ theorem counterCompiledPreparedInitialize_storage_model_of_stepFE_path_ok
   exact counterCompiledPreparedInitialize_storage_model_of_segment_model_ok
     hprepared (counterPreparedInitializeSegmentModel_of_stepFE_path hprepared path)
 
-def counterPreparedInitializeSegmentPre (state : EvmState) : Prop :=
-  CounterPreparedCall counterCompiledPowdrConfig .initialize state
-
-def counterPreparedInitializeSegmentPost (state finalState : EvmState) : Prop :=
-  finalState.halt = .Returned ∧
-    finalState.callStack = state.callStack ∧
-    counterStorageValue counterContractAddress counterCountSlot finalState =
-      counterInitializeStorageWord
-        (counterStorageValue counterContractAddress counterCountSlot state) ∧
-    counterObservableFromResult .initialize finalState.toResult = .ok .none
-
 abbrev CounterPreparedInitializeSegmentProvider :=
   ProofForge.Backend.Evm.PowdrExec.SegmentProvider
     counterPreparedInitializeSegmentPre 36
@@ -8735,15 +8730,8 @@ def counterPreparedInitializeSegmentModel_of_executionSegment
     (segment :
       ProofForge.Backend.Evm.PowdrExec.ExecutionSegment 36
         counterPreparedInitializeSegmentPost s0 s36) :
-    CounterPreparedInitializeSegmentModel s0 s36 := by
-  rcases segment.postcondition with
-    ⟨hreturned, hcallStack, hstorage, hobservable⟩
-  exact
-    { path := segment.path
-      returned := hreturned
-      callStack := hcallStack
-      storage_model := hstorage
-      observable := hobservable }
+    CounterPreparedInitializeSegmentModel s0 s36 where
+  segment := segment
 
 theorem counterCompiledPreparedInitialize_storage_model_of_segment_provider_ok
     (provider : CounterPreparedInitializeSegmentProvider) :

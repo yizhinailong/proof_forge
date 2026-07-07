@@ -53,6 +53,18 @@ theorem runSteps_of_executionSegment
       .ok (finalState, (#[] : Array ObservableStep)) := by
   exact runSteps_of_stepFEPath_done segment.path
 
+theorem executionSegment_single
+    {post : State → State → Prop} {state nextState : State}
+    (hrunning : state.halt = .Running)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState)
+    (hpost : post state nextState) :
+    ExecutionSegment 1 post state nextState :=
+  { path :=
+      ProofForge.Backend.Evm.PowdrAdapter.StepFEPath.cons
+        hrunning hstep
+        (ProofForge.Backend.Evm.PowdrAdapter.StepFEPath.nil nextState)
+    postcondition := hpost }
+
 theorem executionSegment_append
     {prefixFuel suffixFuel : Nat}
     {prefixPost suffixPost combinedPost : State → State → Prop}
