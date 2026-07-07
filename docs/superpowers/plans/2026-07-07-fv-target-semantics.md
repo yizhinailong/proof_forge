@@ -353,8 +353,9 @@ surface. Remaining EVM work is E3.
   `counterState_of_stepFE_system_return_empty_ok`, and
   `counterState_of_initialize_return_stepFE_to_returned_empty_ok` cover the body
   final `JUMP` plus `JUMPDEST; PUSH0; DUP1; RETURN` and prove the resulting
-  frame halts with `Returned ByteArray.empty`. `counterInitializeObservable_of_returned_empty`
-  maps that result to the Counter `initialize` observable `.none`.
+  frame halts with `Returned ByteArray.empty` while preserving Counter storage.
+  `counterInitializeObservable_of_returned_empty` maps that result to the
+  Counter `initialize` observable `.none`.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop

@@ -433,8 +433,9 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterPreparedInitializeReturn*_decoded`, plus
     `counterState_of_stepFE_system_return_empty_ok` and
     `counterState_of_initialize_return_stepFE_to_returned_empty_ok`, proving the
-    frame halts with `Returned ByteArray.empty`. `counterInitializeObservable_of_returned_empty`
-    maps that result to the Counter `initialize` observable `.none`.
+    frame halts with `Returned ByteArray.empty` while preserving Counter
+    storage. `counterInitializeObservable_of_returned_empty` maps that result to
+    the Counter `initialize` observable `.none`.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).

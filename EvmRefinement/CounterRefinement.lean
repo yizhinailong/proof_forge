@@ -1232,7 +1232,9 @@ theorem counterState_of_system_return_empty_ok
         (.RETURN : EvmSemantics.Operation.SystemOps) = .ok nextState) :
     nextState.halt = .Returned ∧
       nextState.hReturn = ByteArray.empty ∧
-      nextState.stack = rest := by
+      nextState.stack = rest ∧
+      counterStorageValue counterContractAddress counterCountSlot nextState =
+        counterStorageValue counterContractAddress counterCountSlot gasState := by
   have hzero : (EvmSemantics.UInt256.ofNat 0).toNat = 0 := by
     native_decide
   unfold EvmSemantics.EVM.stepF.system at hstep
@@ -1244,7 +1246,7 @@ theorem counterState_of_system_return_empty_ok
     EvmSemantics.MachineState.activeWordsAfter,
     counterReadPadded_zero_zero] at hstep
   cases hstep
-  simp
+  simp [counterStorageValue, counterAccount]
 
 theorem counterState_of_stepFE_system_return_empty_ok
     {state nextState : EvmState}
@@ -1273,7 +1275,9 @@ theorem counterState_of_stepFE_system_return_empty_ok
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     nextState.halt = .Returned ∧
       nextState.hReturn = ByteArray.empty ∧
-      nextState.stack = rest := by
+      nextState.stack = rest ∧
+      counterStorageValue counterContractAddress counterCountSlot nextState =
+        counterStorageValue counterContractAddress counterCountSlot state := by
   unfold EvmSemantics.EVM.stepFE at hstep
   simp only [Id.run] at hstep
   split at hstep
@@ -1282,7 +1286,11 @@ theorem counterState_of_stepFE_system_return_empty_ok
       rw [hprecompile] at hprecompileActual
       contradiction
     · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterState_of_system_return_empty_ok hstack hstep
+      obtain ⟨hhalt, hreturn, hstackNext, hstorage⟩ :=
+        counterState_of_system_return_empty_ok hstack hstep
+      refine ⟨hhalt, hreturn, hstackNext, ?_⟩
+      simpa [counterStorageValue, counterAccount,
+        EvmSemantics.EVM.State.consumeGas] using hstorage
   · rename_i hnotRunning
     rw [hrunning] at hnotRunning
     contradiction
@@ -3540,7 +3548,9 @@ theorem counterState_of_initialize_return_stepFE_to_returned_empty_ok
     s5.halt = .Returned ∧
       s5.hReturn = ByteArray.empty ∧
       s5.toResult = .returned ByteArray.empty ∧
-      s5.stack = rest := by
+      s5.stack = rest ∧
+      counterStorageValue counterContractAddress counterCountSlot s5 =
+        counterStorageValue counterContractAddress counterCountSlot s0 := by
   rcases hready0 with ⟨hrunning0, hprecompile0, hstackOk0, hgas0⟩
   rcases hready1 with ⟨hrunning1, hprecompile1, hstackOk1, hgas1⟩
   rcases hready2 with ⟨hrunning2, hprecompile2, hstackOk2, hgas2⟩
@@ -3637,13 +3647,23 @@ theorem counterState_of_initialize_return_stepFE_to_returned_empty_ok
     rw [hstate4]
     simp [EvmSemantics.EVM.State.consumeGas,
       EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack3]
-  obtain ⟨hhalt, hreturn, hstack5⟩ :=
+  obtain ⟨hhalt, hreturn, hstack5, hstorage5⟩ :=
     counterState_of_stepFE_system_return_empty_ok hrunning4 hprecompile4
       (counterPreparedInitializeReturn_decoded hat4) hstack4 hstackOk4 hgas4
       hstep4
   have hresult : s5.toResult = .returned ByteArray.empty := by
     simp [EvmSemantics.EVM.State.toResult, hhalt, hreturn]
-  exact ⟨hhalt, hreturn, hresult, hstack5⟩
+  have hstorage : counterStorageValue counterContractAddress counterCountSlot s5 =
+      counterStorageValue counterContractAddress counterCountSlot s0 := by
+    have hstorage4 :
+        counterStorageValue counterContractAddress counterCountSlot s4 =
+          counterStorageValue counterContractAddress counterCountSlot s0 := by
+      simp [hstate4, hstate3, hstate2, hstate1, counterStorageValue, counterAccount,
+        EvmSemantics.EVM.State.consumeGas,
+        EvmSemantics.EVM.State.incrPC,
+        EvmSemantics.EVM.State.replaceStackAndIncrPC]
+    exact hstorage5.trans hstorage4
+  exact ⟨hhalt, hreturn, hresult, hstack5, hstorage⟩
 
 theorem counterStack_of_initialize_prefix_stepFE_to_sload_ok
     {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 : EvmState}
