@@ -1,8 +1,8 @@
 # WASM Executable Trace - Design Note (FV-4)
 
-Status: **Counter subset implemented** (2026-07). Tracks the in-Lean
-executable trace for `wasm-near` after the export, artifact-surface, and
-offline-host execution-surface anchors.
+Status: **Counter + ValueVault scalar/event subset implemented** (2026-07).
+Tracks the in-Lean executable trace for `wasm-near` after the export,
+artifact-surface, and offline-host execution-surface anchors.
 
 ## Where we are today
 
@@ -18,22 +18,25 @@ offline-host execution-surface anchors.
    same IR trace that the Rust offline host executes.
 
 The offline host is still an external differential-testing boundary. The
-in-Lean executable trace closes the first Counter slice by interpreting
-`EmitWat.lowerModule`'s structured `Wasm.Module` directly and comparing its
-observable output to the IR reference trace.
+in-Lean executable trace closes the Counter slice and the default ValueVault
+scalar/event slice by interpreting `EmitWat.lowerModule`'s structured
+`Wasm.Module` directly and comparing its observable output to the IR reference
+trace.
 
 ## Goal (non-goal)
 
-**Goal:** for the Counter scenario, the Wasm interpreter and the IR reference
-semantics produce the same observable trace (`initialize`, `get -> 0`,
-`increment`, `get -> 1`), checked by a `native_decide` theorem. This moves the
-Counter slice from offline-host-only differential coverage to Tier C-diff with
-an in-Lean target interpreter.
+**Goal:** for the Counter scenario and the default ValueVault scenario, the
+Wasm interpreter and the IR reference semantics produce the same observable
+trace, checked by `native_decide` theorems. This moves the scalar-storage and
+event-log slice from offline-host-only differential coverage to Tier C-diff
+with an in-Lean target interpreter.
 
-**Non-goal:** a complete Wasm or NEAR VM model. The first slice covers the
-instruction and host-call subset emitted for Counter scalar storage. NEAR
-Promise, async cross-contract behavior, gas metering, allocator reuse, and
-chain runtime details stay in the external offline-host/wasmtime boundary.
+**Non-goal:** a complete Wasm or NEAR VM model. The implemented slice covers
+the instruction and host-call subset emitted for Counter scalar storage and
+ValueVault's scalar storage, `block_index`, and `log_utf8` event path. NEAR
+Promise, async cross-contract behavior, gas metering, allocator reuse, maps,
+arrays, and chain runtime details stay in the external offline-host/wasmtime
+boundary.
 
 ## Existing structured representation (already in the repo)
 
@@ -165,7 +168,8 @@ state and the Rust offline host.
 
 1. **Slice A (implemented):** Counter-only, scalar storage, Unit/U64 returns,
    helper calls, register ABI, storage read/write, and `value_return`.
-2. **Slice B:** ValueVault scalar fields and event-log host calls.
+2. **Slice B (implemented):** ValueVault scalar fields, Borsh u64 input args,
+   `block_index`, mutable event-buffer globals, and event-log host calls.
 3. **Slice C:** maps and arrays, using the existing storage-key and Borsh
    layout helpers.
 4. **Slice D:** broader HostBridge reuse for non-NEAR Wasm-family targets.
@@ -175,8 +179,9 @@ state and the Rust offline host.
 - `ProofForge/Backend/WasmNear/WasmInterpreter.lean` contains the in-Lean
   interpreter and host model.
 - `ProofForge/Backend/WasmNear/Refinement.lean` gains
-  `wasmExecutableTraceOk` and `counter_wasm_executable_trace_ok`.
+  `wasmExecutableTraceOk`, `counter_wasm_executable_trace_ok`, and
+  `value_vault_wasm_executable_trace_ok`.
 - `Tests/NearWasmFormal.lean` `#check`s the executable trace and scalar
   relation theorems.
 - `docs/formal-verification.md` describes the `wasm-near` Tier C-diff row as
-  executable-trace coverage for the Counter subset.
+  executable-trace coverage for the Counter + ValueVault scalar/event subset.

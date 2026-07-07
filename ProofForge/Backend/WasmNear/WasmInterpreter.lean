@@ -16,6 +16,7 @@ open ProofForge.Backend.WasmNear.Memory
 abbrev Bytes := Array Nat
 abbrev LinearMemory := Array (Nat × Nat)
 abbrev Locals := Array (String × Nat)
+abbrev Globals := Array (String × Nat)
 abbrev Registers := Array (Nat × Bytes)
 abbrev Storage := Array (Bytes × Bytes)
 abbrev WasmModule := ProofForge.Compiler.Wasm.Module
@@ -69,11 +70,20 @@ def initDataSegment (memory : LinearMemory) (segment : DataSegment) : LinearMemo
 def initLinearMemory (mod : WasmModule) : LinearMemory :=
   mod.dataSegments.foldl initDataSegment #[]
 
+def initGlobals (mod : WasmModule) : Globals :=
+  mod.globals.map fun global => (global.name, global.init.toNat?.getD 0)
+
 def lookupLocal? (locals : Locals) (name : String) : Option Nat :=
   locals.find? (fun entry => entry.fst == name) |>.map fun entry => entry.snd
 
 def writeLocal (locals : Locals) (name : String) (value : Nat) : Locals :=
   (locals.filter (fun entry => entry.fst != name)).push (name, value)
+
+def lookupGlobal? (globals : Globals) (name : String) : Option Nat :=
+  globals.find? (fun entry => entry.fst == name) |>.map fun entry => entry.snd
+
+def writeGlobal (globals : Globals) (name : String) (value : Nat) : Globals :=
+  (globals.filter (fun entry => entry.fst != name)).push (name, value)
 
 def lookupRegister? (registers : Registers) (id : Nat) : Option Bytes :=
   registers.find? (fun entry => entry.fst == id) |>.map fun entry => entry.snd
@@ -93,8 +103,10 @@ structure HostState where
   registers : Registers := #[]
   storage : Storage := #[]
   returnValue : Bytes := #[]
+  logs : Array Bytes := #[]
   signerAccountId : Bytes := stringBytes "alice.testnet"
   attachedDeposit : Nat := 0
+  blockIndex : Nat := 0
   deriving Repr, Inhabited
 
 def HostState.beginCall (host : HostState) (input : Bytes := #[]) : HostState :=
@@ -103,6 +115,7 @@ def HostState.beginCall (host : HostState) (input : Bytes := #[]) : HostState :=
 structure WasmState where
   valueStack : Array Nat := #[]
   locals : Locals := #[]
+  globals : Globals := #[]
   memory : LinearMemory := #[]
   host : HostState := {}
   deriving Repr, Inhabited
@@ -170,6 +183,7 @@ def applyUnaryPlain (name : String) (value : Nat) : Option Nat :=
   | "i64.extend_i32_u" => some value
   | "i32.wrap_i64" => some (value % (2 ^ 32))
   | "i32.eqz" => some (if value == 0 then 1 else 0)
+  | "i64.eqz" => some (if value == 0 then 1 else 0)
   | _ => none
 
 def applyBinaryPlain (name : String) (lhs rhs : Nat) : Option Nat :=
@@ -259,6 +273,13 @@ def runNearHostCall (name : String) (args : Array Nat) (state : WasmState) :
       let ptr := args.getD 1 0
       let host := { state.host with returnValue := readBytes state.memory ptr len }
       .ok { state with host }
+  | "log_utf8" =>
+      let len := args.getD 0 0
+      let ptr := args.getD 1 0
+      let host := { state.host with logs := state.host.logs.push (readBytes state.memory ptr len) }
+      .ok { state with host }
+  | "block_index" =>
+      .ok (stackPush state state.host.blockIndex)
   | "signer_account_id" =>
       let registerId := args.getD 0 0
       let host := { state.host with
@@ -278,6 +299,8 @@ def hostArity (bridge : ProofForge.Target.HostBridge) (name : String) :
   | .near, "storage_read" => .ok 3
   | .near, "storage_write" => .ok 5
   | .near, "value_return" => .ok 2
+  | .near, "log_utf8" => .ok 2
+  | .near, "block_index" => .ok 0
   | .near, "signer_account_id" => .ok 1
   | .near, "attached_deposit" => .ok 0
   | .cosmWasm, _ => .error "CosmWasm host calls are not modeled by the NEAR Counter interpreter"
@@ -365,6 +388,13 @@ partial def evalInsn (mod : WasmModule) (insn : Insn)
       | .localTee name =>
           let value ← stackPeek state
           .ok (fuel, { state with locals := writeLocal state.locals name value }, .continue)
+      | .globalGet name =>
+          match lookupGlobal? state.globals name with
+          | some value => .ok (fuel, stackPush state value, .continue)
+          | none => .error s!"unknown Wasm global `{name}`"
+      | .globalSet name =>
+          let (value, state) ← stackPop state
+          .ok (fuel, { state with globals := writeGlobal state.globals name value }, .continue)
       | .plain name =>
           .ok (fuel, ← evalPlain state name, .continue)
       | .load name offset =>
@@ -395,8 +425,6 @@ partial def evalInsn (mod : WasmModule) (insn : Insn)
       | .if_ thenBody elseBody =>
           let (cond, state) ← stackPop state
           evalBlock mod (if cond != 0 then thenBody else elseBody) fuel state
-      | .globalGet name | .globalSet name =>
-          .error s!"Wasm global `{name}` is not modeled in the Counter interpreter"
       | .unreachable =>
           .error "Wasm unreachable executed"
       | .select =>
@@ -458,7 +486,7 @@ def runTraceList (mod : WasmModule) :
 
 def initialState (mod : WasmModule) (bridge : ProofForge.Target.HostBridge := .near) :
     WasmState :=
-  { memory := initLinearMemory mod, host := { bridge := bridge } }
+  { globals := initGlobals mod, memory := initLinearMemory mod, host := { bridge := bridge } }
 
 def runTrace (mod : WasmModule) (obligation : TraceObligation) :
     Except String (Array ObservableStep) := do

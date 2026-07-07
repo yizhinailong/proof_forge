@@ -36,6 +36,63 @@ def counterTraceObligation : TraceObligation := {
   expected := counterExpectedTrace
 }
 
+def valueVaultEntrypointD (entrypointName : String) : Entrypoint :=
+  match ProofForge.Contract.Examples.ValueVault.module.entrypoints.find?
+      (fun entrypoint => entrypoint.name == entrypointName) with
+  | some entrypoint => entrypoint
+  | none => ProofForge.IR.Examples.Counter.initializeEntrypoint
+
+def valueVaultCall (name : String)
+    (args : Array ProofForge.IR.Semantics.Value := #[]) : TraceCall := {
+  entrypoint := valueVaultEntrypointD name
+  args
+}
+
+def valueVaultTraceCalls : Array TraceCall :=
+  let inputs := ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs
+  #[
+    valueVaultCall "initialize" #[.u64 inputs.initial],
+    valueVaultCall "get_balance",
+    valueVaultCall "deposit" #[.u64 inputs.deposit],
+    valueVaultCall "get_balance",
+    valueVaultCall "charge_fee" #[.u64 inputs.grossCharge, .u64 inputs.feeBps],
+    valueVaultCall "get_balance",
+    valueVaultCall "get_net_value",
+    valueVaultCall "release" #[.u64 inputs.release],
+    valueVaultCall "get_balance",
+    valueVaultCall "snapshot",
+    valueVaultCall "get_net_value"
+  ]
+
+def valueVaultExpectedTrace : Array ObservableStep :=
+  let inputs := ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs
+  let fee := ProofForge.Contract.Examples.ValueVaultInvariant.expectedFee inputs
+  let afterDeposit := inputs.initial + inputs.deposit
+  let afterCharge := afterDeposit +
+    ProofForge.Contract.Examples.ValueVaultInvariant.expectedNetCharge inputs
+  let balance := ProofForge.Contract.Examples.ValueVaultInvariant.expectedBalance inputs
+  let netValue := ProofForge.Contract.Examples.ValueVaultInvariant.expectedNetValue inputs
+  #[
+    { entrypointName := "initialize", returnValue := .none },
+    { entrypointName := "get_balance", returnValue := .u64 inputs.initial },
+    { entrypointName := "deposit", returnValue := .none },
+    { entrypointName := "get_balance", returnValue := .u64 afterDeposit },
+    { entrypointName := "charge_fee", returnValue := .none },
+    { entrypointName := "get_balance", returnValue := .u64 afterCharge },
+    { entrypointName := "get_net_value", returnValue := .u64 (afterCharge - fee) },
+    { entrypointName := "release", returnValue := .none },
+    { entrypointName := "get_balance", returnValue := .u64 balance },
+    { entrypointName := "snapshot", returnValue := .u64 balance },
+    { entrypointName := "get_net_value", returnValue := .u64 netValue }
+  ]
+
+def valueVaultTraceObligation : TraceObligation := {
+  name := "ValueVault.default-scenario"
+  module := ProofForge.Contract.Examples.ValueVault.module
+  calls := valueVaultTraceCalls
+  expected := valueVaultExpectedTrace
+}
+
 def wasmExecutableTraceOk (obligation : TraceObligation) : Bool :=
   ProofForge.Backend.WasmNear.WasmInterpreter.executableTraceOk obligation
 
@@ -747,6 +804,10 @@ theorem counter_ir_observable_trace_ok :
     counterTraceObligation.irTraceOk = true := by
   native_decide
 
+theorem value_vault_ir_observable_trace_ok :
+    valueVaultTraceObligation.irTraceOk = true := by
+  native_decide
+
 theorem counter_emitwat_exports_trace_entrypoints :
     emitWatExportsOk counterTraceObligation = true := by
   native_decide
@@ -785,6 +846,10 @@ theorem counter_emitwat_offline_host_execution_surface_ok :
 
 theorem counter_wasm_executable_trace_ok :
     wasmExecutableTraceOk counterTraceObligation = true := by
+  native_decide
+
+theorem value_vault_wasm_executable_trace_ok :
+    wasmExecutableTraceOk valueVaultTraceObligation = true := by
   native_decide
 
 theorem counter_emitwat_offline_host_return_payload_hex_ok :
