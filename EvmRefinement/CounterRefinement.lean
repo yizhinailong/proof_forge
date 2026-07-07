@@ -110,6 +110,15 @@ theorem counterStorageRel_left_counterStateRel
         cases hcount
         rfl
 
+theorem counterStateRel_irCounterCount?
+    {irState : IRState} {count : Nat}
+    (hcounter : ProofForge.Backend.Refinement.CounterUniversal.CounterStateRel
+      irState count) :
+    irCounterCount? irState = some count := by
+  unfold ProofForge.Backend.Refinement.CounterUniversal.CounterStateRel at hcounter
+  unfold irCounterCount?
+  rw [hcounter]
+
 theorem counterStorageRel_count_bound
     {irState : IRState} {evmState : EvmState}
     (hrel : CounterStorageRel irState evmState) :
@@ -716,6 +725,112 @@ theorem counterPowdr_safe_step_simulates_from_obligations
       obligations.get_simulates hrel hsafeGet hirStep
     exact ⟨nextIr, nextEvm, observable, hirStep, hpowdrStep, hrelNext⟩
 
+theorem counterPowdr_safe_trace_simulates_from_obligations
+    (cfg : PowdrCounterConfig) (obligations : CounterPowdrSafeEntrypointObligations cfg)
+    (calls : List CounterCall) {irState : IRState} {evmState : EvmState} {count : Nat}
+    (hrel : CounterStorageRel irState evmState)
+    (hcounter : ProofForge.Backend.Refinement.CounterUniversal.CounterStateRel
+      irState count)
+    (hsafe : counterTraceSafeFromCount count calls = true) :
+    ∃ finalIr finalEvm observables,
+      ProofForge.IR.StepSemantics.runTraceListGen counterIRStep calls irState =
+        .ok (finalIr, observables) ∧
+      ProofForge.IR.StepSemantics.runTraceListGen (counterPowdrTraceStep cfg) calls evmState =
+        .ok (finalEvm, observables) ∧
+      CounterStorageRel finalIr finalEvm ∧
+      ProofForge.IR.StepSemantics.IRTraceMatches counterIRStep irState calls observables ∧
+      ProofForge.IR.StepSemantics.IRTraceMatches
+        (counterPowdrTraceStep cfg) evmState calls observables := by
+  induction calls generalizing irState evmState count with
+  | nil =>
+      refine ⟨irState, evmState, #[], rfl, rfl, hrel,
+        ProofForge.IR.StepSemantics.IRTraceMatches.nil,
+        ProofForge.IR.StepSemantics.IRTraceMatches.nil⟩
+  | cons call rest ih =>
+      cases call
+      · have hsafeRest : counterTraceSafeFromCount 0 rest = true := by
+          simpa [counterTraceSafeFromCount] using hsafe
+        obtain ⟨nextIr, nextCount, observable, hirStep, htargetStep, hcounterNext⟩ :=
+          ProofForge.Backend.Refinement.CounterUniversal.counter_initialize_simulates
+            irState count
+        cases htargetStep
+        obtain ⟨nextEvm, hpowdrStep, hrelNext⟩ :=
+          obligations.initialize_simulates hirStep
+        obtain ⟨finalIr, finalEvm, restObservables, hirRest, hpowdrRest,
+            hrelFinal, hirTraceRest, hpowdrTraceRest⟩ :=
+          ih (irState := nextIr) (evmState := nextEvm) (count := 0)
+            hrelNext hcounterNext hsafeRest
+        refine ⟨finalIr, finalEvm, #[.none] ++ restObservables, ?_, ?_,
+          hrelFinal,
+          ProofForge.IR.StepSemantics.IRTraceMatches.cons hirStep hirTraceRest,
+          ProofForge.IR.StepSemantics.IRTraceMatches.cons hpowdrStep hpowdrTraceRest⟩
+        · exact ProofForge.IR.StepSemantics.runTraceListGen_cons_ok
+            counterIRStep .initialize rest irState nextIr .none
+            finalIr restObservables hirStep hirRest
+        · exact ProofForge.IR.StepSemantics.runTraceListGen_cons_ok
+            (counterPowdrTraceStep cfg) .initialize rest evmState nextEvm .none
+            finalEvm restObservables hpowdrStep hpowdrRest
+      · have hsafePair :
+            (count + 1 < counterU64Modulus) ∧
+              counterTraceSafeFromCount (count + 1) rest = true := by
+          simpa [counterTraceSafeFromCount] using hsafe
+        have hstepSafe : CounterStepSafe .increment irState := by
+          intro count' hcount'
+          have hread := counterStateRel_irCounterCount? hcounter
+          rw [hread] at hcount'
+          cases hcount'
+          exact hsafePair.left
+        obtain ⟨nextIr, nextCount, observable, hirStep, htargetStep, hcounterNext⟩ :=
+          ProofForge.Backend.Refinement.CounterUniversal.counter_increment_simulates
+            hcounter
+        cases htargetStep
+        obtain ⟨nextEvm, hpowdrStep, hrelNext⟩ :=
+          obligations.increment_simulates hrel hstepSafe hirStep
+        obtain ⟨finalIr, finalEvm, restObservables, hirRest, hpowdrRest,
+            hrelFinal, hirTraceRest, hpowdrTraceRest⟩ :=
+          ih (irState := nextIr) (evmState := nextEvm) (count := count + 1)
+            hrelNext hcounterNext hsafePair.right
+        refine ⟨finalIr, finalEvm, #[.none] ++ restObservables, ?_, ?_,
+          hrelFinal,
+          ProofForge.IR.StepSemantics.IRTraceMatches.cons hirStep hirTraceRest,
+          ProofForge.IR.StepSemantics.IRTraceMatches.cons hpowdrStep hpowdrTraceRest⟩
+        · exact ProofForge.IR.StepSemantics.runTraceListGen_cons_ok
+            counterIRStep .increment rest irState nextIr .none
+            finalIr restObservables hirStep hirRest
+        · exact ProofForge.IR.StepSemantics.runTraceListGen_cons_ok
+            (counterPowdrTraceStep cfg) .increment rest evmState nextEvm .none
+            finalEvm restObservables hpowdrStep hpowdrRest
+      · have hsafePair :
+            (count < counterU64Modulus) ∧
+              counterTraceSafeFromCount count rest = true := by
+          simpa [counterTraceSafeFromCount] using hsafe
+        have hstepSafe : CounterStepSafe .get irState := by
+          intro count' hcount'
+          have hread := counterStateRel_irCounterCount? hcounter
+          rw [hread] at hcount'
+          cases hcount'
+          exact hsafePair.left
+        obtain ⟨nextIr, nextCount, observable, hirStep, htargetStep, hcounterNext⟩ :=
+          ProofForge.Backend.Refinement.CounterUniversal.counter_get_simulates
+            hcounter
+        cases htargetStep
+        obtain ⟨nextEvm, hpowdrStep, hrelNext⟩ :=
+          obligations.get_simulates hrel hstepSafe hirStep
+        obtain ⟨finalIr, finalEvm, restObservables, hirRest, hpowdrRest,
+            hrelFinal, hirTraceRest, hpowdrTraceRest⟩ :=
+          ih (irState := nextIr) (evmState := nextEvm) (count := count)
+            hrelNext hcounterNext hsafePair.right
+        refine ⟨finalIr, finalEvm, #[.u64 count] ++ restObservables, ?_, ?_,
+          hrelFinal,
+          ProofForge.IR.StepSemantics.IRTraceMatches.cons hirStep hirTraceRest,
+          ProofForge.IR.StepSemantics.IRTraceMatches.cons hpowdrStep hpowdrTraceRest⟩
+        · exact ProofForge.IR.StepSemantics.runTraceListGen_cons_ok
+            counterIRStep .get rest irState nextIr (.u64 count)
+            finalIr restObservables hirStep hirRest
+        · exact ProofForge.IR.StepSemantics.runTraceListGen_cons_ok
+            (counterPowdrTraceStep cfg) .get rest evmState nextEvm (.u64 count)
+            finalEvm restObservables hpowdrStep hpowdrRest
+
 theorem counterPowdr_trace_simulates_from_obligations
     (cfg : PowdrCounterConfig) (obligations : CounterPowdrEntrypointObligations cfg)
     (calls : List CounterCall) {irState : IRState} {evmState : EvmState}
@@ -750,28 +865,71 @@ theorem counterPowdr_trace_simulates_after_initialize_from_obligations
         irState (.initialize :: calls) observables ∧
       ProofForge.IR.StepSemantics.IRTraceMatches
         (counterPowdrTraceStep cfg) evmState (.initialize :: calls) observables := by
-  obtain ⟨nextIr, _nextCount, observable, hirStep, _htargetStep, _hcounterNext⟩ :=
+  obtain ⟨nextIr, _nextCount, observable, hirStep, htargetStep, _hcounterNext⟩ :=
     ProofForge.Backend.Refinement.CounterUniversal.counter_initialize_simulates
       irState 0
+  cases htargetStep
   obtain ⟨nextEvm, hpowdrStep, hrelNext⟩ :=
     obligations.initialize_simulates hirStep
   obtain ⟨finalIr, finalEvm, restObservables, hirRest, hpowdrRest,
       hrelFinal, hirTraceRest, hpowdrTraceRest⟩ :=
     counterPowdr_trace_simulates_from_obligations
       cfg obligations calls hrelNext
-  refine ⟨finalIr, finalEvm, #[observable] ++ restObservables, ?_, ?_,
+  refine ⟨finalIr, finalEvm, #[.none] ++ restObservables, ?_, ?_,
     hrelFinal,
     ProofForge.IR.StepSemantics.IRTraceMatches.cons hirStep hirTraceRest,
     ProofForge.IR.StepSemantics.IRTraceMatches.cons hpowdrStep hpowdrTraceRest⟩
   · exact ProofForge.IR.StepSemantics.runTraceListGen_cons_ok
-      counterIRStep .initialize calls irState nextIr observable
+      counterIRStep .initialize calls irState nextIr .none
       finalIr restObservables hirStep hirRest
   · exact ProofForge.IR.StepSemantics.runTraceListGen_cons_ok
-      (counterPowdrTraceStep cfg) .initialize calls evmState nextEvm observable
+      (counterPowdrTraceStep cfg) .initialize calls evmState nextEvm .none
+      finalEvm restObservables hpowdrStep hpowdrRest
+
+theorem counterPowdr_safe_trace_simulates_after_initialize_from_obligations
+    (cfg : PowdrCounterConfig) (obligations : CounterPowdrSafeEntrypointObligations cfg)
+    (calls : List CounterCall) (irState : IRState) (evmState : EvmState)
+    (hsafe : counterTraceSafeAfterInitialize calls = true) :
+    ∃ finalIr finalEvm observables,
+      ProofForge.IR.StepSemantics.runTraceListGen counterIRStep
+          (.initialize :: calls) irState =
+        .ok (finalIr, observables) ∧
+      ProofForge.IR.StepSemantics.runTraceListGen (counterPowdrTraceStep cfg)
+          (.initialize :: calls) evmState =
+        .ok (finalEvm, observables) ∧
+      CounterStorageRel finalIr finalEvm ∧
+      ProofForge.IR.StepSemantics.IRTraceMatches counterIRStep
+        irState (.initialize :: calls) observables ∧
+      ProofForge.IR.StepSemantics.IRTraceMatches
+        (counterPowdrTraceStep cfg) evmState (.initialize :: calls) observables := by
+  obtain ⟨nextIr, nextCount, observable, hirStep, htargetStep, hcounterNext⟩ :=
+    ProofForge.Backend.Refinement.CounterUniversal.counter_initialize_simulates
+      irState 0
+  cases htargetStep
+  have hsafeRest : counterTraceSafeFromCount 0 calls = true := by
+    simpa [counterTraceSafeAfterInitialize] using hsafe
+  obtain ⟨nextEvm, hpowdrStep, hrelNext⟩ :=
+    obligations.initialize_simulates hirStep
+  obtain ⟨finalIr, finalEvm, restObservables, hirRest, hpowdrRest,
+      hrelFinal, hirTraceRest, hpowdrTraceRest⟩ :=
+    counterPowdr_safe_trace_simulates_from_obligations
+      cfg obligations calls hrelNext hcounterNext hsafeRest
+  refine ⟨finalIr, finalEvm, #[.none] ++ restObservables, ?_, ?_,
+    hrelFinal,
+    ProofForge.IR.StepSemantics.IRTraceMatches.cons hirStep hirTraceRest,
+    ProofForge.IR.StepSemantics.IRTraceMatches.cons hpowdrStep hpowdrTraceRest⟩
+  · exact ProofForge.IR.StepSemantics.runTraceListGen_cons_ok
+      counterIRStep .initialize calls irState nextIr .none
+      finalIr restObservables hirStep hirRest
+  · exact ProofForge.IR.StepSemantics.runTraceListGen_cons_ok
+      (counterPowdrTraceStep cfg) .initialize calls evmState nextEvm .none
       finalEvm restObservables hpowdrStep hpowdrRest
 
 abbrev CounterCompiledPowdrEntrypointObligations :=
   CounterPowdrEntrypointObligations counterCompiledPowdrConfig
+
+abbrev CounterCompiledPowdrSafeEntrypointObligations :=
+  CounterPowdrSafeEntrypointObligations counterCompiledPowdrConfig
 
 theorem counterCompiledPowdr_trace_simulates_after_initialize_from_obligations
     (obligations : CounterCompiledPowdrEntrypointObligations)
@@ -792,5 +950,26 @@ theorem counterCompiledPowdr_trace_simulates_after_initialize_from_obligations
         evmState (.initialize :: calls) observables :=
   counterPowdr_trace_simulates_after_initialize_from_obligations
     counterCompiledPowdrConfig obligations calls irState evmState
+
+theorem counterCompiledPowdr_safe_trace_simulates_after_initialize_from_obligations
+    (obligations : CounterCompiledPowdrSafeEntrypointObligations)
+    (calls : List CounterCall) (irState : IRState) (evmState : EvmState)
+    (hsafe : counterTraceSafeAfterInitialize calls = true) :
+    ∃ finalIr finalEvm observables,
+      ProofForge.IR.StepSemantics.runTraceListGen counterIRStep
+          (.initialize :: calls) irState =
+        .ok (finalIr, observables) ∧
+      ProofForge.IR.StepSemantics.runTraceListGen
+          (counterPowdrTraceStep counterCompiledPowdrConfig)
+          (.initialize :: calls) evmState =
+        .ok (finalEvm, observables) ∧
+      CounterStorageRel finalIr finalEvm ∧
+      ProofForge.IR.StepSemantics.IRTraceMatches counterIRStep
+        irState (.initialize :: calls) observables ∧
+      ProofForge.IR.StepSemantics.IRTraceMatches
+        (counterPowdrTraceStep counterCompiledPowdrConfig)
+        evmState (.initialize :: calls) observables :=
+  counterPowdr_safe_trace_simulates_after_initialize_from_obligations
+    counterCompiledPowdrConfig obligations calls irState evmState hsafe
 
 end ProofForge.Backend.Evm.CounterRefinement

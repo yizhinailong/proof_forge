@@ -186,6 +186,8 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   `CounterStepSafe`, `CounterPowdrSafeEntrypointObligations`, and
   `counterPowdr_safe_step_simulates_from_obligations`, so the bounded
   `increment` precondition is now part of the per-entrypoint EVM proof surface.
+  The safe trace theorem also lifts this predicate through the universal
+  Counter trace induction and exposes a compiled-runtime specialization.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -216,6 +218,10 @@ Yul→bytecode `solc` step as an explicit trust boundary.
 - `counterPowdr_safe_step_simulates_from_obligations` — green under
   `lake build EvmRefinement`; safe per-entrypoint obligations imply the
   one-step IR/powdr Counter simulation.
+- `counterCompiledPowdr_safe_trace_simulates_after_initialize_from_obligations`
+  — green under `lake build EvmRefinement`; safe per-entrypoint obligations
+  plus `counterTraceSafeAfterInitialize` imply the initialize-prefixed universal
+  IR/powdr Counter trace simulation for the concrete compiled runtime.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 
@@ -238,5 +244,6 @@ per-entrypoint proof is not yet complete. The boundary is represented in Lean by
 `counterTraceSafeFromCount` / `counterTraceSafeAfterInitialize`, including a
 green safe trace check and an explicit unsafe max-u64 increment check. The
 per-entrypoint obligation surface now also carries this boundary through
-`CounterStepSafe`; the remaining Phase 6c work is to discharge those safe powdr
-obligations and lift the trace-safety predicate through the universal theorem.
+`CounterStepSafe`, and the safe trace theorem carries it through universal trace
+induction; the remaining Phase 6c work is to discharge those safe powdr
+obligations for the concrete runtime.
