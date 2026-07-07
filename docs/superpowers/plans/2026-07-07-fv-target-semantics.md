@@ -210,7 +210,10 @@ surface. Remaining EVM work is E3.
   The newly explicit `count < 2^64` side condition is the next proof boundary: an
   unbounded IR `u64` Nat increment at `2^64 - 1` will not match the compiled EVM runtime
   unless the supported fragment/input predicate excludes overflow or the IR Counter
-  semantics is changed to the same checked/wrapping behavior.
+  semantics is changed to the same checked/wrapping behavior. That boundary is now
+  represented in Lean by `counterTraceSafeFromCount` /
+  `counterTraceSafeAfterInitialize`, with native checks for the normal
+  initialize-get-increment-get trace and for the unsafe max-u64 increment case.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop

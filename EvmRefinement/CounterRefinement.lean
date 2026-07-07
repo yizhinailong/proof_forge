@@ -153,6 +153,26 @@ theorem counterCallCalldata_size (call : CounterCall) :
     (counterCallCalldata call).size = 4 := by
   cases call <;> rfl
 
+def counterTraceSafeFromCount : Nat → List CounterCall → Bool
+  | count, [] => decide (count < counterU64Modulus)
+  | _count, .initialize :: rest => counterTraceSafeFromCount 0 rest
+  | count, .get :: rest =>
+      decide (count < counterU64Modulus) && counterTraceSafeFromCount count rest
+  | count, .increment :: rest =>
+      decide (count + 1 < counterU64Modulus) &&
+        counterTraceSafeFromCount (count + 1) rest
+
+def counterTraceSafeAfterInitialize (calls : List CounterCall) : Bool :=
+  counterTraceSafeFromCount 0 calls
+
+theorem counterTraceSafe_initialize_get_increment_get :
+    counterTraceSafeAfterInitialize [.get, .increment, .get] = true := by
+  native_decide
+
+theorem counterTraceUnsafe_increment_at_u64_max :
+    counterTraceSafeFromCount (counterU64Modulus - 1) [.increment] = false := by
+  native_decide
+
 def byteArrayHasSliceAt (bytes needle : ByteArray) (offset : Nat) : Bool :=
   offset + needle.size <= bytes.size &&
     bytes.extract offset (offset + needle.size) == needle

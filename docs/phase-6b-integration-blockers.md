@@ -228,4 +228,6 @@ handles `increment` at `2^64 - 1`: either the supported input predicate excludes
 overflowing traces, or the total Counter IR semantics is changed to match the
 compiled EVM runtime's checked/wrapping behavior. Until that is resolved, the
 compiled-runtime C-diff can stay green, but the universal relational
-per-entrypoint proof is not yet complete.
+per-entrypoint proof is not yet complete. The boundary is represented in Lean by
+`counterTraceSafeFromCount` / `counterTraceSafeAfterInitialize`, including a
+green safe trace check and an explicit unsafe max-u64 increment check.

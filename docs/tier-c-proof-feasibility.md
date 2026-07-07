@@ -333,6 +333,9 @@ ProofForge's default build still avoids powdr/mathlib imports.
     an unbounded IR `u64` Nat increment at `2^64 - 1` will not match the compiled
     EVM runtime unless the supported fragment/input predicate excludes overflow
     or the IR Counter semantics is changed to the same checked/wrapping behavior.
+    That boundary is now represented in Lean by `counterTraceSafeFromCount` /
+    `counterTraceSafeAfterInitialize`, with native checks for the normal
+    initialize-get-increment-get trace and for the unsafe max-u64 increment case.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
