@@ -1623,7 +1623,8 @@ theorem counterStack_of_sstore_stackMemFlow_ok
             EvmSemantics.EVM.Gas.sstoreColdSurcharge state slot ≤ gasState.gasAvailable
       · simp [hgas] at hstep
         cases hstep
-        simp [EvmSemantics.EVM.State.replaceStackAndIncrPC]
+        simp [EvmSemantics.EVM.State.consumeGas,
+          EvmSemantics.EVM.State.replaceStackAndIncrPC]
       · simp [hgas] at hstep
 
 theorem counterStack_of_stepFE_stackMemFlow_sstore_ok
@@ -1659,6 +1660,79 @@ theorem counterStack_of_stepFE_stackMemFlow_sstore_ok
       contradiction
     · simp [hdecoded, hstackOk, hgas] at hstep
       exact counterStack_of_sstore_stackMemFlow_ok hstack hstep
+  · rename_i hnotRunning
+    rw [hrunning] at hnotRunning
+    contradiction
+
+theorem counterCodePcFork_of_sstore_stackMemFlow_ok
+    {state gasState nextState : EvmState} {slot value : EvmSemantics.UInt256}
+    {rest : List EvmSemantics.UInt256}
+    (hstack : state.stack = slot :: value :: rest)
+    (hstep :
+      EvmSemantics.EVM.stepF.stackMemFlow state gasState
+        (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) = .ok nextState) :
+    nextState.executionEnv.code = gasState.executionEnv.code ∧
+      nextState.pc = gasState.pc + EvmSemantics.UInt256.ofNat 1 ∧
+      nextState.executionEnv.fork = gasState.executionEnv.fork := by
+  unfold EvmSemantics.EVM.stepF.stackMemFlow at hstep
+  cases hperm : state.executionEnv.permitStateMutation
+  · simp [hperm, EvmSemantics.EVM.static] at hstep
+  · simp [hperm] at hstep
+    by_cases hsentry :
+        EvmSemantics.EVM.Gas.sstoreSentry state.fork gasState.gasAvailable
+    · simp [hsentry] at hstep
+    · simp [hsentry, hstack] at hstep
+      by_cases hgas :
+          EvmSemantics.EVM.Gas.sstoreCost state.fork
+              (state.substate.originalStorage state.executionEnv.address slot)
+              ((state.accountMap state.executionEnv.address).storage slot) value +
+            EvmSemantics.EVM.Gas.sstoreColdSurcharge state slot ≤ gasState.gasAvailable
+      · simp [hgas] at hstep
+        cases hstep
+        simp [EvmSemantics.EVM.State.consumeGas,
+          EvmSemantics.EVM.State.replaceStackAndIncrPC]
+      · simp [hgas] at hstep
+
+theorem counterCodePcFork_of_stepFE_stackMemFlow_sstore_ok
+    {state nextState : EvmState} {slot value : EvmSemantics.UInt256}
+    {rest : List EvmSemantics.UInt256}
+    (hrunning : state.halt = .Running)
+    (hprecompile :
+      EvmSemantics.EVM.Precompile.isPrecompile state.executionEnv.fork
+        state.executionEnv.codeAddr = false)
+    (hdecoded :
+      state.decoded =
+        some (.StackMemFlow
+          (.SSTORE : EvmSemantics.Operation.StackMemFlowOps), none))
+    (hstack : state.stack = slot :: value :: rest)
+    (hstackOk :
+      ¬ state.stack.length +
+          (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+            EvmSemantics.Operation).pushArity >
+        1024 + (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+            EvmSemantics.Operation).popArity)
+    (hgas :
+      EvmSemantics.EVM.Gas.baseCost state.fork
+        (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+          EvmSemantics.Operation) ≤ state.gasAvailable)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    nextState.executionEnv.code = state.executionEnv.code ∧
+      nextState.pc = state.pc + EvmSemantics.UInt256.ofNat 1 ∧
+      nextState.executionEnv.fork = state.executionEnv.fork := by
+  unfold EvmSemantics.EVM.stepFE at hstep
+  simp only [Id.run] at hstep
+  split at hstep
+  · split at hstep
+    · rename_i hprecompileActual
+      rw [hprecompile] at hprecompileActual
+      contradiction
+    · simp [hdecoded, hstackOk, hgas] at hstep
+      obtain ⟨hcode, hpc, hfork⟩ :=
+        counterCodePcFork_of_sstore_stackMemFlow_ok hstack hstep
+      refine ⟨?_, ?_, ?_⟩
+      · simpa [EvmSemantics.EVM.State.consumeGas] using hcode
+      · simpa [EvmSemantics.EVM.State.consumeGas] using hpc
+      · simpa [EvmSemantics.EVM.State.consumeGas] using hfork
   · rename_i hnotRunning
     rw [hrunning] at hnotRunning
     contradiction
@@ -3485,6 +3559,30 @@ theorem counterPreparedInitializeBodyReturnJump_decoded
     simp [EvmSemantics.Operation.availableInFork]
   exact counterState_decoded_of_code_pc hcode hpc hpcNat
     counterCompiledRuntimeCode_decodes_initialize_body_return_jump havailable
+
+theorem counterCompiledStateAt_of_initialize_sstore_stepFE_ok
+    {state nextState : EvmState} {slot value : EvmSemantics.UInt256}
+    {rest : List EvmSemantics.UInt256}
+    (hat : counterCompiledStateAt state (counterInitializeBodyOffset + 21))
+    (hstack : state.stack = slot :: value :: rest)
+    (hready :
+      counterStepFEReady state
+        (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    counterCompiledStateAt nextState (counterInitializeBodyOffset + 22) := by
+  rcases hready with ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  rcases hat with ⟨hcode, hpc, hfork⟩
+  obtain ⟨hcodeNext, hpcNext, hforkNext⟩ :=
+    counterCodePcFork_of_stepFE_stackMemFlow_sstore_ok hrunning hprecompile
+      (counterPreparedInitializeSstore_decoded ⟨hcode, hpc, hfork⟩) hstack
+      hstackOk hgas hstep
+  refine ⟨?_, ?_, ?_⟩
+  · rw [hcodeNext]
+    exact hcode
+  · rw [hpcNext, hpc]
+    native_decide
+  · rw [hforkNext]
+    exact hfork
 
 theorem counterPreparedInitializeReturnJumpdest_decoded
     {state : EvmState}

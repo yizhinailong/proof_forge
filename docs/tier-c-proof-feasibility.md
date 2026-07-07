@@ -448,7 +448,13 @@ ProofForge's default build still avoids powdr/mathlib imports.
     return paths into a 22-fuel bridge from the first body opcode to the halted
     `.none` result, with storage model preservation. It still carries an
     explicit post-SSTORE `counterCompiledStateAt` premise for the body return
-    jump.
+    jump. `counterCodePcFork_of_sstore_stackMemFlow_ok`,
+    `counterCodePcFork_of_stepFE_stackMemFlow_sstore_ok`, and
+    `counterCompiledStateAt_of_initialize_sstore_stepFE_ok` now prove the
+    successful SSTORE step preserves compiled code/fork and advances the body
+    PC to the return jump; the remaining step is to expose the pre-SSTORE stack
+    fact from the composed body path and feed that theorem back into the
+    22-fuel bridge.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
