@@ -291,6 +291,9 @@ def counterPush4Op : EvmSemantics.Operation.PushOp :=
 def counterDup1Op : EvmSemantics.Operation.DupOp :=
   { idx := ⟨0, by decide⟩ }
 
+def counterSwap1Op : EvmSemantics.Operation.SwapOp :=
+  { idx := ⟨0, by decide⟩ }
+
 def counterStepFEReady (state : EvmState) (op : EvmSemantics.Operation) : Prop :=
   state.halt = .Running ∧
     EvmSemantics.EVM.Precompile.isPrecompile state.executionEnv.fork
@@ -2818,6 +2821,53 @@ theorem counterCompiledRuntimeCode_dispatches_get :
       (counterCallCalldata .get) 26 = true := by
   native_decide
 
+def counterGetTrampolineOffset : Nat := 37
+
+def counterGetReturnOffset : Nat := 43
+
+def counterGetBodyOffset : Nat := 135
+
+def counterGetSelectorNat : Nat := 1833756220
+
+def counterGetTrampolineBytes : ByteArray :=
+  ByteArray.mk #[0x5b, 0x60, 0x2b, 0x60, 0x87, 0x56]
+
+theorem counterGetTrampolineBytes_size :
+    counterGetTrampolineBytes.size = 6 := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_has_get_trampoline :
+    byteArrayHasSliceAt counterCompiledRuntimeCode
+      counterGetTrampolineBytes counterGetTrampolineOffset = true := by
+  native_decide
+
+def counterGetReturnBytes : ByteArray :=
+  ByteArray.mk #[0x5b, 0x5f, 0x52, 0x60, 0x20, 0x5f, 0xf3]
+
+theorem counterGetReturnBytes_size :
+    counterGetReturnBytes.size = 7 := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_has_get_return :
+    byteArrayHasSliceAt counterCompiledRuntimeCode
+      counterGetReturnBytes counterGetReturnOffset = true := by
+  native_decide
+
+def counterGetBodyBytes : ByteArray :=
+  ByteArray.mk #[
+    0x5b, 0x60, 0x01, 0x80, 0x60, 0x40, 0x1b, 0x03, 0x5f, 0x54, 0x60,
+    0xc0, 0x1c, 0x16, 0x90, 0x56
+  ]
+
+theorem counterGetBodyBytes_size :
+    counterGetBodyBytes.size = 16 := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_has_get_body :
+    byteArrayHasSliceAt counterCompiledRuntimeCode
+      counterGetBodyBytes counterGetBodyOffset = true := by
+  native_decide
+
 def counterInitializeTrampolineOffset : Nat := 60
 
 def counterInitializeSelectorNat : Nat := 2167012380
@@ -2901,6 +2951,200 @@ theorem counterCompiledRuntimeCode_decodes_dispatcher_initialize_jumpi :
     EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode 14 =
       some (.StackMemFlow
         (.JUMPI : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_dispatcher_get_selector_push4 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode 25 =
+      some (.Push counterPush4Op,
+        some (EvmSemantics.UInt256.ofNat counterGetSelectorNat, 4)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_dispatcher_get_eq :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode 30 =
+      some (.CompBit
+        (.EQ : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_dispatcher_get_trampoline_push :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode 31 =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat counterGetTrampolineOffset, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_dispatcher_get_jumpi :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode 33 =
+      some (.StackMemFlow
+        (.JUMPI : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_trampoline_jumpdest :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        counterGetTrampolineOffset =
+      some (.StackMemFlow
+        (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_valid_get_trampoline_jumpdest :
+    EvmSemantics.EVM.Decode.isValidJumpDest counterCompiledRuntimeCode
+        counterGetTrampolineOffset = true := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_trampoline_return_push :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetTrampolineOffset + 1) =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat counterGetReturnOffset, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_trampoline_body_push :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetTrampolineOffset + 3) =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat counterGetBodyOffset, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_trampoline_jump :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetTrampolineOffset + 5) =
+      some (.StackMemFlow
+        (.JUMP : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_return_jumpdest :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        counterGetReturnOffset =
+      some (.StackMemFlow
+        (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_valid_get_return_jumpdest :
+    EvmSemantics.EVM.Decode.isValidJumpDest counterCompiledRuntimeCode
+        counterGetReturnOffset = true := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_return_push0 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetReturnOffset + 1) =
+      some (.Push counterPush0Op,
+        some (EvmSemantics.UInt256.ofNat 0, 0)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_return_mstore :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetReturnOffset + 2) =
+      some (.StackMemFlow
+        (.MSTORE : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_return_size_push32 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetReturnOffset + 3) =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat 32, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_return_offset_push0 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetReturnOffset + 5) =
+      some (.Push counterPush0Op,
+        some (EvmSemantics.UInt256.ofNat 0, 0)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_return :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetReturnOffset + 6) =
+      some (.System
+        (.RETURN : EvmSemantics.Operation.SystemOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_body_jumpdest :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        counterGetBodyOffset =
+      some (.StackMemFlow
+        (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_valid_get_body_jumpdest :
+    EvmSemantics.EVM.Decode.isValidJumpDest counterCompiledRuntimeCode
+        counterGetBodyOffset = true := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_mask_push1 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetBodyOffset + 1) =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat 1, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_mask_dup1 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetBodyOffset + 3) =
+      some (.Dup counterDup1Op, none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_mask_push64 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetBodyOffset + 4) =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat 64, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_mask_shl64 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetBodyOffset + 6) =
+      some (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_mask_sub :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetBodyOffset + 7) =
+      some (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_sload_slot_push0 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetBodyOffset + 8) =
+      some (.Push counterPush0Op,
+        some (EvmSemantics.UInt256.ofNat 0, 0)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_sload :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetBodyOffset + 9) =
+      some (.StackMemFlow
+        (.SLOAD : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_shift_push192 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetBodyOffset + 10) =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat 192, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_shift_shr192 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetBodyOffset + 12) =
+      some (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_and :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetBodyOffset + 13) =
+      some (.CompBit (.AND : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_swap1 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetBodyOffset + 14) =
+      some (.Swap counterSwap1Op, none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_get_body_return_jump :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterGetBodyOffset + 15) =
+      some (.StackMemFlow
+        (.JUMP : EvmSemantics.Operation.StackMemFlowOps), none) := by
   native_decide
 
 def counterInitializeReturnOffset : Nat := 66
