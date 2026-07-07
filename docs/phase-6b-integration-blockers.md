@@ -250,6 +250,13 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   `counterState_of_initialize_body_jumpdest_stepFE_to_first_opcode_ok` prove
   the concrete top-level `stepFE` trampoline lands at the initialize body and
   advances to the first body opcode.
+  `counterCompiledRuntimeCode_decodes_dispatcher_*` now pins the initialize
+  selector dispatcher prefix through the taken-branch `JUMPI`, the
+  `counterPreparedDispatcher*_decoded` lemmas lift those bytecode facts to
+  `counterCompiledStateAt`, and
+  `counterState_of_dispatcher_first_push0_stepFE_to_calldataload_ok` proves the
+  first dispatcher `stepFE` advances from PC 0 to the `CALLDATALOAD` opcode
+  with selector offset 0 on the stack.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -356,6 +363,12 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   under `lake build EvmRefinement`; the top-level trampoline now reaches the
   initialize body and advances to the first body opcode with the return address
   preserved on the stack.
+- `counterCompiledRuntimeCode_decodes_dispatcher_*`,
+  `counterPreparedDispatcher*_decoded`, and
+  `counterState_of_dispatcher_first_push0_stepFE_to_calldataload_ok` — green
+  under `lake build EvmRefinement`; the initialize selector dispatcher is pinned
+  through `JUMPI`, and its first top-level `stepFE` reaches the `CALLDATALOAD`
+  opcode with selector offset 0 on the stack.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 
@@ -382,6 +395,6 @@ per-entrypoint obligation surface now also carries this boundary through
 `CounterStepSafe`, and the safe trace theorem carries it through universal trace
 induction. `CounterTraceSafeAtState` is the current state/input predicate form;
 the remaining Phase 6c work is to prove the compiled runtime's prepared-frame
-EVM-only powdr storage models, starting with the selector dispatcher path to the
-initialize trampoline and instantiating the prepared-frame initialize storage
-model.
+EVM-only powdr storage models, finishing the selector dispatcher path from
+`CALLDATALOAD` through taken `JUMPI` to the initialize trampoline and
+instantiating the prepared-frame initialize storage model.

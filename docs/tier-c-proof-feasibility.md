@@ -402,14 +402,20 @@ ProofForge's default build still avoids powdr/mathlib imports.
     decode facts plus `counterState_of_initialize_trampoline_stepFE_to_body_ok`
     and `counterState_of_initialize_body_jumpdest_stepFE_to_first_opcode_ok`,
     proving the top-level `stepFE` trampoline lands at the initialize body and
-    advances to the first body opcode.
+    advances to the first body opcode. The initialize selector dispatcher is now
+    pinned through `JUMPI` by `counterCompiledRuntimeCode_decodes_dispatcher_*`
+    plus `counterPreparedDispatcher*_decoded`, and
+    `counterState_of_dispatcher_first_push0_stepFE_to_calldataload_ok` proves
+    the first dispatcher `stepFE` reaches `CALLDATALOAD` with selector offset 0
+    on the stack.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
   - Discharge the compiled runtime's prepared-frame EVM-only storage
     postconditions against powdr `Step`; the ordinary postconditions and safe
-    per-entrypoint obligations then follow from the bridge/conversion theorems
-    (that is Phase 6c).
+    per-entrypoint obligations then follow from the bridge/conversion theorems.
+    The next concrete proof slice is the remaining selector dispatcher path
+    (`CALLDATALOAD` through taken `JUMPI`) into the initialize trampoline.
 - **Deliverable (revised):** a clean powdr-target seam plus the opt-in
   dependency path and wrapper. The conformance-tested EVM bytecode semantics is
   now callable from the `EvmRefinement` target; the implementation agent's next
