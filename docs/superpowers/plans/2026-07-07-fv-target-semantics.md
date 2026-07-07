@@ -318,17 +318,22 @@ surface. Remaining EVM work is E3.
   calldata selector facts, and the path theorems
   `counterState_of_dispatcher_calldataload_stepFE_to_shift_push_ok`,
   `counterState_of_dispatcher_selector_shift_push_stepFE_to_shr_ok`, and
-  `counterState_of_dispatcher_selector_shr_stepFE_to_dup_ok`; together these
-  prove the concrete initialize dispatcher reaches the `DUP1` at PC 5 with the
-  extracted initialize selector on top of the stack.
+  `counterState_of_dispatcher_selector_shr_stepFE_to_dup_ok`. The tail is
+  bridged too:
+  `counterState_of_dispatcher_selector_dup_stepFE_to_selector_push_ok`,
+  `counterState_of_dispatcher_initialize_selector_push_stepFE_to_eq_ok`,
+  `counterState_of_dispatcher_initialize_eq_stepFE_to_trampoline_push_ok`,
+  `counterState_of_dispatcher_trampoline_push_stepFE_to_jumpi_ok`, and
+  `counterState_of_dispatcher_initialize_jumpi_stepFE_to_trampoline_ok` prove
+  the concrete initialize dispatcher reaches the initialize trampoline
+  `JUMPDEST` with the selector left on the stack.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
   remains an explicit trust boundary. The remaining E3 work is to discharge those
-  prepared-frame storage models against the concrete runtime by proving the
-  rest of the selector dispatcher reaches the initialize trampoline
-  (`DUP1; PUSH4; EQ; PUSH1 trampoline; JUMPI`) and by instantiating the
-  prepared-frame initialize storage model.
+  prepared-frame storage models against the concrete runtime by composing the
+  dispatcher-to-trampoline path with the existing trampoline/body proof and by
+  instantiating the prepared-frame initialize storage model.
 - **Acceptance:** a universally-quantified refinement theorem (IR Counter ⟷ powdr EVM
   `Step`, by `induction`, **not** `native_decide`) type-checks under the opt-in target;
   `docs/formal-verification.md` EVM Tier C-proof row updated from aspirational/blocked to

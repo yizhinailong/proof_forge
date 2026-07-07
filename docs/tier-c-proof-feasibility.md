@@ -412,16 +412,17 @@ ProofForge's default build still avoids powdr/mathlib imports.
     selector facts, and path theorems through
     `counterState_of_dispatcher_selector_shr_stepFE_to_dup_ok`, proving the
     concrete dispatcher reaches PC 5 (`DUP1`) with the extracted selector on the
-    stack.
+    stack. The tail path now reaches the initialize trampoline `JUMPDEST` via
+    `counterState_of_dispatcher_initialize_jumpi_stepFE_to_trampoline_ok`.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
   - Discharge the compiled runtime's prepared-frame EVM-only storage
     postconditions against powdr `Step`; the ordinary postconditions and safe
     per-entrypoint obligations then follow from the bridge/conversion theorems.
-    The next concrete proof slice is the remaining selector dispatcher path
-    (`DUP1; PUSH4; EQ; PUSH1 trampoline; JUMPI`) into the initialize
-    trampoline.
+    The next concrete proof slice is to compose the dispatcher-to-trampoline
+    path with the existing trampoline/body proof and instantiate the
+    prepared-frame initialize storage model.
 - **Deliverable (revised):** a clean powdr-target seam plus the opt-in
   dependency path and wrapper. The conformance-tested EVM bytecode semantics is
   now callable from the `EvmRefinement` target; the implementation agent's next

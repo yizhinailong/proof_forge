@@ -449,6 +449,55 @@ theorem counterState_of_stepFE_push1_ok
     rw [hrunning] at hnotRunning
     contradiction
 
+theorem counterState_of_push4_ok
+    {state gasState nextState : EvmState}
+    {value : EvmSemantics.UInt256} {argBytes : Nat}
+    (hstep :
+      EvmSemantics.EVM.stepF.push state gasState counterPush4Op
+        (some (value, argBytes)) = .ok nextState) :
+    nextState =
+      gasState.replaceStackAndIncrPC (value :: state.stack)
+        (pcΔ := argBytes + 1) := by
+  unfold EvmSemantics.EVM.stepF.push counterPush4Op at hstep
+  simp at hstep
+  cases hstep
+  rfl
+
+theorem counterState_of_stepFE_push4_ok
+    {state nextState : EvmState}
+    {value : EvmSemantics.UInt256} {argBytes : Nat}
+    (hrunning : state.halt = .Running)
+    (hprecompile :
+      EvmSemantics.EVM.Precompile.isPrecompile state.executionEnv.fork
+        state.executionEnv.codeAddr = false)
+    (hdecoded :
+      state.decoded = some (.Push counterPush4Op, some (value, argBytes)))
+    (hstackOk :
+      ¬ state.stack.length +
+          (.Push counterPush4Op : EvmSemantics.Operation).pushArity >
+        1024 + (.Push counterPush4Op : EvmSemantics.Operation).popArity)
+    (hgas :
+      EvmSemantics.EVM.Gas.baseCost state.fork
+        (.Push counterPush4Op : EvmSemantics.Operation) ≤ state.gasAvailable)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    nextState =
+      (state.consumeGas
+        (EvmSemantics.EVM.Gas.baseCost state.fork
+          (.Push counterPush4Op : EvmSemantics.Operation)) hgas).replaceStackAndIncrPC
+        (value :: state.stack) (pcΔ := argBytes + 1) := by
+  unfold EvmSemantics.EVM.stepFE at hstep
+  simp only [Id.run] at hstep
+  split at hstep
+  · split at hstep
+    · rename_i hprecompileActual
+      rw [hprecompile] at hprecompileActual
+      contradiction
+    · simp [hdecoded, hstackOk, hgas] at hstep
+      exact counterState_of_push4_ok hstep
+  · rename_i hnotRunning
+    rw [hrunning] at hnotRunning
+    contradiction
+
 theorem counterState_of_env_calldataload_ok
     {state gasState nextState : EvmState}
     {offset : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
@@ -524,6 +573,19 @@ theorem counterStack_of_dup1_ok
   cases hstep
   simp [EvmSemantics.EVM.State.replaceStackAndIncrPC]
 
+theorem counterState_of_dup1_ok
+    {state gasState nextState : EvmState}
+    {top : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
+    (hstack : state.stack = top :: rest)
+    (hstep :
+      EvmSemantics.EVM.stepF.dup state gasState counterDup1Op =
+        .ok nextState) :
+    nextState = gasState.replaceStackAndIncrPC (top :: top :: rest) := by
+  unfold EvmSemantics.EVM.stepF.dup counterDup1Op at hstep
+  simp [hstack] at hstep
+  cases hstep
+  rfl
+
 theorem counterStack_of_stepFE_dup1_ok
     {state nextState : EvmState}
     {top : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
@@ -551,6 +613,41 @@ theorem counterStack_of_stepFE_dup1_ok
       contradiction
     · simp [hdecoded, hstackOk, hgas] at hstep
       exact counterStack_of_dup1_ok hstack hstep
+  · rename_i hnotRunning
+    rw [hrunning] at hnotRunning
+    contradiction
+
+theorem counterState_of_stepFE_dup1_ok
+    {state nextState : EvmState}
+    {top : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
+    (hrunning : state.halt = .Running)
+    (hprecompile :
+      EvmSemantics.EVM.Precompile.isPrecompile state.executionEnv.fork
+        state.executionEnv.codeAddr = false)
+    (hdecoded : state.decoded = some (.Dup counterDup1Op, none))
+    (hstack : state.stack = top :: rest)
+    (hstackOk :
+      ¬ state.stack.length +
+          (.Dup counterDup1Op : EvmSemantics.Operation).pushArity >
+        1024 + (.Dup counterDup1Op : EvmSemantics.Operation).popArity)
+    (hgas :
+      EvmSemantics.EVM.Gas.baseCost state.fork
+        (.Dup counterDup1Op : EvmSemantics.Operation) ≤ state.gasAvailable)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    nextState =
+      (state.consumeGas
+        (EvmSemantics.EVM.Gas.baseCost state.fork
+          (.Dup counterDup1Op : EvmSemantics.Operation)) hgas).replaceStackAndIncrPC
+        (top :: top :: rest) := by
+  unfold EvmSemantics.EVM.stepFE at hstep
+  simp only [Id.run] at hstep
+  split at hstep
+  · split at hstep
+    · rename_i hprecompileActual
+      rw [hprecompile] at hprecompileActual
+      contradiction
+    · simp [hdecoded, hstackOk, hgas] at hstep
+      exact counterState_of_dup1_ok hstack hstep
   · rename_i hnotRunning
     rw [hrunning] at hnotRunning
     contradiction
@@ -2305,6 +2402,233 @@ theorem counterState_of_dispatcher_selector_shr_stepFE_to_dup_ok
   simp [EvmSemantics.EVM.State.consumeGas,
     EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack,
     counterInitialize_selector_shr224_eq]
+
+theorem counterState_of_dispatcher_selector_dup_stepFE_to_selector_push_ok
+    {state nextState : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (hstack :
+      state.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest)
+    (hat : counterCompiledStateAt state 5)
+    (hready : counterStepFEReady state (.Dup counterDup1Op))
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    counterCompiledStateAt nextState 6 ∧
+      nextState.decoded =
+        some (.Push counterPush4Op,
+          some (EvmSemantics.UInt256.ofNat counterInitializeSelectorNat, 4)) ∧
+      nextState.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeSelectorNat ::
+          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest := by
+  rcases hready with ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstate :=
+    counterState_of_stepFE_dup1_ok hrunning hprecompile
+      (counterPreparedDispatcherSelectorDup1_decoded hat) hstack hstackOk hgas hstep
+  rcases hat with ⟨hcode, hpc, hfork⟩
+  have hnextAt : counterCompiledStateAt nextState 6 := by
+    unfold counterCompiledStateAt
+    rw [hstate]
+    constructor
+    · simp [EvmSemantics.EVM.State.consumeGas,
+        EvmSemantics.EVM.State.replaceStackAndIncrPC, hcode]
+    · constructor
+      · simp [EvmSemantics.EVM.State.consumeGas,
+          EvmSemantics.EVM.State.replaceStackAndIncrPC, hpc]
+        native_decide
+      · simpa [EvmSemantics.EVM.State.consumeGas,
+          EvmSemantics.EVM.State.replaceStackAndIncrPC] using hfork
+  refine ⟨hnextAt, counterPreparedDispatcherInitializeSelectorPush4_decoded hnextAt, ?_⟩
+  rw [hstate]
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack]
+
+theorem counterState_of_dispatcher_initialize_selector_push_stepFE_to_eq_ok
+    {state nextState : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (hstack :
+      state.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeSelectorNat ::
+          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest)
+    (hat : counterCompiledStateAt state 6)
+    (hready : counterStepFEReady state (.Push counterPush4Op))
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    counterCompiledStateAt nextState 11 ∧
+      nextState.decoded =
+        some (.CompBit
+          (.EQ : EvmSemantics.Operation.CompareBitwiseOps), none) ∧
+      nextState.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeSelectorNat ::
+          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat ::
+          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest := by
+  rcases hready with ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstate :=
+    counterState_of_stepFE_push4_ok hrunning hprecompile
+      (counterPreparedDispatcherInitializeSelectorPush4_decoded hat)
+      hstackOk hgas hstep
+  rcases hat with ⟨hcode, hpc, hfork⟩
+  have hnextAt : counterCompiledStateAt nextState 11 := by
+    unfold counterCompiledStateAt
+    rw [hstate]
+    constructor
+    · simp [EvmSemantics.EVM.State.consumeGas,
+        EvmSemantics.EVM.State.replaceStackAndIncrPC, hcode]
+    · constructor
+      · simp [EvmSemantics.EVM.State.consumeGas,
+          EvmSemantics.EVM.State.replaceStackAndIncrPC, hpc]
+        native_decide
+      · simpa [EvmSemantics.EVM.State.consumeGas,
+          EvmSemantics.EVM.State.replaceStackAndIncrPC] using hfork
+  refine ⟨hnextAt, counterPreparedDispatcherInitializeEq_decoded hnextAt, ?_⟩
+  rw [hstate]
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack]
+
+theorem counterState_of_dispatcher_initialize_eq_stepFE_to_trampoline_push_ok
+    {state nextState : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (hstack :
+      state.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeSelectorNat ::
+          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat ::
+          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest)
+    (hat : counterCompiledStateAt state 11)
+    (hready :
+      counterStepFEReady state
+        (.CompBit (.EQ : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    counterCompiledStateAt nextState 12 ∧
+      nextState.decoded =
+        some (.Push counterPush1Op,
+          some (EvmSemantics.UInt256.ofNat counterInitializeTrampolineOffset, 1)) ∧
+      nextState.stack =
+        EvmSemantics.UInt256.ofNat 1 ::
+          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest := by
+  rcases hready with ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstate :=
+    counterState_of_stepFE_compBit_eq_ok hrunning hprecompile
+      (counterPreparedDispatcherInitializeEq_decoded hat) hstack hstackOk hgas hstep
+  rcases hat with ⟨hcode, hpc, hfork⟩
+  have hnextAt : counterCompiledStateAt nextState 12 := by
+    unfold counterCompiledStateAt
+    rw [hstate]
+    constructor
+    · simp [EvmSemantics.EVM.State.consumeGas,
+        EvmSemantics.EVM.State.replaceStackAndIncrPC, hcode]
+    · constructor
+      · simp [EvmSemantics.EVM.State.consumeGas,
+          EvmSemantics.EVM.State.replaceStackAndIncrPC, hpc]
+        native_decide
+      · simpa [EvmSemantics.EVM.State.consumeGas,
+          EvmSemantics.EVM.State.replaceStackAndIncrPC] using hfork
+  refine ⟨hnextAt, counterPreparedDispatcherInitializeTrampolinePush_decoded hnextAt, ?_⟩
+  rw [hstate]
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack,
+    counterInitialize_selector_eq_true]
+
+theorem counterState_of_dispatcher_trampoline_push_stepFE_to_jumpi_ok
+    {state nextState : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (hstack :
+      state.stack =
+        EvmSemantics.UInt256.ofNat 1 ::
+          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest)
+    (hat : counterCompiledStateAt state 12)
+    (hready : counterStepFEReady state (.Push counterPush1Op))
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    counterCompiledStateAt nextState 14 ∧
+      nextState.decoded =
+        some (.StackMemFlow
+          (.JUMPI : EvmSemantics.Operation.StackMemFlowOps), none) ∧
+      nextState.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeTrampolineOffset ::
+          EvmSemantics.UInt256.ofNat 1 ::
+          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest := by
+  rcases hready with ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstate :=
+    counterState_of_stepFE_push1_ok hrunning hprecompile
+      (counterPreparedDispatcherInitializeTrampolinePush_decoded hat)
+      hstackOk hgas hstep
+  rcases hat with ⟨hcode, hpc, hfork⟩
+  have hnextAt : counterCompiledStateAt nextState 14 := by
+    unfold counterCompiledStateAt
+    rw [hstate]
+    constructor
+    · simp [EvmSemantics.EVM.State.consumeGas,
+        EvmSemantics.EVM.State.replaceStackAndIncrPC, hcode]
+    · constructor
+      · simp [EvmSemantics.EVM.State.consumeGas,
+          EvmSemantics.EVM.State.replaceStackAndIncrPC, hpc]
+        native_decide
+      · simpa [EvmSemantics.EVM.State.consumeGas,
+          EvmSemantics.EVM.State.replaceStackAndIncrPC] using hfork
+  refine ⟨hnextAt, counterPreparedDispatcherInitializeJumpi_decoded hnextAt, ?_⟩
+  rw [hstate]
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack]
+
+theorem counterState_of_dispatcher_initialize_jumpi_stepFE_to_trampoline_ok
+    {state nextState : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (hstack :
+      state.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeTrampolineOffset ::
+          EvmSemantics.UInt256.ofNat 1 ::
+          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest)
+    (hat : counterCompiledStateAt state 14)
+    (hready :
+      counterStepFEReady state
+        (.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    counterCompiledStateAt nextState counterInitializeTrampolineOffset ∧
+      nextState.decoded =
+        some (.StackMemFlow
+          (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps), none) ∧
+      nextState.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest := by
+  rcases hready with ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  rcases hat with ⟨hcode, hpc, hfork⟩
+  have hdestNat :
+      (EvmSemantics.UInt256.ofNat counterInitializeTrampolineOffset).toNat =
+        counterInitializeTrampolineOffset := by
+    native_decide
+  have hvalid :
+      EvmSemantics.EVM.Decode.isValidJumpDest state.executionEnv.code
+        (EvmSemantics.UInt256.ofNat counterInitializeTrampolineOffset).toNat =
+        true := by
+    rw [hcode, hdestNat]
+    exact counterCompiledRuntimeCode_valid_initialize_trampoline_jumpdest
+  have hstate :=
+    counterState_of_stepFE_stackMemFlow_jumpi_taken_ok hrunning hprecompile
+      (counterPreparedDispatcherInitializeJumpi_decoded ⟨hcode, hpc, hfork⟩)
+      hstack counterInitialize_selector_condition_nonzero hvalid hstackOk hgas hstep
+  have hnextAt :
+      counterCompiledStateAt nextState counterInitializeTrampolineOffset := by
+    unfold counterCompiledStateAt
+    rw [hstate]
+    constructor
+    · simp [EvmSemantics.EVM.State.consumeGas, hcode]
+    · constructor
+      · simp
+      · simpa [EvmSemantics.EVM.State.consumeGas] using hfork
+  have hdecodedNext :
+      nextState.decoded =
+        some (.StackMemFlow
+          (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps), none) := by
+    rcases hnextAt with ⟨hcodeNext, hpcNext, _hforkNext⟩
+    have hpcNat :
+        (EvmSemantics.UInt256.ofNat counterInitializeTrampolineOffset).toNat =
+          counterInitializeTrampolineOffset := by
+      native_decide
+    have havailable :
+        ((.StackMemFlow
+          (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps) :
+            EvmSemantics.Operation).availableInFork nextState.executionEnv.fork) =
+          true := by
+      simp [EvmSemantics.Operation.availableInFork]
+    exact counterState_decoded_of_code_pc hcodeNext hpcNext hpcNat
+      counterCompiledRuntimeCode_decodes_initialize_trampoline_jumpdest havailable
+  refine ⟨hnextAt, hdecodedNext, ?_⟩
+  rw [hstate]
 
 theorem counterPreparedInitializeTrampolineJumpdest_decoded
     {state : EvmState}

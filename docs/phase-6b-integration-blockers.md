@@ -261,7 +261,10 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   plus concrete initialize selector facts and path theorems through
   `counterState_of_dispatcher_selector_shr_stepFE_to_dup_ok`, proving the
   concrete initialize dispatcher reaches PC 5 (`DUP1`) with the extracted
-  selector on top of the stack.
+  selector on top of the stack. The tail path through
+  `counterState_of_dispatcher_initialize_jumpi_stepFE_to_trampoline_ok` now
+  proves the dispatcher reaches the initialize trampoline `JUMPDEST` with the
+  selector left on the stack.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -381,6 +384,13 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   through `counterState_of_dispatcher_selector_shr_stepFE_to_dup_ok` — green
   under `lake build EvmRefinement`; the initialize dispatcher now reaches the
   `DUP1` at PC 5 with the extracted initialize selector on the stack.
+- `counterState_of_dispatcher_selector_dup_stepFE_to_selector_push_ok`,
+  `counterState_of_dispatcher_initialize_selector_push_stepFE_to_eq_ok`,
+  `counterState_of_dispatcher_initialize_eq_stepFE_to_trampoline_push_ok`,
+  `counterState_of_dispatcher_trampoline_push_stepFE_to_jumpi_ok`, and
+  `counterState_of_dispatcher_initialize_jumpi_stepFE_to_trampoline_ok` —
+  green under `lake build EvmRefinement`; the initialize dispatcher now reaches
+  the trampoline `JUMPDEST`.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 
@@ -407,6 +417,6 @@ per-entrypoint obligation surface now also carries this boundary through
 `CounterStepSafe`, and the safe trace theorem carries it through universal trace
 induction. `CounterTraceSafeAtState` is the current state/input predicate form;
 the remaining Phase 6c work is to prove the compiled runtime's prepared-frame
-EVM-only powdr storage models, finishing the selector dispatcher path from
-`DUP1; PUSH4; EQ; PUSH1 trampoline; JUMPI` to the initialize trampoline and
-instantiating the prepared-frame initialize storage model.
+EVM-only powdr storage models by composing the dispatcher-to-trampoline path
+with the existing trampoline/body proof and instantiating the prepared-frame
+initialize storage model.
