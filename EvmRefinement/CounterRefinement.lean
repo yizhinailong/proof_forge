@@ -6952,6 +6952,64 @@ theorem counterRunBytecode_initialize_return_segment_ok
       hready0 hstep0 hready1 hstep1 hready2 hstep2
       hready3 hstep3 hready4 hstep4)
 
+theorem counterStepFEPath_get_return_segment_ok
+    {s0 s1 s2 s3 s4 s5 s6 : EvmState}
+    (hready0 :
+      counterStepFEReady s0
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hready1 : counterStepFEReady s1 (.Push counterPush0Op))
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hready2 :
+      counterStepFEReady s2
+        (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hready3 : counterStepFEReady s3 (.Push counterPush1Op))
+    (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4)
+    (hready4 : counterStepFEReady s4 (.Push counterPush0Op))
+    (hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5)
+    (hready5 :
+      counterStepFEReady s5
+        (.System (.RETURN : EvmSemantics.Operation.SystemOps)))
+    (hstep5 : EvmSemantics.EVM.stepFE s5 = .ok s6) :
+    EvmStepFEPath s0 6 s6 := by
+  have hprefix : EvmStepFEPath s0 5 s5 :=
+    ProofForge.Backend.Evm.PowdrExec.stepFEPath_five
+      hready0.1 hstep0 hready1.1 hstep1 hready2.1 hstep2
+      hready3.1 hstep3 hready4.1 hstep4
+  have hreturn : EvmStepFEPath s5 1 s6 :=
+    ProofForge.Backend.Evm.PowdrExec.stepFEPath_single
+      hready5.1 hstep5
+  simpa using
+    ProofForge.Backend.Evm.PowdrExec.stepFEPath_append hprefix hreturn
+
+theorem counterRunBytecode_get_return_segment_ok
+    {s0 s1 s2 s3 s4 s5 s6 : EvmState}
+    (hready0 :
+      counterStepFEReady s0
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hready1 : counterStepFEReady s1 (.Push counterPush0Op))
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hready2 :
+      counterStepFEReady s2
+        (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hready3 : counterStepFEReady s3 (.Push counterPush1Op))
+    (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4)
+    (hready4 : counterStepFEReady s4 (.Push counterPush0Op))
+    (hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5)
+    (hready5 :
+      counterStepFEReady s5
+        (.System (.RETURN : EvmSemantics.Operation.SystemOps)))
+    (hstep5 : EvmSemantics.EVM.stepFE s5 = .ok s6) :
+    ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 6 =
+      .ok (s6, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) := by
+  exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath_done
+    (counterStepFEPath_get_return_segment_ok
+      hready0 hstep0 hready1 hstep1 hready2 hstep2 hready3 hstep3
+      hready4 hstep4 hready5 hstep5)
+
 theorem counterStepFEPath_initialize_body_and_return_ok
     {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17
       s18 s19 s20 s21 s22 : EvmState}
