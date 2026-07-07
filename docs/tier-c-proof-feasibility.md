@@ -301,7 +301,10 @@ ProofForge's default build still avoids powdr/mathlib imports.
     storage relation. The module now exposes a powdr-backed Counter trace-step
     surface and proves successful trace steps are backed by powdr `Steps` plus
     the stated observable projection; the executable trace gate remains disabled
-    until it is bound to the real runtime artifact and initial EVM state.
+    until it is bound to the real runtime artifact and initial EVM state. It
+    also exposes the three per-entrypoint powdr obligations and proves that, if
+    they hold, the shared trace induction yields universal Counter trace
+    simulation.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).

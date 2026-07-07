@@ -181,7 +181,11 @@ surface. Remaining EVM work is E3.
   calls through powdr `runBytecode`, project EVM results to Counter observables, and prove
   successful trace steps are backed by powdr `Steps` with the stated observable projection;
   the target semantics' `executableTraceOk` stays false until the real runtime artifact and
-  initial EVM state are bound.
+  initial EVM state are bound. It also defines explicit
+  `CounterPowdrEntrypointObligations` for `initialize`/`increment`/`get` and proves
+  `counterPowdr_trace_simulates_from_obligations`: those three powdr bytecode obligations
+  are sufficient to obtain the universal Counter trace simulation through the shared
+  induction.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop

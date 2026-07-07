@@ -19,6 +19,7 @@ open ProofForge.Backend.Refinement
 abbrev IRState := ProofForge.IR.Semantics.State
 abbrev EvmState := ProofForge.Backend.Evm.PowdrAdapter.State
 abbrev CounterCall := ProofForge.Backend.Refinement.CounterUniversal.CounterCall
+abbrev counterIRStep := ProofForge.Backend.Refinement.CounterUniversal.irStep
 
 def counterCountSlotNat : Nat := 0
 
@@ -78,6 +79,24 @@ def CounterStorageRelAt (address : EvmSemantics.AccountAddress)
 
 def CounterStorageRel : IRState → EvmState → Prop :=
   CounterStorageRelAt counterContractAddress counterCountSlot
+
+theorem counterStorageRel_left_counterStateRel
+    {irState : IRState} {evmState : EvmState}
+    (hrel : CounterStorageRel irState evmState) :
+    ∃ count,
+      ProofForge.Backend.Refinement.CounterUniversal.CounterStateRel irState count := by
+  rcases hrel with ⟨count, hcount, _hstorage⟩
+  refine ⟨count, ?_⟩
+  unfold ProofForge.Backend.Refinement.CounterUniversal.CounterStateRel
+  unfold irCounterCount? at hcount
+  cases hread : irState.read "count" with
+  | none =>
+      simp [hread] at hcount
+  | some value =>
+      cases value <;> simp [hread] at hcount
+      case u64 value =>
+        cases hcount
+        rfl
 
 theorem counterStorageRelAt_set_count (address : EvmSemantics.AccountAddress)
     (slot : EvmSemantics.UInt256) (irState : IRState) (evmState : EvmState)
@@ -317,5 +336,76 @@ def counterPowdrTargetSemantics (cfg : PowdrCounterConfig) : TargetSemantics := 
   runTrace_eq_traceStep := counterPowdrRunTrace_eq_traceStep cfg
   executableTraceOk := fun _ => false
 }
+
+structure CounterPowdrEntrypointObligations (cfg : PowdrCounterConfig) where
+  initialize_simulates :
+    ∀ {irState evmState nextIr observable},
+      CounterStorageRel irState evmState →
+      counterIRStep irState .initialize = .ok (nextIr, observable) →
+        ∃ nextEvm,
+          counterPowdrTraceStep cfg evmState .initialize = .ok (nextEvm, observable) ∧
+          CounterStorageRel nextIr nextEvm
+  increment_simulates :
+    ∀ {irState evmState nextIr observable},
+      CounterStorageRel irState evmState →
+      counterIRStep irState .increment = .ok (nextIr, observable) →
+        ∃ nextEvm,
+          counterPowdrTraceStep cfg evmState .increment = .ok (nextEvm, observable) ∧
+          CounterStorageRel nextIr nextEvm
+  get_simulates :
+    ∀ {irState evmState nextIr observable},
+      CounterStorageRel irState evmState →
+      counterIRStep irState .get = .ok (nextIr, observable) →
+        ∃ nextEvm,
+          counterPowdrTraceStep cfg evmState .get = .ok (nextEvm, observable) ∧
+          CounterStorageRel nextIr nextEvm
+
+theorem counterPowdr_step_simulates_from_obligations
+    (cfg : PowdrCounterConfig) (obligations : CounterPowdrEntrypointObligations cfg)
+    (call : CounterCall) {irState : IRState} {evmState : EvmState}
+    (hrel : CounterStorageRel irState evmState) :
+    ∃ nextIr nextEvm observable,
+      counterIRStep irState call = .ok (nextIr, observable) ∧
+      counterPowdrTraceStep cfg evmState call = .ok (nextEvm, observable) ∧
+      CounterStorageRel nextIr nextEvm := by
+  obtain ⟨count, hcounter⟩ := counterStorageRel_left_counterStateRel hrel
+  cases call
+  · obtain ⟨nextIr, _nextCount, observable, hirStep, _htargetStep, _hcounterNext⟩ :=
+      ProofForge.Backend.Refinement.CounterUniversal.counter_initialize_simulates
+        irState count
+    obtain ⟨nextEvm, hpowdrStep, hrelNext⟩ :=
+      obligations.initialize_simulates hrel hirStep
+    exact ⟨nextIr, nextEvm, observable, hirStep, hpowdrStep, hrelNext⟩
+  · obtain ⟨nextIr, _nextCount, observable, hirStep, _htargetStep, _hcounterNext⟩ :=
+      ProofForge.Backend.Refinement.CounterUniversal.counter_increment_simulates
+        hcounter
+    obtain ⟨nextEvm, hpowdrStep, hrelNext⟩ :=
+      obligations.increment_simulates hrel hirStep
+    exact ⟨nextIr, nextEvm, observable, hirStep, hpowdrStep, hrelNext⟩
+  · obtain ⟨nextIr, _nextCount, observable, hirStep, _htargetStep, _hcounterNext⟩ :=
+      ProofForge.Backend.Refinement.CounterUniversal.counter_get_simulates
+        hcounter
+    obtain ⟨nextEvm, hpowdrStep, hrelNext⟩ :=
+      obligations.get_simulates hrel hirStep
+    exact ⟨nextIr, nextEvm, observable, hirStep, hpowdrStep, hrelNext⟩
+
+theorem counterPowdr_trace_simulates_from_obligations
+    (cfg : PowdrCounterConfig) (obligations : CounterPowdrEntrypointObligations cfg)
+    (calls : List CounterCall) {irState : IRState} {evmState : EvmState}
+    (hrel : CounterStorageRel irState evmState) :
+    ∃ finalIr finalEvm observables,
+      ProofForge.IR.StepSemantics.runTraceListGen counterIRStep calls irState =
+        .ok (finalIr, observables) ∧
+      ProofForge.IR.StepSemantics.runTraceListGen (counterPowdrTraceStep cfg) calls evmState =
+        .ok (finalEvm, observables) ∧
+      CounterStorageRel finalIr finalEvm ∧
+      ProofForge.IR.StepSemantics.IRTraceMatches counterIRStep irState calls observables ∧
+      ProofForge.IR.StepSemantics.IRTraceMatches
+        (counterPowdrTraceStep cfg) evmState calls observables :=
+  ProofForge.Backend.Refinement.traceSimulation_lift
+    counterIRStep (counterPowdrTraceStep cfg) CounterStorageRel
+    (fun call {_irState} {_targetState} hrel =>
+      counterPowdr_step_simulates_from_obligations cfg obligations call hrel)
+    calls hrel
 
 end ProofForge.Backend.Evm.CounterRefinement
