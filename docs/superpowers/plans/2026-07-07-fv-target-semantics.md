@@ -339,14 +339,21 @@ surface. Remaining EVM work is E3.
   initialize frame's PC0/code/fork, empty stack, initialize calldata, and
   contract address facts needed to instantiate the composed path from a real
   `CounterPreparedCall`.
+  The remaining return segment is now pinned at the bytecode/prepared-state
+  layer: `counterCompiledRuntimeCode_decodes_initialize_body_return_jump`,
+  `counterCompiledRuntimeCode_valid_initialize_return_jumpdest`, the
+  `counterCompiledRuntimeCode_decodes_initialize_return*` facts, and
+  `counterPreparedInitializeReturn*_decoded` cover the body final `JUMP` plus
+  `JUMPDEST; PUSH0; DUP1; RETURN`.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
   remains an explicit trust boundary. The remaining E3 work is to discharge those
   prepared-frame storage models against the concrete runtime by connecting the
   composed dispatcher/trampoline/body `stepFE` path to the prepared-frame
-  `counterPowdrPreparedTraceStep` result, including the final return/jump
-  segment, and instantiating the prepared-frame initialize storage model.
+  `counterPowdrPreparedTraceStep` result, proving the final return/jump segment
+  executes to the `.none` observable, and instantiating the prepared-frame
+  initialize storage model.
 - **Acceptance:** a universally-quantified refinement theorem (IR Counter ⟷ powdr EVM
   `Step`, by `induction`, **not** `native_decide`) type-checks under the opt-in target;
   `docs/formal-verification.md` EVM Tier C-proof row updated from aspirational/blocked to

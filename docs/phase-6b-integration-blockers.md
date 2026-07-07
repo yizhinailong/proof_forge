@@ -277,6 +277,12 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   initialize frame's PC0/code/fork, empty stack, initialize calldata, and
   contract address facts for instantiating the composed path from a real
   `CounterPreparedCall`.
+  `counterCompiledRuntimeCode_decodes_initialize_body_return_jump`,
+  `counterCompiledRuntimeCode_valid_initialize_return_jumpdest`,
+  `counterCompiledRuntimeCode_decodes_initialize_return*`, and
+  `counterPreparedInitializeReturn*_decoded` now pin the body final `JUMP` plus
+  the `JUMPDEST; PUSH0; DUP1; RETURN` segment at the bytecode/prepared-state
+  layer.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -413,6 +419,12 @@ Yul→bytecode `solc` step as an explicit trust boundary.
 - `counterCompiledPreparedInitialize_entry_facts` — green under
   `lake build EvmRefinement`; the compiled prepared initialize frame has the
   PC0/code/fork, stack, calldata, and address facts needed by the composed path.
+- `counterCompiledRuntimeCode_decodes_initialize_body_return_jump`,
+  `counterCompiledRuntimeCode_valid_initialize_return_jumpdest`,
+  `counterCompiledRuntimeCode_decodes_initialize_return*`, and
+  `counterPreparedInitializeReturn*_decoded` — green under
+  `lake build EvmRefinement`; the final return/jump segment is pinned through
+  prepared decoding.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 
@@ -441,5 +453,5 @@ induction. `CounterTraceSafeAtState` is the current state/input predicate form;
 the remaining Phase 6c work is to prove the compiled runtime's prepared-frame
 EVM-only powdr storage models by connecting the composed dispatcher/trampoline/body
 `stepFE` path to the prepared-frame `counterPowdrPreparedTraceStep` result and
-instantiating the prepared-frame initialize storage model, including the final
-return/jump segment.
+proving the final return/jump segment executes to the `.none` observable before
+instantiating the prepared-frame initialize storage model.
