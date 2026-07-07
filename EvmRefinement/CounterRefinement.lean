@@ -654,7 +654,8 @@ theorem counterState_of_stepFE_env_calldataload_ok
   have hready :
       PowdrStepFEReady state
         (.Env (.CALLDATALOAD : EvmSemantics.Operation.EnvOps)) :=
-    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+    counterStepFEReady_to_powdr
+      ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstepGeneric :=
     ProofForge.Backend.Evm.PowdrExec.stepFE_calldataload_ok
       hready hdecoded hstack
@@ -875,7 +876,8 @@ theorem counterStack_of_stepFE_compBit_shl_ok
   have hready :
       PowdrStepFEReady state
         (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)) :=
-    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+    counterStepFEReady_to_powdr
+      ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstepGeneric :=
     ProofForge.Backend.Evm.PowdrExec.stepFE_shl_ok
       hready hdecoded hstack
@@ -915,7 +917,8 @@ theorem counterState_of_stepFE_compBit_shl_ok
   have hready :
       PowdrStepFEReady state
         (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)) :=
-    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+    counterStepFEReady_to_powdr
+      ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstepGeneric :=
     ProofForge.Backend.Evm.PowdrExec.stepFE_shl_ok
       hready hdecoded hstack
@@ -1083,7 +1086,8 @@ theorem counterState_of_stepFE_compBit_eq_ok
   have hready :
       PowdrStepFEReady state
         (.CompBit (.EQ : EvmSemantics.Operation.CompareBitwiseOps)) :=
-    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+    counterStepFEReady_to_powdr
+      ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstepGeneric :=
     ProofForge.Backend.Evm.PowdrExec.stepFE_eq_ok
       hready hdecoded hstack
@@ -1187,7 +1191,8 @@ theorem counterStack_of_stepFE_compBit_not_ok
   have hready :
       PowdrStepFEReady state
         (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps)) :=
-    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+    counterStepFEReady_to_powdr
+      ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstepGeneric :=
     ProofForge.Backend.Evm.PowdrExec.stepFE_not_ok
       hready hdecoded hstack
@@ -1227,7 +1232,8 @@ theorem counterState_of_stepFE_compBit_not_ok
   have hready :
       PowdrStepFEReady state
         (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps)) :=
-    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+    counterStepFEReady_to_powdr
+      ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstepGeneric :=
     ProofForge.Backend.Evm.PowdrExec.stepFE_not_ok
       hready hdecoded hstack
@@ -1330,7 +1336,8 @@ theorem counterStack_of_stepFE_stopArith_sub_ok
   have hready :
       PowdrStepFEReady state
         (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps)) :=
-    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+    counterStepFEReady_to_powdr
+      ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstepGeneric :=
     ProofForge.Backend.Evm.PowdrExec.stepFE_sub_ok
       hready hdecoded hstack
@@ -1370,7 +1377,8 @@ theorem counterState_of_stepFE_stopArith_sub_ok
   have hready :
       PowdrStepFEReady state
         (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps)) :=
-    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+    counterStepFEReady_to_powdr
+      ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstepGeneric :=
     ProofForge.Backend.Evm.PowdrExec.stepFE_sub_ok
       hready hdecoded hstack
