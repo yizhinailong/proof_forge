@@ -183,6 +183,31 @@ CI: `just evm-plan` (`Tests/EvmPlan.lean`), `just evm-semantic-plan`
 (`Tests/EvmSemanticPlan.lean`), and `lake build ProofForge.Backend.Evm.Refinement`
 (theorems are `#check`-anchored from `Tests/NearWasmFormal.lean`).
 
+**EVM audit (2026-07-07, RFC 0014 Tier B reference backend).** A mirror audit
+of EVM was performed after Solana and NEAR completed their Step C, asking
+whether EVM had any analogous inline `Ctx`-like derivation that bypasses
+`Evm.Plan.ModulePlan` (the Step C dual-path pattern). **Finding: EVM is
+already cleanly plan-only — no Step C refactor was needed.** The lowering
+dispatch is `lowerModule module = lowerModuleWithPlan module (buildSemanticPlan module)`
+(strict) and `lowerModuleBestEffort module = lowerModuleWithPlan module (buildSemanticPlanBestEffort module)`
+(best-effort); both route through `lowerModuleWithPlan`. EVM has no `Ctx` /
+`LowerCtx` struct at all — the plan is consumed directly. The
+`lowerModule` vs `lowerModuleBestEffort` split (commit `06e57e12`) is
+intentional strict-vs-best-effort, not a Step C dual-path: both go through a
+plan. The internal best-effort fallbacks in `lowerModuleWithPlan`
+(`lowerEntrypoint` / `dispatchBlock` when the plan's entrypoint/dispatch
+arrays are incomplete) are also plan-routed — each builds an
+`EntrypointPlan` / `DispatchPlan` via `Lower.buildEntrypointSurfacePlan` and
+calls the corresponding `*WithPlan` function. There is no inline storage /
+ABI / dispatch derivation duplicating the plan. EVM is the reference
+implementation the other backends were aligned to; it never accumulated the
+inline `Ctx` residue that Solana (`buildCtx`) and NEAR (inline `Ctx`
+assembly) carried before their Step C. Full audit, call-site table, and
+verification in
+[`docs/multi-backend-moduleplan-design.md`](../multi-backend-moduleplan-design.md)
+§14. `lake build` green; `just evm-plan` / `just evm-semantic-plan` /
+`just evm-build-examples` pass; frozen EVM goldens unchanged.
+
 ### NEAR (validate-rich, plan-poor, formal-strong)
 
 - `ProofForge/Backend/WasmNear/IR.lean` — `validateModule`: capabilities +
@@ -463,6 +488,16 @@ does not block it.
   (`Counter.golden.s`, `ValueVault.golden.s`) and all `plan.txt` goldens
   unchanged. Render char counts: Counter 3830, EvmStorageArrayProbe 6609,
   EvmMapProbe 4470, EvmStorageStructProbe 2707, confirming byte-stability.
+
+  **EVM audit (2026-07-07, after Solana + NEAR Step C).** A mirror audit of
+  EVM (the reference Tier B backend) confirmed EVM was already cleanly
+  plan-only and needed no Step C refactor: `lowerModule` delegates to
+  `lowerModuleWithPlan module (buildSemanticPlan module)`, EVM has no `Ctx` /
+  `LowerCtx` struct, and the strict/best-effort split is plan-routed on both
+  sides. EVM is the reference implementation Solana and NEAR were aligned to;
+  it never carried the inline `Ctx` residue. Full finding in
+  [`docs/multi-backend-moduleplan-design.md`](../multi-backend-moduleplan-design.md)
+  §14.
 
 **Touch list:**
 
