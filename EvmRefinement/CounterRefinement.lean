@@ -1085,18 +1085,16 @@ theorem counterState_of_stepFE_compBit_eq_ok
           (.CompBit (.EQ : EvmSemantics.Operation.CompareBitwiseOps) :
             EvmSemantics.Operation)) hgas).replaceStackAndIncrPC
         (EvmSemantics.UInt256.eq a b :: rest) := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterState_of_compBit_eq_ok hstack hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.CompBit (.EQ : EvmSemantics.Operation.CompareBitwiseOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_eq_ok
+      hready hdecoded hstack
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  rfl
 
 theorem counterCallStack_of_stepFE_compBit_eq_ok
     {state nextState : EvmState}
@@ -1620,18 +1618,15 @@ theorem counterState_of_stepFE_stackMemFlow_jumpdest_ok
         (EvmSemantics.EVM.Gas.baseCost state.fork
           (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps) :
             EvmSemantics.Operation)) hgas).incrPC := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterState_of_stackMemFlow_jumpdest_ok hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_jumpdest_ok hready hdecoded
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  rfl
 
 theorem counterCallStack_of_stepFE_stackMemFlow_jumpdest_ok
     {state nextState : EvmState}
@@ -1709,18 +1704,16 @@ theorem counterState_of_stepFE_stackMemFlow_jump_ok
             (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps) :
               EvmSemantics.Operation)) hgas with
         pc := dest, stack := rest } := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterState_of_stackMemFlow_jump_ok hstack hvalid hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_jump_ok
+      hready hdecoded hstack hvalid
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  rfl
 
 theorem counterCallStack_of_stepFE_stackMemFlow_jump_ok
     {state nextState : EvmState}
@@ -1805,18 +1798,16 @@ theorem counterState_of_stepFE_stackMemFlow_jumpi_taken_ok
             (.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps) :
               EvmSemantics.Operation)) hgas with
         pc := dest, stack := rest } := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterState_of_stackMemFlow_jumpi_taken_ok hstack hcond hvalid hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_jumpi_taken_ok
+      hready hdecoded hstack hcond hvalid
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  rfl
 
 theorem counterCallStack_of_stepFE_stackMemFlow_jumpi_taken_ok
     {state nextState : EvmState}

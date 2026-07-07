@@ -336,6 +336,101 @@ theorem stepFE_eq_ok
   unfold EvmSemantics.EVM.stepF.compBit
   simp [hstack]
 
+theorem stepFE_shl_ok
+    {state : State} {shift value : UInt256} {rest : List UInt256}
+    (hready :
+      StepFEReady state
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hdecoded :
+      state.decoded =
+        some (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps), none))
+    (hstack : state.stack = shift :: value :: rest) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps) :
+              Operation)) hready.gas).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.shiftLeft value shift :: rest)) := by
+  rw [stepFE_compBit_dispatch hready hdecoded]
+  unfold EvmSemantics.EVM.stepF.compBit
+  simp [hstack]
+
+theorem stepFE_shr_ok
+    {state : State} {shift value : UInt256} {rest : List UInt256}
+    (hready :
+      StepFEReady state
+        (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hdecoded :
+      state.decoded =
+        some (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps), none))
+    (hstack : state.stack = shift :: value :: rest) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps) :
+              Operation)) hready.gas).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.shiftRight value shift :: rest)) := by
+  rw [stepFE_compBit_dispatch hready hdecoded]
+  unfold EvmSemantics.EVM.stepF.compBit
+  simp [hstack]
+
+theorem stepFE_not_ok
+    {state : State} {value : UInt256} {rest : List UInt256}
+    (hready :
+      StepFEReady state
+        (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hdecoded :
+      state.decoded =
+        some (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps), none))
+    (hstack : state.stack = value :: rest) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps) :
+              Operation)) hready.gas).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.lnot value :: rest)) := by
+  rw [stepFE_compBit_dispatch hready hdecoded]
+  unfold EvmSemantics.EVM.stepF.compBit
+  simp [hstack]
+
+theorem stepFE_and_ok
+    {state : State} {a b : UInt256} {rest : List UInt256}
+    (hready :
+      StepFEReady state
+        (.CompBit (.AND : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hdecoded :
+      state.decoded =
+        some (.CompBit (.AND : EvmSemantics.Operation.CompareBitwiseOps), none))
+    (hstack : state.stack = a :: b :: rest) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.CompBit (.AND : EvmSemantics.Operation.CompareBitwiseOps) :
+              Operation)) hready.gas).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.land a b :: rest)) := by
+  rw [stepFE_compBit_dispatch hready hdecoded]
+  unfold EvmSemantics.EVM.stepF.compBit
+  simp [hstack]
+
+theorem stepFE_or_ok
+    {state : State} {a b : UInt256} {rest : List UInt256}
+    (hready :
+      StepFEReady state
+        (.CompBit (.OR : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hdecoded :
+      state.decoded =
+        some (.CompBit (.OR : EvmSemantics.Operation.CompareBitwiseOps), none))
+    (hstack : state.stack = a :: b :: rest) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.CompBit (.OR : EvmSemantics.Operation.CompareBitwiseOps) :
+              Operation)) hready.gas).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.lor a b :: rest)) := by
+  rw [stepFE_compBit_dispatch hready hdecoded]
+  unfold EvmSemantics.EVM.stepF.compBit
+  simp [hstack]
+
 theorem stepFE_add_ok
     {state : State} {a b : UInt256} {rest : List UInt256}
     (hready :
@@ -351,6 +446,25 @@ theorem stepFE_add_ok
             (.StopArith (.ADD : EvmSemantics.Operation.StopArithOps) :
               Operation)) hready.gas).replaceStackAndIncrPC
         ((a + b) :: rest)) := by
+  rw [stepFE_stopArith_dispatch hready hdecoded]
+  unfold EvmSemantics.EVM.stepF.stopArith
+  simp [hstack]
+
+theorem stepFE_sub_ok
+    {state : State} {a b : UInt256} {rest : List UInt256}
+    (hready :
+      StepFEReady state
+        (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps)))
+    (hdecoded :
+      state.decoded =
+        some (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps), none))
+    (hstack : state.stack = a :: b :: rest) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps) :
+              Operation)) hready.gas).replaceStackAndIncrPC
+        ((a - b) :: rest)) := by
   rw [stepFE_stopArith_dispatch hready hdecoded]
   unfold EvmSemantics.EVM.stepF.stopArith
   simp [hstack]
