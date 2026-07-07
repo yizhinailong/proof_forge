@@ -446,6 +446,10 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   `counterRunBytecode_stepFE_succ` — green under `lake build EvmRefinement`;
   the prepared-frame proof can now feed each successful `stepFE` opcode in the
   composed path into the fuel-bounded powdr `runBytecode` driver.
+- `counterRunBytecode_initialize_return_segment_ok` — green under
+  `lake build EvmRefinement`; the final return segment now has a
+  `runBytecode` proof from the body return jump to the halted frame using 5
+  fuel steps.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 

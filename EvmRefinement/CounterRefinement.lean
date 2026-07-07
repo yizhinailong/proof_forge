@@ -4422,6 +4422,38 @@ theorem counterInitializeReturn_preserves_storage_model_stepFE_ok
   · rw [hresult]
     exact counterInitializeObservable_of_returned_empty
 
+theorem counterRunBytecode_initialize_return_segment_ok
+    {s0 s1 s2 s3 s4 s5 : EvmState}
+    (hready0 :
+      counterStepFEReady s0
+        (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hready1 :
+      counterStepFEReady s1
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hready2 : counterStepFEReady s2 (.Push counterPush0Op))
+    (hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hready3 : counterStepFEReady s3 (.Dup counterDup1Op))
+    (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4)
+    (hready4 :
+      counterStepFEReady s4
+        (.System (.RETURN : EvmSemantics.Operation.SystemOps)))
+    (hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5) :
+    ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 5 =
+      .ok (s5, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) := by
+  rcases hready0 with ⟨hrunning0, _hprecompile0, _hstackOk0, _hgas0⟩
+  rcases hready1 with ⟨hrunning1, _hprecompile1, _hstackOk1, _hgas1⟩
+  rcases hready2 with ⟨hrunning2, _hprecompile2, _hstackOk2, _hgas2⟩
+  rcases hready3 with ⟨hrunning3, _hprecompile3, _hstackOk3, _hgas3⟩
+  rcases hready4 with ⟨hrunning4, _hprecompile4, _hstackOk4, _hgas4⟩
+  exact counterRunBytecode_stepFE_succ hrunning0 hstep0
+    (counterRunBytecode_stepFE_succ hrunning1 hstep1
+      (counterRunBytecode_stepFE_succ hrunning2 hstep2
+        (counterRunBytecode_stepFE_succ hrunning3 hstep3
+          (counterRunBytecode_stepFE_succ hrunning4 hstep4
+            (ProofForge.Backend.Evm.PowdrAdapter.runBytecode_zero s5)))))
+
 def counterPowdrPreparedTraceStep (cfg : PowdrCounterConfig) (preparedState : EvmState)
     (call : CounterCall) : Except String (EvmState × ObservableReturn) := do
   let (finalState, _observations) ←

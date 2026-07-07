@@ -366,7 +366,10 @@ surface. Remaining EVM work is E3.
   and `CounterRefinement.lean` adds
   `counterPowdrAdapter_stepF_of_stepFE_ok` plus
   `counterRunBytecode_stepFE_succ`, so the composed `stepFE` path can be fed
-  into the prepared-frame `runBytecode` driver one opcode at a time. The pinned
+  into the prepared-frame `runBytecode` driver one opcode at a time.
+  `counterRunBytecode_initialize_return_segment_ok` applies that bridge to the
+  final return segment, proving 5 fuel steps from the body return jump reach the
+  halted return frame. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
   remains an explicit trust boundary. The remaining E3 work is to discharge those
   prepared-frame storage models against the concrete runtime by connecting the
