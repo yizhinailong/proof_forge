@@ -4,6 +4,9 @@ open Lake DSL
 package «proof-forge» where
   version := v!"0.1.0"
 
+require evm_semantics from git
+  "https://github.com/powdr-labs/evm-semantics.git"@"ae13dbc506158f9d0c7e05634636b17e2bccf850"
+
 lean_lib ProofForge where
   roots := #[
     `ProofForge,
@@ -22,6 +25,11 @@ lean_lib ProofForge where
     `ProofForge.Compiler.TS.Emit,
     `ProofForge.Compiler.Psy.AST,
     `ProofForge.Compiler.Psy.Printer
+  ]
+
+lean_lib EvmRefinement where
+  roots := #[
+    `EvmRefinement.PowdrAdapter
   ]
 
 @[default_target]

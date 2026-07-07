@@ -254,14 +254,14 @@ Phase 6c simulation-prerequisite) is left to Phase 6b+.
 
 ### Phase 6b — Integrate `powdr-labs/evm-semantics` as the EVM bytecode semantics
 
-**Status: preferred target selected; default build still mathlib-free (2026-07-07).**
+**Status: preferred target selected; opt-in powdr target landed; default build still mathlib-free (2026-07-07).**
 The original `EVMYulLean` route was blocked by a Lean toolchain + mathlib
 version mismatch. That blocker is avoided by switching the refinement target to
 `powdr-labs/evm-semantics`, which pins Lean `v4.31.0` and mathlib `v4.31.0`.
 The seam at `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` now mirrors
 powdr's relational `Step`/`Eval` plus executable `stepF` shape. The external
-dependency is still deferred to an opt-in lake target so ProofForge's default
-build remains mathlib-free.
+dependency is now pinned behind the opt-in `EvmRefinement` lake target, so
+ProofForge's default build still avoids powdr/mathlib imports.
 
 - **Toolchain mismatch (the blocker).** `EVMYulLean` pins
   `leanprover/lean4:v4.22.0` in its `lean-toolchain` and
@@ -271,22 +271,26 @@ build remains mathlib-free.
   mathlib v4.22.0 will not compile under lean v4.31.0. Per the Phase 6b
   constraint, ProofForge is NOT downgraded to v4.22.0 — that would break
   the existing 378-job build.
-- **Resolution path.** Add `powdr-labs/evm-semantics` behind an opt-in
-  EVM-refinement lake target pinned to a specific commit, keep mathlib out of
-  the default target graph, and replace the seam's stub `State` / `Step` /
-  `stepF` / `runBytecode` bodies with the real `EvmSemantics` imports. Confirm
-  whether powdr exposes a Yul-level relation; otherwise the Yul→bytecode `solc`
-  step remains an explicit trust boundary.
-- **What was landed (the seam):**
+- **Resolution path.** `powdr-labs/evm-semantics` is now pinned behind the
+  opt-in `EvmRefinement` lake target at commit
+  `ae13dbc506158f9d0c7e05634636b17e2bccf850`, with mathlib pinned transitively
+  at `fabf563a7c95a166b8d7b6efca11c8b4dc9d911f`. The remaining work is to
+  replace the seam's stub `State` / `Step` / `stepF` / `runBytecode` bodies with
+  the real `EvmSemantics` imports. Confirm whether powdr exposes a Yul-level
+  relation; otherwise the Yul→bytecode `solc` step remains an explicit trust
+  boundary.
+- **What was landed:**
   - `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` (new) — stub
     adapter with the public surface aligned to `Refinement.ObservableStep`,
     `sorry`-free stub theorems (`step_noop`, `runBytecode_empty`), and a
     module docstring recording the blocker. Compiles with NO external
     dependency (imports only `ProofForge.Backend.Evm.Refinement`).
+  - `EvmRefinement/PowdrAdapter.lean` + `lakefile.lean` + `lake-manifest.json`
+    — opt-in powdr/mathlib target that imports powdr's `State`, `Step`,
+    `StepF`, `BigStep`, and `Equiv` modules and checks the real
+    `EvmSemantics.EVM.stepF_sound` surface.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
-  - Add `powdr-labs/evm-semantics` and mathlib behind an opt-in lake target.
-  - Pin the powdr commit and decide which conformance suites run in CI only.
   - Provide the real `EvmSemantics.EVM.State` / `Step` / `stepF` /
     `runBytecode` driver (the stub is in place; only the bodies need replacing).
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).

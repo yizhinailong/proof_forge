@@ -140,6 +140,10 @@ evm-bytecode-semantics-smoke:
     lake build ProofForge.Backend.Evm.EvmBytecodeSemantics
     lake env lean --run Tests/EvmBytecodeSemantics.lean
 
+# Check the opt-in powdr/mathlib EVM refinement adapter target.
+evm-powdr-adapter:
+    lake build EvmRefinement
+
 # Check the three-valued ExecResult (ok/reverted/error) classification for
 # the IR reference semantics (FV-2 revert-model prerequisite).
 ir-exec-result-smoke:

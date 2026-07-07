@@ -1,6 +1,6 @@
 # Phase 6b — EVM semantics target switch and integration blockers
 
-Status: **preferred target switched to `powdr-labs/evm-semantics`; seam only.**
+Status: **preferred target switched to `powdr-labs/evm-semantics`; opt-in target landed, seam still stubbed.**
 Date: 2026-07-07.
 RFC: RFC 0014 Phase 6b (Path 5b — Tier C-proof).
 Roadmap: `docs/tier-c-proof-feasibility.md` §5 Phase 6b.
@@ -27,18 +27,20 @@ obligation is ProofForge's (that is Phase 6c).
 A lake workspace uses **one** `lean-toolchain`. The two pinned toolchains
 differ by 9 minor versions (`v4.22.0` vs `v4.31.0`).
 
-## (b) The exact `require` syntax that would be used
+## (b) The exact `require` syntax now used
 
-The preferred `require` entry for the opt-in EVM-refinement target is (pin a
-literal commit SHA for reproducibility):
+The opt-in EVM-refinement target now pins `powdr-labs/evm-semantics` to a
+literal commit SHA for reproducibility:
 
 ```lean
 require evm_semantics from git
-  "https://github.com/powdr-labs/evm-semantics.git"@"<commit-sha>"
+  "https://github.com/powdr-labs/evm-semantics.git"@"ae13dbc506158f9d0c7e05634636b17e2bccf850"
 ```
 
-This should not be added to the default target graph until the opt-in
-mathlib-isolated build target exists.
+`lake-manifest.json` records the transitive `mathlib` pin
+`fabf563a7c95a166b8d7b6efca11c8b4dc9d911f` (`v4.31.0`). The new
+`EvmRefinement` Lake target imports powdr; the default `proof-forge` target
+does not.
 
 The old `EVMYulLean` fallback syntax, **only if its toolchain aligns**, would be:
 
@@ -64,12 +66,12 @@ EVMYulLean's own `lakefile.lean` additionally:
 
 ## (c) Integration outcome
 
-**TARGET SWITCHED, NOT WIRED.** The `EVMYulLean` integration was blocked by
-the pinned toolchain mismatch below. The preferred route is now powdr, which
-removes the toolchain blocker but still pulls mathlib. Per the task constraint
-("Do NOT break `lake build` for the existing ProofForge build"), no external
-`require` entry is added to the default `lakefile.lean`; the dependency belongs
-behind a separate opt-in EVM-refinement target.
+**TARGET SWITCHED, OPT-IN DEPENDENCY WIRED.** The `EVMYulLean` integration was
+blocked by the pinned toolchain mismatch below. The preferred route is now
+powdr, which removes the toolchain blocker but still pulls mathlib. The
+dependency is present in `lakefile.lean` and `lake-manifest.json`, but it is
+only imported by the separate opt-in `EvmRefinement` target. The default
+`proof-forge` target remains free of powdr/mathlib imports.
 
 ## (d) The precise blocker + resolution path
 
@@ -136,11 +138,10 @@ forcing a downgrade/upgrade).
 
 ### Recommended next action
 
-Add an opt-in EVM-refinement lake target that pulls `powdr-labs/evm-semantics`
-and mathlib without entering the default build graph. Pin a powdr commit,
-replace the stub `State` / `Step` / `stepF` / `runBytecode` bodies with real
-`EvmSemantics` imports, and confirm whether powdr exposes a Yul-level relation;
-otherwise document the Yul→bytecode `solc` step as an explicit trust boundary.
+Replace the stub `State` / `Step` / `stepF` / `runBytecode` bodies with real
+`EvmSemantics` imports under the opt-in adapter, then confirm whether powdr
+exposes a Yul-level relation; otherwise document the Yul→bytecode `solc` step
+as an explicit trust boundary.
 
 ## (e) Files changed (Phase 6b, blocked-seam deliverable)
 
@@ -159,8 +160,13 @@ otherwise document the Yul→bytecode `solc` step as an explicit trust boundary.
   Path 5b Phase 6b status updated to "blocked — seam only".
 - `docs/zh/rfcs/0014-unified-semantic-lowering-contract.zh.md` (modified)
   — Path 5b Phase 6b status updated (zh translation sync).
-- `lakefile.lean` — **NOT modified** (no `require` entry added; build
-  stays green).
+- `lakefile.lean` — modified to add the pinned `evm_semantics` dependency and
+  an opt-in `EvmRefinement` target; the default `proof-forge` target does not
+  import powdr/mathlib.
+- `lake-manifest.json` — records the pinned powdr/mathlib dependency graph.
+- `EvmRefinement/PowdrAdapter.lean` — opt-in adapter smoke that imports powdr's
+  `State`, `Step`, `StepF`, `BigStep`, and `Equiv` modules and wraps
+  `EvmSemantics.EVM.stepF_sound`.
 - `ProofForge/Backend/Evm/Refinement.lean` — **NOT modified** (no theorem
   touched; wiring is Phase 6c).
 - `ProofForge/IR/StepSemantics.lean` — **NOT modified** (Phase 6a
@@ -171,9 +177,9 @@ otherwise document the Yul→bytecode `solc` step as an explicit trust boundary.
 - `lake build ProofForge.Backend.Evm.EvmBytecodeSemantics` — green (the
   stub module compiles with no external dependency; only imports
   `ProofForge.Backend.Evm.Refinement` which already builds).
-- `lake build` — green (the default target is unchanged; the stub module
-  is not transitively imported by the `proof-forge` exe, and the lib root
-  `ProofForge.Backend` compiles the new module cleanly).
+- `lake build proof-forge` — green; default target does not build powdr/mathlib.
+- `lake build EvmRefinement` — green; builds the opt-in powdr/mathlib adapter
+  target.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 

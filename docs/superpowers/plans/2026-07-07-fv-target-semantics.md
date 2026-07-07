@@ -63,7 +63,7 @@ interpreters too.
 ## Task graph
 
 ```text
-P1 (shared interface, LANDED) ──→ E1 → E2 → E3   (EVM C-proof via powdr — REFERENCE, do first)
+P1 (shared interface, LANDED) ──→ E1 (LANDED) → E2 → E3   (EVM C-proof via powdr — REFERENCE, do first)
                                ├→ S1 → S2 → S3 → S4 → S5   (Solana C-diff)
                                └→ W1 → W2 → W3 → W4 → W5   (WASM C-diff)
 P2 (trace induction, landed generically) ─┬─→ S6 (Solana C-proof, copies E3)
@@ -73,9 +73,10 @@ P2 (trace induction, landed generically) ─┬─→ S6 (Solana C-proof, copies
 **EVM is the reference lane — do E1–E3 first.** EVM *imports* an external Lean semantics
 (`powdr-labs/evm-semantics`), so its C-proof lands fastest and gives Solana/WASM a worked
 template: S6/W6 copy E3's shape, swapping powdr's `Step` for the self-built
-`SbpfInterpreter` / `WasmInterpreter` `Step`. **Already LANDED** (commits `4c4ec279`…`5de2c414`):
+`SbpfInterpreter` / `WasmInterpreter` `Step`. **Already LANDED** (commits `4c4ec279`…`2fd6e9f6`):
 P1 shared interface, the generic trace induction, and the EVM seam switched to powdr's
-`State`/`Step`/`stepF` shape (`173b9d4f`, builds mathlib-free). Remaining EVM work is E1–E3.
+`State`/`Step`/`stepF` shape (`173b9d4f`, builds mathlib-free), plus E1's opt-in
+`EvmRefinement` target pinned to powdr/mathlib. Remaining EVM work is E2–E3.
 (For the self-built lanes, start with **S1** or **W1**.)
 
 ---
@@ -110,7 +111,7 @@ P1 shared interface, the generic trace induction, and the EVM seam switched to p
 > `State`/`Step`/`stepF` and builds mathlib-free (commit `173b9d4f`). E1–E3 wire the real
 > dependency and prove the first IR↔EVM refinement — the template S6/W6 then copy.
 
-## Task E1 — Opt-in lake target for `powdr-labs/evm-semantics` + mathlib (network-heavy)
+## Task E1 — Opt-in lake target for `powdr-labs/evm-semantics` + mathlib (LANDED)
 
 - **① Read first:** `docs/phase-6b-integration-blockers.md` §(b) `require` syntax + §(d)
   resolution path #0 + "Recommended next action"; `docs/tier-c-proof-feasibility.md` §2.
@@ -123,6 +124,11 @@ P1 shared interface, the generic trace induction, and the EVM seam switched to p
   `mathlib @ v4.31.0`). Run `lake update` in a **network** environment; capture the pinned
   commit into `lake-manifest.json`. The default `lake build` / `just check` MUST stay
   mathlib-free and green.
+- **Landed:** `lakefile.lean` pins powdr
+  `ae13dbc506158f9d0c7e05634636b17e2bccf850`; `lake-manifest.json` records
+  mathlib `fabf563a7c95a166b8d7b6efca11c8b4dc9d911f`; `EvmRefinement/PowdrAdapter.lean`
+  imports powdr's `State`, `Step`, `StepF`, `BigStep`, and `Equiv` modules and wraps
+  `EvmSemantics.EVM.stepF_sound`.
 - **Acceptance:** default `lake build` unchanged (mathlib-free, green); the opt-in
   `EvmRefinement` target resolves and builds powdr + mathlib in a network env; the pinned
   commit is recorded in `lake-manifest.json`.
