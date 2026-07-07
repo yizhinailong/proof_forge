@@ -1120,8 +1120,17 @@ theorem counterPowdr_safe_trace_simulates_after_initialize_from_obligations
 abbrev CounterCompiledPowdrEntrypointObligations :=
   CounterPowdrEntrypointObligations counterCompiledPowdrConfig
 
+abbrev CounterCompiledPowdrEvmPostconditions :=
+  CounterPowdrEvmPostconditions counterCompiledPowdrConfig
+
 abbrev CounterCompiledPowdrSafeEntrypointObligations :=
   CounterPowdrSafeEntrypointObligations counterCompiledPowdrConfig
+
+def counterCompiledPowdrSafeEntrypointObligationsOfPostconditions
+    (post : CounterCompiledPowdrEvmPostconditions) :
+    CounterCompiledPowdrSafeEntrypointObligations :=
+  counterPowdrSafeEntrypointObligationsOfPostconditions
+    counterCompiledPowdrConfig post
 
 theorem counterCompiledPowdr_trace_simulates_after_initialize_from_obligations
     (obligations : CounterCompiledPowdrEntrypointObligations)
