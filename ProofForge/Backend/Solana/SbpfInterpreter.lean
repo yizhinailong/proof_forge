@@ -20,6 +20,9 @@ def Memory.read (memory : Memory) (addr : Nat) : Nat :=
   | some entry => entry.snd
   | none => 0
 
+def Memory.read? (memory : Memory) (addr : Nat) : Option Nat :=
+  memory.find? (fun entry => entry.fst == addr) |>.map fun entry => entry.snd
+
 def Memory.write (memory : Memory) (addr value : Nat) : Memory :=
   (memory.filter (fun entry => entry.fst != addr)).push (addr, value)
 
@@ -432,6 +435,22 @@ def R (module : Module) (stateId : String)
   match irU64State? irState stateId, stateFieldOffset? module stateId with
   | some expected, some offset => sbpfState.memory.read offset == expected
   | _, _ => false
+
+/-- Optional scalar-storage relation for trace-start states.
+
+The strict `R` relation above is useful after a scalar has been written. For a
+whole Counter trace, the initial IR state and target account data are both
+missing the `count` cell before `initialize`; this optional relation treats
+missing/missing as related and then compares concrete U64 words after writes. -/
+def RMemoryOptional (module : Module) (stateId : String)
+    (irState : ProofForge.IR.Semantics.State) (memory : Memory) : Bool :=
+  match stateFieldOffset? module stateId with
+  | some offset => memory.read? offset == irU64State? irState stateId
+  | none => false
+
+def ROptional (module : Module) (stateId : String)
+    (irState : ProofForge.IR.Semantics.State) (sbpfState : SbpfState) : Bool :=
+  RMemoryOptional module stateId irState sbpfState.memory
 
 def runIrEntrypointState (state : ProofForge.IR.Semantics.State)
     (entrypoint : Entrypoint) : Except String ProofForge.IR.Semantics.State :=

@@ -524,6 +524,19 @@ def R (mod : ProofForge.IR.Module) (stateId : String)
       | none => false
   | _, _ => false
 
+/-- Optional scalar-storage relation for trace-start states.
+
+`R` above is the post-write relation used by the existing Counter point checks:
+it requires both sides to contain the scalar. For paired trace simulation we
+also need the initial empty/empty state to be related before `initialize`, so
+this relation compares the optional IR binding with the optional host-storage
+word at the same layout key. -/
+def ROptional (mod : ProofForge.IR.Module) (stateId : String)
+    (irState : ProofForge.IR.Semantics.State) (wasmState : WasmState) : Bool :=
+  match storageKeyBytes? mod stateId with
+  | some key => hostStorageU64? wasmState.host key == irU64State? irState stateId
+  | none => false
+
 def runIrEntrypointState (state : ProofForge.IR.Semantics.State)
     (entrypoint : Entrypoint) : Except String ProofForge.IR.Semantics.State :=
   match ProofForge.IR.Semantics.runEntrypointWithArgsResult state entrypoint #[] with

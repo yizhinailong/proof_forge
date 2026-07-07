@@ -184,6 +184,85 @@ def wasmNearTargetSemantics : TargetSemantics := {
   executableTraceOk := wasmExecutableTraceOk
 }
 
+def counterWasmSimulationRel
+    (irState : ProofForge.IR.Semantics.State)
+    (machine : WasmNearMachineState) : Bool :=
+  ProofForge.Backend.WasmNear.WasmInterpreter.ROptional
+    ProofForge.IR.Examples.Counter.module "count" irState machine.state
+
+def counterWasmTraceSimulationOk : Bool :=
+  match ProofForge.Backend.WasmNear.EmitWat.lowerModule
+      ProofForge.IR.Examples.Counter.module with
+  | .error _ => false
+  | .ok wasm =>
+      executableSimulationTraceOk
+        runEntrypointObservable
+        WasmNearMachineState.traceStep
+        counterWasmSimulationRel
+        counterTraceObligation.calls.toList
+        ProofForge.IR.Semantics.State.empty
+        { wasm, state := ProofForge.Backend.WasmNear.WasmInterpreter.initialState wasm }
+
+theorem counter_wasm_trace_simulation_ok :
+    counterWasmTraceSimulationOk = true := by
+  native_decide
+
+theorem counter_wasm_trace_simulation_sound :
+    counterWasmTraceSimulationOk = true →
+      match ProofForge.Backend.WasmNear.EmitWat.lowerModule
+          ProofForge.IR.Examples.Counter.module with
+      | .error _ => True
+      | .ok wasm =>
+          ∃ finalIr finalTarget observables,
+            ProofForge.IR.StepSemantics.runTraceListGen
+              runEntrypointObservable
+              counterTraceObligation.calls.toList
+              ProofForge.IR.Semantics.State.empty =
+                .ok (finalIr, observables) ∧
+            ProofForge.IR.StepSemantics.runTraceListGen
+              WasmNearMachineState.traceStep
+              counterTraceObligation.calls.toList
+              { wasm,
+                state := ProofForge.Backend.WasmNear.WasmInterpreter.initialState wasm } =
+                .ok (finalTarget, observables) ∧
+            counterWasmSimulationRel finalIr finalTarget = true := by
+  intro h
+  unfold counterWasmTraceSimulationOk at h
+  cases hmod : ProofForge.Backend.WasmNear.EmitWat.lowerModule
+      ProofForge.IR.Examples.Counter.module with
+  | error _ =>
+      trivial
+  | ok wasm =>
+      simp [hmod] at h
+      exact executableSimulationTraceOk_sound
+        runEntrypointObservable
+        WasmNearMachineState.traceStep
+        counterWasmSimulationRel
+        counterTraceObligation.calls.toList
+        ProofForge.IR.Semantics.State.empty
+        { wasm, state := ProofForge.Backend.WasmNear.WasmInterpreter.initialState wasm }
+        h
+
+theorem counter_wasm_trace_simulation_sound_checked :
+    match ProofForge.Backend.WasmNear.EmitWat.lowerModule
+        ProofForge.IR.Examples.Counter.module with
+    | .error _ => True
+    | .ok wasm =>
+        ∃ finalIr finalTarget observables,
+          ProofForge.IR.StepSemantics.runTraceListGen
+            runEntrypointObservable
+            counterTraceObligation.calls.toList
+            ProofForge.IR.Semantics.State.empty =
+              .ok (finalIr, observables) ∧
+          ProofForge.IR.StepSemantics.runTraceListGen
+            WasmNearMachineState.traceStep
+            counterTraceObligation.calls.toList
+            { wasm,
+              state := ProofForge.Backend.WasmNear.WasmInterpreter.initialState wasm } =
+              .ok (finalTarget, observables) ∧
+          counterWasmSimulationRel finalIr finalTarget = true :=
+  counter_wasm_trace_simulation_sound counter_wasm_trace_simulation_ok
+
 def emitWatKeyBuf : Nat := ProofForge.Backend.WasmNear.Memory.KEY_BUF
 def emitWatRetBuf : Nat := ProofForge.Backend.WasmNear.Memory.RET_BUF
 def emitWatEventBuf : Nat := ProofForge.Backend.WasmNear.Memory.EVENT_BUF

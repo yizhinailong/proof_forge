@@ -296,6 +296,80 @@ theorem traceSimulation_lift {IRState TargetState Call Obs : Type}
       · exact runTraceListGen_cons_ok targetStep call rest targetState nextTarget observable
           finalTarget restObservables htargetStep htargetRest
 
+/-- Executable paired-step simulation check.
+
+This is the C-diff companion to `traceSimulation_lift`: it runs the IR and
+target steps in lockstep over a concrete call list, requiring equal
+observables and `Rel` after every step. It is intentionally fuel/runner
+agnostic; each target supplies its own `targetStep`. -/
+def executableSimulationTraceOk {IRState TargetState Call Obs : Type}
+    [DecidableEq Obs]
+    (irStep : IRState → Call → Except String (IRState × Obs))
+    (targetStep : TargetState → Call → Except String (TargetState × Obs))
+    (Rel : IRState → TargetState → Bool) :
+    List Call → IRState → TargetState → Bool
+  | [], irState, targetState => Rel irState targetState
+  | call :: rest, irState, targetState =>
+      match irStep irState call, targetStep targetState call with
+      | .ok (nextIr, irObs), .ok (nextTarget, targetObs) =>
+          if irObs = targetObs then
+            Rel nextIr nextTarget &&
+              executableSimulationTraceOk irStep targetStep Rel rest nextIr nextTarget
+          else
+            false
+      | _, _ => false
+
+/-- Soundness of the executable paired-step checker.
+
+A `native_decide` proof of `executableSimulationTraceOk = true` yields actual
+Lean evidence that the IR and target runners produce the same observable
+array, with `Rel` holding at the final states. This is still pointwise in the
+chosen initial states and call list; universal target proofs must prove the
+per-step premise required by `traceSimulation_lift`. -/
+theorem executableSimulationTraceOk_sound {IRState TargetState Call Obs : Type}
+    [DecidableEq Obs]
+    (irStep : IRState → Call → Except String (IRState × Obs))
+    (targetStep : TargetState → Call → Except String (TargetState × Obs))
+    (Rel : IRState → TargetState → Bool)
+    (calls : List Call) (irState : IRState) (targetState : TargetState)
+    (h : executableSimulationTraceOk irStep targetStep Rel calls irState targetState = true) :
+    ∃ finalIr finalTarget observables,
+      runTraceListGen irStep calls irState = .ok (finalIr, observables) ∧
+      runTraceListGen targetStep calls targetState = .ok (finalTarget, observables) ∧
+      Rel finalIr finalTarget = true := by
+  induction calls generalizing irState targetState with
+  | nil =>
+      refine ⟨irState, targetState, #[], rfl, rfl, h⟩
+  | cons call rest ih =>
+      unfold executableSimulationTraceOk at h
+      cases hir : irStep irState call with
+      | error _ =>
+          simp [hir] at h
+      | ok irResult =>
+          cases htarget : targetStep targetState call with
+          | error _ =>
+              simp [hir, htarget] at h
+          | ok targetResult =>
+              rcases irResult with ⟨nextIr, irObs⟩
+              rcases targetResult with ⟨nextTarget, targetObs⟩
+              by_cases hobs : irObs = targetObs
+              · simp [hir, htarget, hobs] at h
+                have hrest :
+                    executableSimulationTraceOk irStep targetStep Rel rest nextIr nextTarget = true := by
+                  cases hrelNext : Rel nextIr nextTarget <;> simp [hrelNext] at h
+                  exact h
+                obtain ⟨finalIr, finalTarget, restObservables, hirRest,
+                  htargetRest, hrelFinal⟩ :=
+                  ih nextIr nextTarget hrest
+                refine ⟨finalIr, finalTarget, #[irObs] ++ restObservables, ?_, ?_,
+                  hrelFinal⟩
+                · exact runTraceListGen_cons_ok irStep call rest irState nextIr irObs
+                    finalIr restObservables hir hirRest
+                · rw [hobs]
+                  exact runTraceListGen_cons_ok targetStep call rest targetState
+                    nextTarget targetObs finalTarget restObservables htarget htargetRest
+              · simp [hir, htarget, hobs] at h
+
 def TargetSemantics.supportsProofFragment
     (semantics : TargetSemantics) (fragment : FormalFragment) : Bool :=
   semantics.supportedFragments.any (fun supported => supported == fragment)

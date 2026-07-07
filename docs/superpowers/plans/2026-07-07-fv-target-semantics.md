@@ -208,12 +208,17 @@ These are lower-priority; they build on the C-diff tasks above.
   provides `traceSimulation_lift`, the reusable S6/W6 induction lemma: if every atomic
   IR/target call preserves `R` and emits the same observable, then the whole call list
   emits the same observable array. `CounterUniversal.lean` instantiates this as
-  `counter_trace_simulates_all_related_via_framework`.
+  `counter_trace_simulates_all_related_via_framework`. The same core module now also
+  provides `executableSimulationTraceOk_sound`, which converts a concrete paired-step
+  executable check into Lean evidence of matching observable arrays plus final relation.
 - **S6 / W6 — refinement lemmas:** per-entrypoint simulation
   `R s s' → R (stepIR …) (runTarget …)`, then apply `traceSimulation_lift` to get
-  whole-trace equality by induction over the call list. The shared lift is landed; the
-  remaining target-specific work is to replace the current pointwise `native_decide` `R`
-  checks with real per-entrypoint simulation lemmas for the sBPF and Wasm interpreters.
+  whole-trace equality by induction over the call list. The shared lift is landed, and
+  both real target runners now have the first Counter paired-step soundness checks:
+  `counter_sbpf_trace_simulation_sound_checked` and
+  `counter_wasm_trace_simulation_sound_checked`. The remaining target-specific work is
+  to replace these fixed-trace paired checks with real per-entrypoint simulation lemmas
+  for the sBPF and Wasm interpreters.
   Depends on P1 + P2 + (S3 / W5).
 - **S4 / S5 — Solana deeper slices:** ValueVault multiple scalar slots (S4), then
   maps/arrays by porting the IR storage-slot model to sBPF scratch memory (S5).

@@ -129,6 +129,96 @@ def counterTraceObligation : TraceObligation := {
   expected := counterExpectedTrace
 }
 
+def counterSbpfSimulationRel
+    (irState : ProofForge.IR.Semantics.State)
+    (machine : SolanaSbpfMachineState) : Bool :=
+  ProofForge.Backend.Solana.SbpfInterpreter.RMemoryOptional
+    ProofForge.IR.Examples.Counter.module "count" irState machine.memory
+
+def counterSbpfTraceSimulationOk : Bool :=
+  match ProofForge.Backend.Solana.SbpfAsm.lowerModule
+      ProofForge.IR.Examples.Counter.module with
+  | .error _ => false
+  | .ok nodes =>
+      let program := ProofForge.Backend.Solana.SbpfInterpreter.collectProgram nodes
+      executableSimulationTraceOk
+        runEntrypointObservable
+        SolanaSbpfMachineState.traceStep
+        counterSbpfSimulationRel
+        counterTraceObligation.calls.toList
+        ProofForge.IR.Semantics.State.empty
+        { program,
+          module := ProofForge.IR.Examples.Counter.module,
+          memory := #[] }
+
+theorem counter_sbpf_trace_simulation_ok :
+    counterSbpfTraceSimulationOk = true := by
+  native_decide
+
+theorem counter_sbpf_trace_simulation_sound :
+    counterSbpfTraceSimulationOk = true →
+      match ProofForge.Backend.Solana.SbpfAsm.lowerModule
+          ProofForge.IR.Examples.Counter.module with
+      | .error _ => True
+      | .ok nodes =>
+          let program := ProofForge.Backend.Solana.SbpfInterpreter.collectProgram nodes
+          ∃ finalIr finalTarget observables,
+            ProofForge.IR.StepSemantics.runTraceListGen
+              runEntrypointObservable
+              counterTraceObligation.calls.toList
+              ProofForge.IR.Semantics.State.empty =
+                .ok (finalIr, observables) ∧
+            ProofForge.IR.StepSemantics.runTraceListGen
+              SolanaSbpfMachineState.traceStep
+              counterTraceObligation.calls.toList
+              { program,
+                module := ProofForge.IR.Examples.Counter.module,
+                memory := #[] } =
+                .ok (finalTarget, observables) ∧
+            counterSbpfSimulationRel finalIr finalTarget = true := by
+  intro h
+  unfold counterSbpfTraceSimulationOk at h
+  cases hmod : ProofForge.Backend.Solana.SbpfAsm.lowerModule
+      ProofForge.IR.Examples.Counter.module with
+  | error _ =>
+      trivial
+  | ok nodes =>
+      simp [hmod] at h
+      exact executableSimulationTraceOk_sound
+        runEntrypointObservable
+        SolanaSbpfMachineState.traceStep
+        counterSbpfSimulationRel
+        counterTraceObligation.calls.toList
+        ProofForge.IR.Semantics.State.empty
+        {
+          program := ProofForge.Backend.Solana.SbpfInterpreter.collectProgram nodes,
+          module := ProofForge.IR.Examples.Counter.module,
+          memory := #[]
+        }
+        h
+
+theorem counter_sbpf_trace_simulation_sound_checked :
+    match ProofForge.Backend.Solana.SbpfAsm.lowerModule
+        ProofForge.IR.Examples.Counter.module with
+    | .error _ => True
+    | .ok nodes =>
+        let program := ProofForge.Backend.Solana.SbpfInterpreter.collectProgram nodes
+        ∃ finalIr finalTarget observables,
+          ProofForge.IR.StepSemantics.runTraceListGen
+            runEntrypointObservable
+            counterTraceObligation.calls.toList
+            ProofForge.IR.Semantics.State.empty =
+              .ok (finalIr, observables) ∧
+          ProofForge.IR.StepSemantics.runTraceListGen
+            SolanaSbpfMachineState.traceStep
+            counterTraceObligation.calls.toList
+            { program,
+              module := ProofForge.IR.Examples.Counter.module,
+              memory := #[] } =
+              .ok (finalTarget, observables) ∧
+          counterSbpfSimulationRel finalIr finalTarget = true :=
+  counter_sbpf_trace_simulation_sound counter_sbpf_trace_simulation_ok
+
 def valueVaultEntrypointD (entrypointName : String) : Entrypoint :=
   match ProofForge.Contract.Examples.ValueVaultInvariant.module.entrypoints.find?
       (fun entrypoint => entrypoint.name == entrypointName) with

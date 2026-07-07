@@ -63,6 +63,8 @@ theorem release_then_sum_ownership_ok :
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_offline_host_execution_surface_ok
 #check ProofForge.Backend.WasmNear.WasmInterpreter.counter_interpreter_smoke_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_wasm_executable_trace_ok
+#check ProofForge.Backend.WasmNear.Refinement.counter_wasm_trace_simulation_ok
+#check ProofForge.Backend.WasmNear.Refinement.counter_wasm_trace_simulation_sound_checked
 #check ProofForge.Backend.WasmNear.WasmInterpreter.counter_R_after_initialize_ok
 #check ProofForge.Backend.WasmNear.WasmInterpreter.counter_R_after_increment_ok
 #check ProofForge.Backend.WasmNear.Refinement.counter_emitwat_offline_host_return_payload_hex_ok
@@ -107,5 +109,5 @@ theorem release_then_sum_ownership_ok :
 end ProofForge.Tests.NearWasmFormal
 
 def main : IO UInt32 := do
-  IO.println "formal-anchors: ValueVault FV-8 IR invariants, NEAR artifact/offline-host/Counter+ValueVault+array/map executable-trace/import-signature/input-frame/context-frame/storage-read-key-frame/storage-write-key-value-frame/host-frame/memory-layout/return-payload-hex/storage-snapshot/storage-hex/log-payload-hex backend surfaces, and EVM FV-2/FV-4 IR trace anchors checked"
+  IO.println "formal-anchors: ValueVault FV-8 IR invariants, NEAR artifact/offline-host/Counter+ValueVault+array/map executable traces, Counter paired simulation, backend surfaces, and EVM FV-2/FV-4 IR trace anchors checked"
   return 0

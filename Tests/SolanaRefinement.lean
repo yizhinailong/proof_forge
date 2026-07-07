@@ -24,6 +24,8 @@ open ProofForge.Backend.Solana.SbpfInterpreter
 -- lowered AST to the same observable trace as the IR reference semantics.
 #check counter_interpreter_smoke_ok
 #check counter_sbpf_executable_trace_ok
+#check counter_sbpf_trace_simulation_ok
+#check counter_sbpf_trace_simulation_sound_checked
 #check value_vault_ir_observable_trace_ok
 #check value_vault_sbpf_executable_trace_ok
 #check array_storage_ir_observable_trace_ok
@@ -43,5 +45,5 @@ open ProofForge.Backend.Solana.SbpfInterpreter
 end ProofForge.Tests.SolanaRefinement
 
 def main : IO UInt32 := do
-  IO.println "solana-refinement-smoke: Counter + ValueVault + array/map IR/sBPF executable traces, Counter scalar R, and revert rollback checked via native_decide"
+  IO.println "solana-refinement-smoke: Counter + ValueVault + array/map IR/sBPF executable traces, Counter paired simulation, scalar R, and revert rollback checked"
   return 0
