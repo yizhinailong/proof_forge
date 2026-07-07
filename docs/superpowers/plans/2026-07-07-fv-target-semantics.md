@@ -179,7 +179,10 @@ surface. Remaining EVM work is E3.
   calls, and proves that preparation preserves `CounterStorageRel`. It also embeds the
   current CLI-generated Counter runtime bytecode as `counterCompiledRuntimeCode`, proves
   its size and selector offsets, exposes `counterCompiledPowdrConfig`, and adds the
-  opt-in `just evm-powdr-counter-runtime` drift gate. It now exposes
+  opt-in `just evm-powdr-counter-runtime` drift gate. The compiled-runtime path also
+  exposes `counterCompiledPowdrTargetSemantics` and
+  `counterCompiledPowdr_trace_simulates_after_initialize_from_obligations`, so the next
+  proof obligation is specialized to the real Counter runtime witness. It now exposes
   `counterPowdrTraceStep` / `counterPowdrTargetSemantics`, which run prepared Counter
   calls through powdr `runBytecode`, project EVM results to Counter observables, and prove
   successful trace steps are backed by powdr `Steps` with the stated observable projection;

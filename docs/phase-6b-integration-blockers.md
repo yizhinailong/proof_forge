@@ -173,7 +173,9 @@ Yul→bytecode `solc` step as an explicit trust boundary.
 - `EvmRefinement/CounterRefinement.lean` — opt-in Counter relation layer that
   maps IR `count` to the powdr account storage word at ProofForge's EVM scalar
   slot 0, embeds the current CLI-generated Counter runtime bytecode witness,
-  proves its selector offsets, and exposes the compiled-runtime powdr config.
+  proves its selector offsets, exposes the compiled-runtime powdr config, and
+  specializes the initialize-prefixed trace theorem to that concrete runtime
+  target.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.

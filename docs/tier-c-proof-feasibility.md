@@ -301,7 +301,11 @@ ProofForge's default build still avoids powdr/mathlib imports.
     storage relation. It now embeds the current CLI-generated Counter runtime
     bytecode witness, proves its size and selector offsets, exposes
     `counterCompiledPowdrConfig`, and adds the opt-in
-    `just evm-powdr-counter-runtime` drift gate. The module now exposes a
+    `just evm-powdr-counter-runtime` drift gate. The compiled-runtime path also
+    exposes `counterCompiledPowdrTargetSemantics` and
+    `counterCompiledPowdr_trace_simulates_after_initialize_from_obligations`, so
+    the next proof obligation is specialized to the real Counter runtime
+    witness. The module now exposes a
     powdr-backed Counter trace-step surface and proves successful trace steps
     are backed by powdr `Steps` plus the stated observable projection; the
     executable trace gate remains disabled
