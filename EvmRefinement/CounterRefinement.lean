@@ -8009,6 +8009,226 @@ theorem counterCompiledPreparedInitialize_first_four_path_ok
         (.cons hready3.1 hstep3
           (.nil s4))))
 
+theorem counterCompiledPreparedInitialize_fifth_ready
+    {preparedState s1 s2 s3 s4 : EvmState}
+    (hprepared :
+      CounterPreparedCall counterCompiledPowdrConfig .initialize preparedState)
+    (hstep0 : EvmSemantics.EVM.stepFE preparedState = .ok s1)
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4) :
+    counterStepFEReady s4 (.Dup counterDup1Op) := by
+  obtain ⟨hat0, hstack0, hcalldata0, _haddr0, _hcallStack0⟩ :=
+    counterCompiledPreparedInitialize_entry_facts hprepared
+  have hready0 := counterCompiledPreparedInitialize_first_ready hprepared
+  have hready0ForState := hready0
+  rcases hready0 with ⟨hrunning0, hprecompile0, hstackOk0, hgas0⟩
+  have hstate1 :=
+    counterState_of_stepFE_push0_ok hrunning0 hprecompile0
+      (counterPreparedDispatcherFirstPush0_decoded hat0) hstackOk0 hgas0 hstep0
+  obtain ⟨hat1, _hdecoded1, hstack1, hcalldata1⟩ :=
+    counterState_of_dispatcher_first_push0_stepFE_to_calldataload_ok
+      hstack0 hat0 hready0ForState hstep0
+  have hready1 := counterCompiledPreparedInitialize_second_ready hprepared hstep0
+  have hready1ForState := hready1
+  rcases hready1 with ⟨hrunning1, hprecompile1, hstackOk1, hgas1⟩
+  have hstate2 :=
+    counterState_of_stepFE_env_calldataload_ok hrunning1 hprecompile1
+      (counterPreparedDispatcherCalldataload_decoded hat1)
+      (by simpa using hstack1) hstackOk1 hgas1 hstep1
+  obtain ⟨hat2, _hdecoded2, hstack2⟩ :=
+    counterState_of_dispatcher_calldataload_stepFE_to_shift_push_ok
+      (by simpa using hstack1) (hcalldata1.trans hcalldata0) hat1
+      hready1ForState hstep1
+  have hready2 := counterCompiledPreparedInitialize_third_ready
+    hprepared hstep0 hstep1
+  have hready2ForState := hready2
+  rcases hready2 with ⟨hrunning2, hprecompile2, hstackOk2, hgas2⟩
+  have hstate3 :=
+    counterState_of_stepFE_push1_ok hrunning2 hprecompile2
+      (counterPreparedDispatcherSelectorShiftPush224_decoded hat2)
+      hstackOk2 hgas2 hstep2
+  obtain ⟨hat3, _hdecoded3, hstack3⟩ :=
+    counterState_of_dispatcher_selector_shift_push_stepFE_to_shr_ok
+      hstack2 hat2 hready2ForState hstep2
+  have hready3 :=
+    counterCompiledPreparedInitialize_fourth_ready hprepared hstep0 hstep1 hstep2
+  rcases hready3 with ⟨hrunning3, hprecompile3, hstackOk3, hgas3⟩
+  have hstate4 :=
+    counterState_of_stepFE_compBit_shr_ok hrunning3 hprecompile3
+      (counterPreparedDispatcherSelectorShr_decoded hat3)
+      hstack3 hstackOk3 hgas3 hstep3
+  rcases hprepared with ⟨sourceState, rfl⟩
+  have hs1Fork : s1.fork = EvmSemantics.Fork.Cancun := by
+    rw [hstate1]
+    simp [counterCompiledPowdrConfig, prepareCounterCall, counterCallExecutionEnv,
+      EvmSemantics.EVM.State.fork, EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC]
+  have hs1Gas :
+      s1.gasAvailable =
+        counterRuntimeGasAvailable -
+          EvmSemantics.EVM.Gas.baseCost EvmSemantics.Fork.Cancun
+            (.Push counterPush0Op : EvmSemantics.Operation) := by
+    rw [hstate1]
+    simp [counterCompiledPowdrConfig, prepareCounterCall, counterCallExecutionEnv,
+      EvmSemantics.EVM.State.fork, EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC]
+  have hs2Fork : s2.fork = EvmSemantics.Fork.Cancun := by
+    rw [hstate2]
+    simp [EvmSemantics.EVM.State.fork, EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC, hs1Fork]
+  have hs2Gas :
+      s2.gasAvailable =
+        counterRuntimeGasAvailable -
+          EvmSemantics.EVM.Gas.baseCost EvmSemantics.Fork.Cancun
+            (.Push counterPush0Op : EvmSemantics.Operation) -
+          EvmSemantics.EVM.Gas.baseCost EvmSemantics.Fork.Cancun
+            (.Env (.CALLDATALOAD : EvmSemantics.Operation.EnvOps) :
+              EvmSemantics.Operation) := by
+    rw [hstate2]
+    simp [EvmSemantics.EVM.State.fork, EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC, hs1Fork, hs1Gas]
+  have hs3Fork : s3.fork = EvmSemantics.Fork.Cancun := by
+    rw [hstate3]
+    simp [EvmSemantics.EVM.State.fork, EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC, hs2Fork]
+  have hs3Gas :
+      s3.gasAvailable =
+        counterRuntimeGasAvailable -
+          EvmSemantics.EVM.Gas.baseCost EvmSemantics.Fork.Cancun
+            (.Push counterPush0Op : EvmSemantics.Operation) -
+          EvmSemantics.EVM.Gas.baseCost EvmSemantics.Fork.Cancun
+            (.Env (.CALLDATALOAD : EvmSemantics.Operation.EnvOps) :
+              EvmSemantics.Operation) -
+          EvmSemantics.EVM.Gas.baseCost EvmSemantics.Fork.Cancun
+            (.Push counterPush1Op : EvmSemantics.Operation) := by
+    rw [hstate3]
+    simp [EvmSemantics.EVM.State.fork, EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC, hs2Fork, hs2Gas]
+  rw [hstate4]
+  unfold counterStepFEReady
+  simp [counterRuntimeGasAvailable, EvmSemantics.EVM.State.fork,
+    EvmSemantics.EVM.State.consumeGas, EvmSemantics.EVM.State.replaceStackAndIncrPC,
+    hrunning3, hs3Fork, hs3Gas, hstack3]
+  constructor
+  · simpa [EvmSemantics.EVM.State.fork, hs3Fork] using hprecompile3
+  · constructor
+    · native_decide
+    · native_decide
+
+theorem counterCompiledPreparedInitialize_first_five_stepFE_ok
+    {preparedState : EvmState}
+    (hprepared :
+      CounterPreparedCall counterCompiledPowdrConfig .initialize preparedState) :
+    ∃ s1 s2 s3 s4 s5,
+      EvmSemantics.EVM.stepFE preparedState = .ok s1 ∧
+      EvmSemantics.EVM.stepFE s1 = .ok s2 ∧
+      EvmSemantics.EVM.stepFE s2 = .ok s3 ∧
+      EvmSemantics.EVM.stepFE s3 = .ok s4 ∧
+      EvmSemantics.EVM.stepFE s4 = .ok s5 ∧
+      counterCompiledStateAt s5 6 ∧
+      s5.decoded =
+        some (.Push counterPush4Op,
+          some (EvmSemantics.UInt256.ofNat counterInitializeSelectorNat, 4)) ∧
+      s5.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeSelectorNat ::
+          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: [] := by
+  obtain ⟨s1, s2, s3, s4, hstep0, hstep1, hstep2, hstep3,
+      hat4, hdecoded4, hstack4⟩ :=
+    counterCompiledPreparedInitialize_first_four_stepFE_ok hprepared
+  have hready4 :=
+    counterCompiledPreparedInitialize_fifth_ready hprepared
+      hstep0 hstep1 hstep2 hstep3
+  have hreadyForHelper := hready4
+  rcases hready4 with ⟨hrunning4, hprecompile4, hstackOk4, hgas4⟩
+  let s5 :=
+    (s4.consumeGas
+      (EvmSemantics.EVM.Gas.baseCost s4.fork
+        (.Dup counterDup1Op : EvmSemantics.Operation)) hgas4).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.ofNat counterInitializeSelectorNat ::
+          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: [])
+  have hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5 := by
+    unfold s5
+    unfold EvmSemantics.EVM.stepFE
+    simp only [Id.run]
+    split
+    · split
+      · rename_i hprecompileActual
+        rw [hprecompile4] at hprecompileActual
+        contradiction
+      · simp [hdecoded4, EvmSemantics.EVM.stepF.dup, counterDup1Op]
+        by_cases hoverflow :
+            1024 + (EvmSemantics.Operation.Dup counterDup1Op).popArity <
+              s4.stack.length +
+                (EvmSemantics.Operation.Dup counterDup1Op).pushArity
+        · rw [hstack4] at hoverflow
+          have hnoOverflow :
+              ¬ 1024 + (EvmSemantics.Operation.Dup counterDup1Op).popArity <
+                1 + (EvmSemantics.Operation.Dup counterDup1Op).pushArity := by
+            native_decide
+          exact False.elim (hnoOverflow hoverflow)
+        ·
+          have hgasIf :
+              EvmSemantics.EVM.Gas.baseCost (EvmSemantics.EVM.State.fork s4)
+                  (EvmSemantics.Operation.Dup counterDup1Op) ≤
+                s4.gasAvailable := by
+            simpa using hgas4
+          have hnoOverflowConcrete :
+              ¬ 1024 + (EvmSemantics.Operation.Dup { idx := 0 }).popArity <
+                1 + (EvmSemantics.Operation.Dup { idx := 0 }).pushArity := by
+            native_decide
+          have hgasIfConcrete :
+              EvmSemantics.EVM.Gas.baseCost (EvmSemantics.EVM.State.fork s4)
+                  (EvmSemantics.Operation.Dup { idx := 0 }) ≤
+                s4.gasAvailable := by
+            change EvmSemantics.EVM.Gas.baseCost (EvmSemantics.EVM.State.fork s4)
+                  (EvmSemantics.Operation.Dup counterDup1Op) ≤
+                s4.gasAvailable
+            exact hgas4
+          simp [hnoOverflowConcrete, hgasIfConcrete, hstack4,
+            EvmSemantics.EVM.State.consumeGas,
+            EvmSemantics.EVM.State.replaceStackAndIncrPC]
+    · rename_i hnotRunning
+      rw [hrunning4] at hnotRunning
+      contradiction
+  obtain ⟨hat5, hdecoded5, hstack5⟩ :=
+    counterState_of_dispatcher_selector_dup_stepFE_to_selector_push_ok
+      hstack4 hat4 hreadyForHelper hstep4
+  exact ⟨s1, s2, s3, s4, s5, hstep0, hstep1, hstep2, hstep3, hstep4,
+    hat5, hdecoded5, by simpa using hstack5⟩
+
+theorem counterCompiledPreparedInitialize_first_five_path_ok
+    {preparedState : EvmState}
+    (hprepared :
+      CounterPreparedCall counterCompiledPowdrConfig .initialize preparedState) :
+    ∃ s5,
+      EvmStepFEPath preparedState 5 s5 ∧
+      counterCompiledStateAt s5 6 ∧
+      s5.decoded =
+        some (.Push counterPush4Op,
+          some (EvmSemantics.UInt256.ofNat counterInitializeSelectorNat, 4)) ∧
+      s5.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeSelectorNat ::
+          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: [] := by
+  obtain ⟨s1, s2, s3, s4, s5, hstep0, hstep1, hstep2, hstep3, hstep4,
+      hat5, hdecoded5, hstack5⟩ :=
+    counterCompiledPreparedInitialize_first_five_stepFE_ok hprepared
+  have hready0 := counterCompiledPreparedInitialize_first_ready hprepared
+  have hready1 := counterCompiledPreparedInitialize_second_ready hprepared hstep0
+  have hready2 := counterCompiledPreparedInitialize_third_ready hprepared hstep0 hstep1
+  have hready3 :=
+    counterCompiledPreparedInitialize_fourth_ready hprepared hstep0 hstep1 hstep2
+  have hready4 :=
+    counterCompiledPreparedInitialize_fifth_ready hprepared
+      hstep0 hstep1 hstep2 hstep3
+  refine ⟨s5, ?_, hat5, hdecoded5, hstack5⟩
+  exact .cons hready0.1 hstep0
+    (.cons hready1.1 hstep1
+      (.cons hready2.1 hstep2
+        (.cons hready3.1 hstep3
+          (.cons hready4.1 hstep4
+            (.nil s5)))))
+
 structure CounterPreparedInitializeStepFEPath (s0 s36 : EvmState) where
   s1 : EvmState
   s2 : EvmState
