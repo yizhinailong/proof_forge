@@ -96,6 +96,19 @@ formal justification for lowering `release` to allocator frees in EmitWat
 while EVM/Psy reject it and TS ignores it — three different lowerings of one
 IR construct are only safe if the IR-level discipline is proven.
 
+**Status (2026-07):** the production checker (`IR/Ownership.lean`) is a
+`partial def` mutual group (`checkExpr`/`checkEffect`/`checkStatement`/`
+checkStatements`) — like every `mutual` block in this codebase. `partial`
+forfeits Lean's induction principle, so universally-quantified soundness
+requires either (a) re-implementing the checker as well-founded `def`s with
+an explicit termination measure, or (b) a parallel specification-predicate
+layer (`exprUsesReleased`/`effectUsesReleased`) that terminates on `sizeOf`
+and is matched to the production checker pointwise. Option (b) was prototyped;
+the load-bearing step is a `mutual` termination proof for the
+`Expr ↔ Effect` detector pair, which needs careful `termination_by` handling
+and is the next concrete step. The detectors, once total, give an induction
+principle any future statement-level checker inherits.
+
 ### FV-4: Backend refinement obligations, one scenario at a time
 
 Replicate the `TraceObligation` pattern per backend against the shared
@@ -106,7 +119,7 @@ scenario (Counter first, ValueVault second):
 | `wasm-near` / EmitWat | Exists (exports + IR trace) and now has Counter + ValueVault artifact-surface obligations over the emitted Wasm AST: required NEAR host imports, entrypoint/helper call sequences, memory export, storage-key data, and ValueVault event data are checked before WAT printing. It also has Counter + ValueVault offline-host execution-surface obligations: the same IR trace boundary derives the Borsh/little-endian input bytes and deterministic host return fragments that `runtime/offline-host` must print when executing the generated WAT. Extend this toward a richer Wasm/offline-host semantics boundary | High — offline host already executes the artifact deterministically |
 | `evm` (IR → Yul plan) | Counter, ValueVault, and EvmExpressionProbe obligations exist for IR trace + selector-dispatched Yul surface + executable Yul-subset trace (`calldataload`, `calldatasize`, `sstore`, `sload`, scalar arithmetic, `exp`, bitwise/shift operators, comparisons, casts, assertions, `number`, deterministic memory-sensitive `keccak256` surrogate, `log0`-`log4`, `mstore`, `return`, focused `switch`, and bounded `for`). The covered FV-2 aggregate/storage, map lifecycle, control-flow, and event-log traces are now wired into the EVM obligations for `EvmMapProbe`, `EvmTypedStorageProbe`, `EvmStorageStructProbe`, `EvmAbiAggregateProbe`, `ConditionalProbe`, `EvmLoopProbe`, and `EventProbe`, so maps, presence slots, typed storage arrays, storage structs, aggregate ABI params/returns, if/else branches, bounded loops, early returns, ValueVault business events, signature-derived `topic0`, scalar indexed events, aggregate event data, and hashed aggregate indexed topics are checked on both the IR trace and executable emitted-Yul sides. | Medium — the focused Yul-subset interpreter is in Lean; expanding coverage keeps `solc` out of the trusted path but not out of the build |
 | `psy-dpn` | Compare `dargo execute` result vectors against IR trace outputs (differential gate, not a theorem) | Already close: smoke scripts assert `result_vm` values today |
-| `solana-sbpf-asm` | Differential testing via Mollusk/Surfpool first; assembly-level semantics is a research track, not a near-term proof | Low for proofs, high for differential gates |
+| `solana-sbpf-asm` | **Artifact-surface anchor exists** (Counter entrypoint dispatch labels in rendered assembly, #77/#78) plus the Counter IR observable trace and a revert-rollback invariant (#78). Next step is an **executable sBPF trace**: a minimal Lean interpreter over a subset of the lowered `AstNode` instruction list, differentially checked against the IR trace. The design is scoped in [solana-sbpf-executable-trace.md](solana-sbpf-executable-trace.md) (Counter-only, scalar storage, U64/Unit returns). Full sBPF semantics (CPI/syscalls/account model) stays in the external differential gate (Mollusk/Surfpool) | Medium for the interpreter slice (reuses existing `Asm.lean` structured AST); research track for fuller account/syscall coverage |
 | `wasm-cloudflare-workers` | Differential HTTP-level gate only (off-chain host, D-033) | Not a proof target |
 
 Rule of thumb: a backend earns "Experimental → Supported" only with (a) the
