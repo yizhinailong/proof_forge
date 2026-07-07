@@ -1,5 +1,6 @@
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
+import ProofForge.Backend.Diagnostic
 import ProofForge.IR.Contract
 
 namespace ProofForge.Backend.WasmNear.Plan
@@ -12,6 +13,18 @@ structure PlanError where
 
 def err (message : String) : Except PlanError α :=
   .error { message }
+
+/-! ## Shared diagnostic contract adapter (RFC 0014 Phase 3)
+
+Trivial `LoweringError` instance: projects `PlanError` into the shared
+`LoweringDiagnostic` shape, tagging `backend? := "wasm-near"`. The class
+default `render` delegates to `LoweringDiagnostic.render`, which outputs only
+`message`, so this is byte-identical to `PlanError.render` (which is the bare
+`message` used by the `err` helper above). Purely additive metadata; no
+existing call site or golden diagnostic is affected. -/
+instance : ProofForge.Backend.Diagnostic.LoweringError PlanError where
+  toDiagnostic := fun e =>
+    { message := e.message, backend? := some "wasm-near" }
 
 inductive ContextExprPlan where
   | userId

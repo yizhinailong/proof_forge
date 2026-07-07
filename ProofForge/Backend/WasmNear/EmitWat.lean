@@ -13,6 +13,7 @@ and NEAR `value_return` for U32/U64/Bool/Hash.
 -/
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
+import ProofForge.Backend.Diagnostic
 import ProofForge.IR.Contract
 import ProofForge.IR.Ownership
 import ProofForge.Compiler.Wasm.AST
@@ -48,6 +49,18 @@ structure EmitError where
   deriving Repr, Inhabited
 
 def err (msg : String) : Except EmitError α := .error { message := msg }
+
+/-! ## Shared diagnostic contract adapter (RFC 0014 Phase 3)
+
+Trivial `LoweringError` instance: projects `EmitError` into the shared
+`LoweringDiagnostic` shape, tagging `backend? := "wasm-near"`. The class
+default `render` delegates to `LoweringDiagnostic.render`, which outputs only
+`message`, so this is byte-identical to the bare `message` that the `err`
+helper above uses. Purely additive metadata; no existing call site or golden
+diagnostic is affected. -/
+instance : ProofForge.Backend.Diagnostic.LoweringError EmitError where
+  toDiagnostic := fun e =>
+    { message := e.message, backend? := some "wasm-near" }
 
 /-! ## NEAR Wasm linear-memory scratch layout
 

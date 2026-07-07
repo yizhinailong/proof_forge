@@ -16,6 +16,7 @@ See `docs/targets/solana-sbpf-asm.md` (D-026).
 import ProofForge.IR.Contract
 import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
+import ProofForge.Backend.Diagnostic
 import ProofForge.Backend.Solana.Asm
 import ProofForge.Backend.Solana.Extension
 import ProofForge.Backend.Solana.StateLayout
@@ -50,6 +51,17 @@ structure LowerError where
   deriving Repr, Inhabited
 
 def LowerError.render (err : LowerError) : String := err.message
+
+/-! ## Shared diagnostic contract adapter (RFC 0014 Phase 3)
+
+Trivial `LoweringError` instance: projects `LowerError` into the shared
+`LoweringDiagnostic` shape, tagging `backend? := "solana-sbpf-asm"`. The class
+default `render` delegates to `LoweringDiagnostic.render`, which outputs only
+`message`, so this is byte-identical to `LowerError.render` above. Purely
+additive metadata; no existing call site or golden diagnostic is affected. -/
+instance : ProofForge.Backend.Diagnostic.LoweringError LowerError where
+  toDiagnostic := fun e =>
+    { message := e.message, backend? := some "solana-sbpf-asm" }
 
 def diagnosticError (err : ProofForge.Target.Diagnostic) : LowerError := {
   message := err.render

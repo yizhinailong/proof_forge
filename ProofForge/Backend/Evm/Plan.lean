@@ -1,5 +1,6 @@
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
+import ProofForge.Backend.Diagnostic
 import ProofForge.IR.Contract
 import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
@@ -15,6 +16,17 @@ structure PlanError where
 
 def PlanError.render (err : PlanError) : String :=
   err.message
+
+/-! ## Shared diagnostic contract adapter (RFC 0014 Phase 3)
+
+Trivial `LoweringError` instance: projects `PlanError` into the shared
+`LoweringDiagnostic` shape, tagging `backend? := "evm"`. The class default
+`render` delegates to `LoweringDiagnostic.render`, which outputs only
+`message`, so this is byte-identical to `PlanError.render` above. Purely
+additive metadata; no existing call site or golden diagnostic is affected. -/
+instance : ProofForge.Backend.Diagnostic.LoweringError PlanError where
+  toDiagnostic := fun e =>
+    { message := e.message, backend? := some "evm" }
 
 def PlanError.fromDiagnostic (err : Diagnostic) : PlanError := {
   message := err.render

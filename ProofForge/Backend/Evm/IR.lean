@@ -1,5 +1,6 @@
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
+import ProofForge.Backend.Diagnostic
 import ProofForge.Backend.Evm.Plan
 import ProofForge.Backend.Evm.ToYul
 import ProofForge.Backend.Evm.Validate
@@ -32,6 +33,17 @@ structure LowerError where
 
 def LowerError.render (err : LowerError) : String :=
   err.message
+
+/-! ## Shared diagnostic contract adapter (RFC 0014 Phase 3)
+
+Trivial `LoweringError` instance: projects `LowerError` into the shared
+`LoweringDiagnostic` shape, tagging `backend? := "evm"`. The class default
+`render` delegates to `LoweringDiagnostic.render`, which outputs only
+`message`, so this is byte-identical to `LowerError.render` above. Purely
+additive metadata; no existing call site or golden diagnostic is affected. -/
+instance : ProofForge.Backend.Diagnostic.LoweringError LowerError where
+  toDiagnostic := fun e =>
+    { message := e.message, backend? := some "evm" }
 
 def diagnosticError (err : Diagnostic) : LowerError := {
   message := err.render
@@ -521,7 +533,7 @@ def addLocal (env : TypeEnv) (name : String) (type : ValueType) (isMutable : Boo
 def ensureType (context : String) (expected actual : ValueType) : Except LowerError Unit :=
   match ProofForge.Backend.SharedValidate.ensureType context expected actual with
   | .ok _ => .ok ()
-  | .error message => .error { message := message }
+  | .error diag => .error { message := diag.message }
 
 def ensureNumericType (context : String) (lhs rhs : ValueType) : Except LowerError ValueType :=
   match lhs, rhs with

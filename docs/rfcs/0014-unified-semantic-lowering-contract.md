@@ -515,8 +515,9 @@ golden parity is demonstrated.
 
 ### Phase 3 — Shared diagnostic contract (prerequisite, landed 2026-07-07)
 
-**Status:** Minimal stub landed. Build green, smoke green, no existing
-diagnostic bytes changed.
+**Status:** Stub landed 2026-07-07; follow-ups A (per-backend instances) and B
+(`SharedValidate` migration) landed 2026-07-07. Build green, smoke green, no
+existing diagnostic bytes changed.
 
 **Motivation:** Phase 1 found that `validateCapabilities`, the return-path
 check, identifier validity, and `ensureNumericType` could not be safely unified
@@ -550,14 +551,28 @@ diagnostics.
 
 **What was NOT done (deferred follow-ups, explicitly tracked):**
 
-- **Per-backend `LoweringError` instances.** Each backend's concrete error type
-  (`Evm.Validate.LowerError`, `WasmNear.IR.LowerError`, …) should declare a
-  trivial adapter instance. Purely additive; no `.render` bytes change. One PR
-  per backend so each backend's golden suite guards against drift.
+- **Per-backend `LoweringError` instances — LANDED 2026-07-07 (follow-up A).**
+  The three Tier-B-completed backends (EVM, Solana, NEAR) now carry trivial
+  `LoweringError` adapter instances on all 8 concrete error types listed in the
+  audit (`Evm.Validate.LowerError`, `Evm.IR.LowerError`, `Evm.Plan.PlanError`,
+  `Solana.SbpfAsm.LowerError`, `Solana.Plan.PlanError`, `WasmNear.IR.LowerError`,
+  `WasmNear.Plan.PlanError`, `WasmNear.EmitWat.EmitError`). Each instance is
+  `toDiagnostic := fun e => { message := e.message, backend? := some
+  "<backend>" }` and relies on the class default `render`. `Tests/Diagnostic.lean`
+  was extended from 9 to 17 cases, asserting `LoweringError.toDiagnostic err
+  |>.render` equals each backend's own `<Name>.render err` and the bare
+  `message`. Remaining backends (Psy, CosmWasm, Aleo, Move, Quint) follow the
+  same trivial pattern when their Tier-B work lands.
 - **Migrating `SharedValidate` helpers to return
-  `Except LoweringDiagnostic α`.** Changes `SharedError` and every call site
-  that folds it. Safe in principle via `liftSharedError`, but a wider diff;
-  lands after the adapter instances.
+  `Except LoweringDiagnostic α` — LANDED 2026-07-07 (follow-up B).**
+  `SharedError` is now an alias for `LoweringDiagnostic`. `ensureType` and
+  `checkOwnership` construct `{ message := ... }` instead of returning a bare
+  `String`; the message *text* is byte-identical. Callers (`Evm/Validate.lean`,
+  `Evm/IR.lean`, `WasmNear/IR.lean`) were updated from `.error message =>
+  .error { message := message }` to `.error diag => .error { message :=
+  diag.message }`. `Tests/SharedValidate.lean` was adapted to pattern-match on
+  `Except LoweringDiagnostic` and check `diag.message`; all 12 cases pass,
+  including `testEnsureTypeMismatchMessage` which still pins the exact bytes.
 - **Unifying `validateCapabilities` / the return-path check / identifier
   validity / `ensureNumericType`.** A shared `Diagnostic` type is a
   *prerequisite*, not a sufficient condition — the per-backend rules and
@@ -567,7 +582,7 @@ diagnostics.
 `LoweringDiagnostic.render` to the bare `message`. No backend's concrete
 `render` was touched; no golden diagnostic test needed updating.
 
-**Touch list:**
+**Touch list (stub):**
 
 - `ProofForge/Backend/Diagnostic.lean` (new)
 - `Tests/Diagnostic.lean` (new)
@@ -575,13 +590,37 @@ diagnostics.
 - `docs/shared-diagnostic-design.md` (new — field-level audit + design)
 - `docs/rfcs/0014-…` (this RFC), `docs/zh/rfcs/0014-…` (translation sync)
 
+**Touch list (follow-ups A + B, landed 2026-07-07):**
+
+- `ProofForge/Backend/Evm/{Plan,Validate,IR}.lean` — `LoweringError` instances
+  on `PlanError` / `LowerError` (×2); `Evm.Validate` / `Evm.IR` `ensureType`
+  wrapper updated to fold `diag.message`.
+- `ProofForge/Backend/Solana/{SbpfAsm,Plan}.lean` — `LoweringError` instances
+  on `LowerError` / `PlanError`.
+- `ProofForge/Backend/WasmNear/{IR,Plan,EmitWat}.lean` — `LoweringError`
+  instances on `LowerError` / `PlanError` / `EmitError`; `WasmNear.IR`
+  `ensureType` wrapper updated to fold `diag.message`.
+- `ProofForge/Backend/SharedValidate.lean` — `SharedError` alias retargeted
+  to `LoweringDiagnostic`; `ensureType` / `checkOwnership` construct
+  `{ message := ... }`; module doc updated with Phase 3 migration note.
+- `Tests/Diagnostic.lean` — extended from 9 to 17 cases (per-backend instance
+  checks).
+- `Tests/SharedValidate.lean` — harness adapted to `Except LoweringDiagnostic`;
+  message bytes unchanged.
+- `docs/shared-diagnostic-design.md`, `docs/rfcs/0014-…`,
+  `docs/zh/rfcs/0014-…` — follow-ups A & B marked landed.
+
 **Risks:** none for the stub (purely additive, no backend signature changes).
-Follow-up adapter PRs risk golden churn if an adapter accidentally changes a
-`s!"..."` interpolation; mitigated by one-PR-per-backend and each backend's
-golden suite.
+Follow-ups A & B risk golden churn if an adapter or the `SharedValidate`
+migration accidentally changes a `s!"..."` interpolation; mitigated by the
+extended `Tests/Diagnostic.lean` (instance-level byte pin) and
+`testEnsureTypeMismatchMessage` (shared-helper byte pin), plus each backend's
+plan/diagnostic golden suite. No golden bytes moved in practice (EVM/Solana/NEAR
+plan smokes and the shared-validate smoke all pass).
 
 **Scope cut:** migrating backends onto `LoweringDiagnostic` as their public
-error type; unifying the per-backend validation rules. Both are follow-ups.
+error type (i.e. replacing the concrete `LowerError` types entirely);
+unifying the per-backend validation rules. Both remain follow-ups.
 
 ### Phase 4 — NEAR plan layer (8–12 weeks)
 
