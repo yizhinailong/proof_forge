@@ -9498,6 +9498,13 @@ theorem counterPreparedInitializeStepFEPath_to_path
     path.hready32 path.hstep32 path.hready33 path.hstep33
     path.hready34 path.hstep34 path.hready35 path.hstep35
 
+theorem counterPreparedInitializeStepFEPath_to_reductionChain
+    {s0 s36 : EvmState}
+    (path : CounterPreparedInitializeStepFEPath s0 s36) :
+    ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain s0 36 s36 := by
+  exact ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.of_stepFEPath
+    (counterPreparedInitializeStepFEPath_to_path path)
+
 def counterPreparedInitializeSegmentPre (state : EvmState) : Prop :=
   CounterPreparedCall counterCompiledPowdrConfig .initialize state
 
@@ -9754,6 +9761,17 @@ abbrev CounterPreparedInitializeSegmentProvider :=
   ProofForge.Backend.Evm.PowdrExec.SegmentProvider
     counterPreparedInitializeSegmentPre 36
     counterPreparedInitializeSegmentPost
+
+abbrev CounterPreparedInitializeReductionChainProvider :=
+  ProofForge.Backend.Evm.PowdrExec.ReductionChainProvider
+    counterPreparedInitializeSegmentPre 36
+    counterPreparedInitializeSegmentPost
+
+def counterPreparedInitializeSegmentProviderOfReductionChainProvider
+    (provider : CounterPreparedInitializeReductionChainProvider) :
+    CounterPreparedInitializeSegmentProvider :=
+  ProofForge.Backend.Evm.PowdrExec.segmentProvider_of_reductionChainProvider
+    provider
 
 def counterPreparedInitializeSegmentModel_of_executionSegment
     {s0 s36 : EvmState}
@@ -10646,6 +10664,41 @@ def counterCompiledPowdrPreparedStorageModelsOfInitializeSegmentProvider
     counterCompiledPreparedInitialize_storage_model_of_segment_provider_ok provider
   increment_writes_succ := increment_writes_succ
   get_returns_count := get_returns_count
+
+def counterCompiledPowdrPreparedStorageModelsOfInitializeReductionChainProvider
+    (provider : CounterPreparedInitializeReductionChainProvider)
+    (increment_writes_succ :
+      ∀ {preparedState count},
+        CounterPreparedCall counterCompiledPowdrConfig .increment preparedState →
+        count + 1 < counterU64Modulus →
+        CounterStorageWordRel
+          (counterStorageValue counterContractAddress counterCountSlot
+            preparedState) count →
+        ∃ nextEvm,
+          counterPowdrPreparedTraceStep counterCompiledPowdrConfig preparedState
+              .increment =
+            .ok (nextEvm, .none) ∧
+          CounterStorageWordRel
+            (counterStorageValue counterContractAddress counterCountSlot nextEvm)
+            (count + 1))
+    (get_returns_count :
+      ∀ {preparedState count},
+        CounterPreparedCall counterCompiledPowdrConfig .get preparedState →
+        count < counterU64Modulus →
+        CounterStorageWordRel
+          (counterStorageValue counterContractAddress counterCountSlot
+            preparedState) count →
+        ∃ nextEvm,
+          counterPowdrPreparedTraceStep counterCompiledPowdrConfig preparedState
+              .get =
+            .ok (nextEvm, .u64 count) ∧
+          CounterStorageWordRel
+            (counterStorageValue counterContractAddress counterCountSlot nextEvm)
+            count) :
+    CounterCompiledPowdrPreparedStorageModels :=
+  counterCompiledPowdrPreparedStorageModelsOfInitializeSegmentProvider
+    (counterPreparedInitializeSegmentProviderOfReductionChainProvider provider)
+    increment_writes_succ get_returns_count
 
 def counterCompiledPowdrEvmPostconditionsOfPrepared
     (post : CounterCompiledPowdrPreparedEvmPostconditions) :

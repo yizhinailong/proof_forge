@@ -272,6 +272,16 @@ theorem StepFEReductionChain.path
   | cons head tail ih =>
       exact .cons head.running head.step ih
 
+theorem StepFEReductionChain.of_stepFEPath
+    {state finalState : State} {fuel : Nat}
+    (path : StepFEPath state fuel finalState) :
+    StepFEReductionChain state fuel finalState := by
+  induction path with
+  | nil state =>
+      exact .nil state
+  | cons hrunning hstep tail ih =>
+      exact .cons (StepFEReduction.of_step hrunning hstep) ih
+
 theorem StepFEReductionChain.append
     {state midState finalState : State} {prefixFuel suffixFuel : Nat}
     (leftChain : StepFEReductionChain state prefixFuel midState)
