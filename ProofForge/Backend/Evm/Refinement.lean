@@ -36,6 +36,7 @@ inductive ObservableReturn where
   | u128 (value : Nat)
   | hash (a b c d : Nat)
   | words (values : Array Nat)
+  | reverted (message : String)
   deriving Repr, BEq, DecidableEq
 
 structure ObservableEventLog where
@@ -273,11 +274,18 @@ def runEntrypointObservable (state : ProofForge.IR.Semantics.State) (call : Trac
     match entrypoint.selector? with
     | some selector => .ok selector
     | none => .error s!"entrypoint `{entrypoint.name}` has no EVM selector metadata"
-  let (nextState, result?) ←
-    ProofForge.IR.Semantics.runEntrypointWithArgs state entrypoint call.args
-  let returnValue ← observableReturn entrypoint.returns result?
-  let logs ← observableEventLogsFromIr (arrayDrop nextState.logs state.logs.size)
-  .ok (nextState, { entrypointName := entrypoint.name, selector, returnValue, logs })
+  -- Revert-aware trace: a contract revert (assert/revert/revertWithError) is a
+  -- first-class observable outcome, not a trace failure. State is *not* advanced
+  -- on revert (chain rollback semantics); an interpreter error still fails the trace.
+  match ProofForge.IR.Semantics.runEntrypointWithArgsResult state entrypoint call.args with
+  | .ok (nextState, result?) =>
+      let returnValue ← observableReturn entrypoint.returns result?
+      let logs ← observableEventLogsFromIr (arrayDrop nextState.logs state.logs.size)
+      .ok (nextState, { entrypointName := entrypoint.name, selector, returnValue, logs })
+  | .reverted message =>
+      .ok (state, { entrypointName := entrypoint.name, selector, returnValue := .reverted message, logs := #[] })
+  | .error message =>
+      .error message
 
 def runTraceList : List TraceCall → ProofForge.IR.Semantics.State →
     Except String (ProofForge.IR.Semantics.State × Array ObservableStep)

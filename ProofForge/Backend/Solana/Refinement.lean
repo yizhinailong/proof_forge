@@ -41,6 +41,7 @@ inductive ObservableReturn where
   | u32 (value : Nat)
   | u64 (value : Nat)
   | hash (a b c d : Nat)
+  | reverted (message : String)
   deriving Repr, BEq, DecidableEq
 
 structure ObservableStep where
@@ -69,9 +70,17 @@ def observableReturn (expectedType : ValueType) (value? : Option ProofForge.IR.S
 
 def runEntrypointObservable (state : ProofForge.IR.Semantics.State) (entrypoint : Entrypoint) :
     Except String (ProofForge.IR.Semantics.State × ObservableStep) := do
-  let (nextState, result?) ← ProofForge.IR.Semantics.runEntrypoint state entrypoint
-  let returnValue ← observableReturn entrypoint.returns result?
-  .ok (nextState, { exportName := entrypoint.name, returnValue := returnValue })
+  -- Revert-aware trace: a contract revert is a first-class observable outcome.
+  -- State is *not* advanced on revert (chain rollback semantics); an interpreter
+  -- error still fails the trace.
+  match ProofForge.IR.Semantics.runEntrypointResult state entrypoint with
+  | .ok (nextState, result?) =>
+      let returnValue ← observableReturn entrypoint.returns result?
+      .ok (nextState, { exportName := entrypoint.name, returnValue := returnValue })
+  | .reverted message =>
+      .ok (state, { exportName := entrypoint.name, returnValue := .reverted message })
+  | .error message =>
+      .error message
 
 def runTraceList : List Entrypoint → ProofForge.IR.Semantics.State →
     Except String (ProofForge.IR.Semantics.State × Array ObservableStep)
@@ -161,6 +170,58 @@ theorem counter_ir_observable_trace_ok :
 
 theorem counter_sbpf_artifact_surface_ok :
     counterTraceObligation.sbpfArtifactSurfaceOk = true := by
+  native_decide
+
+/-! ### Revert-aware trace obligation
+
+This is the first trace obligation that asserts a **contract revert** as an
+observable outcome rather than a trace failure. It exercises the three-valued
+`ExecResult` path: `Statement.revert` produces `.reverted "revert: <msg>"` in
+the IR semantics, which the revert-aware `runEntrypointObservable` lifts into
+an `ObservableReturn.reverted` step.
+
+It also pins the **rollback** half of the contract: a reverting entrypoint
+must not advance the trace state, so a subsequent read of unmodified state
+returns the pre-revert value. This is the chain-rollback invariant the
+revert-aware trace layer promises. -/
+
+/-- A minimal entrypoint that unconditionally reverts. -/
+def revertEntrypoint : Entrypoint := {
+  name := "revertAlways"
+  kind := .function
+  params := #[]
+  returns := .unit
+  body := #[ .revert "always rolls back" ]
+}
+
+/-- A minimal entrypoint that returns a constant, used to observe post-revert
+state (it touches no storage, so it succeeds against any state). -/
+def readConstEntrypoint : Entrypoint := {
+  name := "readConst"
+  kind := .function
+  params := #[]
+  returns := .u64
+  body := #[ .return (.literal (.u64 7)) ]
+}
+
+/-- `revertAlways → readConst`: the revert is observed, and the subsequent read
+still succeeds (state was not corrupted/advanced by the revert). -/
+def revertRollbackTrace : Array ObservableStep := #[
+  { exportName := "revertAlways", returnValue := .reverted "revert: always rolls back" },
+  { exportName := "readConst", returnValue := .u64 7 }
+]
+
+def revertRollbackObligation : TraceObligation := {
+  name := "Revert.rollback"
+  module := ProofForge.IR.Examples.Counter.module
+  entrypoints := #[ revertEntrypoint, readConstEntrypoint ]
+  expected := revertRollbackTrace
+}
+
+/-- The revert-aware IR trace observes the revert message and the post-revert
+read still produces its constant (state rollback). -/
+theorem revert_rollback_ir_trace_ok :
+    revertRollbackObligation.irTraceOk = true := by
   native_decide
 
 end ProofForge.Backend.Solana.Refinement
