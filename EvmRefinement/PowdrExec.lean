@@ -23,6 +23,15 @@ def CodePcAt (code : ByteArray) (pc : Nat) (state : State) : Prop :=
   state.executionEnv.code = code ∧
     state.pc = EvmSemantics.UInt256.ofNat pc
 
+structure DecodedOpcodeAt
+    (code : ByteArray) (pc : Nat)
+    (op : Operation) (argOpt : Option (EvmSemantics.UInt256 × Nat))
+    (state : State) : Prop where
+  codePc : CodePcAt code pc state
+  pcNat : (EvmSemantics.UInt256.ofNat pc).toNat = pc
+  decodedAt : EvmSemantics.EVM.Decode.decodeAt code pc = some (op, argOpt)
+  available : op.availableInFork state.executionEnv.fork = true
+
 def runSteps : State → Nat → Except String (State × Array ObservableStep) :=
   ProofForge.Backend.Evm.PowdrAdapter.runBytecode
 
@@ -53,6 +62,13 @@ theorem decoded_of_codePcAt
     (havailable : op.availableInFork state.executionEnv.fork = true) :
     state.decoded = some (op, argOpt) := by
   exact decoded_of_code_pc hat.1 hat.2 hpcNat hdecode havailable
+
+theorem DecodedOpcodeAt.decoded
+    {state : State} {code : ByteArray} {pc : Nat}
+    {op : Operation} {argOpt : Option (EvmSemantics.UInt256 × Nat)}
+    (hat : DecodedOpcodeAt code pc op argOpt state) :
+    state.decoded = some (op, argOpt) := by
+  exact decoded_of_codePcAt hat.codePc hat.pcNat hat.decodedAt hat.available
 
 theorem validJumpDest_of_code_eq
     {state : State} {code : ByteArray} {dest : Nat}
@@ -322,6 +338,20 @@ structure StepFEReady (state : State) (op : Operation) : Prop where
     ¬ state.stack.length + op.pushArity > 1024 + op.popArity
   gas :
     EvmSemantics.EVM.Gas.baseCost state.fork op ≤ state.gasAvailable
+
+structure ReadyOpcodeAt
+    (code : ByteArray) (pc : Nat)
+    (op : Operation) (argOpt : Option (EvmSemantics.UInt256 × Nat))
+    (state : State) : Prop where
+  decoded : DecodedOpcodeAt code pc op argOpt state
+  ready : StepFEReady state op
+
+theorem ReadyOpcodeAt.state_decoded
+    {state : State} {code : ByteArray} {pc : Nat}
+    {op : Operation} {argOpt : Option (EvmSemantics.UInt256 × Nat)}
+    (hat : ReadyOpcodeAt code pc op argOpt state) :
+    state.decoded = some (op, argOpt) := by
+  exact hat.decoded.decoded
 
 theorem stepFE_push_dispatch
     {state : State} {op : EvmSemantics.Operation.PushOp}
