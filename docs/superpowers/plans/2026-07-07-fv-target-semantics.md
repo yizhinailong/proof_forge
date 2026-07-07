@@ -63,7 +63,7 @@ interpreters too.
 ## Task graph
 
 ```text
-P1 (shared interface, LANDED) ──→ E1 (LANDED) → E2 → E3   (EVM C-proof via powdr — REFERENCE, do first)
+P1 (shared interface, LANDED) ──→ E1 (LANDED) → E2 (LANDED) → E3   (EVM C-proof via powdr — REFERENCE, do first)
                                ├→ S1 → S2 → S3 → S4 → S5   (Solana C-diff)
                                └→ W1 → W2 → W3 → W4 → W5   (WASM C-diff)
 P2 (trace induction, landed generically) ─┬─→ S6 (Solana C-proof, copies E3)
@@ -76,7 +76,8 @@ template: S6/W6 copy E3's shape, swapping powdr's `Step` for the self-built
 `SbpfInterpreter` / `WasmInterpreter` `Step`. **Already LANDED** (commits `4c4ec279`…`2fd6e9f6`):
 P1 shared interface, the generic trace induction, and the EVM seam switched to powdr's
 `State`/`Step`/`stepF` shape (`173b9d4f`, builds mathlib-free), plus E1's opt-in
-`EvmRefinement` target pinned to powdr/mathlib. Remaining EVM work is E2–E3.
+`EvmRefinement` target pinned to powdr/mathlib and E2's real powdr-backed wrapper
+surface. Remaining EVM work is E3.
 (For the self-built lanes, start with **S1** or **W1**.)
 
 ---
@@ -135,7 +136,7 @@ P1 shared interface, the generic trace induction, and the EVM seam switched to p
 - **Depends on:** none — **but needs network + a long mathlib build.** This is the one
   heavy, environment-dependent task; run it where network and build time exist.
 
-## Task E2 — Replace the EVM seam stubs with real powdr imports
+## Task E2 — Replace the EVM seam stubs with real powdr imports (LANDED)
 
 - **② Context to load:** `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` (stub
   `State`/`Step`/`stepF`/`runBytecode` + the docstring import list: `EvmSemantics.EVM.State`
@@ -144,6 +145,11 @@ P1 shared interface, the generic trace induction, and the EVM seam switched to p
   `EvmSemantics.EVM.*`, keeping the public surface and all `Refinement.lean` callers
   unchanged. Keep the mathlib-free stub as the default-build fallback (gate the real import
   behind the opt-in target so the default build never pulls mathlib).
+- **Landed:** `EvmRefinement/PowdrAdapter.lean` now exposes real powdr-backed
+  `State`, `Step`, `stepF : State → Except String State`, `step`, `isHalted`, and
+  `runBytecode`. The `stepF` wrapper turns done-state calls into adapter errors, so
+  `stepF_sound` can recover powdr's `¬ state.isDone` precondition and prove the real
+  `EvmSemantics.EVM.Step`.
 - **Acceptance:** opt-in target type-checks against the real powdr `State`/`Step`/`stepF`;
   default build still mathlib-free + green; no `Refinement.lean` theorem statement changes.
 - **Depends on:** E1.

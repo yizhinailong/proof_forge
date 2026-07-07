@@ -254,7 +254,7 @@ Phase 6c simulation-prerequisite) is left to Phase 6b+.
 
 ### Phase 6b — Integrate `powdr-labs/evm-semantics` as the EVM bytecode semantics
 
-**Status: preferred target selected; opt-in powdr target landed; default build still mathlib-free (2026-07-07).**
+**Status: preferred target selected; opt-in powdr target and wrapper landed; default build still mathlib-free (2026-07-07).**
 The original `EVMYulLean` route was blocked by a Lean toolchain + mathlib
 version mismatch. That blocker is avoided by switching the refinement target to
 `powdr-labs/evm-semantics`, which pins Lean `v4.31.0` and mathlib `v4.31.0`.
@@ -274,11 +274,11 @@ ProofForge's default build still avoids powdr/mathlib imports.
 - **Resolution path.** `powdr-labs/evm-semantics` is now pinned behind the
   opt-in `EvmRefinement` lake target at commit
   `ae13dbc506158f9d0c7e05634636b17e2bccf850`, with mathlib pinned transitively
-  at `fabf563a7c95a166b8d7b6efca11c8b4dc9d911f`. The remaining work is to
-  replace the seam's stub `State` / `Step` / `stepF` / `runBytecode` bodies with
-  the real `EvmSemantics` imports. Confirm whether powdr exposes a Yul-level
-  relation; otherwise the Yul→bytecode `solc` step remains an explicit trust
-  boundary.
+  at `fabf563a7c95a166b8d7b6efca11c8b4dc9d911f`. The opt-in adapter now exposes
+  real powdr-backed `State`, `Step`, `stepF`, and `runBytecode` wrappers. The
+  remaining work is the Counter simulation relation and per-entrypoint proof.
+  Confirm whether powdr exposes a Yul-level relation; otherwise the Yul→bytecode
+  `solc` step remains an explicit trust boundary.
 - **What was landed:**
   - `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` (new) — stub
     adapter with the public surface aligned to `Refinement.ObservableStep`,
@@ -287,12 +287,11 @@ ProofForge's default build still avoids powdr/mathlib imports.
     dependency (imports only `ProofForge.Backend.Evm.Refinement`).
   - `EvmRefinement/PowdrAdapter.lean` + `lakefile.lean` + `lake-manifest.json`
     — opt-in powdr/mathlib target that imports powdr's `State`, `Step`,
-    `StepF`, `BigStep`, and `Equiv` modules and checks the real
+    `StepF`, `BigStep`, and `Equiv` modules, exposes a seam-compatible
+    `stepF : State → Except String State` wrapper, and checks the real
     `EvmSemantics.EVM.stepF_sound` surface.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
-  - Provide the real `EvmSemantics.EVM.State` / `Step` / `stepF` /
-    `runBytecode` driver (the stub is in place; only the bodies need replacing).
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
   - Wire the real powdr relation into Counter's per-entrypoint simulation
     lemmas (that is Phase 6c).

@@ -2,7 +2,7 @@ import ProofForge.Backend.Evm.Refinement
 
 /-! Tier C-proof Phase 6b — `powdr-labs/evm-semantics` adapter seam.
 
-**Status: preferred target selected; dependency not wired by default (2026-07-07).**
+**Status: preferred target selected; opt-in powdr adapter wired (2026-07-07).**
 
 The intended integration target is now
 [`powdr-labs/evm-semantics`](https://github.com/powdr-labs/evm-semantics),
@@ -18,19 +18,18 @@ toolchain as ProofForge (`leanprover/lean4:v4.31.0`) and pulls
 
 The remaining cost is not a toolchain blocker; it is dependency isolation.
 ProofForge's default build is intentionally mathlib-free, so the real powdr
-dependency should be added behind an opt-in EVM-refinement target. Until that
-target exists, this file keeps the adapter signature and a sorry-free stub
-body aligned with the future powdr surface.
+dependency lives behind the opt-in `EvmRefinement` target. This file keeps the
+default-build adapter signature and a sorry-free stub body; the real powdr
+wrapper lives in `EvmRefinement/PowdrAdapter.lean`.
 
 This file therefore provides the seam so that:
 
 1. `lake build` stays green for the existing ProofForge build — this module
    compiles with NO external dependency (it imports only
    `ProofForge.Backend.Evm.Refinement`, which already builds).
-2. When the opt-in powdr target is added, replace the stub `State` / `Step` /
-   `stepF` / `runBytecode` bodies with imports from `EvmSemantics.EVM.State`,
-   `EvmSemantics.EVM.Step`, `EvmSemantics.EVM.BigStep`, and
-   `EvmSemantics.EVM.StepF`, without changing callers in `Refinement.lean`.
+2. The opt-in `EvmRefinement` target provides real powdr-backed `State` /
+   `Step` / `stepF` / `runBytecode` wrappers without changing callers in
+   `Refinement.lean`.
 3. The `sorry`-free stub theorems below (`stepF_sound`, `step_noop`,
    `runBytecode_empty`) type-check today and will be replaced or strengthened
    by the real per-entrypoint simulation lemmas in Phase 6c.
@@ -48,7 +47,7 @@ full EVM state. This stub is an opaque placeholder so the adapter signature
 compiles without pulling the opt-in powdr/mathlib dependency into the default
 build. -/
 structure State where
-  -- Placeholder payload. Opaque until powdr is wired; the real
+  -- Placeholder payload. Opaque in the default build; the real
   -- `EvmSemantics.EVM.State` has many fields and is not isomorphic to this.
   deriving Repr
 

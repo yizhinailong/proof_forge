@@ -1,6 +1,6 @@
 # Phase 6b — EVM semantics target switch and integration blockers
 
-Status: **preferred target switched to `powdr-labs/evm-semantics`; opt-in target landed, seam still stubbed.**
+Status: **preferred target switched to `powdr-labs/evm-semantics`; opt-in target and wrapper landed, default seam still stubbed.**
 Date: 2026-07-07.
 RFC: RFC 0014 Phase 6b (Path 5b — Tier C-proof).
 Roadmap: `docs/tier-c-proof-feasibility.md` §5 Phase 6b.
@@ -138,10 +138,9 @@ forcing a downgrade/upgrade).
 
 ### Recommended next action
 
-Replace the stub `State` / `Step` / `stepF` / `runBytecode` bodies with real
-`EvmSemantics` imports under the opt-in adapter, then confirm whether powdr
-exposes a Yul-level relation; otherwise document the Yul→bytecode `solc` step
-as an explicit trust boundary.
+Use the opt-in powdr wrapper to define the Counter simulation relation and
+per-entrypoint proof. Confirm whether powdr exposes a Yul-level relation;
+otherwise document the Yul→bytecode `solc` step as an explicit trust boundary.
 
 ## (e) Files changed (Phase 6b, blocked-seam deliverable)
 
@@ -164,8 +163,10 @@ as an explicit trust boundary.
   an opt-in `EvmRefinement` target; the default `proof-forge` target does not
   import powdr/mathlib.
 - `lake-manifest.json` — records the pinned powdr/mathlib dependency graph.
-- `EvmRefinement/PowdrAdapter.lean` — opt-in adapter smoke that imports powdr's
-  `State`, `Step`, `StepF`, `BigStep`, and `Equiv` modules and wraps
+- `EvmRefinement/PowdrAdapter.lean` — opt-in adapter that imports powdr's
+  `State`, `Step`, `StepF`, `BigStep`, and `Equiv` modules; exposes real
+  powdr-backed `State`, `Step`, `stepF`, `step`, `isHalted`, and `runBytecode`
+  wrappers; and proves the wrapper `stepF_sound` using
   `EvmSemantics.EVM.stepF_sound`.
 - `ProofForge/Backend/Evm/Refinement.lean` — **NOT modified** (no theorem
   touched; wiring is Phase 6c).
