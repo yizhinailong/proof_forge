@@ -325,6 +325,22 @@ structure ReductionChainProvider
         StepFEReductionChain state fuel finalState ∧
           post state finalState
 
+theorem reductionChainProvider_single
+    {pre : State → Prop} {post : State → State → Prop}
+    (nextState : ∀ state, pre state → State)
+    (reduction :
+      ∀ {state} (hpre : pre state),
+        StepFEReduction state (nextState state hpre))
+    (postcondition :
+      ∀ {state} (hpre : pre state),
+        post state (nextState state hpre)) :
+    ReductionChainProvider pre 1 post where
+  chain := by
+    intro state hpre
+    exact ⟨nextState state hpre,
+      StepFEReductionChain.single (reduction hpre),
+      postcondition hpre⟩
+
 theorem reductionChainProvider_append
     {leftPre rightPre : State → Prop}
     {leftFuel rightFuel : Nat}
