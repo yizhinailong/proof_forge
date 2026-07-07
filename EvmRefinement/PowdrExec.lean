@@ -272,6 +272,25 @@ theorem StepFEReductionChain.path
   | cons head tail ih =>
       exact .cons head.running head.step ih
 
+theorem StepFEReductionChain.append
+    {state midState finalState : State} {prefixFuel suffixFuel : Nat}
+    (leftChain : StepFEReductionChain state prefixFuel midState)
+    (suffix : StepFEReductionChain midState suffixFuel finalState) :
+    StepFEReductionChain state (prefixFuel + suffixFuel) finalState := by
+  induction leftChain with
+  | nil state =>
+      simpa using suffix
+  | cons head tail ih =>
+      have htail := ih suffix
+      simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using
+        StepFEReductionChain.cons head htail
+
+theorem runSteps_of_reductionChain
+    {fuel : Nat} {state finalState : State}
+    (chain : StepFEReductionChain state fuel finalState) :
+    runSteps state fuel = .ok (finalState, (#[] : Array ObservableStep)) := by
+  exact runSteps_of_stepFEPath_done chain.path
+
 theorem executionSegment_of_reductionChain
     {fuel : Nat} {post : State → State → Prop} {state finalState : State}
     (chain : StepFEReductionChain state fuel finalState)
