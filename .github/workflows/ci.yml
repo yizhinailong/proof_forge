@@ -119,6 +119,7 @@ jobs:
           just ir-counter-semantics-smoke
           just counter-universal-refinement-smoke
           just supported-fragment-smoke
+          just target-semantics-instances-smoke
           lake build ProofForge.Backend.Evm.Refinement
           lake build ProofForge.Contract.Examples.ValueVaultInvariant
           lake env lean --run Tests/NearWasmFormal.lean

@@ -152,6 +152,56 @@ def mapStorageTraceObligation : TraceObligation := {
 def wasmExecutableTraceOk (obligation : TraceObligation) : Bool :=
   ProofForge.Backend.WasmNear.WasmInterpreter.executableTraceOk obligation
 
+structure WasmNearMachineState where
+  wasm : ProofForge.Compiler.Wasm.Module
+  state : ProofForge.Backend.WasmNear.WasmInterpreter.WasmState
+  call : TraceCall
+  result? : Option (ProofForge.Backend.WasmNear.WasmInterpreter.WasmState × ObservableReturn) := none
+
+def WasmNearMachineState.step (machine : WasmNearMachineState) :
+    Except String WasmNearMachineState := do
+  match machine.result? with
+  | some _ => .ok machine
+  | none =>
+      let state ←
+        ProofForge.Backend.WasmNear.WasmInterpreter.runExport
+          machine.wasm machine.state machine.call
+      let observable ←
+        ProofForge.Backend.WasmNear.WasmInterpreter.observeEntrypoint
+          machine.call.entrypoint state
+      .ok { machine with
+        state
+        result? := some (state, observable)
+      }
+
+def WasmNearMachineState.run : Nat → WasmNearMachineState →
+    Except String WasmNearMachineState
+  | 0, machine =>
+      match machine.result? with
+      | some _ => .ok machine
+      | none => .error "Wasm-NEAR target semantics fuel exhausted"
+  | fuel + 1, machine => do
+      match machine.result? with
+      | some _ => .ok machine
+      | none =>
+          let machine ← machine.step
+          WasmNearMachineState.run fuel machine
+
+def WasmNearMachineState.observe (machine : WasmNearMachineState) :
+    ObservableReturn :=
+  match machine.result? with
+  | some (_, observable) => observable
+  | none => .reverted "Wasm-NEAR target semantics has not executed a call"
+
+def wasmNearTargetSemantics : TargetSemantics := {
+  id := "wasm-near"
+  MachineState := WasmNearMachineState
+  step := WasmNearMachineState.step
+  run := WasmNearMachineState.run
+  observe := WasmNearMachineState.observe
+  executableTraceOk := wasmExecutableTraceOk
+}
+
 def emitWatKeyBuf : Nat := ProofForge.Backend.WasmNear.Memory.KEY_BUF
 def emitWatRetBuf : Nat := ProofForge.Backend.WasmNear.Memory.RET_BUF
 def emitWatEventBuf : Nat := ProofForge.Backend.WasmNear.Memory.EVENT_BUF
