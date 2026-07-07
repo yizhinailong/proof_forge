@@ -453,16 +453,18 @@ Yul→bytecode `solc` step as an explicit trust boundary.
 - `counterRunBytecode_initialize_body_and_return_ok` — green under
   `lake build EvmRefinement`; the initialize body plus return segment now has a
   22-fuel `runBytecode` proof from the first body opcode to the halted `.none`
-  result while preserving the initialize storage model. The theorem still takes
-  the post-SSTORE body-return-jump `counterCompiledStateAt` fact as an explicit
-  premise.
+  result while preserving the initialize storage model. The theorem now derives
+  the post-SSTORE body-return-jump `counterCompiledStateAt` fact internally.
 - `counterCodePcFork_of_sstore_stackMemFlow_ok`,
   `counterCodePcFork_of_stepFE_stackMemFlow_sstore_ok`, and
   `counterCompiledStateAt_of_initialize_sstore_stepFE_ok` — green under
   `lake build EvmRefinement`; a successful powdr SSTORE step now preserves
-  compiled code/fork and advances the initialize body PC to the return jump,
-  setting up the next slice to remove the explicit post-SSTORE
-  `counterCompiledStateAt` premise from the 22-fuel bridge.
+  compiled code/fork and advances the initialize body PC to the return jump.
+- `counterStack_of_initialize_tail_stepFE_to_sstore_ok` and
+  `counterStack_of_initialize_body_stepFE_to_sstore_ok` — green under
+  `lake build EvmRefinement`; the composed tail/body path now exposes the
+  pre-SSTORE stack shape needed by the SSTORE PC bridge, removing the explicit
+  post-SSTORE `counterCompiledStateAt` premise from the 22-fuel bridge.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 

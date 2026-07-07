@@ -446,15 +446,15 @@ ProofForge's default build still avoids powdr/mathlib imports.
     the final return segment with 5 fuel steps.
     `counterRunBytecode_initialize_body_and_return_ok` composes the body and
     return paths into a 22-fuel bridge from the first body opcode to the halted
-    `.none` result, with storage model preservation. It still carries an
-    explicit post-SSTORE `counterCompiledStateAt` premise for the body return
-    jump. `counterCodePcFork_of_sstore_stackMemFlow_ok`,
-    `counterCodePcFork_of_stepFE_stackMemFlow_sstore_ok`, and
-    `counterCompiledStateAt_of_initialize_sstore_stepFE_ok` now prove the
-    successful SSTORE step preserves compiled code/fork and advances the body
-    PC to the return jump; the remaining step is to expose the pre-SSTORE stack
-    fact from the composed body path and feed that theorem back into the
-    22-fuel bridge.
+    `.none` result, with storage model preservation.
+    `counterStack_of_initialize_tail_stepFE_to_sstore_ok` and
+    `counterStack_of_initialize_body_stepFE_to_sstore_ok` expose the pre-SSTORE
+    stack fact from the composed tail/body path, and
+    `counterCompiledStateAt_of_initialize_sstore_stepFE_ok` feeds that fact
+    back into the 22-fuel bridge. The body-return-jump `counterCompiledStateAt`
+    fact is now derived internally rather than passed as an explicit premise;
+    the remaining step is to prepend the dispatcher/trampoline path and connect
+    the composed result to `counterPowdrPreparedTraceStep`.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).

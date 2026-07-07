@@ -3937,6 +3937,76 @@ theorem counterStack_of_initialize_prefix_stepFE_to_sload_ok
     (counterPreparedInitializeSloadSlotPush0_decoded hat11) hstackOk11 hgas11
     hstep11, h11, counterCountSlot_eq_zero]
 
+theorem counterStack_of_initialize_tail_stepFE_to_sstore_ok
+    {sloadState afterSload afterAnd afterOr sstoreState : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (haddrSload : sloadState.executionEnv.address = counterContractAddress)
+    (hstack :
+      sloadState.stack =
+        counterCountSlot :: counterInitializeLowMask ::
+          counterInitializeSetValue :: rest)
+    (hatSload : counterCompiledStateAt sloadState (counterInitializeBodyOffset + 17))
+    (hreadySload :
+      counterStepFEReady sloadState
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps)))
+    (hsload : EvmSemantics.EVM.stepFE sloadState = .ok afterSload)
+    (hatAnd : counterCompiledStateAt afterSload (counterInitializeBodyOffset + 18))
+    (hreadyAnd :
+      counterStepFEReady afterSload
+        (.CompBit (.AND : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hand : EvmSemantics.EVM.stepFE afterSload = .ok afterAnd)
+    (hatOr : counterCompiledStateAt afterAnd (counterInitializeBodyOffset + 19))
+    (hreadyOr :
+      counterStepFEReady afterAnd
+        (.CompBit (.OR : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hor : EvmSemantics.EVM.stepFE afterAnd = .ok afterOr)
+    (hatPush :
+      counterCompiledStateAt afterOr (counterInitializeBodyOffset + 20))
+    (hreadyPush : counterStepFEReady afterOr (.Push counterPush0Op))
+    (hpush : EvmSemantics.EVM.stepFE afterOr = .ok sstoreState) :
+    sstoreState.stack =
+      counterCountSlot ::
+        counterInitializeStorageWord
+          (counterStorageValue counterContractAddress counterCountSlot sloadState) ::
+        rest := by
+  rcases hreadySload with ⟨hrunningSload, hprecompileSload, hstackOkSload,
+    hgasSload⟩
+  rcases hreadyAnd with ⟨hrunningAnd, hprecompileAnd, hstackOkAnd, hgasAnd⟩
+  rcases hreadyOr with ⟨hrunningOr, hprecompileOr, hstackOkOr, hgasOr⟩
+  rcases hreadyPush with ⟨hrunningPush, hprecompilePush, hstackOkPush, hgasPush⟩
+  have hsloadStack :
+      afterSload.stack =
+        counterStorageValue counterContractAddress counterCountSlot sloadState ::
+          counterInitializeLowMask :: counterInitializeSetValue :: rest :=
+    counterStack_of_stepFE_stackMemFlow_sload_ok hrunningSload
+      hprecompileSload (counterPreparedInitializeSload_decoded hatSload)
+      haddrSload hstack rfl hstackOkSload hgasSload hsload
+  have handStack :
+      afterAnd.stack =
+        EvmSemantics.UInt256.land
+          (counterStorageValue counterContractAddress counterCountSlot sloadState)
+          counterInitializeLowMask :: counterInitializeSetValue :: rest :=
+    counterStack_of_stepFE_compBit_and_ok hrunningAnd hprecompileAnd
+      (counterPreparedInitializeAnd_decoded hatAnd) hsloadStack hstackOkAnd
+      hgasAnd hand
+  have horStack :
+      afterOr.stack =
+        counterInitializeStorageWord
+          (counterStorageValue counterContractAddress counterCountSlot sloadState) ::
+          rest := by
+    rw [counterStack_of_stepFE_compBit_or_ok hrunningOr hprecompileOr
+      (counterPreparedInitializeOr_decoded hatOr) handStack hstackOkOr hgasOr hor]
+    change counterInitializeBodyWriteWord
+        (counterStorageValue counterContractAddress counterCountSlot sloadState) ::
+          rest =
+      counterInitializeStorageWord
+        (counterStorageValue counterContractAddress counterCountSlot sloadState) ::
+          rest
+    rw [counterInitializeBodyWriteWord_eq_storageWord]
+  rw [counterStack_of_stepFE_push0_ok hrunningPush hprecompilePush
+    (counterPreparedInitializeSstoreSlotPush0_decoded hatPush) hstackOkPush
+    hgasPush hpush, horStack, counterCountSlot_eq_zero]
+
 theorem counterStorageValue_of_initialize_tail_stepFE_ok
     {sloadState afterSload afterAnd afterOr sstoreState nextState : EvmState}
     {rest : List EvmSemantics.UInt256}
@@ -4103,6 +4173,97 @@ theorem counterStack_of_initialize_tail_stepFE_ok
   exact counterStack_of_stepFE_stackMemFlow_sstore_ok hrunningSstore
     hprecompileSstore (counterPreparedInitializeSstore_decoded hatSstore)
     hsstoreStack hstackOkSstore hgasSstore hsstore
+
+theorem counterStack_of_initialize_body_stepFE_to_sstore_ok
+    {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 :
+      EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (h0 : s0.stack = rest)
+    (hat0 : counterCompiledStateAt s0 (counterInitializeBodyOffset + 1))
+    (hready0 : counterStepFEReady s0 (.Push counterPush0Op))
+    (hstep0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hat1 : counterCompiledStateAt s1 (counterInitializeBodyOffset + 2))
+    (hready1 : counterStepFEReady s1 (.Push counterPush1Op))
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hat2 : counterCompiledStateAt s2 (counterInitializeBodyOffset + 4))
+    (hready2 :
+      counterStepFEReady s2
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hat3 : counterCompiledStateAt s3 (counterInitializeBodyOffset + 5))
+    (hready3 : counterStepFEReady s3 (.Push counterPush1Op))
+    (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4)
+    (hat4 : counterCompiledStateAt s4 (counterInitializeBodyOffset + 7))
+    (hready4 : counterStepFEReady s4 (.Dup counterDup1Op))
+    (hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5)
+    (hat5 : counterCompiledStateAt s5 (counterInitializeBodyOffset + 8))
+    (hready5 : counterStepFEReady s5 (.Push counterPush1Op))
+    (hstep5 : EvmSemantics.EVM.stepFE s5 = .ok s6)
+    (hat6 : counterCompiledStateAt s6 (counterInitializeBodyOffset + 10))
+    (hready6 :
+      counterStepFEReady s6
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep6 : EvmSemantics.EVM.stepFE s6 = .ok s7)
+    (hat7 : counterCompiledStateAt s7 (counterInitializeBodyOffset + 11))
+    (hready7 :
+      counterStepFEReady s7
+        (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps)))
+    (hstep7 : EvmSemantics.EVM.stepFE s7 = .ok s8)
+    (hat8 : counterCompiledStateAt s8 (counterInitializeBodyOffset + 12))
+    (hready8 : counterStepFEReady s8 (.Push counterPush1Op))
+    (hstep8 : EvmSemantics.EVM.stepFE s8 = .ok s9)
+    (hat9 : counterCompiledStateAt s9 (counterInitializeBodyOffset + 14))
+    (hready9 :
+      counterStepFEReady s9
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep9 : EvmSemantics.EVM.stepFE s9 = .ok s10)
+    (hat10 : counterCompiledStateAt s10 (counterInitializeBodyOffset + 15))
+    (hready10 :
+      counterStepFEReady s10
+        (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep10 : EvmSemantics.EVM.stepFE s10 = .ok s11)
+    (hat11 : counterCompiledStateAt s11 (counterInitializeBodyOffset + 16))
+    (hready11 : counterStepFEReady s11 (.Push counterPush0Op))
+    (hstep11 : EvmSemantics.EVM.stepFE s11 = .ok s12)
+    (hat12 : counterCompiledStateAt s12 (counterInitializeBodyOffset + 17))
+    (haddrSload : s12.executionEnv.address = counterContractAddress)
+    (hready12 :
+      counterStepFEReady s12
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep12 : EvmSemantics.EVM.stepFE s12 = .ok s13)
+    (hat13 : counterCompiledStateAt s13 (counterInitializeBodyOffset + 18))
+    (hready13 :
+      counterStepFEReady s13
+        (.CompBit (.AND : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep13 : EvmSemantics.EVM.stepFE s13 = .ok s14)
+    (hat14 : counterCompiledStateAt s14 (counterInitializeBodyOffset + 19))
+    (hready14 :
+      counterStepFEReady s14
+        (.CompBit (.OR : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep14 : EvmSemantics.EVM.stepFE s14 = .ok s15)
+    (hat15 : counterCompiledStateAt s15 (counterInitializeBodyOffset + 20))
+    (hready15 : counterStepFEReady s15 (.Push counterPush0Op))
+    (hstep15 : EvmSemantics.EVM.stepFE s15 = .ok s16) :
+    s16.stack =
+      counterCountSlot ::
+        counterInitializeStorageWord
+          (counterStorageValue counterContractAddress counterCountSlot s12) ::
+        rest := by
+  have hstack12 :
+      s12.stack =
+        counterCountSlot :: counterInitializeLowMask ::
+          counterInitializeSetValue :: rest :=
+    counterStack_of_initialize_prefix_stepFE_to_sload_ok
+      h0 hat0 hready0 hstep0 hat1 hready1 hstep1
+      hat2 hready2 hstep2 hat3 hready3 hstep3
+      hat4 hready4 hstep4 hat5 hready5 hstep5
+      hat6 hready6 hstep6 hat7 hready7 hstep7
+      hat8 hready8 hstep8 hat9 hready9 hstep9
+      hat10 hready10 hstep10 hat11 hready11 hstep11
+  exact counterStack_of_initialize_tail_stepFE_to_sstore_ok
+    haddrSload hstack12
+    hat12 hready12 hstep12 hat13 hready13 hstep13
+    hat14 hready14 hstep14 hat15 hready15 hstep15
 
 theorem counterStorageValue_of_initialize_body_stepFE_from_first_opcode_ok
     {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17 :
@@ -4630,7 +4791,6 @@ theorem counterRunBytecode_initialize_body_and_return_ok
       counterStepFEReady s16
         (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps)))
     (hstep16 : EvmSemantics.EVM.stepFE s16 = .ok s17)
-    (hat17 : counterCompiledStateAt s17 (counterInitializeBodyOffset + 22))
     (hready17 :
       counterStepFEReady s17
         (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps)))
@@ -4670,6 +4830,25 @@ theorem counterRunBytecode_initialize_body_and_return_ok
   have hrunning14 := hready14.1
   have hrunning15 := hready15.1
   have hrunning16 := hready16.1
+  have hstack16 :
+      s16.stack =
+        counterCountSlot ::
+          counterInitializeStorageWord
+            (counterStorageValue counterContractAddress counterCountSlot s12) ::
+          EvmSemantics.UInt256.ofNat counterInitializeReturnOffset ::
+          selector :: rest :=
+    counterStack_of_initialize_body_stepFE_to_sstore_ok
+      h0 hat0 hready0 hstep0 hat1 hready1 hstep1
+      hat2 hready2 hstep2 hat3 hready3 hstep3
+      hat4 hready4 hstep4 hat5 hready5 hstep5
+      hat6 hready6 hstep6 hat7 hready7 hstep7
+      hat8 hready8 hstep8 hat9 hready9 hstep9
+      hat10 hready10 hstep10 hat11 hready11 hstep11
+      hat12 haddrSload hready12 hstep12 hat13 hready13 hstep13
+      hat14 hready14 hstep14 hat15 hready15 hstep15
+  have hat17 : counterCompiledStateAt s17 (counterInitializeBodyOffset + 22) :=
+    counterCompiledStateAt_of_initialize_sstore_stepFE_ok
+      hat16 hstack16 hready16 hstep16
   have hrunReturn :=
     counterRunBytecode_initialize_return_segment_ok
       hready17 hstep17 hready18 hstep18 hready19 hstep19

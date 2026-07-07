@@ -372,15 +372,15 @@ surface. Remaining EVM work is E3.
   halted return frame. `counterRunBytecode_initialize_body_and_return_ok`
   composes the body path with that return segment: from the first initialize
   body opcode, 22 fuel steps reach the halted frame, preserve the initialize
-  storage model, and expose the `.none` observable. The remaining proof still
-  carries an explicit post-SSTORE `counterCompiledStateAt` premise for the body
-  return jump. `counterCodePcFork_of_sstore_stackMemFlow_ok`,
-  `counterCodePcFork_of_stepFE_stackMemFlow_sstore_ok`, and
-  `counterCompiledStateAt_of_initialize_sstore_stepFE_ok` now prove the SSTORE
-  step itself preserves compiled code/fork and advances PC from
-  `counterInitializeBodyOffset + 21` to `+ 22`; the next slice should expose
-  the pre-SSTORE stack fact from the body path and use it to eliminate the
-  explicit premise before prepending the dispatcher/trampoline path. The pinned
+  storage model, and expose the `.none` observable.
+  `counterStack_of_initialize_tail_stepFE_to_sstore_ok` and
+  `counterStack_of_initialize_body_stepFE_to_sstore_ok` now expose the
+  pre-SSTORE stack shape consumed by
+  `counterCompiledStateAt_of_initialize_sstore_stepFE_ok`, so the 22-fuel body
+  bridge derives the body-return-jump `counterCompiledStateAt` fact internally
+  instead of carrying it as an explicit premise. The next slice should prepend
+  the dispatcher/trampoline path and connect this body+return bridge to the
+  prepared-frame `counterPowdrPreparedTraceStep` result. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
   remains an explicit trust boundary. The remaining E3 work is to discharge those
   prepared-frame storage models against the concrete runtime by connecting the
