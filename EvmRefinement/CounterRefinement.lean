@@ -7677,6 +7677,45 @@ theorem counterRunBytecode_get_body_and_return_ok
       hready12 hstep12 hready13 hstep13 hready14 hstep14
       hready15 hstep15 hready16 hstep16 hready17 hstep17)
 
+theorem counterStepFEPath_increment_return_segment_ok
+    {s0 s1 s2 s3 s4 : EvmState}
+    (hready0 :
+      counterStepFEReady s0
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hready1 : counterStepFEReady s1 (.Push counterPush0Op))
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hready2 : counterStepFEReady s2 (.Dup counterDup1Op))
+    (hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hready3 :
+      counterStepFEReady s3
+        (.System (.RETURN : EvmSemantics.Operation.SystemOps)))
+    (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4) :
+    EvmStepFEPath s0 4 s4 := by
+  exact ProofForge.Backend.Evm.PowdrExec.stepFEPath_four
+    hready0.1 hstep0 hready1.1 hstep1 hready2.1 hstep2
+    hready3.1 hstep3
+
+theorem counterRunBytecode_increment_return_segment_ok
+    {s0 s1 s2 s3 s4 : EvmState}
+    (hready0 :
+      counterStepFEReady s0
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hready1 : counterStepFEReady s1 (.Push counterPush0Op))
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hready2 : counterStepFEReady s2 (.Dup counterDup1Op))
+    (hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hready3 :
+      counterStepFEReady s3
+        (.System (.RETURN : EvmSemantics.Operation.SystemOps)))
+    (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4) :
+    ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 4 =
+      .ok (s4, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) := by
+  exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath_done
+    (counterStepFEPath_increment_return_segment_ok
+      hready0 hstep0 hready1 hstep1 hready2 hstep2 hready3 hstep3)
+
 theorem counterStepFEPath_initialize_body_and_return_ok
     {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17
       s18 s19 s20 s21 s22 : EvmState}
