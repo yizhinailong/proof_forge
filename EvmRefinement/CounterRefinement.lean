@@ -1920,18 +1920,15 @@ theorem counterStack_of_stepFE_stackMemFlow_sload_ok
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     nextState.stack =
       counterStorageValue counterContractAddress counterCountSlot state :: rest := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterStack_of_sload_stackMemFlow_ok haddr hstack hslot hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstackGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_sload_success_stack_ok
+      hready hdecoded hstack hstep
+  rw [hstackGeneric]
+  simp [counterStorageValue, counterAccount, haddr, hslot]
 
 theorem counterCallStack_of_stepFE_stackMemFlow_sload_ok
     {state nextState : EvmState} {slot : EvmSemantics.UInt256}
@@ -1957,18 +1954,12 @@ theorem counterCallStack_of_stepFE_stackMemFlow_sload_ok
           EvmSemantics.Operation) ≤ state.gasAvailable)
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     nextState.callStack = state.callStack := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterCallStack_of_sload_stackMemFlow_ok hstack hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  exact ProofForge.Backend.Evm.PowdrExec.stepFE_sload_success_callStack_ok
+    hready hdecoded hstack hstep
 
 theorem counterStack_of_compBit_and_ok
     {state gasState nextState : EvmState} {a b : EvmSemantics.UInt256}

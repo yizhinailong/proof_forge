@@ -588,6 +588,53 @@ theorem stepFE_sload_ok
   unfold EvmSemantics.EVM.stepF.stackMemFlow
   simp [hstack, hgasTotal, EvmSemantics.EVM.State.consumeGas]
 
+theorem stepFE_sload_success_stack_ok
+    {state nextState : State} {key : UInt256} {rest : List UInt256}
+    (hready :
+      StepFEReady state
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps)))
+    (hdecoded :
+      state.decoded =
+        some (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps), none))
+    (hstack : state.stack = key :: rest)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    nextState.stack =
+      (state.accountMap state.executionEnv.address).storage key :: rest := by
+  rw [stepFE_stackMemFlow_dispatch hready hdecoded] at hstep
+  unfold EvmSemantics.EVM.stepF.stackMemFlow at hstep
+  simp [hstack] at hstep
+  by_cases hgasTotal :
+      EvmSemantics.EVM.Gas.sloadTotal state key ≤ state.gasAvailable
+  · simp [hgasTotal, EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC] at hstep
+    cases hstep
+    simp [EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC]
+  · simp [hgasTotal] at hstep
+
+theorem stepFE_sload_success_callStack_ok
+    {state nextState : State} {key : UInt256} {rest : List UInt256}
+    (hready :
+      StepFEReady state
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps)))
+    (hdecoded :
+      state.decoded =
+        some (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps), none))
+    (hstack : state.stack = key :: rest)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    nextState.callStack = state.callStack := by
+  rw [stepFE_stackMemFlow_dispatch hready hdecoded] at hstep
+  unfold EvmSemantics.EVM.stepF.stackMemFlow at hstep
+  simp [hstack] at hstep
+  by_cases hgasTotal :
+      EvmSemantics.EVM.Gas.sloadTotal state key ≤ state.gasAvailable
+  · simp [hgasTotal, EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC] at hstep
+    cases hstep
+    simp [EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC]
+  · simp [hgasTotal] at hstep
+
 theorem stepFE_sstore_dispatch_ok
     {state : State}
     (hready :
