@@ -19,11 +19,49 @@ abbrev StepFEPath := ProofForge.Backend.Evm.PowdrAdapter.StepFEPath
 abbrev UInt256 := EvmSemantics.UInt256
 abbrev Operation := EvmSemantics.Operation
 
+def CodePcAt (code : ByteArray) (pc : Nat) (state : State) : Prop :=
+  state.executionEnv.code = code ∧
+    state.pc = EvmSemantics.UInt256.ofNat pc
+
 def runSteps : State → Nat → Except String (State × Array ObservableStep) :=
   ProofForge.Backend.Evm.PowdrAdapter.runBytecode
 
 theorem runSteps_zero (state : State) :
     runSteps state 0 = .ok (state, #[]) := rfl
+
+theorem decoded_of_code_pc
+    {state : State} {code : ByteArray} {pc : Nat}
+    {op : Operation} {argOpt : Option (EvmSemantics.UInt256 × Nat)}
+    (hcode : state.executionEnv.code = code)
+    (hpc : state.pc = EvmSemantics.UInt256.ofNat pc)
+    (hpcNat : (EvmSemantics.UInt256.ofNat pc).toNat = pc)
+    (hdecode : EvmSemantics.EVM.Decode.decodeAt code pc = some (op, argOpt))
+    (havailable : op.availableInFork state.executionEnv.fork = true) :
+    state.decoded = some (op, argOpt) := by
+  unfold EvmSemantics.EVM.State.decoded
+  rw [hcode, hpc, hpcNat, hdecode]
+  change (if op.availableInFork state.executionEnv.fork then some (op, argOpt)
+    else none) = some (op, argOpt)
+  simp [havailable]
+
+theorem decoded_of_codePcAt
+    {state : State} {code : ByteArray} {pc : Nat}
+    {op : Operation} {argOpt : Option (EvmSemantics.UInt256 × Nat)}
+    (hat : CodePcAt code pc state)
+    (hpcNat : (EvmSemantics.UInt256.ofNat pc).toNat = pc)
+    (hdecode : EvmSemantics.EVM.Decode.decodeAt code pc = some (op, argOpt))
+    (havailable : op.availableInFork state.executionEnv.fork = true) :
+    state.decoded = some (op, argOpt) := by
+  exact decoded_of_code_pc hat.1 hat.2 hpcNat hdecode havailable
+
+theorem validJumpDest_of_code_eq
+    {state : State} {code : ByteArray} {dest : Nat}
+    (hcode : state.executionEnv.code = code)
+    (hvalid :
+      EvmSemantics.EVM.Decode.isValidJumpDest code dest = true) :
+    EvmSemantics.EVM.Decode.isValidJumpDest state.executionEnv.code dest = true := by
+  rw [hcode]
+  exact hvalid
 
 theorem runSteps_stepFE_succ
     {state nextState finalState : State}
@@ -34,6 +72,56 @@ theorem runSteps_stepFE_succ
     runSteps state (fuel + 1) = .ok (finalState, observations) := by
   exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_stepFE_succ
     hrunning hstep hrun
+
+theorem stepFE_ok_state_eq {state expected actual : State}
+    (hexpected : EvmSemantics.EVM.stepFE state = .ok expected)
+    (hactual : EvmSemantics.EVM.stepFE state = .ok actual) :
+    actual = expected := by
+  rw [hactual] at hexpected
+  cases hexpected
+  rfl
+
+theorem stepFE_ok_stack_eq {state expected actual : State}
+    (hexpected : EvmSemantics.EVM.stepFE state = .ok expected)
+    (hactual : EvmSemantics.EVM.stepFE state = .ok actual) :
+    actual.stack = expected.stack := by
+  rw [stepFE_ok_state_eq hexpected hactual]
+
+theorem stepFE_ok_callStack_eq {state expected actual : State}
+    (hexpected : EvmSemantics.EVM.stepFE state = .ok expected)
+    (hactual : EvmSemantics.EVM.stepFE state = .ok actual) :
+    actual.callStack = expected.callStack := by
+  rw [stepFE_ok_state_eq hexpected hactual]
+
+theorem stepFE_ok_pc_eq {state expected actual : State}
+    (hexpected : EvmSemantics.EVM.stepFE state = .ok expected)
+    (hactual : EvmSemantics.EVM.stepFE state = .ok actual) :
+    actual.pc = expected.pc := by
+  rw [stepFE_ok_state_eq hexpected hactual]
+
+theorem stepFE_ok_halt_eq {state expected actual : State}
+    (hexpected : EvmSemantics.EVM.stepFE state = .ok expected)
+    (hactual : EvmSemantics.EVM.stepFE state = .ok actual) :
+    actual.halt = expected.halt := by
+  rw [stepFE_ok_state_eq hexpected hactual]
+
+theorem stepFE_ok_executionEnv_eq {state expected actual : State}
+    (hexpected : EvmSemantics.EVM.stepFE state = .ok expected)
+    (hactual : EvmSemantics.EVM.stepFE state = .ok actual) :
+    actual.executionEnv = expected.executionEnv := by
+  rw [stepFE_ok_state_eq hexpected hactual]
+
+theorem stepFE_ok_accountMap_eq {state expected actual : State}
+    (hexpected : EvmSemantics.EVM.stepFE state = .ok expected)
+    (hactual : EvmSemantics.EVM.stepFE state = .ok actual) :
+    actual.accountMap = expected.accountMap := by
+  rw [stepFE_ok_state_eq hexpected hactual]
+
+theorem stepFE_ok_memory_eq {state expected actual : State}
+    (hexpected : EvmSemantics.EVM.stepFE state = .ok expected)
+    (hactual : EvmSemantics.EVM.stepFE state = .ok actual) :
+    actual.memory = expected.memory := by
+  rw [stepFE_ok_state_eq hexpected hactual]
 
 theorem runSteps_of_stepFEPath_done {fuel : Nat} {state finalState : State}
     (path : StepFEPath state fuel finalState) :
