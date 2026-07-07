@@ -64,8 +64,8 @@ Two Lean 4 formal EVM semantics can serve as the Tier C-proof refinement target.
 **Update (2026-07): [`powdr-labs/evm-semantics`](https://github.com/powdr-labs/evm-semantics)
 is now the preferred one** — it is toolchain-compatible with ProofForge and relationally
 structured, which resolves the Phase 6b blocker that stopped the `EVMYulLean` route.
-(This supersedes the earlier note that treated `powdr-labs` only as a Rust zkVM project;
-`powdr-labs/evm-semantics` has since become a substantive Lean 4 EVM semantics.)
+(This supersedes the earlier note that treated `powdr-labs/evm-semantics` as
+unusable for ProofForge's Lean proof lane.)
 
 ### `powdr-labs/evm-semantics` (preferred)
 

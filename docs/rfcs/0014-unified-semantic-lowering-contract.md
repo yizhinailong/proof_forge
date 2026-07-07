@@ -910,8 +910,14 @@ A full feasibility assessment has been completed and is recorded in
   `Tests/IRStepSemantics.lean`, `just ir-step-semantics-smoke` (wired into `just check`),
   `ProofForge/Backend/Evm/Refinement.lean` bridge theorems
   (`counter_ir_trace_matches_inductive`, `value_vault_ir_trace_matches_inductive`).
-  Future: opt-in `powdr-labs/evm-semantics` lake target (6b) and real
-  `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` powdr adapter bodies (6b).
+  **Landed 2026-07-07 (Phase 6b):** `lakefile.lean`, `lake-manifest.json`,
+  `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean`,
+  `EvmRefinement/PowdrAdapter.lean`, `EvmRefinement/CounterRefinement.lean`,
+  and the opt-in powdr smoke gates wire `powdr-labs/evm-semantics` as the
+  EVM refinement target while keeping the default build mathlib-free.
+  **Next (Phase 6c):** discharge the Counter per-entrypoint powdr `Step`
+  obligations, starting from prepared-frame storage postconditions over the
+  compiled runtime.
 
 **Risks:** overstating what is "proven" — Path 5a is differential testing
 (Tier C-diff), not a proof; Path 5b's current `Evm.Refinement`/`ValueVaultInvariant`
@@ -1058,12 +1064,12 @@ adapter and simulation proofs to be correct.
   See [`docs/quint-cdiff-multi-backend-design.md`](../quint-cdiff-multi-backend-design.md)
   for the per-backend feasibility table, the abstract replay interface, and the
   field-level `NearReplay` (§7) and `SolanaReplay` (§8.1) designs.
-- **Tier C-proof:** deepen `Evm.Refinement` and `WasmNear.Refinement`; add
-  `Solana.Refinement` beyond the Phase 5 Counter seam toward syscall-aware
-  obligations. Evaluate integrating an external Lean EVM semantics such as
-  `powdr-labs/evm-semantics` as the target execution model for the EVM
-  refinement obligations (replacing or augmenting the in-tree
-  `Evm.YulSemantics` executable subset).
+- **Tier C-proof:** continue the opt-in EVM proof lane now pinned to
+  `powdr-labs/evm-semantics`: finish the Counter per-entrypoint powdr `Step`
+  obligations and universal trace lift, then extend the same shape beyond
+  Counter. Deepen `WasmNear.Refinement`; add `Solana.Refinement` beyond the
+  Phase 5 Counter seam toward syscall-aware obligations once a target semantics
+  exists.
 - **Plan JSON snapshots** for cross-backend plan diffing in CI.
 - **Lean typeclass** for the lowering contract once Phase 0–5 shapes are
   proven.
