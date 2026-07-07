@@ -74,7 +74,7 @@ flowchart TB
 - [验证门禁](validation-gates.md)：可运行的门禁和工具先决条件。
 - [形式化验证路线图](formal-verification.md)：现有的形式化锚点和阶段性证明目标。
 - [Solana sBPF 可执行追踪](../solana-sbpf-executable-trace.md)：直接 sBPF 汇编的 Lean 内 Counter + ValueVault 标量/事件 + fixed-array/u64-map 存储目标语义。
-- [WASM 可执行追踪](../wasm-executable-trace.md)：EmitWat/NEAR 的 Lean 内 Counter + ValueVault 标量/事件目标语义。
+- [WASM 可执行追踪](../wasm-executable-trace.md)：EmitWat/NEAR 的 Lean 内 Counter + ValueVault 标量/事件 + fixed-array/u64-map 存储目标语义。
 - [目标组合路线图](target-roadmap.md)：剩余 Research 目标和 Bitcoin 策略家族 (D-034) 的分层排序。
 - [平台差距分析 2026-07](platform-gaps-2026-07.md)：未计划的维度（CLI 界面、版本控制、预算、升级/签名、错误模型、客户端）及其排序钩子。
 - [实现待办事项](implementation-backlog.md)：阶段性任务和验收标准。

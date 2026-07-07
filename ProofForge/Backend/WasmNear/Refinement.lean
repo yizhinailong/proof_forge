@@ -2,7 +2,9 @@ import ProofForge.Backend.WasmNear.EmitWat
 import ProofForge.Backend.WasmNear.Memory
 import ProofForge.Backend.WasmNear.Types
 import ProofForge.IR.Semantics
+import ProofForge.IR.Examples.ArrayProbe
 import ProofForge.IR.Examples.Counter
+import ProofForge.IR.Examples.EvmMapProbe
 import ProofForge.Compiler.Wasm.AST
 import ProofForge.Contract.Examples.ValueVault
 import ProofForge.Contract.Examples.ValueVaultInvariant
@@ -91,6 +93,60 @@ def valueVaultTraceObligation : TraceObligation := {
   module := ProofForge.Contract.Examples.ValueVault.module
   calls := valueVaultTraceCalls
   expected := valueVaultExpectedTrace
+}
+
+/-! ### Storage array and map probe obligations
+
+These extend the in-Lean executable Wasm trace beyond scalar fields by running
+the emitted fixed-array storage and u64 map helper paths against the shared IR
+semantics. -/
+
+def arrayStorageExpectedTrace : Array ObservableStep := #[
+  { entrypointName := "storage_lifecycle", returnValue := .u64 31 }
+]
+
+def arrayStorageTraceObligation : TraceObligation := {
+  name := "ArrayProbe.storage-lifecycle"
+  module := ProofForge.IR.Examples.ArrayProbe.emitWatStorageModule
+  calls := traceCallsFromEntrypoints #[
+    ProofForge.IR.Examples.ArrayProbe.storageLifecycle
+  ]
+  expected := arrayStorageExpectedTrace
+}
+
+def mapStorageModule : Module := {
+  name := "EvmMapProbe"
+  state := #[
+    ProofForge.IR.Examples.EvmMapProbe.stateBefore,
+    ProofForge.IR.Examples.EvmMapProbe.stateBalances,
+    ProofForge.IR.Examples.EvmMapProbe.stateAfter
+  ]
+  entrypoints := #[
+    ProofForge.IR.Examples.EvmMapProbe.setBalance,
+    ProofForge.IR.Examples.EvmMapProbe.readBalance
+  ]
+}
+
+def mapSetCall : TraceCall := {
+  entrypoint := ProofForge.IR.Examples.EvmMapProbe.setBalance
+  args := #[.u64 5, .u64 42]
+}
+
+def mapReadCall : TraceCall := {
+  entrypoint := ProofForge.IR.Examples.EvmMapProbe.readBalance
+  args := #[.u64 5]
+}
+
+def mapStorageExpectedTrace : Array ObservableStep := #[
+  { entrypointName := "set_balance", returnValue := .none },
+  { entrypointName := "read_balance", returnValue := .u64 42 }
+]
+
+def mapStorageTraceObligation : TraceObligation := {
+  name := "EvmMapProbe.set-read"
+  module := mapStorageModule
+  calls := #[mapSetCall, mapReadCall]
+  expected := mapStorageExpectedTrace
 }
 
 def wasmExecutableTraceOk (obligation : TraceObligation) : Bool :=
@@ -808,6 +864,14 @@ theorem value_vault_ir_observable_trace_ok :
     valueVaultTraceObligation.irTraceOk = true := by
   native_decide
 
+theorem array_storage_ir_observable_trace_ok :
+    arrayStorageTraceObligation.irTraceOk = true := by
+  native_decide
+
+theorem map_storage_ir_observable_trace_ok :
+    mapStorageTraceObligation.irTraceOk = true := by
+  native_decide
+
 theorem counter_emitwat_exports_trace_entrypoints :
     emitWatExportsOk counterTraceObligation = true := by
   native_decide
@@ -850,6 +914,14 @@ theorem counter_wasm_executable_trace_ok :
 
 theorem value_vault_wasm_executable_trace_ok :
     wasmExecutableTraceOk valueVaultTraceObligation = true := by
+  native_decide
+
+theorem array_storage_wasm_executable_trace_ok :
+    wasmExecutableTraceOk arrayStorageTraceObligation = true := by
+  native_decide
+
+theorem map_storage_wasm_executable_trace_ok :
+    wasmExecutableTraceOk mapStorageTraceObligation = true := by
   native_decide
 
 theorem counter_emitwat_offline_host_return_payload_hex_ok :

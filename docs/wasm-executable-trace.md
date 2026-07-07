@@ -1,6 +1,6 @@
 # WASM Executable Trace - Design Note (FV-4)
 
-Status: **Counter + ValueVault scalar/event subset implemented** (2026-07).
+Status: **Counter + ValueVault scalar/event + fixed-array/u64-map storage subset implemented** (2026-07).
 Tracks the in-Lean executable trace for `wasm-near` after the export,
 artifact-surface, and offline-host execution-surface anchors.
 
@@ -8,8 +8,8 @@ artifact-surface, and offline-host execution-surface anchors.
 
 `ProofForge/Backend/WasmNear/Refinement.lean` pins three NEAR/Wasm anchors:
 
-1. **IR observable trace** - the Counter and ValueVault scenarios are checked
-   against the shared `IR.Semantics`.
+1. **IR observable trace** - the Counter, ValueVault, fixed-array storage, and
+   u64-map storage scenarios are checked against the shared `IR.Semantics`.
 2. **EmitWat artifact surface** - the emitted Wasm AST contains the expected
    imports, exports, helper calls, memory export, storage-key data segments,
    and host-boundary frames.
@@ -18,25 +18,28 @@ artifact-surface, and offline-host execution-surface anchors.
    same IR trace that the Rust offline host executes.
 
 The offline host is still an external differential-testing boundary. The
-in-Lean executable trace closes the Counter slice and the default ValueVault
-scalar/event slice by interpreting `EmitWat.lowerModule`'s structured
-`Wasm.Module` directly and comparing its observable output to the IR reference
-trace.
+in-Lean executable trace closes the Counter slice, the default ValueVault
+scalar/event slice, and focused fixed-array/u64-map storage slices by
+interpreting `EmitWat.lowerModule`'s structured `Wasm.Module` directly and
+comparing its observable output to the IR reference trace.
 
 ## Goal (non-goal)
 
-**Goal:** for the Counter scenario and the default ValueVault scenario, the
-Wasm interpreter and the IR reference semantics produce the same observable
-trace, checked by `native_decide` theorems. This moves the scalar-storage and
-event-log slice from offline-host-only differential coverage to Tier C-diff
-with an in-Lean target interpreter.
+**Goal:** for the Counter scenario, the default ValueVault scenario, the
+`ArrayProbe.storage_lifecycle` fixed-array scenario, and the focused
+`EvmMapProbe.set_balance → read_balance` u64-map scenario, the Wasm
+interpreter and the IR reference semantics produce the same observable trace,
+checked by `native_decide` theorems. This moves the scalar-storage, event-log,
+and focused storage-probe slices from offline-host-only differential coverage
+to Tier C-diff with an in-Lean target interpreter.
 
 **Non-goal:** a complete Wasm or NEAR VM model. The implemented slice covers
-the instruction and host-call subset emitted for Counter scalar storage and
-ValueVault's scalar storage, `block_index`, and `log_utf8` event path. NEAR
-Promise, async cross-contract behavior, gas metering, allocator reuse, maps,
-arrays, and chain runtime details stay in the external offline-host/wasmtime
-boundary.
+the instruction and host-call subset emitted for Counter scalar storage,
+ValueVault's scalar storage, `block_index`, `log_utf8` event path, fixed u64
+storage arrays, and a u64 map set/read probe. NEAR Promise, async
+cross-contract behavior, gas metering, allocator reuse, hash maps, nested
+paths, dynamic arrays, aggregate array elements, and chain runtime details stay
+in the external offline-host/wasmtime boundary.
 
 ## Existing structured representation (already in the repo)
 
@@ -83,15 +86,16 @@ Linear memory is byte-addressed and sparse. Data segments initialize storage
 keys such as `"count"`. Numeric loads/stores use little-endian byte encoding,
 matching the Rust offline host's `read_memory` and `write_memory` boundary.
 
-### Instruction subset (Counter coverage)
+### Instruction subset (implemented coverage)
 
-The Counter lowering emits this subset:
+The covered Counter, ValueVault, array, and map probe lowerings emit this
+subset:
 
 | Opcode class | Subset to model | Why |
 |---|---|---|
 | Stack values | `i32.const`, `i64.const`, `drop` | helper arguments/results |
 | Locals | `local.get`, `local.set`, `local.tee` | `increment` local and helper params |
-| Numeric ops | `i64.add`, comparisons, integer casts | counter arithmetic and helper conditionals |
+| Numeric ops | `i64.add/sub/mul/div/rem`, comparisons, bitwise ops, shifts, integer casts | scalar arithmetic, array/key address helpers, and helper conditionals |
 | Memory | `i64.load/store`, `i32.load/store`, `i32.load8_u/store8` | Borsh and host-register buffers |
 | Control flow | `if`, `block`, `loop`, `br`, `br_if`, `return` | helper branches and future bounded loops |
 | Calls | internal helper calls plus host calls | `__pf_read_u64`, `__pf_write_u64`, `__pf_return_u64` |
@@ -170,8 +174,10 @@ state and the Rust offline host.
    helper calls, register ABI, storage read/write, and `value_return`.
 2. **Slice B (implemented):** ValueVault scalar fields, Borsh u64 input args,
    `block_index`, mutable event-buffer globals, and event-log host calls.
-3. **Slice C:** maps and arrays, using the existing storage-key and Borsh
-   layout helpers.
+3. **Slice C (implemented, focused):** fixed u64 storage arrays and a u64 map
+   set/read probe, using the existing storage-key and Borsh layout helpers.
+   Broader hash maps, nested paths, dynamic arrays, and aggregate array
+   elements remain later slices.
 4. **Slice D:** broader HostBridge reuse for non-NEAR Wasm-family targets.
 
 ## Acceptance
@@ -180,8 +186,11 @@ state and the Rust offline host.
   interpreter and host model.
 - `ProofForge/Backend/WasmNear/Refinement.lean` gains
   `wasmExecutableTraceOk`, `counter_wasm_executable_trace_ok`, and
-  `value_vault_wasm_executable_trace_ok`.
+  `value_vault_wasm_executable_trace_ok`,
+  `array_storage_wasm_executable_trace_ok`, and
+  `map_storage_wasm_executable_trace_ok`.
 - `Tests/NearWasmFormal.lean` `#check`s the executable trace and scalar
   relation theorems.
 - `docs/formal-verification.md` describes the `wasm-near` Tier C-diff row as
-  executable-trace coverage for the Counter + ValueVault scalar/event subset.
+  executable-trace coverage for the Counter + ValueVault scalar/event plus
+  fixed-array/u64-map storage subset.

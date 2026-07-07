@@ -78,6 +78,10 @@ theorem release_then_sum_ownership_ok :
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_memory_surface_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_ir_observable_trace_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_wasm_executable_trace_ok
+#check ProofForge.Backend.WasmNear.Refinement.array_storage_ir_observable_trace_ok
+#check ProofForge.Backend.WasmNear.Refinement.array_storage_wasm_executable_trace_ok
+#check ProofForge.Backend.WasmNear.Refinement.map_storage_ir_observable_trace_ok
+#check ProofForge.Backend.WasmNear.Refinement.map_storage_wasm_executable_trace_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_offline_host_execution_surface_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_offline_host_return_payload_hex_ok
 #check ProofForge.Backend.WasmNear.Refinement.value_vault_emitwat_offline_host_storage_snapshots_ok
@@ -103,5 +107,5 @@ theorem release_then_sum_ownership_ok :
 end ProofForge.Tests.NearWasmFormal
 
 def main : IO UInt32 := do
-  IO.println "formal-anchors: ValueVault FV-8 IR invariants, NEAR artifact/offline-host/Counter+ValueVault executable-trace/import-signature/input-frame/context-frame/storage-read-key-frame/storage-write-key-value-frame/host-frame/memory-layout/return-payload-hex/storage-snapshot/storage-hex/log-payload-hex backend surfaces, and EVM FV-2/FV-4 IR trace anchors checked"
+  IO.println "formal-anchors: ValueVault FV-8 IR invariants, NEAR artifact/offline-host/Counter+ValueVault+array/map executable-trace/import-signature/input-frame/context-frame/storage-read-key-frame/storage-write-key-value-frame/host-frame/memory-layout/return-payload-hex/storage-snapshot/storage-hex/log-payload-hex backend surfaces, and EVM FV-2/FV-4 IR trace anchors checked"
   return 0
