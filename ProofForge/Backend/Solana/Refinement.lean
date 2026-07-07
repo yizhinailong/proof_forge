@@ -2,7 +2,9 @@ import ProofForge.Backend.Refinement.Core
 import ProofForge.Backend.Solana.SbpfInterpreter
 import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.IR.Semantics
+import ProofForge.IR.Examples.ArrayProbe
 import ProofForge.IR.Examples.Counter
+import ProofForge.IR.Examples.EvmMapProbe
 import ProofForge.Contract.Examples.ValueVaultInvariant
 
 namespace ProofForge.Backend.Solana.Refinement
@@ -29,14 +31,16 @@ should refine against:
    IR module's `entrypoints`.
 3. **Executable sBPF trace obligation** — the lowered structured `AstNode`
    instruction list executes in the in-Lean sBPF interpreter and produces the
-   same observable trace as the IR reference semantics for the Counter slice
-   and the default ValueVault scalar/event slice.
+   same observable trace as the IR reference semantics for the Counter slice,
+   the default ValueVault scalar/event slice, and focused storage array/map
+   probe slices.
 
 Future work (out of scope for this anchor):
 - account-validation sequence obligation (entrypoint prologue: signer/writable
   checks at documented offsets).
 - PDA derivation syscall sequence obligation.
-- wider executable sBPF coverage beyond the scalar-storage/event slice.
+- wider executable sBPF coverage beyond the scalar-storage/event/map/array
+  slices.
 -/
 
 /-! ### Observable trace (shared with EVM and NEAR refinement layers) -/
@@ -156,6 +160,60 @@ def valueVaultTraceObligation : TraceObligation := {
   expected := valueVaultExpectedTrace
 }
 
+/-! ### Storage array and map probe obligations
+
+These deepen the Solana executable trace beyond scalar slots. They are still
+pointwise C-diff checks, but they run the actual lowered sBPF array-index and
+map-linear-scan instruction paths against the shared IR semantics. -/
+
+def arrayStorageExpectedTrace : Array ObservableStep := #[
+  { entrypointName := "storage_lifecycle", returnValue := .u64 31 }
+]
+
+def arrayStorageTraceObligation : TraceObligation := {
+  name := "ArrayProbe.storage-lifecycle"
+  module := ProofForge.IR.Examples.ArrayProbe.emitWatStorageModule
+  calls := traceCallsFromEntrypoints #[
+    ProofForge.IR.Examples.ArrayProbe.storageLifecycle
+  ]
+  expected := arrayStorageExpectedTrace
+}
+
+def mapStorageModule : Module := {
+  name := "EvmMapProbe"
+  state := #[
+    ProofForge.IR.Examples.EvmMapProbe.stateBefore,
+    ProofForge.IR.Examples.EvmMapProbe.stateBalances,
+    ProofForge.IR.Examples.EvmMapProbe.stateAfter
+  ]
+  entrypoints := #[
+    ProofForge.IR.Examples.EvmMapProbe.setBalance,
+    ProofForge.IR.Examples.EvmMapProbe.readBalance
+  ]
+}
+
+def mapSetCall : TraceCall := {
+  entrypoint := ProofForge.IR.Examples.EvmMapProbe.setBalance
+  args := #[.u64 5, .u64 42]
+}
+
+def mapReadCall : TraceCall := {
+  entrypoint := ProofForge.IR.Examples.EvmMapProbe.readBalance
+  args := #[.u64 5]
+}
+
+def mapStorageExpectedTrace : Array ObservableStep := #[
+  { entrypointName := "set_balance", returnValue := .none },
+  { entrypointName := "read_balance", returnValue := .u64 42 }
+]
+
+def mapStorageTraceObligation : TraceObligation := {
+  name := "EvmMapProbe.set-read"
+  module := mapStorageModule
+  calls := #[mapSetCall, mapReadCall]
+  expected := mapStorageExpectedTrace
+}
+
 /-! ### Counter FV-4 artifact-surface and executable-trace theorems
 
 These are the first Solana refinement theorems. They mirror the NEAR
@@ -180,6 +238,22 @@ theorem value_vault_ir_observable_trace_ok :
 
 theorem value_vault_sbpf_executable_trace_ok :
     sbpfExecutableTraceOk valueVaultTraceObligation = true := by
+  native_decide
+
+theorem array_storage_ir_observable_trace_ok :
+    arrayStorageTraceObligation.irTraceOk = true := by
+  native_decide
+
+theorem array_storage_sbpf_executable_trace_ok :
+    sbpfExecutableTraceOk arrayStorageTraceObligation = true := by
+  native_decide
+
+theorem map_storage_ir_observable_trace_ok :
+    mapStorageTraceObligation.irTraceOk = true := by
+  native_decide
+
+theorem map_storage_sbpf_executable_trace_ok :
+    sbpfExecutableTraceOk mapStorageTraceObligation = true := by
   native_decide
 
 /-! ### Revert-aware trace obligation

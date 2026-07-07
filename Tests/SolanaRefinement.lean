@@ -26,6 +26,10 @@ open ProofForge.Backend.Solana.SbpfInterpreter
 #check counter_sbpf_executable_trace_ok
 #check value_vault_ir_observable_trace_ok
 #check value_vault_sbpf_executable_trace_ok
+#check array_storage_ir_observable_trace_ok
+#check array_storage_sbpf_executable_trace_ok
+#check map_storage_ir_observable_trace_ok
+#check map_storage_sbpf_executable_trace_ok
 
 -- Counter scalar simulation relation at the account-data offset computed by
 -- the Solana state layout.
@@ -39,5 +43,5 @@ open ProofForge.Backend.Solana.SbpfInterpreter
 end ProofForge.Tests.SolanaRefinement
 
 def main : IO UInt32 := do
-  IO.println "solana-refinement-smoke: Counter + ValueVault IR/sBPF executable traces, Counter scalar R, and revert rollback checked via native_decide"
+  IO.println "solana-refinement-smoke: Counter + ValueVault + array/map IR/sBPF executable traces, Counter scalar R, and revert rollback checked via native_decide"
   return 0

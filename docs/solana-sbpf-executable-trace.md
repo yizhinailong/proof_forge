@@ -1,6 +1,6 @@
 # Solana sBPF Executable Trace — Design Note (FV-4)
 
-Status: **Counter + ValueVault scalar/event subset implemented** (2026-07).
+Status: **Counter + ValueVault scalar/event + fixed-array/u64-map storage subset implemented** (2026-07).
 Tracks the in-Lean Solana refinement step after the artifact-surface anchor
 landed in #77 / #78.
 
@@ -9,15 +9,21 @@ landed in #77 / #78.
 `ProofForge/Backend/Solana/Refinement.lean` pins three Solana FV-4 anchors:
 
 1. **IR observable trace** (`counter_ir_observable_trace_ok`,
-   `value_vault_ir_observable_trace_ok`, `revert_rollback_ir_trace_ok`) — the
-   Counter scenario, default ValueVault scenario, and revert-rollback invariant
-   are checked against the shared `IR.Semantics`.
+   `value_vault_ir_observable_trace_ok`,
+   `array_storage_ir_observable_trace_ok`,
+   `map_storage_ir_observable_trace_ok`, `revert_rollback_ir_trace_ok`) — the
+   Counter scenario, default ValueVault scenario, focused storage array/map
+   probe scenarios, and revert-rollback invariant are checked against the
+   shared `IR.Semantics`.
 2. **sBPF artifact-surface** (`counter_sbpf_artifact_surface_ok`) — the rendered
    sBPF assembly *contains* a dispatch label for every IR entrypoint name.
 3. **sBPF executable trace** (`counter_sbpf_executable_trace_ok`,
-   `value_vault_sbpf_executable_trace_ok`) — the lowered structured `AstNode`
+   `value_vault_sbpf_executable_trace_ok`,
+   `array_storage_sbpf_executable_trace_ok`,
+   `map_storage_sbpf_executable_trace_ok`) — the lowered structured `AstNode`
    program runs in the in-Lean interpreter and produces the same observable
-   returns as the IR reference trace for the implemented scalar/event slice.
+   returns as the IR reference trace for the implemented scalar/event and
+   fixed-array/u64-map storage slices.
 
 The artifact-surface check is a text-containment test against
 `SbpfAsm.renderModule`. It catches dropped/renamed entrypoints but proves
@@ -28,18 +34,21 @@ observable output against the IR reference trace.
 
 ## Goal (non-goal)
 
-**Goal:** for the Counter scenario and the default ValueVault scenario, the
-sBPF interpreter and the IR reference semantics produce the same observable
-return words, checked by `native_decide` theorems. This moves the scalar/event
-slice from "artifact-surface only" to Tier C-diff (see
+**Goal:** for the Counter scenario, the default ValueVault scenario, the
+`ArrayProbe.storage_lifecycle` fixed-array scenario, and the focused
+`EvmMapProbe.set_balance → read_balance` u64-map scenario, the sBPF
+interpreter and the IR reference semantics produce the same observable return
+words, checked by `native_decide` theorems. This moves the scalar/event and
+focused storage-probe slices from "artifact-surface only" to Tier C-diff (see
 [formal-verification.md](formal-verification.md)).
 
 **Non-goal:** a complete sBPF model. We cover the instruction and syscall
-subset emitted for Counter scalar storage and ValueVault's scalar storage,
-instruction-data arguments, `Clock.slot`, and `sol_log_64_` event path. Full
-sBPF semantics (CPI, PDA derivation, broad syscalls, and a complete account
-model) stays in the external differential-testing trust boundary (Mollusk /
-Surfpool), out of scope for the Lean proof.
+subset emitted for Counter scalar storage, ValueVault's scalar storage,
+instruction-data arguments, `Clock.slot`, `sol_log_64_` event path, fixed
+u64 storage arrays, and a linear-scan u64 map slab. Full sBPF semantics
+(CPI, PDA derivation, broad syscalls, hash maps, nested paths, dynamic arrays,
+and a complete account model) stays in the external differential-testing trust
+boundary (Mollusk / Surfpool), out of scope for the Lean proof.
 
 ## Existing structured representation (already in the repo)
 
@@ -79,25 +88,24 @@ A label table maps `entry_<name>` labels to instruction indices, built by a
 pre-pass over the `AstNode` array. `equDecl`s resolve symbol immediates
 (`Imm.sym`) to `Nat`.
 
-### Instruction subset (Counter coverage)
+### Instruction subset (implemented coverage)
 
-The Counter lowering (`SbpfAsm.Stmt` + `SbpfAsm.Expr`) emits, for the
-`initialize` / `get` / `increment` entrypoints:
+The current covered lowering (`SbpfAsm.Stmt` + `SbpfAsm.Expr`) emits, for the
+Counter, ValueVault, fixed-array, and u64-map probe entrypoints:
 
 | Opcode class | Subset to model | Why |
 |---|---|---|
-| ALU 64-bit | `mov64`, `add64`, `sub64`, `mul64`, `lsh64` | counter arithmetic, address computation |
+| ALU 64-bit | `mov64`, `add64`, `sub64`, `mul64`, `div64`, `mod64`, bitwise ops, shifts | scalar arithmetic, address computation |
 | Load immediate | `lddw` (split into two pseudo-insns) | loading constants |
 | Load register-relative | `ldxdw` (`ldxw` if 32-bit) | reading scratch slots |
 | Store register-relative | `stxdw` (`stxw`) | writing scratch slots (the counter slot) |
-| Control flow | `ja`, `jeq`, `exit` | entrypoint dispatch tail, unconditional/conditional jump, return |
-| Syscall stub | `call` (only to the dispatch + a stubbed storage read/write) | Counter reads/writes one scalar slot |
+| Control flow | `ja`, `jeq`, `jne`, `jge`, `jlt`, `exit` | entrypoint dispatch, bounds checks, map scan loops, return |
+| Syscall stub | `call` (`sol_set_return_data`, `sol_get_clock_sysvar`, `sol_log_64_`) | return words, `Clock.slot`, scalar event logging |
 
-Storage model for the scalar counter: a single named slot, pre-initialised to
-`0`. The `call` instruction is modelled only for the
-"storage-scalar-read/write" syscall index used by Counter; other syscall
-indices are interpreter errors (out of the covered subset). This mirrors how
-the EVM Yul-subset interpreter models `sload`/`sstore`.
+Storage model: scalar fields, fixed u64 arrays, and u64 map entries use the
+same account-data offsets computed by `StateLayout.lean` and emitted as
+`.equ` constants by `SbpfAsm.lowerModule`. Unsupported syscall indices remain
+interpreter errors (out of the covered subset).
 
 ### Entrypoint dispatch
 
@@ -165,8 +173,10 @@ trace layer.
    returns, ALU/load/store/jump/exit subset. One `native_decide` theorem.
 2. **Slice B (implemented):** ValueVault scalar fields, instruction-data u64
    params, `Clock.slot` reads, and `sol_log_64_` event calls.
-3. **Slice C:** maps / arrays — requires porting the IR storage-slot model to
-   the sBPF scratch memory.
+3. **Slice C (implemented, focused):** fixed u64 storage arrays and a u64
+   map set/read probe, backed by the same account-data offset model as the
+   lowered sBPF artifact. Broader hash maps, nested paths, dynamic arrays, and
+   aggregate array elements remain later slices.
 4. **Slice D (research):** account-validation prologue obligation, PDA
    derivation syscall sequence obligation — these stay differential gates
    against Mollusk/Surfpool unless a fuller sBPF model lands.
@@ -175,11 +185,13 @@ trace layer.
 
 - `Solana/Refinement.lean` gains `sbpfExecutableTraceOk` and
   `counter_sbpf_executable_trace_ok` /
-  `value_vault_sbpf_executable_trace_ok` (native_decide).
+  `value_vault_sbpf_executable_trace_ok` /
+  `array_storage_sbpf_executable_trace_ok` /
+  `map_storage_sbpf_executable_trace_ok` (native_decide).
 - The interpreter lives in `ProofForge/Backend/Solana/SbpfInterpreter.lean`
   (pure Lean, total via step budget, no external tools).
 - `solana-refinement-smoke` is extended to `#check` the executable-trace
   theorem; `just solana-light` runs it locally without `sbpf`/`surfpool`.
 - `docs/formal-verification.md` Tier C-diff row for `solana-sbpf-asm` is
   updated from "artifact-surface only" to "executable-trace (Counter +
-  ValueVault scalar/event subset)".
+  ValueVault scalar/event + fixed-array/u64-map storage subset)".

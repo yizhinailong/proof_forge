@@ -85,7 +85,7 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - [Authoring model](authoring-model.md): Learn source, `contract_source`, and internal `ContractSpec` boundaries.
 - [Validation gates](validation-gates.md): runnable gates and tool prerequisites.
 - [Formal verification roadmap](formal-verification.md): existing formal anchors and staged proof targets.
-- [Solana sBPF executable trace](solana-sbpf-executable-trace.md): in-Lean Counter + ValueVault scalar/event target semantics for direct sBPF assembly.
+- [Solana sBPF executable trace](solana-sbpf-executable-trace.md): in-Lean Counter + ValueVault scalar/event plus fixed-array/u64-map storage target semantics for direct sBPF assembly.
 - [WASM executable trace](wasm-executable-trace.md): in-Lean Counter + ValueVault scalar/event target semantics for EmitWat/NEAR.
 - [Target portfolio roadmap](target-roadmap.md): tiered sequencing for the remaining research targets and the Bitcoin policy family (D-034).
 - [Platform gap analysis 2026-07](platform-gaps-2026-07.md): unplanned dimensions (CLI surface, versioning, budgets, upgrades/signing, error model, clients) and their sequencing hooks.
