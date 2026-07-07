@@ -230,6 +230,23 @@ theorem stepFEPath_append {state midState finalState : State}
   exact ProofForge.Backend.Evm.PowdrAdapter.stepFEPath_append
     prefixPath suffixPath
 
+structure StepFEReduction (state nextState : State) : Prop where
+  running : state.halt = .Running
+  step : EvmSemantics.EVM.stepFE state = .ok nextState
+
+theorem StepFEReduction.path
+    {state nextState : State}
+    (reduction : StepFEReduction state nextState) :
+    StepFEPath state 1 nextState := by
+  exact stepFEPath_single reduction.running reduction.step
+
+theorem StepFEReduction.executionSegment
+    {post : State → State → Prop} {state nextState : State}
+    (reduction : StepFEReduction state nextState)
+    (hpost : post state nextState) :
+    ExecutionSegment 1 post state nextState := by
+  exact executionSegment_single reduction.running reduction.step hpost
+
 theorem stepFEPath_two {s0 s1 s2 : State}
     (hr0 : s0.halt = .Running)
     (h0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
@@ -328,6 +345,41 @@ theorem stepFEPath_twelve
   have hsecond : StepFEPath s6 6 s12 :=
     stepFEPath_six hr6 h6 hr7 h7 hr8 h8 hr9 h9 hr10 h10 hr11 h11
   simpa using stepFEPath_append hfirst hsecond
+
+theorem executionSegment_two_reductions
+    {post : State → State → Prop} {s0 s1 s2 : State}
+    (r0 : StepFEReduction s0 s1)
+    (r1 : StepFEReduction s1 s2)
+    (hpost : post s0 s2) :
+    ExecutionSegment 2 post s0 s2 := by
+  exact executionSegment_of_stepFEPath
+    (stepFEPath_two r0.running r0.step r1.running r1.step)
+    hpost
+
+theorem executionSegment_three_reductions
+    {post : State → State → Prop} {s0 s1 s2 s3 : State}
+    (r0 : StepFEReduction s0 s1)
+    (r1 : StepFEReduction s1 s2)
+    (r2 : StepFEReduction s2 s3)
+    (hpost : post s0 s3) :
+    ExecutionSegment 3 post s0 s3 := by
+  exact executionSegment_of_stepFEPath
+    (stepFEPath_three r0.running r0.step r1.running r1.step
+      r2.running r2.step)
+    hpost
+
+theorem executionSegment_four_reductions
+    {post : State → State → Prop} {s0 s1 s2 s3 s4 : State}
+    (r0 : StepFEReduction s0 s1)
+    (r1 : StepFEReduction s1 s2)
+    (r2 : StepFEReduction s2 s3)
+    (r3 : StepFEReduction s3 s4)
+    (hpost : post s0 s4) :
+    ExecutionSegment 4 post s0 s4 := by
+  exact executionSegment_of_stepFEPath
+    (stepFEPath_four r0.running r0.step r1.running r1.step
+      r2.running r2.step r3.running r3.step)
+    hpost
 
 structure StepFEReady (state : State) (op : Operation) : Prop where
   running : state.halt = .Running

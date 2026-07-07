@@ -14,6 +14,7 @@ namespace ProofForge.Backend.Evm.PowdrExecSmoke
 abbrev State := ProofForge.Backend.Evm.PowdrExec.State
 abbrev StepFEReady := ProofForge.Backend.Evm.PowdrExec.StepFEReady
 abbrev StepFEPath := ProofForge.Backend.Evm.PowdrExec.StepFEPath
+abbrev StepFEReduction := ProofForge.Backend.Evm.PowdrExec.StepFEReduction
 abbrev ExecutionSegment :=
   ProofForge.Backend.Evm.PowdrExec.ExecutionSegment
 abbrev SegmentProvider :=
@@ -153,39 +154,14 @@ theorem twoSlotReader_getBalance_executionSegment
       EvmSemantics.EVM.stepFE s2 = .ok s3 :=
     ProofForge.Backend.Evm.PowdrExec.stepFE_stop_ok
       hstopReady hstopDecoded
-  have pushSegment :
-      ExecutionSegment 1 (fun _ finalState => finalState = s1) s0 s1 :=
-    ProofForge.Backend.Evm.PowdrExec.executionSegment_single
-      hpushReady.running hpushStep rfl
-  have sloadSegment :
-      ExecutionSegment 1 (fun _ finalState => finalState = s2) s1 s2 :=
-    ProofForge.Backend.Evm.PowdrExec.executionSegment_single
-      hsloadReady.running hsloadStep rfl
-  have stopSegment :
-      ExecutionSegment 1 (fun _ finalState => finalState = s3) s2 s3 :=
-    ProofForge.Backend.Evm.PowdrExec.executionSegment_single
-      hstopReady.running hstopStep rfl
-  have prefixSegment :
-      ExecutionSegment (1 + 1) (fun _ finalState => finalState = s2)
-        s0 s2 :=
-    ProofForge.Backend.Evm.PowdrExec.executionSegment_append
-      (prefixPost := fun _ finalState => finalState = s1)
-      (suffixPost := fun _ finalState => finalState = s2)
-      (combinedPost := fun _ finalState => finalState = s2)
-      (fun _ hsload => hsload) pushSegment sloadSegment
-  have fullSegment :
-      ExecutionSegment ((1 + 1) + 1) twoSlotReaderGetBalancePost s0 s3 :=
-    ProofForge.Backend.Evm.PowdrExec.executionSegment_append
-      (prefixPost := fun _ finalState => finalState = s2)
-      (suffixPost := fun _ finalState => finalState = s3)
-      (combinedPost := twoSlotReaderGetBalancePost)
-      (fun _ hstop => by
-        rw [hstop]
-        exact
-          ⟨hpushReady, hpushDecoded, hsloadReady, hsloadDecoded,
-            hsloadGas, hstopReady, hstopDecoded, rfl⟩)
-      prefixSegment stopSegment
-  exact fullSegment
+  exact ProofForge.Backend.Evm.PowdrExec.executionSegment_three_reductions
+    ({ running := hpushReady.running, step := hpushStep } : StepFEReduction s0 s1)
+    ({ running := hsloadReady.running, step := hsloadStep } : StepFEReduction s1 s2)
+    ({ running := hstopReady.running, step := hstopStep } : StepFEReduction s2 s3)
+    (by
+      exact
+        ⟨hpushReady, hpushDecoded, hsloadReady, hsloadDecoded,
+          hsloadGas, hstopReady, hstopDecoded, rfl⟩)
 
 theorem twoSlotReader_getBalance_stepFEPath
     {s0 : State}
