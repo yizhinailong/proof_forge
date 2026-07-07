@@ -491,6 +491,100 @@ theorem stepFE_sstore_dispatch_ok
         (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) := by
   exact stepFE_stackMemFlow_dispatch hready hdecoded
 
+theorem stepF_sstore_ok
+    {state gasState : State} {key value : UInt256} {rest : List UInt256}
+    (hmut : state.executionEnv.permitStateMutation = true)
+    (hsentry :
+      EvmSemantics.EVM.Gas.sstoreSentry state.fork gasState.gasAvailable = false)
+    (hstack : state.stack = key :: value :: rest)
+    (hcost :
+      (let addr := state.executionEnv.address
+       let acc := state.accountMap addr
+       let current := acc.storage key
+       let original := state.substate.originalStorage addr key
+       EvmSemantics.EVM.Gas.sstoreCost state.fork original current value +
+         EvmSemantics.EVM.Gas.sstoreColdSurcharge state key) ≤
+        gasState.gasAvailable) :
+    EvmSemantics.EVM.stepF.stackMemFlow state gasState
+        (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) =
+      .ok
+        (let addr := state.executionEnv.address
+         let acc := state.accountMap addr
+         let current := acc.storage key
+         let original := state.substate.originalStorage addr key
+         let cost :=
+           EvmSemantics.EVM.Gas.sstoreCost state.fork original current value +
+             EvmSemantics.EVM.Gas.sstoreColdSurcharge state key
+         let acc' := { acc with storage := acc.storage.set key value }
+         let σ' := state.accountMap.set addr acc'
+         let refDelta :=
+           EvmSemantics.EVM.Gas.sstoreRefund state.fork original current value
+         let rb : Int := (state.substate.refundBalance.toNat : Int) + refDelta
+         let rb' : Nat := if rb < 0 then 0 else rb.toNat
+         let sub' : EvmSemantics.Substate :=
+           { state.substate.addAccessedStorageKey (addr, key) with
+             refundBalance := EvmSemantics.UInt256.ofNat rb' }
+         ({ (gasState.consumeGas cost hcost) with
+             accountMap := σ'
+             substate := sub' }.replaceStackAndIncrPC rest)) := by
+  unfold EvmSemantics.EVM.stepF.stackMemFlow
+  simp [hmut, hsentry, hstack, hcost]
+
+theorem stepFE_sstore_ok
+    {state : State} {key value : UInt256} {rest : List UInt256}
+    (hready :
+      StepFEReady state
+        (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps)))
+    (hdecoded :
+      state.decoded =
+        some (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps), none))
+    (hmut : state.executionEnv.permitStateMutation = true)
+    (hsentry :
+      EvmSemantics.EVM.Gas.sstoreSentry state.fork
+        (state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+              Operation)) hready.gas).gasAvailable = false)
+    (hstack : state.stack = key :: value :: rest)
+    (hcost :
+      (let addr := state.executionEnv.address
+       let acc := state.accountMap addr
+       let current := acc.storage key
+       let original := state.substate.originalStorage addr key
+       EvmSemantics.EVM.Gas.sstoreCost state.fork original current value +
+         EvmSemantics.EVM.Gas.sstoreColdSurcharge state key) ≤
+        (state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+              Operation)) hready.gas).gasAvailable) :
+    EvmSemantics.EVM.stepFE state =
+      .ok
+        (let gasState := state.consumeGas
+            (EvmSemantics.EVM.Gas.baseCost state.fork
+              (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+                Operation)) hready.gas
+         let addr := state.executionEnv.address
+         let acc := state.accountMap addr
+         let current := acc.storage key
+         let original := state.substate.originalStorage addr key
+         let cost :=
+           EvmSemantics.EVM.Gas.sstoreCost state.fork original current value +
+             EvmSemantics.EVM.Gas.sstoreColdSurcharge state key
+         let acc' := { acc with storage := acc.storage.set key value }
+         let σ' := state.accountMap.set addr acc'
+         let refDelta :=
+           EvmSemantics.EVM.Gas.sstoreRefund state.fork original current value
+         let rb : Int := (state.substate.refundBalance.toNat : Int) + refDelta
+         let rb' : Nat := if rb < 0 then 0 else rb.toNat
+         let sub' : EvmSemantics.Substate :=
+           { state.substate.addAccessedStorageKey (addr, key) with
+             refundBalance := EvmSemantics.UInt256.ofNat rb' }
+         ({ (gasState.consumeGas cost hcost) with
+             accountMap := σ'
+             substate := sub' }.replaceStackAndIncrPC rest)) := by
+  rw [stepFE_sstore_dispatch_ok hready hdecoded]
+  exact stepF_sstore_ok hmut hsentry hstack hcost
+
 theorem stepFE_return_dispatch_ok
     {state : State}
     (hready :
@@ -507,5 +601,45 @@ theorem stepFE_return_dispatch_ok
               Operation)) hready.gas)
         (.RETURN : EvmSemantics.Operation.SystemOps) := by
   exact stepFE_system_dispatch hready hdecoded
+
+theorem stepF_return_ok
+    {state gasState : State} {offset size : UInt256} {rest : List UInt256}
+    (hstack : state.stack = offset :: size :: rest)
+    (hmem : gasState.canExpandMemory offset.toNat size.toNat) :
+    EvmSemantics.EVM.stepF.system state gasState
+        (.RETURN : EvmSemantics.Operation.SystemOps) =
+      .ok { gasState.consumeMemExp offset.toNat size.toNat hmem with
+        halt := .Returned
+        hReturn := EvmSemantics.MachineState.readPadded state.memory
+          offset.toNat size.toNat
+        stack := rest } := by
+  unfold EvmSemantics.EVM.stepF.system EvmSemantics.EVM.chargeMem
+  simp [hstack, hmem]
+
+theorem stepFE_return_ok
+    {state : State} {offset size : UInt256} {rest : List UInt256}
+    (hready :
+      StepFEReady state
+        (.System (.RETURN : EvmSemantics.Operation.SystemOps)))
+    (hdecoded :
+      state.decoded =
+        some (.System (.RETURN : EvmSemantics.Operation.SystemOps), none))
+    (hstack : state.stack = offset :: size :: rest)
+    (hmem :
+      (state.consumeGas
+        (EvmSemantics.EVM.Gas.baseCost state.fork
+          (.System (.RETURN : EvmSemantics.Operation.SystemOps) :
+            Operation)) hready.gas).canExpandMemory offset.toNat size.toNat) :
+    EvmSemantics.EVM.stepFE state =
+      .ok { (state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.System (.RETURN : EvmSemantics.Operation.SystemOps) :
+              Operation)) hready.gas).consumeMemExp offset.toNat size.toNat hmem with
+        halt := .Returned
+        hReturn := EvmSemantics.MachineState.readPadded state.memory
+          offset.toNat size.toNat
+        stack := rest } := by
+  rw [stepFE_return_dispatch_ok hready hdecoded]
+  exact stepF_return_ok hstack hmem
 
 end ProofForge.Backend.Evm.PowdrExec
