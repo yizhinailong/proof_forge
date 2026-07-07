@@ -269,6 +269,10 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   composes that dispatcher path with the trampoline and body `JUMPDEST`, proving
   the runtime reaches the first initialize body opcode with the return address
   and selector stack shape preserved.
+  `counterStorageValue_of_initialize_body_stepFE_from_first_opcode_ok` then
+  composes the first body opcode through the prefix and SLOAD/AND/OR/PUSH0/SSTORE
+  tail, proving the body writes `counterInitializeStorageWord` relative to the
+  SLOAD-state storage word.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -398,6 +402,10 @@ Yul→bytecode `solc` step as an explicit trust boundary.
 - `counterState_of_dispatcher_trampoline_stepFE_to_initialize_first_opcode_ok`
   — green under `lake build EvmRefinement`; the dispatcher, trampoline, and body
   `JUMPDEST` now compose to the first initialize body opcode.
+- `counterStorageValue_of_initialize_body_stepFE_from_first_opcode_ok` — green
+  under `lake build EvmRefinement`; the initialize body now composes from its
+  first opcode through SSTORE and writes `counterInitializeStorageWord` relative
+  to the SLOAD-state storage word.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 
@@ -424,6 +432,6 @@ per-entrypoint obligation surface now also carries this boundary through
 `CounterStepSafe`, and the safe trace theorem carries it through universal trace
 induction. `CounterTraceSafeAtState` is the current state/input predicate form;
 the remaining Phase 6c work is to prove the compiled runtime's prepared-frame
-EVM-only powdr storage models by composing the first initialize body opcode
-through the existing prefix/tail proof and instantiating the prepared-frame
-initialize storage model.
+EVM-only powdr storage models by connecting the composed dispatcher/trampoline/body
+`stepFE` path to the prepared-frame `counterPowdrPreparedTraceStep` result and
+instantiating the prepared-frame initialize storage model.

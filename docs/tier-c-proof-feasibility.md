@@ -416,15 +416,18 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterState_of_dispatcher_initialize_jumpi_stepFE_to_trampoline_ok`, and
     `counterState_of_dispatcher_trampoline_stepFE_to_initialize_first_opcode_ok`
     composes through the trampoline and body `JUMPDEST` to the first initialize
-    body opcode.
+    body opcode. `counterStorageValue_of_initialize_body_stepFE_from_first_opcode_ok`
+    then composes that first opcode through SSTORE and proves the body writes
+    `counterInitializeStorageWord` relative to the SLOAD-state storage word.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
   - Discharge the compiled runtime's prepared-frame EVM-only storage
     postconditions against powdr `Step`; the ordinary postconditions and safe
     per-entrypoint obligations then follow from the bridge/conversion theorems.
-    The next concrete proof slice is to compose the first initialize body opcode
-    through the existing prefix/tail proof and instantiate the prepared-frame
+    The next concrete proof slice is to connect the composed
+    dispatcher/trampoline/body `stepFE` path to the prepared-frame
+    `counterPowdrPreparedTraceStep` result and instantiate the prepared-frame
     initialize storage model.
 - **Deliverable (revised):** a clean powdr-target seam plus the opt-in
   dependency path and wrapper. The conformance-tested EVM bytecode semantics is
