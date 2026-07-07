@@ -204,10 +204,17 @@ These are lower-priority; they build on the C-diff tasks above.
 
 - **P2 — trace induction:** landed in `ProofForge/IR/StepSemantics.lean`
   (`IRTraceMatches`, `runTraceListGen_sound`, proven by induction) and generalized over
-  arbitrary target machine states. Extend as S6/W6 need.
+  arbitrary target machine states. `ProofForge/Backend/Refinement/Core.lean` now also
+  provides `traceSimulation_lift`, the reusable S6/W6 induction lemma: if every atomic
+  IR/target call preserves `R` and emits the same observable, then the whole call list
+  emits the same observable array. `CounterUniversal.lean` instantiates this as
+  `counter_trace_simulates_all_related_via_framework`.
 - **S6 / W6 — refinement lemmas:** per-entrypoint simulation
-  `R s s' → R (stepIR …) (runTarget …)`, lifted to whole-trace equality by induction over
-  the call list. Depends on P1 + P2 + (S3 / W5).
+  `R s s' → R (stepIR …) (runTarget …)`, then apply `traceSimulation_lift` to get
+  whole-trace equality by induction over the call list. The shared lift is landed; the
+  remaining target-specific work is to replace the current pointwise `native_decide` `R`
+  checks with real per-entrypoint simulation lemmas for the sBPF and Wasm interpreters.
+  Depends on P1 + P2 + (S3 / W5).
 - **S4 / S5 — Solana deeper slices:** ValueVault multiple scalar slots (S4), then
   maps/arrays by porting the IR storage-slot model to sBPF scratch memory (S5).
 - **WASM deeper slices:** ValueVault, then maps — mirror S4/S5 using `Layout.lean`.

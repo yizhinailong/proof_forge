@@ -160,6 +160,30 @@ theorem counter_step_simulates (call : CounterCall)
   · exact counter_increment_simulates h
   · exact counter_get_simulates h
 
+theorem counter_step_simulates_traceStep (call : CounterCall)
+    {state : State} {count : Nat} (h : CounterStateRel state count) :
+    ∃ nextState nextCount observable,
+      irStep state call = .ok (nextState, observable) ∧
+      targetTraceStep count call = .ok (nextCount, observable) ∧
+      CounterStateRel nextState nextCount := by
+  obtain ⟨nextState, nextCount, observable, hirStep, htargetStep, hrelNext⟩ :=
+    counter_step_simulates call h
+  refine ⟨nextState, nextCount, observable, hirStep, ?_, hrelNext⟩
+  rw [targetTraceStep, htargetStep]
+
+theorem counter_trace_simulates_all_related_via_framework (calls : List CounterCall)
+    {state : State} {count : Nat} (h : CounterStateRel state count) :
+    ∃ finalState finalCount observables,
+      runTraceListGen irStep calls state = .ok (finalState, observables) ∧
+      runTraceListGen targetTraceStep calls count = .ok (finalCount, observables) ∧
+      CounterStateRel finalState finalCount ∧
+      IRTraceMatches irStep state calls observables ∧
+      IRTraceMatches targetTraceStep count calls observables :=
+  traceSimulation_lift irStep targetTraceStep CounterStateRel
+    (fun call {irState} {targetState} hrel =>
+      counter_step_simulates_traceStep (state := irState) (count := targetState) call hrel)
+    calls h
+
 theorem counter_trace_simulates_all_related (calls : List CounterCall)
     {state : State} {count : Nat} (h : CounterStateRel state count) :
     ∃ finalState finalCount observables,

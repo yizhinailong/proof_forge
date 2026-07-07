@@ -5,6 +5,7 @@ import ProofForge.IR.StepSemantics
 namespace ProofForge.Backend.Refinement
 
 open ProofForge.IR
+open ProofForge.IR.StepSemantics
 
 /-! Shared refinement surfaces for target executable trace checks.
 
@@ -251,6 +252,49 @@ theorem TargetSemantics.runTrace_sound (semantics : TargetSemantics)
       simpa [TargetSemantics.TraceMatches] using hsound
   | error _ =>
       trivial
+
+/-- Generic whole-trace simulation lift.
+
+If every atomic IR/target call preserves a relation and emits the same
+observable, then the two fuel-bounded trace runners emit the same observable
+array for every call list. This is the shared induction shape needed by
+S6/W6-style C-proof tasks; backend-specific work only has to discharge the
+per-entrypoint `step_simulates` premise for its own `R`. -/
+theorem traceSimulation_lift {IRState TargetState Call Obs : Type}
+    (irStep : IRState → Call → Except String (IRState × Obs))
+    (targetStep : TargetState → Call → Except String (TargetState × Obs))
+    (Rel : IRState → TargetState → Prop)
+    (step_simulates :
+      ∀ call {irState targetState}, Rel irState targetState →
+        ∃ nextIr nextTarget observable,
+          irStep irState call = .ok (nextIr, observable) ∧
+          targetStep targetState call = .ok (nextTarget, observable) ∧
+          Rel nextIr nextTarget)
+    (calls : List Call) {irState : IRState} {targetState : TargetState}
+    (hrel : Rel irState targetState) :
+    ∃ finalIr finalTarget observables,
+      runTraceListGen irStep calls irState = .ok (finalIr, observables) ∧
+      runTraceListGen targetStep calls targetState = .ok (finalTarget, observables) ∧
+      Rel finalIr finalTarget ∧
+      IRTraceMatches irStep irState calls observables ∧
+      IRTraceMatches targetStep targetState calls observables := by
+  induction calls generalizing irState targetState with
+  | nil =>
+      refine ⟨irState, targetState, #[], rfl, rfl, hrel,
+        IRTraceMatches.nil, IRTraceMatches.nil⟩
+  | cons call rest ih =>
+      obtain ⟨nextIr, nextTarget, observable, hirStep, htargetStep, hrelNext⟩ :=
+        step_simulates call hrel
+      obtain ⟨finalIr, finalTarget, restObservables, hirRest, htargetRest,
+        hrelFinal, hirTraceRest, htargetTraceRest⟩ :=
+        ih (irState := nextIr) (targetState := nextTarget) hrelNext
+      refine ⟨finalIr, finalTarget, #[observable] ++ restObservables, ?_, ?_,
+        hrelFinal, IRTraceMatches.cons hirStep hirTraceRest,
+        IRTraceMatches.cons htargetStep htargetTraceRest⟩
+      · exact runTraceListGen_cons_ok irStep call rest irState nextIr observable
+          finalIr restObservables hirStep hirRest
+      · exact runTraceListGen_cons_ok targetStep call rest targetState nextTarget observable
+          finalTarget restObservables htargetStep htargetRest
 
 def TargetSemantics.supportsProofFragment
     (semantics : TargetSemantics) (fragment : FormalFragment) : Bool :=
