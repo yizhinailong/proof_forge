@@ -15,6 +15,7 @@ abbrev State := ProofForge.Backend.Evm.PowdrExec.State
 abbrev StepFEReady := ProofForge.Backend.Evm.PowdrExec.StepFEReady
 abbrev StepFEPath := ProofForge.Backend.Evm.PowdrExec.StepFEPath
 abbrev StepFEReduction := ProofForge.Backend.Evm.PowdrExec.StepFEReduction
+abbrev ReadyOpcodeAt := ProofForge.Backend.Evm.PowdrExec.ReadyOpcodeAt
 abbrev ExecutionSegment :=
   ProofForge.Backend.Evm.PowdrExec.ExecutionSegment
 abbrev SegmentProvider :=
@@ -27,6 +28,26 @@ def twoSlotReaderPush1Op : EvmSemantics.Operation.PushOp :=
 
 def twoSlotReaderBalanceSlot : UInt256 :=
   EvmSemantics.UInt256.ofNat 1
+
+def twoSlotReaderCode : ByteArray :=
+  ByteArray.mk #[0x60, 0x01, 0x54, 0x00]
+
+theorem twoSlotReaderCode_decode_push_balance :
+    EvmSemantics.EVM.Decode.decodeAt twoSlotReaderCode 0 =
+      some (.Push twoSlotReaderPush1Op,
+        some (twoSlotReaderBalanceSlot, 1)) := by
+  native_decide
+
+theorem twoSlotReaderCode_decode_sload :
+    EvmSemantics.EVM.Decode.decodeAt twoSlotReaderCode 2 =
+      some (.StackMemFlow
+        (.SLOAD : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem twoSlotReaderCode_decode_stop :
+    EvmSemantics.EVM.Decode.decodeAt twoSlotReaderCode 3 =
+      some (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps), none) := by
+  native_decide
 
 def pushBalanceSlotPost (state : State)
     (hready : StepFEReady state (.Push twoSlotReaderPush1Op)) : State :=
@@ -51,148 +72,120 @@ def stopPost (state : State) : State :=
   { state with halt := .Success, hReturn := .empty }
 
 def twoSlotReaderGetBalancePre (s0 : State) : Prop :=
-  ∃ (hpushReady : StepFEReady s0 (.Push twoSlotReaderPush1Op))
-    (_hpushDecoded :
-      s0.decoded =
-        some (.Push twoSlotReaderPush1Op,
-          some (twoSlotReaderBalanceSlot, 1)))
-    (_hsloadReady :
-      StepFEReady (pushBalanceSlotPost s0 hpushReady)
-        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps)))
-    (_hsloadDecoded :
-      (pushBalanceSlotPost s0 hpushReady).decoded =
-        some (.StackMemFlow
-          (.SLOAD : EvmSemantics.Operation.StackMemFlowOps), none))
+  ∃ (hpushAt :
+      ReadyOpcodeAt twoSlotReaderCode 0 (.Push twoSlotReaderPush1Op)
+        (some (twoSlotReaderBalanceSlot, 1)) s0)
+    (_hsloadAt :
+      ReadyOpcodeAt twoSlotReaderCode 2
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps))
+        none (pushBalanceSlotPost s0 hpushAt.ready))
     (hsloadGas :
       EvmSemantics.EVM.Gas.sloadTotal
-          (pushBalanceSlotPost s0 hpushReady) twoSlotReaderBalanceSlot ≤
-        (pushBalanceSlotPost s0 hpushReady).gasAvailable)
-    (_hstopReady :
-      StepFEReady
-        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady) hsloadGas)
-        (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps)))
-    (_hstopDecoded :
-      (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady)
-        hsloadGas).decoded =
-        some (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps), none)),
+          (pushBalanceSlotPost s0 hpushAt.ready) twoSlotReaderBalanceSlot ≤
+        (pushBalanceSlotPost s0 hpushAt.ready).gasAvailable)
+    (_hstopAt :
+      ReadyOpcodeAt twoSlotReaderCode 3
+        (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps))
+        none
+        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushAt.ready)
+          hsloadGas)),
     True
 
 def twoSlotReaderGetBalancePost (s0 finalState : State) : Prop :=
-  ∃ (hpushReady : StepFEReady s0 (.Push twoSlotReaderPush1Op))
-    (_hpushDecoded :
-      s0.decoded =
-        some (.Push twoSlotReaderPush1Op,
-          some (twoSlotReaderBalanceSlot, 1)))
-    (_hsloadReady :
-      StepFEReady (pushBalanceSlotPost s0 hpushReady)
-        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps)))
-    (_hsloadDecoded :
-      (pushBalanceSlotPost s0 hpushReady).decoded =
-        some (.StackMemFlow
-          (.SLOAD : EvmSemantics.Operation.StackMemFlowOps), none))
+  ∃ (hpushAt :
+      ReadyOpcodeAt twoSlotReaderCode 0 (.Push twoSlotReaderPush1Op)
+        (some (twoSlotReaderBalanceSlot, 1)) s0)
+    (_hsloadAt :
+      ReadyOpcodeAt twoSlotReaderCode 2
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps))
+        none (pushBalanceSlotPost s0 hpushAt.ready))
     (hsloadGas :
       EvmSemantics.EVM.Gas.sloadTotal
-          (pushBalanceSlotPost s0 hpushReady) twoSlotReaderBalanceSlot ≤
-        (pushBalanceSlotPost s0 hpushReady).gasAvailable)
-    (_hstopReady :
-      StepFEReady
-        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady) hsloadGas)
-        (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps)))
-    (_hstopDecoded :
-      (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady)
-        hsloadGas).decoded =
-        some (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps), none)),
+          (pushBalanceSlotPost s0 hpushAt.ready) twoSlotReaderBalanceSlot ≤
+        (pushBalanceSlotPost s0 hpushAt.ready).gasAvailable)
+    (_hstopAt :
+      ReadyOpcodeAt twoSlotReaderCode 3
+        (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps))
+        none
+        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushAt.ready)
+          hsloadGas)),
     finalState =
       stopPost
-        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady) hsloadGas)
+        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushAt.ready) hsloadGas)
 
 theorem twoSlotReader_getBalance_executionSegment
     {s0 : State}
-    (hpushReady : StepFEReady s0 (.Push twoSlotReaderPush1Op))
-    (hpushDecoded :
-      s0.decoded =
-        some (.Push twoSlotReaderPush1Op,
-          some (twoSlotReaderBalanceSlot, 1)))
-    (hsloadReady :
-      StepFEReady (pushBalanceSlotPost s0 hpushReady)
-        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps)))
-    (hsloadDecoded :
-      (pushBalanceSlotPost s0 hpushReady).decoded =
-        some (.StackMemFlow
-          (.SLOAD : EvmSemantics.Operation.StackMemFlowOps), none))
+    (hpushAt :
+      ReadyOpcodeAt twoSlotReaderCode 0 (.Push twoSlotReaderPush1Op)
+        (some (twoSlotReaderBalanceSlot, 1)) s0)
+    (hsloadAt :
+      ReadyOpcodeAt twoSlotReaderCode 2
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps))
+        none (pushBalanceSlotPost s0 hpushAt.ready))
     (hsloadGas :
       EvmSemantics.EVM.Gas.sloadTotal
-          (pushBalanceSlotPost s0 hpushReady) twoSlotReaderBalanceSlot ≤
-        (pushBalanceSlotPost s0 hpushReady).gasAvailable)
-    (hstopReady :
-      StepFEReady
-        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady) hsloadGas)
-        (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps)))
-    (hstopDecoded :
-      (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady) hsloadGas).decoded =
-        some (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps), none)) :
+          (pushBalanceSlotPost s0 hpushAt.ready) twoSlotReaderBalanceSlot ≤
+        (pushBalanceSlotPost s0 hpushAt.ready).gasAvailable)
+    (hstopAt :
+      ReadyOpcodeAt twoSlotReaderCode 3
+        (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps))
+        none
+        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushAt.ready)
+          hsloadGas)) :
     ExecutionSegment 3 twoSlotReaderGetBalancePost s0
       (stopPost
-        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady) hsloadGas)) := by
-  let s1 := pushBalanceSlotPost s0 hpushReady
+        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushAt.ready) hsloadGas)) := by
+  let s1 := pushBalanceSlotPost s0 hpushAt.ready
   let s2 := sloadBalanceSlotPost s1 hsloadGas
   let s3 := stopPost s2
   have hpushStep :
       EvmSemantics.EVM.stepFE s0 = .ok s1 :=
-    ProofForge.Backend.Evm.PowdrExec.stepFE_push_data_ok
+    ProofForge.Backend.Evm.PowdrExec.stepFE_push_data_at_ok
       (op := twoSlotReaderPush1Op) (value := twoSlotReaderBalanceSlot)
-      (argBytes := 1) (widthPred := 0) (by rfl) hpushReady hpushDecoded
+      (argBytes := 1) (widthPred := 0) hpushAt (by rfl)
   have hsloadStep :
       EvmSemantics.EVM.stepFE s1 = .ok s2 :=
-    ProofForge.Backend.Evm.PowdrExec.stepFE_sload_ok
-      (rest := s0.stack) hsloadReady hsloadDecoded
+    ProofForge.Backend.Evm.PowdrExec.stepFE_sload_at_ok
+      (rest := s0.stack) hsloadAt
       (by
         simp [pushBalanceSlotPost,
           EvmSemantics.EVM.State.replaceStackAndIncrPC])
       hsloadGas
   have hstopStep :
       EvmSemantics.EVM.stepFE s2 = .ok s3 :=
-    ProofForge.Backend.Evm.PowdrExec.stepFE_stop_ok
-      hstopReady hstopDecoded
+    ProofForge.Backend.Evm.PowdrExec.stepFE_stop_at_ok hstopAt
   exact ProofForge.Backend.Evm.PowdrExec.executionSegment_three_reductions
-    ({ running := hpushReady.running, step := hpushStep } : StepFEReduction s0 s1)
-    ({ running := hsloadReady.running, step := hsloadStep } : StepFEReduction s1 s2)
-    ({ running := hstopReady.running, step := hstopStep } : StepFEReduction s2 s3)
+    ({ running := hpushAt.ready.running, step := hpushStep } : StepFEReduction s0 s1)
+    ({ running := hsloadAt.ready.running, step := hsloadStep } : StepFEReduction s1 s2)
+    ({ running := hstopAt.ready.running, step := hstopStep } : StepFEReduction s2 s3)
     (by
       exact
-        ⟨hpushReady, hpushDecoded, hsloadReady, hsloadDecoded,
-          hsloadGas, hstopReady, hstopDecoded, rfl⟩)
+        ⟨hpushAt, hsloadAt, hsloadGas, hstopAt, rfl⟩)
 
 theorem twoSlotReader_getBalance_stepFEPath
     {s0 : State}
-    (hpushReady : StepFEReady s0 (.Push twoSlotReaderPush1Op))
-    (hpushDecoded :
-      s0.decoded =
-        some (.Push twoSlotReaderPush1Op,
-          some (twoSlotReaderBalanceSlot, 1)))
-    (hsloadReady :
-      StepFEReady (pushBalanceSlotPost s0 hpushReady)
-        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps)))
-    (hsloadDecoded :
-      (pushBalanceSlotPost s0 hpushReady).decoded =
-        some (.StackMemFlow
-          (.SLOAD : EvmSemantics.Operation.StackMemFlowOps), none))
+    (hpushAt :
+      ReadyOpcodeAt twoSlotReaderCode 0 (.Push twoSlotReaderPush1Op)
+        (some (twoSlotReaderBalanceSlot, 1)) s0)
+    (hsloadAt :
+      ReadyOpcodeAt twoSlotReaderCode 2
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps))
+        none (pushBalanceSlotPost s0 hpushAt.ready))
     (hsloadGas :
       EvmSemantics.EVM.Gas.sloadTotal
-          (pushBalanceSlotPost s0 hpushReady) twoSlotReaderBalanceSlot ≤
-        (pushBalanceSlotPost s0 hpushReady).gasAvailable)
-    (hstopReady :
-      StepFEReady
-        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady) hsloadGas)
-        (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps)))
-    (hstopDecoded :
-      (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady) hsloadGas).decoded =
-        some (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps), none)) :
+          (pushBalanceSlotPost s0 hpushAt.ready) twoSlotReaderBalanceSlot ≤
+        (pushBalanceSlotPost s0 hpushAt.ready).gasAvailable)
+    (hstopAt :
+      ReadyOpcodeAt twoSlotReaderCode 3
+        (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps))
+        none
+        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushAt.ready)
+          hsloadGas)) :
     StepFEPath s0 3
       (stopPost
-        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady) hsloadGas)) :=
-  (twoSlotReader_getBalance_executionSegment hpushReady hpushDecoded
-    hsloadReady hsloadDecoded hsloadGas hstopReady hstopDecoded).path
+        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushAt.ready) hsloadGas)) :=
+  (twoSlotReader_getBalance_executionSegment hpushAt
+    hsloadAt hsloadGas hstopAt).path
 
 def twoSlotReaderGetBalanceSegmentProvider :
     SegmentProvider twoSlotReaderGetBalancePre 3
@@ -200,14 +193,13 @@ def twoSlotReaderGetBalanceSegmentProvider :
   segment := by
     intro s0 hpre
     rcases hpre with
-      ⟨hpushReady, hpushDecoded, hsloadReady, hsloadDecoded,
-        hsloadGas, hstopReady, hstopDecoded, _⟩
+      ⟨hpushAt, hsloadAt, hsloadGas, hstopAt, _⟩
     refine
       ⟨stopPost
-        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady)
+        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushAt.ready)
           hsloadGas), ?_⟩
-    exact twoSlotReader_getBalance_executionSegment hpushReady hpushDecoded
-      hsloadReady hsloadDecoded hsloadGas hstopReady hstopDecoded
+    exact twoSlotReader_getBalance_executionSegment hpushAt
+      hsloadAt hsloadGas hstopAt
 
 theorem twoSlotReader_getBalance_runSteps_from_segmentProvider
     {s0 : State} (hpre : twoSlotReaderGetBalancePre s0) :
@@ -222,37 +214,31 @@ theorem twoSlotReader_getBalance_runSteps_from_segmentProvider
 
 theorem twoSlotReader_getBalance_runSteps
     {s0 : State}
-    (hpushReady : StepFEReady s0 (.Push twoSlotReaderPush1Op))
-    (hpushDecoded :
-      s0.decoded =
-        some (.Push twoSlotReaderPush1Op,
-          some (twoSlotReaderBalanceSlot, 1)))
-    (hsloadReady :
-      StepFEReady (pushBalanceSlotPost s0 hpushReady)
-        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps)))
-    (hsloadDecoded :
-      (pushBalanceSlotPost s0 hpushReady).decoded =
-        some (.StackMemFlow
-          (.SLOAD : EvmSemantics.Operation.StackMemFlowOps), none))
+    (hpushAt :
+      ReadyOpcodeAt twoSlotReaderCode 0 (.Push twoSlotReaderPush1Op)
+        (some (twoSlotReaderBalanceSlot, 1)) s0)
+    (hsloadAt :
+      ReadyOpcodeAt twoSlotReaderCode 2
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps))
+        none (pushBalanceSlotPost s0 hpushAt.ready))
     (hsloadGas :
       EvmSemantics.EVM.Gas.sloadTotal
-          (pushBalanceSlotPost s0 hpushReady) twoSlotReaderBalanceSlot ≤
-        (pushBalanceSlotPost s0 hpushReady).gasAvailable)
-    (hstopReady :
-      StepFEReady
-        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady) hsloadGas)
-        (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps)))
-    (hstopDecoded :
-      (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady) hsloadGas).decoded =
-        some (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps), none)) :
+          (pushBalanceSlotPost s0 hpushAt.ready) twoSlotReaderBalanceSlot ≤
+        (pushBalanceSlotPost s0 hpushAt.ready).gasAvailable)
+    (hstopAt :
+      ReadyOpcodeAt twoSlotReaderCode 3
+        (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps))
+        none
+        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushAt.ready)
+          hsloadGas)) :
     ProofForge.Backend.Evm.PowdrExec.runSteps s0 3 =
       .ok
         (stopPost
-          (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady) hsloadGas),
+          (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushAt.ready) hsloadGas),
           (#[] : Array ProofForge.Backend.Evm.PowdrExec.ObservableStep)) :=
   ProofForge.Backend.Evm.PowdrExec.runSteps_of_executionSegment
-    (twoSlotReader_getBalance_executionSegment hpushReady hpushDecoded
-      hsloadReady hsloadDecoded hsloadGas hstopReady hstopDecoded)
+    (twoSlotReader_getBalance_executionSegment hpushAt
+      hsloadAt hsloadGas hstopAt)
 
 theorem mstore_word_runSteps
     {s0 : State} {offset value : UInt256} {rest : List UInt256}
