@@ -173,6 +173,58 @@ theorem stepFEPath_five {s0 s1 s2 s3 s4 s5 : State}
     (.cons hr1 h1
       (.cons hr2 h2 (.cons hr3 h3 (.cons hr4 h4 (.nil s5)))))
 
+theorem stepFEPath_six {s0 s1 s2 s3 s4 s5 s6 : State}
+    (hr0 : s0.halt = .Running)
+    (h0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hr1 : s1.halt = .Running)
+    (h1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hr2 : s2.halt = .Running)
+    (h2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hr3 : s3.halt = .Running)
+    (h3 : EvmSemantics.EVM.stepFE s3 = .ok s4)
+    (hr4 : s4.halt = .Running)
+    (h4 : EvmSemantics.EVM.stepFE s4 = .ok s5)
+    (hr5 : s5.halt = .Running)
+    (h5 : EvmSemantics.EVM.stepFE s5 = .ok s6) :
+    StepFEPath s0 6 s6 := by
+  exact .cons hr0 h0
+    (.cons hr1 h1
+      (.cons hr2 h2
+        (.cons hr3 h3 (.cons hr4 h4 (.cons hr5 h5 (.nil s6))))))
+
+theorem stepFEPath_twelve
+    {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 : State}
+    (hr0 : s0.halt = .Running)
+    (h0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hr1 : s1.halt = .Running)
+    (h1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hr2 : s2.halt = .Running)
+    (h2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hr3 : s3.halt = .Running)
+    (h3 : EvmSemantics.EVM.stepFE s3 = .ok s4)
+    (hr4 : s4.halt = .Running)
+    (h4 : EvmSemantics.EVM.stepFE s4 = .ok s5)
+    (hr5 : s5.halt = .Running)
+    (h5 : EvmSemantics.EVM.stepFE s5 = .ok s6)
+    (hr6 : s6.halt = .Running)
+    (h6 : EvmSemantics.EVM.stepFE s6 = .ok s7)
+    (hr7 : s7.halt = .Running)
+    (h7 : EvmSemantics.EVM.stepFE s7 = .ok s8)
+    (hr8 : s8.halt = .Running)
+    (h8 : EvmSemantics.EVM.stepFE s8 = .ok s9)
+    (hr9 : s9.halt = .Running)
+    (h9 : EvmSemantics.EVM.stepFE s9 = .ok s10)
+    (hr10 : s10.halt = .Running)
+    (h10 : EvmSemantics.EVM.stepFE s10 = .ok s11)
+    (hr11 : s11.halt = .Running)
+    (h11 : EvmSemantics.EVM.stepFE s11 = .ok s12) :
+    StepFEPath s0 12 s12 := by
+  have hfirst : StepFEPath s0 6 s6 :=
+    stepFEPath_six hr0 h0 hr1 h1 hr2 h2 hr3 h3 hr4 h4 hr5 h5
+  have hsecond : StepFEPath s6 6 s12 :=
+    stepFEPath_six hr6 h6 hr7 h7 hr8 h8 hr9 h9 hr10 h10 hr11 h11
+  simpa using stepFEPath_append hfirst hsecond
+
 structure StepFEReady (state : State) (op : Operation) : Prop where
   running : state.halt = .Running
   notPrecompile :
