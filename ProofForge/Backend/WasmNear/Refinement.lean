@@ -7,10 +7,13 @@ import ProofForge.Compiler.Wasm.AST
 import ProofForge.Contract.Examples.ValueVault
 import ProofForge.Contract.Examples.ValueVaultInvariant
 import ProofForge.Backend.WasmNear.Refinement.Core
+import ProofForge.Backend.WasmNear.WasmInterpreter
 
 namespace ProofForge.Backend.WasmNear.Refinement
 
 open ProofForge.IR
+open ProofForge.Backend.Refinement
+open ProofForge.Backend.WasmNear.WasmInterpreter
 
 def counterTraceEntrypoints : Array Entrypoint := #[
   ProofForge.IR.Examples.Counter.initializeEntrypoint,
@@ -20,18 +23,21 @@ def counterTraceEntrypoints : Array Entrypoint := #[
 ]
 
 def counterExpectedTrace : Array ObservableStep := #[
-  { exportName := "initialize", returnValue := .none },
-  { exportName := "get", returnValue := .u64 0 },
-  { exportName := "increment", returnValue := .none },
-  { exportName := "get", returnValue := .u64 1 }
+  { entrypointName := "initialize", returnValue := .none },
+  { entrypointName := "get", returnValue := .u64 0 },
+  { entrypointName := "increment", returnValue := .none },
+  { entrypointName := "get", returnValue := .u64 1 }
 ]
 
 def counterTraceObligation : TraceObligation := {
   name := "Counter.initialize-get-increment-get"
   module := ProofForge.IR.Examples.Counter.module
-  entrypoints := counterTraceEntrypoints
+  calls := traceCallsFromEntrypoints counterTraceEntrypoints
   expected := counterExpectedTrace
 }
+
+def wasmExecutableTraceOk (obligation : TraceObligation) : Bool :=
+  ProofForge.Backend.WasmNear.WasmInterpreter.executableTraceOk obligation
 
 def emitWatKeyBuf : Nat := ProofForge.Backend.WasmNear.Memory.KEY_BUF
 def emitWatRetBuf : Nat := ProofForge.Backend.WasmNear.Memory.RET_BUF
@@ -742,7 +748,7 @@ theorem counter_ir_observable_trace_ok :
   native_decide
 
 theorem counter_emitwat_exports_trace_entrypoints :
-    counterTraceObligation.emitWatExportsOk = true := by
+    emitWatExportsOk counterTraceObligation = true := by
   native_decide
 
 theorem counter_emitwat_artifact_surface_ok :
@@ -775,6 +781,10 @@ theorem counter_emitwat_memory_surface_ok :
 
 theorem counter_emitwat_offline_host_execution_surface_ok :
     counterOfflineHostExecutionObligation.ok = true := by
+  native_decide
+
+theorem counter_wasm_executable_trace_ok :
+    wasmExecutableTraceOk counterTraceObligation = true := by
   native_decide
 
 theorem counter_emitwat_offline_host_return_payload_hex_ok :

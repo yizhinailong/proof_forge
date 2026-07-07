@@ -1,3 +1,4 @@
+import ProofForge.Backend.Refinement.Core
 import ProofForge.Backend.WasmNear.EmitWat
 import ProofForge.Backend.WasmNear.Memory
 import ProofForge.Backend.WasmNear.Types
@@ -10,6 +11,7 @@ import ProofForge.Contract.Examples.ValueVaultInvariant
 namespace ProofForge.Backend.WasmNear.Refinement
 
 open ProofForge.IR
+open ProofForge.Backend.Refinement
 
 /-! Refinement scaffolding for the IR -> EmitWat/NEAR Wasm path.
 
@@ -20,74 +22,10 @@ that the scalar IR semantics produces the expected observable Counter trace and
 that EmitWat exposes the entrypoint names used by that trace.
 -/
 
-inductive ObservableReturn where
-  | none
-  | bool (value : Bool)
-  | u32 (value : Nat)
-  | u64 (value : Nat)
-  | hash (a b c d : Nat)
-  | reverted (message : String)
-  deriving Repr, BEq, DecidableEq
-
-structure ObservableStep where
-  exportName : String
-  returnValue : ObservableReturn
-  deriving Repr, BEq, DecidableEq
-
-structure TraceObligation where
-  name : String
-  module : Module
-  entrypoints : Array Entrypoint
-  expected : Array ObservableStep
-  deriving Repr
-
-def observableReturn (expectedType : ValueType) (value? : Option ProofForge.IR.Semantics.Value) :
-    Except String ObservableReturn :=
-  match expectedType, value? with
-  | .unit, none => .ok .none
-  | .unit, some .unit => .ok .none
-  | .bool, some (.bool value) => .ok (.bool value)
-  | .u32, some (.u32 value) => .ok (.u32 value)
-  | .u64, some (.u64 value) => .ok (.u64 value)
-  | .hash, some (.hash a b c d) => .ok (.hash a b c d)
-  | _, none => .error s!"entrypoint expected `{expectedType.name}` but returned no value"
-  | _, some _ => .error s!"entrypoint returned a value that does not match `{expectedType.name}`"
-
-def runEntrypointObservable (state : ProofForge.IR.Semantics.State) (entrypoint : Entrypoint) :
-    Except String (ProofForge.IR.Semantics.State × ObservableStep) := do
-  -- Revert-aware trace: a contract revert is a first-class observable outcome.
-  -- State is *not* advanced on revert (chain rollback semantics); an interpreter
-  -- error still fails the trace.
-  match ProofForge.IR.Semantics.runEntrypointResult state entrypoint with
-  | .ok (nextState, result?) =>
-      let returnValue ← observableReturn entrypoint.returns result?
-      .ok (nextState, { exportName := entrypoint.name, returnValue := returnValue })
-  | .reverted message =>
-      .ok (state, { exportName := entrypoint.name, returnValue := .reverted message })
-  | .error message =>
-      .error message
-
-def runTraceList : List Entrypoint → ProofForge.IR.Semantics.State →
-    Except String (ProofForge.IR.Semantics.State × Array ObservableStep)
-  | [], state => .ok (state, #[])
-  | entrypoint :: rest, state => do
-      let (nextState, step) ← runEntrypointObservable state entrypoint
-      let (finalState, steps) ← runTraceList rest nextState
-      .ok (finalState, #[step] ++ steps)
-
-def runTrace (entrypoints : Array Entrypoint) : Except String (Array ObservableStep) := do
-  let (_, steps) ← runTraceList entrypoints.toList ProofForge.IR.Semantics.State.empty
-  .ok steps
-
-def TraceObligation.irTraceOk (obligation : TraceObligation) : Bool :=
-  match runTrace obligation.entrypoints with
-  | .ok actual => actual == obligation.expected
-  | .error _ => false
-
 def hasWatExport (wat exportName : String) : Bool :=
   wat.contains s!"(export \"{exportName}\""
 
-def TraceObligation.emitWatExportsOk (obligation : TraceObligation) : Bool :=
+def emitWatExportsOk (obligation : TraceObligation) : Bool :=
   match ProofForge.Backend.WasmNear.EmitWat.renderModule obligation.module with
   | .ok wat => obligation.entrypoints.all (fun entrypoint => hasWatExport wat entrypoint.name)
   | .error _ => false
@@ -427,19 +365,27 @@ def borshArgsHex (args : Array ProofForge.IR.Semantics.Value) : Except String St
 def observableReturnHex : ObservableReturn → String
   | .none => ""
   | .bool value => if value then "01" else "00"
+  | .u8 value => littleEndianHex 1 value
   | .u32 value => littleEndianHex 4 value
   | .u64 value => littleEndianHex 8 value
+  | .u128 value => littleEndianHex 16 value
   | .hash a b c d =>
       littleEndianHex 8 a ++ littleEndianHex 8 b ++ littleEndianHex 8 c ++ littleEndianHex 8 d
+  | .words values =>
+      String.intercalate "" <| values.toList.map (littleEndianHex 8)
   | .reverted _ => ""
 
 def offlineHostReturnFragment : ObservableReturn → String
   | .none => "return=<none>"
   | .bool value => s!"return_hex={observableReturnHex (.bool value)} return_bool={value}"
+  | .u8 value => s!"return_hex={observableReturnHex (.u8 value)} return_u8={value}"
   | .u32 value => s!"return_hex={observableReturnHex (.u32 value)} return_u32={value}"
   | .u64 value => s!"return_hex={observableReturnHex (.u64 value)} return_u64={value}"
+  | .u128 value => s!"return_hex={observableReturnHex (.u128 value)} return_u128={value}"
   | .hash a b c d =>
       s!"return_hex={observableReturnHex (.hash a b c d)} return_len=32"
+  | .words values =>
+      s!"return_hex={observableReturnHex (.words values)} return_words={values.size}"
   | .reverted message => s!"reverted=true revert_reason={message}"
 
 structure OfflineHostExecutionStep where
@@ -611,7 +557,7 @@ def observableReturnFromSemValue? : Option SemValue → Except String Observable
   | some (.u64 value) => .ok (.u64 value)
   | some (.hash a b c d) => .ok (.hash a b c d)
   | some (.address value) => .ok (.u64 value)
-  | some (.u8 value) => .ok (.u32 value)
+  | some (.u8 value) => .ok (.u8 value)
   | some (.u128 _) => .error "offline-host execution obligation does not yet encode u128 return values"
   | some (.bytes _) =>
       .error "offline-host execution obligation does not yet encode bytes return values"

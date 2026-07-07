@@ -1,3 +1,4 @@
+import ProofForge.Backend.Refinement.Core
 import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Evm.YulSemantics
 import ProofForge.Contract.Examples.ValueVault
@@ -17,6 +18,7 @@ import ProofForge.IR.StepSemantics
 namespace ProofForge.Backend.Evm.Refinement
 
 open ProofForge.IR
+open ProofForge.Backend.Refinement
 
 /-! Refinement scaffolding for the IR -> EVM/Yul path.
 
@@ -26,44 +28,6 @@ Counter and ValueVault scenarios, check that generated EVM Yul exposes every
 entrypoint needed by those traces, and execute the focused Yul subset to compare
 observable return words.
 -/
-
-inductive ObservableReturn where
-  | none
-  | bool (value : Bool)
-  | u8 (value : Nat)
-  | u32 (value : Nat)
-  | u64 (value : Nat)
-  | u128 (value : Nat)
-  | hash (a b c d : Nat)
-  | words (values : Array Nat)
-  | reverted (message : String)
-  deriving Repr, BEq, DecidableEq
-
-structure ObservableEventLog where
-  eventName : String
-  topics : Array Nat := #[]
-  dataWords : Array Nat := #[]
-  deriving Repr, BEq, DecidableEq
-
-structure ObservableStep where
-  entrypointName : String
-  selector : String
-  returnValue : ObservableReturn
-  logs : Array ObservableEventLog := #[]
-  deriving Repr, BEq, DecidableEq
-
-structure TraceCall where
-  entrypoint : Entrypoint
-  args : Array ProofForge.IR.Semantics.Value := #[]
-  evmArgs : Array Nat := #[]
-  deriving Repr
-
-structure TraceObligation where
-  name : String
-  module : Module
-  calls : Array TraceCall
-  expected : Array ObservableStep
-  deriving Repr
 
 partial def observableWordsFromValue (value : ProofForge.IR.Semantics.Value) :
     Except String (Array Nat) :=
@@ -299,7 +263,7 @@ def runTrace (calls : Array TraceCall) : Except String (Array ObservableStep) :=
   let (_, steps) ← runTraceList calls.toList ProofForge.IR.Semantics.State.empty
   .ok steps
 
-def TraceObligation.irTraceOk (obligation : TraceObligation) : Bool :=
+def irTraceOk (obligation : TraceObligation) : Bool :=
   match runTrace obligation.calls with
   | .ok actual => actual == obligation.expected
   | .error _ => false
@@ -394,7 +358,7 @@ def entrypointOk (module : Module) (object : Lean.Compiler.Yul.Object) (entrypoi
 
 end YulSurface
 
-def TraceObligation.evmYulSurfaceOk (obligation : TraceObligation) : Bool :=
+def evmYulSurfaceOk (obligation : TraceObligation) : Bool :=
   match ProofForge.Backend.Evm.IR.lowerModule obligation.module with
   | .ok object =>
       obligation.calls.all fun call =>
@@ -438,7 +402,7 @@ def runEvmTrace (object : Lean.Compiler.Yul.Object) (calls : Array TraceCall) :
   let (_, steps) ← runEvmTraceList object calls.toList []
   .ok steps
 
-def TraceObligation.evmYulTraceOk (obligation : TraceObligation) : Bool :=
+def evmYulTraceOk (obligation : TraceObligation) : Bool :=
   match ProofForge.Backend.Evm.IR.lowerModule obligation.module with
   | .ok object =>
       match runEvmTrace object obligation.calls with
@@ -955,135 +919,135 @@ def abiAggregateTraceObligation : TraceObligation := {
 }
 
 theorem counter_ir_observable_trace_ok :
-    counterTraceObligation.irTraceOk = true := by
+    irTraceOk counterTraceObligation = true := by
   native_decide
 
 theorem counter_evm_yul_surface_trace_entrypoints :
-    counterTraceObligation.evmYulSurfaceOk = true := by
+    evmYulSurfaceOk counterTraceObligation = true := by
   native_decide
 
 theorem counter_evm_yul_executable_trace_ok :
-    counterTraceObligation.evmYulTraceOk = true := by
+    evmYulTraceOk counterTraceObligation = true := by
   native_decide
 
 theorem value_vault_ir_observable_trace_ok :
-    valueVaultTraceObligation.irTraceOk = true := by
+    irTraceOk valueVaultTraceObligation = true := by
   native_decide
 
 theorem value_vault_evm_yul_surface_trace_entrypoints :
-    valueVaultTraceObligation.evmYulSurfaceOk = true := by
+    evmYulSurfaceOk valueVaultTraceObligation = true := by
   native_decide
 
 theorem value_vault_evm_yul_executable_trace_ok :
-    valueVaultTraceObligation.evmYulTraceOk = true := by
+    evmYulTraceOk valueVaultTraceObligation = true := by
   native_decide
 
 theorem expression_ir_observable_trace_ok :
-    expressionTraceObligation.irTraceOk = true := by
+    irTraceOk expressionTraceObligation = true := by
   native_decide
 
 theorem expression_evm_yul_surface_trace_entrypoints :
-    expressionTraceObligation.evmYulSurfaceOk = true := by
+    evmYulSurfaceOk expressionTraceObligation = true := by
   native_decide
 
 theorem expression_evm_yul_executable_trace_ok :
-    expressionTraceObligation.evmYulTraceOk = true := by
+    evmYulTraceOk expressionTraceObligation = true := by
   native_decide
 
 theorem conditional_ir_observable_trace_ok :
-    conditionalTraceObligation.irTraceOk = true := by
+    irTraceOk conditionalTraceObligation = true := by
   native_decide
 
 theorem conditional_evm_yul_surface_trace_entrypoints :
-    conditionalTraceObligation.evmYulSurfaceOk = true := by
+    evmYulSurfaceOk conditionalTraceObligation = true := by
   native_decide
 
 theorem conditional_evm_yul_executable_trace_ok :
-    conditionalTraceObligation.evmYulTraceOk = true := by
+    evmYulTraceOk conditionalTraceObligation = true := by
   native_decide
 
 theorem loop_ir_observable_trace_ok :
-    loopTraceObligation.irTraceOk = true := by
+    irTraceOk loopTraceObligation = true := by
   native_decide
 
 theorem loop_evm_yul_surface_trace_entrypoints :
-    loopTraceObligation.evmYulSurfaceOk = true := by
+    evmYulSurfaceOk loopTraceObligation = true := by
   native_decide
 
 theorem loop_evm_yul_executable_trace_ok :
-    loopTraceObligation.evmYulTraceOk = true := by
+    evmYulTraceOk loopTraceObligation = true := by
   native_decide
 
 theorem event_ir_observable_trace_ok :
-    eventTraceObligation.irTraceOk = true := by
+    irTraceOk eventTraceObligation = true := by
   native_decide
 
 theorem event_evm_yul_surface_trace_entrypoints :
-    eventTraceObligation.evmYulSurfaceOk = true := by
+    evmYulSurfaceOk eventTraceObligation = true := by
   native_decide
 
 theorem event_evm_yul_executable_trace_ok :
-    eventTraceObligation.evmYulTraceOk = true := by
+    evmYulTraceOk eventTraceObligation = true := by
   native_decide
 
 theorem evm_map_ir_observable_trace_ok :
-    evmMapTraceObligation.irTraceOk = true := by
+    irTraceOk evmMapTraceObligation = true := by
   native_decide
 
 theorem evm_map_yul_surface_trace_entrypoints :
-    evmMapTraceObligation.evmYulSurfaceOk = true := by
+    evmYulSurfaceOk evmMapTraceObligation = true := by
   native_decide
 
 theorem evm_map_yul_executable_trace_ok :
-    evmMapTraceObligation.evmYulTraceOk = true := by
+    evmYulTraceOk evmMapTraceObligation = true := by
   native_decide
 
 theorem evm_map_contains_ir_observable_trace_ok :
-    evmMapContainsTraceObligation.irTraceOk = true := by
+    irTraceOk evmMapContainsTraceObligation = true := by
   native_decide
 
 theorem evm_map_contains_yul_surface_trace_entrypoints :
-    evmMapContainsTraceObligation.evmYulSurfaceOk = true := by
+    evmYulSurfaceOk evmMapContainsTraceObligation = true := by
   native_decide
 
 theorem evm_map_contains_yul_executable_trace_ok :
-    evmMapContainsTraceObligation.evmYulTraceOk = true := by
+    evmYulTraceOk evmMapContainsTraceObligation = true := by
   native_decide
 
 theorem typed_storage_ir_observable_trace_ok :
-    typedStorageTraceObligation.irTraceOk = true := by
+    irTraceOk typedStorageTraceObligation = true := by
   native_decide
 
 theorem typed_storage_yul_surface_trace_entrypoints :
-    typedStorageTraceObligation.evmYulSurfaceOk = true := by
+    evmYulSurfaceOk typedStorageTraceObligation = true := by
   native_decide
 
 theorem typed_storage_yul_executable_trace_ok :
-    typedStorageTraceObligation.evmYulTraceOk = true := by
+    evmYulTraceOk typedStorageTraceObligation = true := by
   native_decide
 
 theorem storage_struct_ir_observable_trace_ok :
-    storageStructTraceObligation.irTraceOk = true := by
+    irTraceOk storageStructTraceObligation = true := by
   native_decide
 
 theorem storage_struct_yul_surface_trace_entrypoints :
-    storageStructTraceObligation.evmYulSurfaceOk = true := by
+    evmYulSurfaceOk storageStructTraceObligation = true := by
   native_decide
 
 theorem storage_struct_yul_executable_trace_ok :
-    storageStructTraceObligation.evmYulTraceOk = true := by
+    evmYulTraceOk storageStructTraceObligation = true := by
   native_decide
 
 theorem abi_aggregate_ir_observable_trace_ok :
-    abiAggregateTraceObligation.irTraceOk = true := by
+    irTraceOk abiAggregateTraceObligation = true := by
   native_decide
 
 theorem abi_aggregate_yul_surface_trace_entrypoints :
-    abiAggregateTraceObligation.evmYulSurfaceOk = true := by
+    evmYulSurfaceOk abiAggregateTraceObligation = true := by
   native_decide
 
 theorem abi_aggregate_yul_executable_trace_ok :
-    abiAggregateTraceObligation.evmYulTraceOk = true := by
+    evmYulTraceOk abiAggregateTraceObligation = true := by
   native_decide
 
 def contextTraceCalls : Array TraceCall := #[
@@ -1105,15 +1069,15 @@ def contextTraceObligation : TraceObligation := {
 
 
 theorem context_ir_observable_trace_ok :
-    contextTraceObligation.irTraceOk = true := by
+    irTraceOk contextTraceObligation = true := by
   native_decide
 
 theorem context_evm_yul_surface_trace_entrypoints :
-    contextTraceObligation.evmYulSurfaceOk = true := by
+    evmYulSurfaceOk contextTraceObligation = true := by
   native_decide
 
 theorem context_evm_yul_executable_trace_ok :
-    contextTraceObligation.evmYulTraceOk = true := by
+    evmYulTraceOk contextTraceObligation = true := by
   native_decide
 
 /-! Phase 6a — inductive `IRTraceMatches` bridge (Tier C-proof step 1).

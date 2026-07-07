@@ -1,0 +1,464 @@
+import ProofForge.Backend.Refinement.Core
+import ProofForge.Backend.Solana.SbpfAsm
+import ProofForge.Backend.Solana.Syscalls
+
+namespace ProofForge.Backend.Solana.SbpfInterpreter
+
+open ProofForge.IR
+open ProofForge.Backend.Refinement
+open ProofForge.Backend.Solana.Asm
+open ProofForge.Backend.Solana.SbpfAsm
+open ProofForge.Backend.Solana.StateLayout
+open ProofForge.Backend.Solana.Syscalls
+
+abbrev Memory := Array (Nat × Nat)
+
+def Memory.read (memory : Memory) (addr : Nat) : Nat :=
+  match memory.find? (fun entry => entry.fst == addr) with
+  | some entry => entry.snd
+  | none => 0
+
+def Memory.write (memory : Memory) (addr value : Nat) : Memory :=
+  (memory.filter (fun entry => entry.fst != addr)).push (addr, value)
+
+def registerCount : Nat := 11
+def stackBase : Nat := 1000000
+def inputBase : Nat := 0
+def defaultFuel : Nat := 2000
+
+def emptyRegs : Array Nat := Array.replicate registerCount 0
+
+def regGet (regs : Array Nat) (reg : Reg) : Nat :=
+  regs.getD reg.idx 0
+
+def regSet (regs : Array Nat) (reg : Reg) (value : Nat) : Array Nat :=
+  regs.set! reg.idx value
+
+structure SbpfProgram where
+  instructions : Array Inst
+  labels : Array (String × Nat)
+  symbols : Array (String × Nat)
+  deriving Repr, Inhabited
+
+structure SbpfState where
+  regs : Array Nat := emptyRegs
+  stack : Array Nat := #[]
+  memory : Memory := #[]
+  entryR0 : Nat := 0
+  returnData : Option Nat := none
+  pc : Nat := 0
+  halted : Bool := false
+  deriving Repr, Inhabited
+
+def lookupNat? (name : String) (bindings : Array (String × Nat)) : Option Nat :=
+  match bindings.find? (fun binding => binding.fst == name) with
+  | some binding => some binding.snd
+  | none => none
+
+def SbpfProgram.label? (program : SbpfProgram) (name : String) : Option Nat :=
+  lookupNat? name program.labels
+
+def SbpfProgram.symbol? (program : SbpfProgram) (name : String) : Option Nat :=
+  lookupNat? name program.symbols
+
+def collectProgram (nodes : Array AstNode) : SbpfProgram := Id.run do
+  let mut instructions := #[]
+  let mut labels := #[]
+  let mut symbols := #[]
+  for node in nodes do
+    match node with
+    | .label name =>
+        labels := labels.push (name, instructions.size)
+    | .instruction inst =>
+        instructions := instructions.push inst
+    | .equDecl name value =>
+        symbols := symbols.push (name, value)
+    | _ =>
+        pure ()
+  return { instructions, labels, symbols }
+
+def resolveImm (program : SbpfProgram) : Imm → Except String Nat
+  | .num value => .ok value
+  | .sym name =>
+      match program.symbol? name with
+      | some value => .ok value
+      | none => .error s!"unknown sBPF symbol `{name}`"
+
+def resolveOff (program : SbpfProgram) : MemOff → Except String Nat
+  | .num value => .ok value
+  | .sym name =>
+      match program.symbol? name with
+      | some value => .ok value
+      | none =>
+          match program.label? name with
+          | some value => .ok value
+          | none => .error s!"unknown sBPF label/symbol `{name}`"
+
+def resolveJumpTarget (program : SbpfProgram) (off : Option MemOff) : Except String Nat := do
+  match off with
+  | some (.sym name) =>
+      match program.label? name with
+      | some pc => .ok pc
+      | none => .error s!"unknown sBPF jump label `{name}`"
+  | some (.num pc) => .ok pc
+  | none => .error "sBPF jump missing target"
+
+def dstReg (inst : Inst) : Except String Reg :=
+  match inst.dst with
+  | some reg => .ok reg
+  | none => .error s!"sBPF `{inst.opcode.render}` missing destination register"
+
+def srcReg (inst : Inst) : Except String Reg :=
+  match inst.src with
+  | some reg => .ok reg
+  | none => .error s!"sBPF `{inst.opcode.render}` missing source register"
+
+def operandValue (program : SbpfProgram) (state : SbpfState) (inst : Inst) :
+    Except String Nat :=
+  match inst.imm with
+  | some imm => resolveImm program imm
+  | none =>
+      match inst.src with
+      | some reg => .ok (regGet state.regs reg)
+      | none => .error s!"sBPF `{inst.opcode.render}` missing operand"
+
+def memOffset (program : SbpfProgram) (inst : Inst) : Except String Nat :=
+  match inst.off with
+  | some off => resolveOff program off
+  | none => .ok 0
+
+def memoryAddress (state : SbpfState) (base : Reg) (off : Nat) : Nat :=
+  let baseValue := regGet state.regs base
+  if base == .r10 then baseValue - off else baseValue + off
+
+def setReg (state : SbpfState) (reg : Reg) (value : Nat) : SbpfState :=
+  { state with regs := regSet state.regs reg value }
+
+def nextPc (state : SbpfState) : SbpfState :=
+  { state with pc := state.pc + 1 }
+
+def alu64 (opcode : Opcode) (lhs rhs : Nat) : Except String Nat :=
+  match opcode with
+  | .add64 => .ok (lhs + rhs)
+  | .sub64 => .ok (lhs - rhs)
+  | .mul64 => .ok (lhs * rhs)
+  | .div64 =>
+      if rhs == 0 then .error "sBPF div64 by zero" else .ok (lhs / rhs)
+  | .mod64 =>
+      if rhs == 0 then .error "sBPF mod64 by zero" else .ok (lhs % rhs)
+  | .or64 => .ok (Nat.lor lhs rhs)
+  | .and64 => .ok (Nat.land lhs rhs)
+  | .lsh64 => .ok (Nat.shiftLeft lhs rhs)
+  | .rsh64 => .ok (Nat.shiftRight lhs rhs)
+  | .xor64 => .ok (Nat.xor lhs rhs)
+  | _ => .error s!"unsupported sBPF ALU opcode `{opcode.render}`"
+
+def jumpCondition (opcode : Opcode) (lhs rhs : Nat) : Except String Bool :=
+  match opcode with
+  | .jeq => .ok (lhs == rhs)
+  | .jne => .ok (lhs != rhs)
+  | .jgt => .ok (lhs > rhs)
+  | .jge => .ok (lhs >= rhs)
+  | .jlt => .ok (lhs < rhs)
+  | .jle => .ok (lhs <= rhs)
+  | .jset => .ok (Nat.land lhs rhs != 0)
+  | _ => .error s!"unsupported sBPF conditional jump `{opcode.render}`"
+
+def readLoad (program : SbpfProgram) (state : SbpfState) (inst : Inst) :
+    Except String SbpfState := do
+  let dst ← dstReg inst
+  let base ← srcReg inst
+  let off ← memOffset program inst
+  let value := state.memory.read (memoryAddress state base off)
+  .ok (nextPc (setReg state dst value))
+
+def writeStoreReg (program : SbpfProgram) (state : SbpfState) (inst : Inst) :
+    Except String SbpfState := do
+  let base ← dstReg inst
+  let src ← srcReg inst
+  let off ← memOffset program inst
+  let addr := memoryAddress state base off
+  let value := regGet state.regs src
+  .ok (nextPc { state with memory := state.memory.write addr value })
+
+def writeStoreImm (program : SbpfProgram) (state : SbpfState) (inst : Inst) :
+    Except String SbpfState := do
+  let base ← dstReg inst
+  let off ← memOffset program inst
+  let value ←
+    match inst.imm with
+    | some imm => resolveImm program imm
+    | none => .error s!"sBPF `{inst.opcode.render}` missing store immediate"
+  let addr := memoryAddress state base off
+  .ok (nextPc { state with memory := state.memory.write addr value })
+
+def runSyscall (state : SbpfState) (name : String) : Except String SbpfState :=
+  if name == sol_set_return_data then
+    let ptr := regGet state.regs .r1
+    let value := state.memory.read ptr
+    let state := setReg { state with returnData := some value } .r0 0
+    .ok (nextPc state)
+  else
+    .error s!"unsupported sBPF syscall `{name}`"
+
+def step (program : SbpfProgram) (state : SbpfState) : Except String SbpfState := do
+  if state.halted then
+    .ok state
+  else
+    match program.instructions[state.pc]? with
+    | none => .error s!"sBPF pc {state.pc} out of bounds"
+    | some inst =>
+        match inst.opcode with
+        | .exit =>
+            .ok { state with
+              entryR0 := regGet state.regs .r0
+              halted := true
+              pc := state.pc + 1
+            }
+        | .call =>
+            match inst.imm with
+            | some (.sym name) => runSyscall state name
+            | _ => .error "sBPF call missing syscall symbol"
+        | .lddw =>
+            let dst ← dstReg inst
+            let value ←
+              match inst.imm with
+              | some imm => resolveImm program imm
+              | none => .error "sBPF lddw missing immediate"
+            .ok (nextPc (setReg state dst value))
+        | .ldxb | .ldxh | .ldxw | .ldxdw =>
+            readLoad program state inst
+        | .stb | .sth | .stw | .stdw =>
+            writeStoreImm program state inst
+        | .stxb | .stxh | .stxw | .stxdw =>
+            writeStoreReg program state inst
+        | .ja =>
+            let target ← resolveJumpTarget program inst.off
+            .ok { state with pc := target }
+        | .jeq | .jne | .jgt | .jge | .jlt | .jle | .jset =>
+            let dst ← dstReg inst
+            let lhs := regGet state.regs dst
+            let rhs ← operandValue program state inst
+            let shouldJump ← jumpCondition inst.opcode lhs rhs
+            if shouldJump then
+              let target ← resolveJumpTarget program inst.off
+              .ok { state with pc := target }
+            else
+              .ok (nextPc state)
+        | .mov64 | .mov32 =>
+            let dst ← dstReg inst
+            let value ← operandValue program state inst
+            .ok (nextPc (setReg state dst value))
+        | .add64 | .sub64 | .mul64 | .div64 | .mod64 | .or64 | .and64
+        | .lsh64 | .rsh64 | .xor64 =>
+            let dst ← dstReg inst
+            let lhs := regGet state.regs dst
+            let rhs ← operandValue program state inst
+            let value ← alu64 inst.opcode lhs rhs
+            .ok (nextPc (setReg state dst value))
+        | opcode =>
+            .error s!"unsupported sBPF opcode `{opcode.render}`"
+
+def run (program : SbpfProgram) : Nat → SbpfState → Except String SbpfState
+  | 0, state =>
+      if state.halted then .ok state else .error "sBPF interpreter fuel exhausted"
+  | fuel + 1, state => do
+      if state.halted then
+        .ok state
+      else
+        let next ← step program state
+        run program fuel next
+
+def entrypointIndex? (module : Module) (entrypointName : String) : Option Nat := Id.run do
+  let mut idx := 0
+  for entrypoint in module.entrypoints do
+    if entrypoint.name == entrypointName then
+      return some idx
+    idx := idx + 1
+  return none
+
+def initialMemory (module : Module) (baseMemory : Memory) (discriminator : Nat) :
+    Except String Memory := do
+  let schema := buildModuleInputSchema module {}
+  let accountLayout ←
+    match schema.inputLayout.accounts[0]? with
+    | some layout => .ok layout
+    | none => .error "sBPF interpreter requires at least one Solana account layout"
+  let dataSize := moduleDataSize module
+  let memory := baseMemory
+    |>.write 0 schema.inputLayout.accounts.size
+    |>.write accountLayout.dataLenOff dataSize
+    |>.write accountLayout.writableOff 1
+    |>.write schema.inputLayout.instructionDataLenOff 1
+    |>.write schema.inputLayout.instructionDataOff discriminator
+  .ok memory
+
+def initialState (program : SbpfProgram) (module : Module) (baseMemory : Memory)
+    (entrypoint : Entrypoint) : Except String SbpfState := do
+  let discriminator ←
+    match entrypointIndex? module entrypoint.name with
+    | some idx => .ok idx
+    | none => .error s!"entrypoint `{entrypoint.name}` not found in module `{module.name}`"
+  let pc ←
+    match program.label? "entrypoint" with
+    | some pc => .ok pc
+    | none => .error "sBPF program missing `entrypoint` label"
+  let memory ← initialMemory module baseMemory discriminator
+  let regs := regSet (regSet emptyRegs .r1 inputBase) .r10 stackBase
+  .ok { regs, memory, pc }
+
+def observeEntrypoint (entrypoint : Entrypoint) (state : SbpfState) :
+    Except String ObservableReturn :=
+  match entrypoint.returns with
+  | .unit => .ok .none
+  | .u64 =>
+      match state.returnData with
+      | some value => .ok (.u64 value)
+      | none => .error s!"sBPF entrypoint `{entrypoint.name}` produced no return data"
+  | other =>
+      .error s!"sBPF executable trace only models Unit/U64 returns, got `{other.name}`"
+
+def runEntrypointState (program : SbpfProgram) (module : Module) (memory : Memory)
+    (call : TraceCall) : Except String (Memory × ObservableStep × SbpfState) := do
+  let initial ← initialState program module memory call.entrypoint
+  let final ← run program defaultFuel initial
+  if final.entryR0 == 0 then
+    let returnValue ← observeEntrypoint call.entrypoint final
+    .ok (final.memory, {
+      entrypointName := call.entrypoint.name
+      returnValue
+    }, final)
+  else
+    .error s!"sBPF entrypoint `{call.entrypoint.name}` exited with r0={final.entryR0}"
+
+def runEntrypoint (program : SbpfProgram) (module : Module) (memory : Memory)
+    (call : TraceCall) : Except String (Memory × ObservableStep) := do
+  let (memory, step, _) ← runEntrypointState program module memory call
+  .ok (memory, step)
+
+def runTraceList (program : SbpfProgram) (module : Module) :
+    List TraceCall → Memory → Except String (Memory × Array ObservableStep)
+  | [], memory => .ok (memory, #[])
+  | call :: rest, memory => do
+      let (memory, step) ← runEntrypoint program module memory call
+      let (memory, steps) ← runTraceList program module rest memory
+      .ok (memory, #[step] ++ steps)
+
+def runTrace (nodes : Array AstNode) (obligation : TraceObligation) :
+    Except String (Array ObservableStep) := do
+  let program := collectProgram nodes
+  let (_, steps) ← runTraceList program obligation.module obligation.calls.toList #[]
+  .ok steps
+
+def executableTraceOk (obligation : TraceObligation) : Bool :=
+  match lowerModule obligation.module with
+  | .error _ => false
+  | .ok nodes =>
+      match runTrace nodes obligation with
+      | .ok actual => actual == obligation.expected
+      | .error _ => false
+
+/-! ### Counter-slice simulation relation
+
+`R` is the first pointwise bridge between the IR state and the concrete sBPF
+machine state: for a scalar `u64` field, the IR binding must equal the word at
+the account-data offset computed by `StateLayout`.
+-/
+
+def stateFieldOffset? (module : Module) (stateId : String) : Option Nat :=
+  let schema := buildModuleInputSchema module {}
+  match schema.inputLayout.accounts[0]? with
+  | none => none
+  | some accountLayout =>
+      let fields := buildStateOffsetsAtBase module accountLayout.dataStart
+      fields.find? (fun field => field.id == stateId) |>.map fun field => field.absOff
+
+def irU64State? (state : ProofForge.IR.Semantics.State) (stateId : String) : Option Nat :=
+  match ProofForge.IR.Semantics.State.read state stateId with
+  | some (.u64 value) => some value
+  | _ => none
+
+def R (module : Module) (stateId : String)
+    (irState : ProofForge.IR.Semantics.State) (sbpfState : SbpfState) : Bool :=
+  match irU64State? irState stateId, stateFieldOffset? module stateId with
+  | some expected, some offset => sbpfState.memory.read offset == expected
+  | _, _ => false
+
+def runIrEntrypointState (state : ProofForge.IR.Semantics.State)
+    (entrypoint : Entrypoint) : Except String ProofForge.IR.Semantics.State :=
+  match ProofForge.IR.Semantics.runEntrypointWithArgsResult state entrypoint #[] with
+  | .ok (nextState, _) => .ok nextState
+  | .reverted message => .error s!"IR entrypoint `{entrypoint.name}` reverted: {message}"
+  | .error message => .error message
+
+def counterRAfterInitialize : Bool :=
+  match lowerModule ProofForge.IR.Examples.Counter.module with
+  | .error _ => false
+  | .ok nodes =>
+      let program := collectProgram nodes
+      let initCall : TraceCall := {
+        entrypoint := ProofForge.IR.Examples.Counter.initializeEntrypoint
+      }
+      match runIrEntrypointState ProofForge.IR.Semantics.State.empty
+          ProofForge.IR.Examples.Counter.initializeEntrypoint with
+      | .error _ => false
+      | .ok irState =>
+          match runEntrypointState program ProofForge.IR.Examples.Counter.module #[] initCall with
+          | .ok (_, _, sbpfState) =>
+              R ProofForge.IR.Examples.Counter.module "count" irState sbpfState
+          | .error _ => false
+
+def counterRAfterIncrement : Bool :=
+  match lowerModule ProofForge.IR.Examples.Counter.module with
+  | .error _ => false
+  | .ok nodes =>
+      let program := collectProgram nodes
+      let initCall : TraceCall := {
+        entrypoint := ProofForge.IR.Examples.Counter.initializeEntrypoint
+      }
+      let incrementCall : TraceCall := {
+        entrypoint := ProofForge.IR.Examples.Counter.increment
+      }
+      match runIrEntrypointState ProofForge.IR.Semantics.State.empty
+          ProofForge.IR.Examples.Counter.initializeEntrypoint with
+      | .error _ => false
+      | .ok irAfterInit =>
+          match runIrEntrypointState irAfterInit ProofForge.IR.Examples.Counter.increment with
+          | .error _ => false
+          | .ok irAfterIncrement =>
+              match runEntrypointState program ProofForge.IR.Examples.Counter.module #[] initCall with
+              | .error _ => false
+              | .ok (memory, _, _) =>
+                  match runEntrypointState program ProofForge.IR.Examples.Counter.module memory incrementCall with
+                  | .ok (_, _, sbpfState) =>
+                      R ProofForge.IR.Examples.Counter.module "count" irAfterIncrement sbpfState
+                  | .error _ => false
+
+theorem counter_R_after_initialize_ok :
+    counterRAfterInitialize = true := by
+  native_decide
+
+theorem counter_R_after_increment_ok :
+    counterRAfterIncrement = true := by
+  native_decide
+
+def counterInterpreterSmoke : Bool :=
+  match lowerModule ProofForge.IR.Examples.Counter.module with
+  | .error _ => false
+  | .ok nodes =>
+      let program := collectProgram nodes
+      let calls := traceCallsFromEntrypoints #[
+        ProofForge.IR.Examples.Counter.initializeEntrypoint,
+        ProofForge.IR.Examples.Counter.get,
+        ProofForge.IR.Examples.Counter.increment,
+        ProofForge.IR.Examples.Counter.get
+      ]
+      match runTraceList program ProofForge.IR.Examples.Counter.module calls.toList #[] with
+      | .ok _ => true
+      | .error _ => false
+
+theorem counter_interpreter_smoke_ok :
+    counterInterpreterSmoke = true := by
+  native_decide
+
+end ProofForge.Backend.Solana.SbpfInterpreter

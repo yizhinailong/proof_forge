@@ -22,8 +22,7 @@ authoritative source for lowering decisions and the two paths cannot drift.
 Step B fills in the plan-driven lowering path:
 - `NearLowerCtxSeed` carries the frozen scratch base addresses and read-only
   type metadata needed to reconstruct `EmitWat.Ctx`.
-- `Ctx.fromPlanSeed` rebuilds an `EmitWat.Ctx` from the plan's seed + layout
-  (delegating to `EmitWat.Ctx.fromPlanSeed`, which owns the `Ctx` type).
+- `Ctx.fromPlanSeed` rebuilds an `EmitWat.Ctx` from the plan's seed + layout.
 - `lowerModuleFromPlan` drives lowering by handing the reconstructed `Ctx` to
   the shared `EmitWat.lowerModuleCoreWithCtx` body, after running the same
   `EmitWat.validateScratchCapacities` gate the lowering entry runs, so the
@@ -275,25 +274,25 @@ plan-driven `Ctx` builder: the layout arrays are projected back to
 `StateInfo`/`MapInfo`/`StringInfo`, and the read-only `structs`/`allocator` come
 from the seed. There is no lowering-local mutable state in `Ctx` (unlike
 Solana's `locals`/`nextLabel`), so the whole `Ctx` is reconstructable from the
-plan. Delegates to `EmitWat.Ctx.fromPlanSeed` (the `Ctx` owner) so the plan path
-and the `EmitWat.lowerModule` lowering entry share one reconstruction path and
-cannot drift. The frozen scratch-region base addresses in the seed are carried
-for the plan artifact's inspectability but are not needed for `Ctx`
-reconstruction (the absolute pointers are baked into the layout arrays). -/
+plan. The frozen scratch-region base addresses in the seed are carried for the
+plan artifact's inspectability but are not needed for `Ctx` reconstruction (the
+absolute pointers are baked into the layout arrays). -/
 def Ctx.fromPlanSeed (seed : NearLowerCtxSeed) (layout : NearLayoutPlan) : EmitWat.Ctx :=
-  EmitWat.Ctx.fromPlanSeed
-    (layout.scalars.map fun s =>
+  {
+    scalars := layout.scalars.map (fun s =>
       { id := s.id, type := s.type, keyPtr := s.keyPtr, keyLen := s.keyLen : EmitWat.StateInfo })
-    (layout.maps.map fun m =>
+    maps := layout.maps.map (fun m =>
       { id := m.id, keyType := m.keyType, valueType := m.valueType,
         prefixPtr := m.prefixPtr, prefixLen := m.prefixLen, isArray := m.isArray : EmitWat.MapInfo })
-    (layout.strings.map fun e =>
+    strings := layout.strings.map (fun e =>
       { str := e.str, ptr := e.ptr, len := e.len : EmitWat.StringInfo })
-    (layout.panics.map fun e =>
+    panics := layout.panics.map (fun e =>
       { str := e.str, ptr := e.ptr, len := e.len : EmitWat.StringInfo })
-    (layout.crosscallStrings.map fun e =>
+    crosscallStrings := layout.crosscallStrings.map (fun e =>
       { str := e.str, ptr := e.ptr, len := e.len : EmitWat.StringInfo })
-    seed.structs seed.allocator
+    structs := seed.structs
+    allocator := seed.allocator
+  }
 
 /-- Lower a module using a pre-built `NearModulePlan`. This is the Tier B
 contract entry point: the lowering is a pure function of the plan (plus the IR
@@ -305,14 +304,14 @@ the lowering entry's output. The surface `ModulePlan` is taken from the plan's
 pools first so the plan path rejects oversize scratch exactly as the lowering
 entry does. -/
 def lowerModuleFromPlan (mod : Module) (plan : NearModulePlan) :
-    Except EmitWat.EmitError ProofForge.Compiler.Wasm.Module := do
+    Except ProofForge.Backend.WasmNear.Diagnostics.EmitError ProofForge.Compiler.Wasm.Module := do
   let ctx := Ctx.fromPlanSeed plan.lowerCtxSeed plan.layout
   EmitWat.validateScratchCapacities mod ctx.strings ctx.panics ctx.crosscallStrings
   EmitWat.lowerModuleCoreWithCtx mod plan.surface ctx
 
 /-- Render a module to WAT text via the plan-driven path. -/
 def renderModuleFromPlan (mod : Module) (plan : NearModulePlan) :
-    Except EmitWat.EmitError String := do
+    Except ProofForge.Backend.WasmNear.Diagnostics.EmitError String := do
   let m ← lowerModuleFromPlan mod plan
   .ok (ProofForge.Compiler.Wasm.Printer.render m)
 

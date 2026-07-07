@@ -1,3 +1,5 @@
+import ProofForge.Backend.Refinement.Core
+import ProofForge.Backend.Solana.SbpfInterpreter
 import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.IR.Semantics
 import ProofForge.IR.Examples.Counter
@@ -5,8 +7,10 @@ import ProofForge.IR.Examples.Counter
 namespace ProofForge.Backend.Solana.Refinement
 
 open ProofForge.IR
+open ProofForge.Backend.Refinement
+open ProofForge.Backend.Solana.SbpfInterpreter
 
-/-! ## Solana sBPF refinement scaffolding (FV-4 artifact-surface anchor)
+/-! ## Solana sBPF refinement scaffolding (FV-4 executable trace anchor)
 
 This is the first formal anchor for the `solana-sbpf-asm` backend, mirroring
 the shape of `ProofForge.Backend.WasmNear.Refinement`. It does **not** claim a
@@ -21,85 +25,19 @@ should refine against:
    anchored against the same IR reference.
 2. **Artifact-surface obligation** — the rendered sBPF assembly from
    `SbpfAsm.renderModule` contains the entrypoint dispatch labels named in the
-   IR module's `entrypoints`. This is the assembly analogue of NEAR's WAT
-   export-name check: it pins that the lowering did not drop or rename an
-   entrypoint before handing off to `sbpf`/`solana` tooling.
+   IR module's `entrypoints`.
+3. **Executable sBPF trace obligation** — the lowered structured `AstNode`
+   instruction list executes in the in-Lean Counter-slice sBPF interpreter and
+   produces the same observable trace as the IR reference semantics.
 
 Future work (out of scope for this anchor):
 - account-validation sequence obligation (entrypoint prologue: signer/writable
   checks at documented offsets).
 - PDA derivation syscall sequence obligation.
-- executable sBPF trace (requires a Lean sBPF interpreter, tracked as a
-  research item in FV-4).
+- wider executable sBPF coverage beyond the Counter scalar-storage slice.
 -/
 
 /-! ### Observable trace (shared with EVM and NEAR refinement layers) -/
-
-inductive ObservableReturn where
-  | none
-  | bool (value : Bool)
-  | u32 (value : Nat)
-  | u64 (value : Nat)
-  | hash (a b c d : Nat)
-  | reverted (message : String)
-  deriving Repr, BEq, DecidableEq
-
-structure ObservableStep where
-  exportName : String
-  returnValue : ObservableReturn
-  deriving Repr, BEq, DecidableEq
-
-structure TraceObligation where
-  name : String
-  module : Module
-  entrypoints : Array Entrypoint
-  expected : Array ObservableStep
-  deriving Repr
-
-def observableReturn (expectedType : ValueType) (value? : Option ProofForge.IR.Semantics.Value) :
-    Except String ObservableReturn :=
-  match expectedType, value? with
-  | .unit, none => .ok .none
-  | .unit, some .unit => .ok .none
-  | .bool, some (.bool value) => .ok (.bool value)
-  | .u32, some (.u32 value) => .ok (.u32 value)
-  | .u64, some (.u64 value) => .ok (.u64 value)
-  | .hash, some (.hash a b c d) => .ok (.hash a b c d)
-  | _, none => .error s!"entrypoint expected `{expectedType.name}` but returned no value"
-  | _, some _ => .error s!"entrypoint returned a value that does not match `{expectedType.name}`"
-
-def runEntrypointObservable (state : ProofForge.IR.Semantics.State) (entrypoint : Entrypoint) :
-    Except String (ProofForge.IR.Semantics.State × ObservableStep) := do
-  -- Revert-aware trace: a contract revert is a first-class observable outcome.
-  -- State is *not* advanced on revert (chain rollback semantics); an interpreter
-  -- error still fails the trace.
-  match ProofForge.IR.Semantics.runEntrypointResult state entrypoint with
-  | .ok (nextState, result?) =>
-      let returnValue ← observableReturn entrypoint.returns result?
-      .ok (nextState, { exportName := entrypoint.name, returnValue := returnValue })
-  | .reverted message =>
-      .ok (state, { exportName := entrypoint.name, returnValue := .reverted message })
-  | .error message =>
-      .error message
-
-def runTraceList : List Entrypoint → ProofForge.IR.Semantics.State →
-    Except String (ProofForge.IR.Semantics.State × Array ObservableStep)
-  | [], state => .ok (state, #[])
-  | entrypoint :: rest, state => do
-      let (nextState, step) ← runEntrypointObservable state entrypoint
-      let (finalState, steps) ← runTraceList rest nextState
-      .ok (finalState, #[step] ++ steps)
-
-def runTrace (entrypoints : Array Entrypoint) : Except String (Array ObservableStep) := do
-  let (_, steps) ← runTraceList entrypoints.toList ProofForge.IR.Semantics.State.empty
-  .ok steps
-
-/-- IR trace obligation: the reference semantics reproduces the expected
-observable trace. -/
-def TraceObligation.irTraceOk (obligation : TraceObligation) : Bool :=
-  match runTrace obligation.entrypoints with
-  | .ok actual => actual == obligation.expected
-  | .error _ => false
 
 /-! ### Artifact-surface obligation (rendered sBPF assembly)
 
@@ -116,20 +54,23 @@ is visible at the artifact boundary, not hidden inside the lowering. -/
 
 /-- A rendered sBPF program references an entrypoint dispatch label iff the
 entrypoint name appears as a label reference in the assembly text. -/
-def TraceObligation.hasEntrypointDispatch (asm : String) (entrypointName : String) : Bool :=
+def hasEntrypointDispatch (asm : String) (entrypointName : String) : Bool :=
   -- sBPF assembly labels render as `<name>:` (definition) and `jmp <name>` /
   -- branch targets. We check for the label definition form, which is emitted
   -- once per entrypoint by `lowerModuleCoreWithSeed`.
-  asm.contains s!"entry_{entrypointName}" || asm.contains entrypointName
+  asm.contains s!"sol_{entrypointName}:"
 
 /-- Artifact-surface obligation: the rendered sBPF assembly contains a dispatch
 reference for every IR entrypoint. -/
-def TraceObligation.sbpfArtifactSurfaceOk (obligation : TraceObligation) : Bool :=
+def sbpfArtifactSurfaceOk (obligation : TraceObligation) : Bool :=
   match ProofForge.Backend.Solana.SbpfAsm.renderModule obligation.module with
   | .ok asm =>
     obligation.entrypoints.all (fun entrypoint =>
       hasEntrypointDispatch asm entrypoint.name)
   | .error _ => false
+
+def sbpfExecutableTraceOk (obligation : TraceObligation) : Bool :=
+  ProofForge.Backend.Solana.SbpfInterpreter.executableTraceOk obligation
 
 /-! ### Counter scenario obligation
 
@@ -138,16 +79,16 @@ observable-shape expectation as the EVM and NEAR refinement layers. -/
 
 /-- Counter `initialize → get → increment → get` observable trace. -/
 def counterExpectedTrace : Array ObservableStep := #[
-  { exportName := "initialize", returnValue := .none },
-  { exportName := "get", returnValue := .u64 0 },
-  { exportName := "increment", returnValue := .none },
-  { exportName := "get", returnValue := .u64 1 }
+  { entrypointName := "initialize", returnValue := .none },
+  { entrypointName := "get", returnValue := .u64 0 },
+  { entrypointName := "increment", returnValue := .none },
+  { entrypointName := "get", returnValue := .u64 1 }
 ]
 
 def counterTraceObligation : TraceObligation := {
   name := "Counter.initialize-get-increment-get"
   module := ProofForge.IR.Examples.Counter.module
-  entrypoints := #[
+  calls := traceCallsFromEntrypoints #[
     ProofForge.IR.Examples.Counter.initializeEntrypoint,
     ProofForge.IR.Examples.Counter.get,
     ProofForge.IR.Examples.Counter.increment,
@@ -156,20 +97,22 @@ def counterTraceObligation : TraceObligation := {
   expected := counterExpectedTrace
 }
 
-/-! ### Counter FV-4 artifact-surface theorems
+/-! ### Counter FV-4 artifact-surface and executable-trace theorems
 
 These are the first Solana refinement theorems. They mirror the NEAR
-artifact-surface pattern: the IR trace reproduces the expected observable
-scenario, and the rendered sBPF assembly surfaces every entrypoint name.
-Executable sBPF trace checking is future work (FV-4) and requires a Lean sBPF
-interpreter. -/
+artifact-surface pattern and add a first Counter executable-trace check over
+the lowered structured sBPF AST. -/
 
 theorem counter_ir_observable_trace_ok :
     counterTraceObligation.irTraceOk = true := by
   native_decide
 
 theorem counter_sbpf_artifact_surface_ok :
-    counterTraceObligation.sbpfArtifactSurfaceOk = true := by
+    sbpfArtifactSurfaceOk counterTraceObligation = true := by
+  native_decide
+
+theorem counter_sbpf_executable_trace_ok :
+    sbpfExecutableTraceOk counterTraceObligation = true := by
   native_decide
 
 /-! ### Revert-aware trace obligation
@@ -207,14 +150,14 @@ def readConstEntrypoint : Entrypoint := {
 /-- `revertAlways → readConst`: the revert is observed, and the subsequent read
 still succeeds (state was not corrupted/advanced by the revert). -/
 def revertRollbackTrace : Array ObservableStep := #[
-  { exportName := "revertAlways", returnValue := .reverted "revert: always rolls back" },
-  { exportName := "readConst", returnValue := .u64 7 }
+  { entrypointName := "revertAlways", returnValue := .reverted "revert: always rolls back" },
+  { entrypointName := "readConst", returnValue := .u64 7 }
 ]
 
 def revertRollbackObligation : TraceObligation := {
   name := "Revert.rollback"
   module := ProofForge.IR.Examples.Counter.module
-  entrypoints := #[ revertEntrypoint, readConstEntrypoint ]
+  calls := traceCallsFromEntrypoints #[ revertEntrypoint, readConstEntrypoint ]
   expected := revertRollbackTrace
 }
 

@@ -11,13 +11,24 @@ prints which anchors were verified.
 namespace ProofForge.Tests.SolanaRefinement
 
 open ProofForge.Backend.Solana.Refinement
+open ProofForge.Backend.Solana.SbpfInterpreter
 
 -- Counter IR observable trace (same scenario as EVM/NEAR refinement layers).
 #check counter_ir_observable_trace_ok
 
 -- Counter sBPF artifact-surface obligation (rendered assembly surfaces every
--- entrypoint name; assembly-level execution semantics is future work).
+-- entrypoint name).
 #check counter_sbpf_artifact_surface_ok
+
+-- Counter sBPF executable-trace obligation: the in-Lean interpreter runs the
+-- lowered AST to the same observable trace as the IR reference semantics.
+#check counter_interpreter_smoke_ok
+#check counter_sbpf_executable_trace_ok
+
+-- Counter scalar simulation relation at the account-data offset computed by
+-- the Solana state layout.
+#check counter_R_after_initialize_ok
+#check counter_R_after_increment_ok
 
 -- Revert-aware trace obligation: a contract revert is observed as
 -- `ObservableReturn.reverted`, and state is not advanced (rollback semantics).
@@ -26,5 +37,5 @@ open ProofForge.Backend.Solana.Refinement
 end ProofForge.Tests.SolanaRefinement
 
 def main : IO UInt32 := do
-  IO.println "solana-refinement-smoke: Counter IR observable trace + sBPF artifact-surface obligation + revert-aware rollback trace checked via native_decide"
+  IO.println "solana-refinement-smoke: Counter IR trace + sBPF artifact/executable trace + scalar R + revert rollback checked via native_decide"
   return 0
