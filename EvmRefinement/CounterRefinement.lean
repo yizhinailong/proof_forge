@@ -9864,6 +9864,27 @@ theorem counterCompiledPreparedInitialize_storage_model_of_segment_provider_ok
     hprepared
     (counterPreparedInitializeSegmentModel_of_executionSegment segment)
 
+theorem counterCompiledPreparedInitialize_storage_model_of_reduction_chain_provider_ok
+    (provider : CounterPreparedInitializeReductionChainProvider) :
+    ∀ {preparedState},
+      CounterPreparedCall counterCompiledPowdrConfig .initialize preparedState →
+      ∃ nextEvm,
+        counterPowdrPreparedTraceStep counterCompiledPowdrConfig preparedState
+            .initialize =
+          .ok (nextEvm, .none) ∧
+        counterStorageValue counterContractAddress counterCountSlot nextEvm =
+          counterInitializeStorageWord
+            (counterStorageValue counterContractAddress counterCountSlot
+              preparedState) := by
+  intro preparedState hprepared
+  obtain ⟨finalState, chain, hpost⟩ :=
+    provider.chain hprepared
+  exact counterCompiledPreparedInitialize_storage_model_of_reduction_chain_model_ok
+    hprepared
+    ({ chain := chain
+       postcondition := hpost } :
+      CounterPreparedInitializeReductionChainModel preparedState finalState)
+
 theorem counterPreparedCall_isDone
     {cfg : PowdrCounterConfig} {call : CounterCall} {state : EvmState}
     (hprepared : CounterPreparedCall cfg call state) :
@@ -10759,10 +10780,12 @@ def counterCompiledPowdrPreparedStorageModelsOfInitializeReductionChainProvider
           CounterStorageWordRel
             (counterStorageValue counterContractAddress counterCountSlot nextEvm)
             count) :
-    CounterCompiledPowdrPreparedStorageModels :=
-  counterCompiledPowdrPreparedStorageModelsOfInitializeSegmentProvider
-    (counterPreparedInitializeSegmentProviderOfReductionChainProvider provider)
-    increment_writes_succ get_returns_count
+    CounterCompiledPowdrPreparedStorageModels where
+  initialize_writes_storage_model :=
+    counterCompiledPreparedInitialize_storage_model_of_reduction_chain_provider_ok
+      provider
+  increment_writes_succ := increment_writes_succ
+  get_returns_count := get_returns_count
 
 def counterCompiledPowdrEvmPostconditionsOfPrepared
     (post : CounterCompiledPowdrPreparedEvmPostconditions) :
