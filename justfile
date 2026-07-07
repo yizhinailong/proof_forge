@@ -46,9 +46,9 @@ cli-check:
 shared-contract-source:
     lake env lean --run Tests/SharedContractSource.lean
 
-# Check that shared TokenSpec intent matches the legacy Learn token fixture.
+# Check shared TokenSpec intents and legacy Learn equivalence fixtures.
 shared-token-intent:
-    lake build Examples.Shared.FungibleToken Examples.Shared.FeeToken
+    lake build Examples.Shared.FungibleToken Examples.Shared.FeeToken Examples.Shared.SoulboundToken
     lake env lean --run Tests/SharedTokenIntent.lean
 
 # Run the CosmWasm Counter WAT emission smoke through wat2wasm and cosmwasm-check.
@@ -202,15 +202,19 @@ solana-counter-live:
 portable-value-vault:
     scripts/portable/value-vault-smoke.sh
 
+# Check that legacy Learn-token gate names only forward to token intent gates.
+token-compat-wrappers:
+    python3 scripts/portable/check-token-compat-wrappers.py
+
 # Run the shared token intent SDK smoke across EVM and Solana target outputs.
-token-intent-smoke:
+token-intent-smoke: token-compat-wrappers
     scripts/portable/token-intent-smoke.sh
 
 # Compatibility alias for the former Learn-token-centric smoke name.
 learn-token-smoke: token-intent-smoke
 
 # Run the shared token intent EVM artifact in a local Rust/revm VM.
-token-intent-evm-vm:
+token-intent-evm-vm: token-compat-wrappers
     scripts/evm/token-intent-evm-vm-smoke.sh
 
 # Compatibility alias for the former Learn-token EVM VM smoke name.
@@ -250,6 +254,14 @@ wasm-near-ft-transfer-call-e2e:
 # Build the shared portable Counter to EVM, Solana sBPF, and NEAR/Wasm from one source file.
 portable-counter-multi-target:
     scripts/portable/counter-multi-target.sh
+
+# Build the shared ArrayExample to EVM, Solana sBPF, and NEAR/Wasm from one source file.
+portable-array-example-multi-target:
+    scripts/portable/array-example-multi-target.sh
+
+# Build portable stdlib core mixin examples to EVM, Solana sBPF, and NEAR/Wasm.
+portable-stdlib-core-multi-target:
+    scripts/portable/stdlib-core-multi-target.sh
 
 # Generate and validate the portable Counter canonical SDK layout for all four SDK targets.
 portable-counter-four-target-sdk:
@@ -512,11 +524,19 @@ solana-emit-asm:
 solana-plan-smoke:
     scripts/solana/plan-smoke.sh
 
-# Run all Solana gates that are safe for default CI.
-solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke portable-value-vault solana-emit-asm solana-plan-smoke solana-pinocchio-reference-equivalence solana-refinement-smoke
+# Check that legacy Web3.js Solana entrypoints only forward to Rust/live gates.
+solana-web3-compat:
+    python3 scripts/solana/check-web3-compat-wrappers.py
 
-# Check translated documentation freshness.
-docs-check:
+# Run all Solana gates that are safe for default CI.
+solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke portable-value-vault solana-emit-asm solana-plan-smoke solana-web3-compat solana-pinocchio-reference-equivalence solana-refinement-smoke
+
+# Check shared-vs-target example topology.
+examples-topology:
+    python3 scripts/examples/check-topology.py
+
+# Check translated documentation freshness and example topology.
+docs-check: examples-topology
     scripts/i18n/check-sync.sh
 
 # Mechanical doc↔code drift report (advisory; see docs/doc-code-sync-audit-2026-07.md).
