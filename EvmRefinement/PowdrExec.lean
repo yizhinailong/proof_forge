@@ -40,6 +40,22 @@ theorem runSteps_of_stepFEPath_done {fuel : Nat} {state finalState : State}
     runSteps state fuel = .ok (finalState, (#[] : Array ObservableStep)) := by
   exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath_done path
 
+theorem stepFEPath_single {state nextState : State}
+    (hrunning : state.halt = .Running)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    StepFEPath state 1 nextState := by
+  exact ProofForge.Backend.Evm.PowdrAdapter.StepFEPath.cons
+    hrunning hstep
+    (ProofForge.Backend.Evm.PowdrAdapter.StepFEPath.nil nextState)
+
+theorem stepFEPath_append {state midState finalState : State}
+    {prefixFuel suffixFuel : Nat}
+    (prefixPath : StepFEPath state prefixFuel midState)
+    (suffixPath : StepFEPath midState suffixFuel finalState) :
+    StepFEPath state (prefixFuel + suffixFuel) finalState := by
+  exact ProofForge.Backend.Evm.PowdrAdapter.stepFEPath_append
+    prefixPath suffixPath
+
 structure StepFEReady (state : State) (op : Operation) : Prop where
   running : state.halt = .Running
   notPrecompile :
