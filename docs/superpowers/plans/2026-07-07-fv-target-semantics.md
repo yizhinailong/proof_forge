@@ -382,10 +382,15 @@ surface. Remaining EVM work is E3.
   `counterRunBytecode_initialize_dispatcher_body_and_return_ok` now prepends
   the initialize selector dispatcher plus trampoline path to that body+return
   bridge, proving a 36-fuel `runBytecode` path from PC0 to the halted `.none`
-  result while preserving the initialize storage model. The next slice should
-  lift that exact 36-step path through the compiled config's 5000-fuel
-  `counterPowdrPreparedTraceStep` and instantiate the prepared-frame initialize
-  storage model. The pinned
+  result while preserving the initialize storage model.
+  `runBytecode_halted`, `runBytecode_extend_halted`,
+  `counterRunBytecode_extend_to_compiled_fuel`, and
+  `counterPowdrPreparedTraceStep_initialize_of_run36_ok` now lift any such
+  36-fuel initialize run to the compiled config's 5000-fuel
+  `counterPowdrPreparedTraceStep`, once the final state is proven `isDone`.
+  The next slice should prove that final done fact from the top-level prepared
+  callStack plus returned-empty halt, then instantiate the prepared-frame
+  initialize storage model. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
   remains an explicit trust boundary. The remaining E3 work is to discharge those
   prepared-frame storage models against the concrete runtime by connecting the

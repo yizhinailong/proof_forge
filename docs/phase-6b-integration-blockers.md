@@ -470,6 +470,12 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   are now prepended to the body+return bridge, giving a 36-fuel `runBytecode`
   proof from PC0 to the halted `.none` result while preserving the initialize
   storage model.
+- `runBytecode_halted`, `runBytecode_extend_halted`,
+  `counterRunBytecode_extend_to_compiled_fuel`, and
+  `counterPowdrPreparedTraceStep_initialize_of_run36_ok` — green under
+  `lake build EvmRefinement`; a 36-fuel initialize run can now be lifted through
+  the compiled config's 5000-fuel prepared trace step once the final state is
+  proven `isDone`.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 

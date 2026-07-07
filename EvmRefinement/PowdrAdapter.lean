@@ -68,6 +68,13 @@ theorem runBytecode_halted_succ {state : State} {fuel : Nat}
     runBytecode state (fuel + 1) = .ok (state, #[]) := by
   simp [runBytecode, hHalted]
 
+theorem runBytecode_halted {state : State} {fuel : Nat}
+    (hHalted : isHalted state = true) :
+    runBytecode state fuel = .ok (state, #[]) := by
+  cases fuel with
+  | zero => rfl
+  | succ fuel => exact runBytecode_halted_succ hHalted
+
 theorem runBytecode_step_succ {state next finalState : State}
     {observations : Array ObservableStep} {fuel : Nat}
     (hHalted : isHalted state = false)
@@ -81,6 +88,60 @@ theorem runBytecode_step_succ {state next finalState : State}
     Except.ok (finalState, observations)
   rw [hrun]
   rfl
+
+theorem runBytecode_extend_halted {fuel : Nat} :
+    ∀ {state finalState : State} {observations : Array ObservableStep}
+      {extra : Nat},
+      runBytecode state fuel = .ok (finalState, observations) →
+      isHalted finalState = true →
+      runBytecode state (extra + fuel) = .ok (finalState, observations) := by
+  induction fuel with
+  | zero =>
+      intro state finalState observations extra hrun hHalted
+      have hpair :
+          (state, (#[] : Array ObservableStep)) = (finalState, observations) := by
+        simpa [runBytecode] using hrun
+      cases hpair
+      exact runBytecode_halted hHalted
+  | succ fuel ih =>
+      intro state finalState observations extra hrun hHalted
+      rw [Nat.add_succ]
+      by_cases hstateHalted : isHalted state
+      · have hpair :
+            (state, (#[] : Array ObservableStep)) = (finalState, observations) := by
+          simpa [runBytecode, hstateHalted] using hrun
+        cases hpair
+        exact runBytecode_halted hstateHalted
+      · simp [runBytecode, hstateHalted] at hrun ⊢
+        cases hstep : stepF state with
+        | error message =>
+            rw [hstep] at hrun
+            cases hrun
+        | ok next =>
+            rw [hstep] at hrun
+            change (Except.bind (runBytecode next fuel)
+              (fun result : State × Array ObservableStep =>
+                Except.ok (result.fst, result.snd))) =
+              Except.ok (finalState, observations) at hrun
+            have hrunNext :
+                runBytecode next fuel = .ok (finalState, observations) := by
+              cases hnext : runBytecode next fuel with
+              | error message =>
+                  rw [hnext] at hrun
+                  simp [Except.bind] at hrun
+              | ok result =>
+                  rcases result with ⟨nextFinalState, nextObservations⟩
+                  rw [hnext] at hrun
+                  simp [Except.bind] at hrun
+                  rcases hrun with ⟨rfl, rfl⟩
+                  rfl
+            have hrunExtended := ih hrunNext hHalted (extra := extra)
+            change (Except.bind (runBytecode next (extra + fuel))
+              (fun result : State × Array ObservableStep =>
+                Except.ok (result.fst, result.snd))) =
+              Except.ok (finalState, observations)
+            rw [hrunExtended]
+            rfl
 
 theorem raw_stepF_sound (state : State) (hRunning : ¬ state.isDone) :
     Step state (rawStepF state) :=

@@ -5120,6 +5120,42 @@ def counterPowdrPreparedTraceStep (cfg : PowdrCounterConfig) (preparedState : Ev
   let observable ← counterObservableFromResult call finalState.toResult
   .ok (finalState, observable)
 
+theorem counterRunBytecode_extend_to_compiled_fuel
+    {state finalState : EvmState}
+    {observations : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep}
+    (hrun :
+      ProofForge.Backend.Evm.PowdrAdapter.runBytecode state 36 =
+        .ok (finalState, observations))
+    (hHalted : ProofForge.Backend.Evm.PowdrAdapter.isHalted finalState = true) :
+    ProofForge.Backend.Evm.PowdrAdapter.runBytecode state counterCompiledRuntimeFuel =
+      .ok (finalState, observations) := by
+  have hrunExtended :=
+    ProofForge.Backend.Evm.PowdrAdapter.runBytecode_extend_halted
+      (fuel := 36) (extra := counterCompiledRuntimeFuel - 36) hrun hHalted
+  have hfuel : counterCompiledRuntimeFuel = (counterCompiledRuntimeFuel - 36) + 36 := by
+    native_decide
+  rw [hfuel]
+  exact hrunExtended
+
+theorem counterPowdrPreparedTraceStep_initialize_of_run36_ok
+    {preparedState finalState : EvmState}
+    (hrun :
+      ProofForge.Backend.Evm.PowdrAdapter.runBytecode preparedState 36 =
+        .ok (finalState, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)))
+    (hHalted : ProofForge.Backend.Evm.PowdrAdapter.isHalted finalState = true)
+    (hobs : counterObservableFromResult .initialize finalState.toResult = .ok .none) :
+    counterPowdrPreparedTraceStep counterCompiledPowdrConfig preparedState .initialize =
+      .ok (finalState, .none) := by
+  have hrunCompiled :=
+    counterRunBytecode_extend_to_compiled_fuel hrun hHalted
+  unfold counterPowdrPreparedTraceStep
+  simp [counterCompiledPowdrConfig, hrunCompiled]
+  change Except.bind (counterObservableFromResult .initialize finalState.toResult)
+      (fun observable : ObservableReturn => Except.ok (finalState, observable)) =
+    Except.ok (finalState, .none)
+  rw [hobs]
+  rfl
+
 def counterPowdrTraceStep (cfg : PowdrCounterConfig) (state : EvmState)
     (call : CounterCall) : Except String (EvmState × ObservableReturn) := do
   counterPowdrPreparedTraceStep cfg (prepareCounterCall cfg.runtimeCode call state) call

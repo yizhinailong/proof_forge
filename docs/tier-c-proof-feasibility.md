@@ -455,10 +455,15 @@ ProofForge's default build still avoids powdr/mathlib imports.
     fact is now derived internally rather than passed as an explicit premise;
     `counterRunBytecode_initialize_dispatcher_body_and_return_ok` now prepends
     the initialize selector dispatcher and trampoline, yielding a 36-fuel
-    `runBytecode` bridge from PC0 to the halted `.none` result. The remaining
-    step is to lift that bridge through the compiled config's 5000-fuel
-    `counterPowdrPreparedTraceStep` and instantiate the prepared-frame
-    initialize storage model.
+    `runBytecode` bridge from PC0 to the halted `.none` result.
+    `runBytecode_halted`, `runBytecode_extend_halted`,
+    `counterRunBytecode_extend_to_compiled_fuel`, and
+    `counterPowdrPreparedTraceStep_initialize_of_run36_ok` lift a 36-fuel
+    initialize run through the compiled config's 5000-fuel
+    `counterPowdrPreparedTraceStep` when the final state is known to be done.
+    The remaining step is to prove that final done fact from the top-level
+    prepared callStack plus returned-empty halt and instantiate the
+    prepared-frame initialize storage model.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
