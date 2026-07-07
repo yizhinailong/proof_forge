@@ -14,11 +14,23 @@ and via the existing inline path (`EmitWat.renderModule`), and assert the two
 WAT outputs are byte-identical. This proves the plan-driven lowering preserves
 semantics — the same guarantee Solana Phase 2 got with its `MATCH` assertions.
 
+Step B.2 extends parity coverage beyond Counter to non-scalar state shapes,
+mirroring how Solana Phase 2 widened to `EvmStorageArrayProbe` / `EvmMapProbe` /
+`EvmStorageStructProbe`. Each non-Counter fixture uses a sub-module whose
+entrypoints only exercise lowering paths the NEAR backend supports, so the
+plan-driven WAT emits cleanly and stays byte-identical to the inline path.
+
 Fixtures covered:
-- `Counter` — scalar state (the original MVP)
+- `Counter`               — scalar state (the original MVP)
+- `EvmMapProbe`           — map state (`balances`, u64-keyed, sub-module)
+- `EvmStorageArrayProbe` — array state (`values`, length 3, sub-module)
+- `EvmStorageStructProbe` — struct state (`current` : Point, sub-module)
 -/
 
 import ProofForge.IR.Examples.Counter
+import ProofForge.IR.Examples.EvmMapProbe
+import ProofForge.IR.Examples.EvmStorageArrayProbe
+import ProofForge.IR.Examples.EvmStorageStructProbe
 import ProofForge.Backend.WasmNear.NearModulePlan
 import ProofForge.Backend.WasmNear.EmitWat
 
@@ -28,10 +40,51 @@ open ProofForge.Backend.WasmNear.NearModulePlan
 open ProofForge.Backend.WasmNear.EmitWat
 open ProofForge.IR
 
+/-- Map-state sub-module: u64-keyed map using only `storageMapGet` (expr) and
+`storageMapSet` (statement) — the two map lowering paths the NEAR backend fully
+supports. Mirrors the Solana `mapSubModule` shape so plan-driven and inline WAT
+emit cleanly and stay byte-identical. -/
+def mapSubModule : Module := {
+  name := "EvmMapProbe"
+  state := #[ProofForge.IR.Examples.EvmMapProbe.stateBefore,
+             ProofForge.IR.Examples.EvmMapProbe.stateBalances,
+             ProofForge.IR.Examples.EvmMapProbe.stateAfter]
+  entrypoints := #[ProofForge.IR.Examples.EvmMapProbe.setBalance,
+                   ProofForge.IR.Examples.EvmMapProbe.readBalance]
+}
+
+/-- Array-state sub-module: fixed-length u64 array (`values`, length 3) using
+only `storageArrayRead`/`storageArrayWrite` — the array lowering paths the NEAR
+backend supports via `dataFixedArray`. Mirrors the Solana `arraySubModule`. -/
+def arraySubModule : Module := {
+  name := "EvmStorageArrayProbe"
+  state := #[ProofForge.IR.Examples.EvmStorageArrayProbe.stateBefore,
+             ProofForge.IR.Examples.EvmStorageArrayProbe.stateValues,
+             ProofForge.IR.Examples.EvmStorageArrayProbe.stateAfter]
+  entrypoints := #[ProofForge.IR.Examples.EvmStorageArrayProbe.storageLifecycle,
+                   ProofForge.IR.Examples.EvmStorageArrayProbe.readValue,
+                   ProofForge.IR.Examples.EvmStorageArrayProbe.writeValue]
+}
+
+/-- Struct-state sub-module: `current : Point` scalar struct state exercised via
+`storageStructFieldRead`/`storageStructFieldWrite` (no whole-struct literal
+write). Mirrors the Solana `structSubModule`. -/
+def structSubModule : Module := {
+  name := "EvmStorageStructProbe"
+  structs := #[ProofForge.IR.Examples.EvmStorageStructProbe.pointStruct]
+  state := #[ProofForge.IR.Examples.EvmStorageStructProbe.stateBefore,
+             ProofForge.IR.Examples.EvmStorageStructProbe.stateCurrent,
+             ProofForge.IR.Examples.EvmStorageStructProbe.stateAfter]
+  entrypoints := #[ProofForge.IR.Examples.EvmStorageStructProbe.structLifecycle]
+}
+
 /-- Resolve a fixture name to its IR module. -/
 def moduleFor (name : String) : Option Module :=
   match name with
   | "Counter" => some ProofForge.IR.Examples.Counter.module
+  | "EvmMapProbe" => some mapSubModule
+  | "EvmStorageArrayProbe" => some arraySubModule
+  | "EvmStorageStructProbe" => some structSubModule
   | _ => none
 
 /-- Dual-path parity check: lower `mod` via the plan-driven path and the

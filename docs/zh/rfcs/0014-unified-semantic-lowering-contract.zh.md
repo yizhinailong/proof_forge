@@ -433,6 +433,19 @@ spike、没有真正的 lowering（`SuiModulePlan` 需要先于真正的 Move lo
   对 `Counter`，plan 驱动 WAT 与内联 WAT 必须字节一致（断言为 `MATCH N chars`）。
   结果：`Counter: MATCH 2228 chars`。`lake build`、`just wasm-near-plan` 及冻结的
   `Counter.golden.wat` 均不受影响。
+- Step B.2（将 parity 覆盖扩展到非标量状态形状）—— **已落地（2026-07-07）。**
+  扩展 `Tests/NearModulePlan.lean`，添加 `moduleFor` 解析器与三个子模块 fixture，
+  镜像 Solana Phase 2 的 array/map/struct 探针：`EvmMapProbe`（map 状态，u64 键
+  `balances`）、`EvmStorageArrayProbe`（array 状态，`values` 长度 3）、
+  `EvmStorageStructProbe`（struct 状态，`current : Point`）。每个子模块只使用
+  NEAR 后端已支持的 lowering 路径。`scripts/near/plan-smoke.sh` 现在遍历全部四个
+  fixture（Counter + 三个新增），生成并 diff 每个 plan golden 并逐个运行 parity
+  检查。在 `Examples/WasmNear/<Fixture>/golden/` 下添加新的 golden `plan.txt`。
+  Parity 结果（plan 驱动 WAT == 内联 WAT，字节一致）：`Counter: MATCH 2228 chars`、
+  `EvmMapProbe: MATCH 3498 chars`、`EvmStorageArrayProbe: MATCH 4703 chars`、
+  `EvmStorageStructProbe: MATCH 3375 chars`。覆盖现已横跨标量 / map / array /
+  struct 状态形状；内联 `Ctx` 构建仍保留（双路径）直到 Step C，此时已有广泛覆盖
+  证据可依赖。
 - Step C（切换默认）：parity 稳定后，将默认切到 v2，删除内联 `Ctx` 构建，并让
   `WasmNear/Refinement.lean` 从重新推导 export/import 改为读取
   `NearModulePlan.surface` + `NearModulePlan.layout`。
@@ -448,6 +461,10 @@ spike、没有真正的 lowering（`SuiModulePlan` 需要先于真正的 Move lo
   `ProofForge/Backend/WasmNear/EmitWat.lean`（从 `lowerModule` 抽出
   `lowerModuleCoreWithCtx` 以打破 import 环）、`Tests/NearModulePlan.lean`（双路径
   parity 检查）、`scripts/near/plan-smoke.sh`（`--parity`）、`justfile`。
+- Step B.2：`Tests/NearModulePlan.lean`（`moduleFor` + `mapSubModule` /
+  `arraySubModule` / `structSubModule`）、`scripts/near/plan-smoke.sh`
+  （多 fixture 循环）、`Examples/WasmNear/{EvmMapProbe,EvmStorageArrayProbe,
+  EvmStorageStructProbe}/golden/plan.txt`（新 golden）。
 - Step C：`ProofForge/Backend/WasmNear/EmitWat.lean`、
   `ProofForge/Backend/WasmNear/Refinement.lean`。
 

@@ -1,6 +1,6 @@
 # Multi-backend ModulePlan — feasibility assessment and design
 
-Status: **Phase 4 Step A + Step B landed** (plan-driven NEAR lowering, dual-path parity green)
+Status: **Phase 4 Step A + Step B + Step B.2 landed** (plan-driven NEAR lowering, dual-path parity green across scalar/map/array/struct state)
 
 Date: 2026-07-07
 
@@ -275,11 +275,32 @@ construction is replaced by `Ctx.fromSeed`, which produces the same fields).
   `EmitWat.lowerModuleCoreWithCtx` body extracted from the inline `lowerModule`
   (mirroring Solana's `lowerModuleCoreWithSeed`). The inline `Ctx` construction
   in `EmitWat.lowerModule` is kept (dual-path) until Step C.
-- The `just near-plan-smoke` gate now runs a dual-path parity check (the existing
+- The `just near-plan-smoke` gate runs a dual-path parity check (the existing
   golden plan diff plus a `--parity` flag that asserts plan-driven WAT == inline
-  WAT). Current coverage: `Counter: MATCH 2228 chars`. `ValueVault` and
-  `NearCrosscallProbe` are deferred to a later Step B.2 (they need their own
-  fixture wiring in `Tests/NearModulePlan.moduleFor`).
+  WAT). Initial Step B coverage: `Counter: MATCH 2228 chars`.
+
+**Step B.2 — Widen parity coverage to non-scalar state shapes. — LANDED (2026-07-07).**
+- Extend `Tests/NearModulePlan.lean` with a `moduleFor` resolver and three
+  sub-module fixtures mirroring the Solana Phase 2 array/map/struct probes:
+  `EvmMapProbe` (map state, u64-keyed `balances`), `EvmStorageArrayProbe`
+  (array state, `values` length 3), `EvmStorageStructProbe` (struct state,
+  `current : Point`). Each sub-module only exercises lowering paths the NEAR
+  backend already supports (`storageMapGet/Set`, `storageArrayRead/Write`,
+  `storageStructFieldRead/Write`).
+- Extend `scripts/near/plan-smoke.sh` to loop over all four fixtures
+  (Counter + three new), generating + diffing each plan golden AND running the
+  parity check per fixture. New golden `plan.txt` files added under
+  `Examples/WasmNear/<Fixture>/golden/`.
+- Parity results (plan-driven WAT == inline WAT, byte-identical):
+  `Counter: MATCH 2228 chars`, `EvmMapProbe: MATCH 3498 chars`,
+  `EvmStorageArrayProbe: MATCH 4703 chars`, `EvmStorageStructProbe: MATCH 3375 chars`.
+- The inline `Ctx` construction in `EmitWat.lowerModule` is still kept
+  (dual-path); Step C deletes it after this wider coverage proves the
+  plan-driven path preserves semantics across scalar / map / array / struct
+  state shapes. `ValueVault` (scalar) and `NearCrosscallProbe` (crosscall)
+  were also probed and match, but are not wired as gate fixtures because
+  `EvmMapProbe`/`EvmStorageArrayProbe`/`EvmStorageStructProbe` already cover
+  the non-scalar state shapes and mirror Solana's fixture set exactly.
 
 **Step C — Switch default.**
 - After parity holds over N consecutive CI runs, flip the default to v2 and delete
@@ -365,6 +386,22 @@ Step B (2026-07-07):
   runs it via `--parity`.
 - Result: `Counter: MATCH 2228 chars`. The inline `Ctx` construction is kept
   (dual-path) until Step C.
+
+Step B.2 (2026-07-07):
+
+- `Tests/NearModulePlan.lean` extended with a `moduleFor` resolver and three
+  sub-module fixtures (`EvmMapProbe`, `EvmStorageArrayProbe`,
+  `EvmStorageStructProbe`) mirroring the Solana Phase 2 array/map/struct probes.
+- `scripts/near/plan-smoke.sh` loops over all four fixtures (Counter + three
+  new), generating + diffing each plan golden and running the parity check per
+  fixture. New golden `plan.txt` files added under
+  `Examples/WasmNear/<Fixture>/golden/`.
+- Parity results (plan-driven WAT == inline WAT, byte-identical):
+  `Counter: MATCH 2228 chars`, `EvmMapProbe: MATCH 3498 chars`,
+  `EvmStorageArrayProbe: MATCH 4703 chars`,
+  `EvmStorageStructProbe: MATCH 3375 chars`.
+- Coverage now spans scalar / map / array / struct state shapes; the inline
+  `Ctx` construction is still kept (dual-path) until Step C.
 
 ## 9. RFC 0014 Phase 4 update summary
 

@@ -564,6 +564,22 @@ real lowering (a `SuiModulePlan` would have to precede building one).
   plan-driven WAT and inline WAT must be byte-identical (asserted as `MATCH N
   chars`). Result: `Counter: MATCH 2228 chars`. `lake build`, `just
   wasm-near-plan`, and the frozen `Counter.golden.wat` are unaffected.
+- Step B.2 (widen parity coverage to non-scalar state shapes) — **LANDED
+  (2026-07-07).** Extended `Tests/NearModulePlan.lean` with a `moduleFor`
+  resolver and three sub-module fixtures mirroring the Solana Phase 2
+  array/map/struct probes: `EvmMapProbe` (map state, u64-keyed `balances`),
+  `EvmStorageArrayProbe` (array state, `values` length 3),
+  `EvmStorageStructProbe` (struct state, `current : Point`). Each sub-module
+  only exercises lowering paths the NEAR backend already supports.
+  `scripts/near/plan-smoke.sh` now loops over all four fixtures (Counter +
+  three new), generating + diffing each plan golden and running the parity
+  check per fixture. New golden `plan.txt` files added under
+  `Examples/WasmNear/<Fixture>/golden/`. Parity results (plan-driven WAT ==
+  inline WAT, byte-identical): `Counter: MATCH 2228 chars`, `EvmMapProbe:
+  MATCH 3498 chars`, `EvmStorageArrayProbe: MATCH 4703 chars`,
+  `EvmStorageStructProbe: MATCH 3375 chars`. Coverage now spans scalar / map /
+  array / struct state shapes; the inline `Ctx` construction is still kept
+  (dual-path) until Step C, which now has wide coverage evidence to lean on.
 - Step C (switch default): after parity holds, flip the default to v2, delete the
   inline `Ctx` construction, and switch `WasmNear/Refinement.lean` from re-deriving
   exports/imports to reading `NearModulePlan.surface` + `NearModulePlan.layout`.
@@ -580,6 +596,10 @@ real lowering (a `SuiModulePlan` would have to precede building one).
   from `lowerModule` to break the import cycle),
   `Tests/NearModulePlan.lean` (dual-path parity check), `scripts/near/plan-smoke.sh`
   (`--parity`), `justfile`.
+- Step B.2: `Tests/NearModulePlan.lean` (`moduleFor` + `mapSubModule` /
+  `arraySubModule` / `structSubModule`), `scripts/near/plan-smoke.sh`
+  (multi-fixture loop), `Examples/WasmNear/{EvmMapProbe,EvmStorageArrayProbe,
+  EvmStorageStructProbe}/golden/plan.txt` (new goldens).
 - Step C: `ProofForge/Backend/WasmNear/EmitWat.lean`,
   `ProofForge/Backend/WasmNear/Refinement.lean`.
 

@@ -2,18 +2,22 @@
 # V-GATE-NEAR-06: NearModulePlan golden + dual-path parity smoke.
 #
 # Builds the NearModulePlan for each fixture, compares it to the golden copy
-# at Examples/WasmNear/<Fixture>/golden/plan.txt, AND (Step B) runs the
+# at Examples/WasmNear/<Fixture>/golden/plan.txt, AND (Step B / B.2) runs the
 # dual-path parity check: plan-driven WAT vs inline EmitWat WAT must be
 # byte-identical.
 #
-# Fixtures (RFC 0014 Phase 4 — Step B plan-driven lowering):
-#   Counter — scalar state (the original MVP)
+# Fixtures (RFC 0014 Phase 4 — Step B plan-driven lowering + Step B.2 coverage):
+#   Counter               — scalar state (the original MVP)
+#   EvmMapProbe           — map state (`balances`, u64-keyed, sub-module)
+#   EvmStorageArrayProbe  — array state (`values`, length 3, sub-module)
+#   EvmStorageStructProbe — struct state (`current` : Point, sub-module)
 #
 # This is the Tier B gate for the NEAR backend's data-layout plan. Step B
 # wires the plan into lowering via NearModulePlan.lowerModuleFromPlan, which
 # reuses EmitWat.lowerModuleCoreWithCtx (the shared body extracted from the
-# inline path). The inline Ctx construction in EmitWat.lowerModule is kept
-# (dual-path) until Step C.
+# inline path). Step B.2 widens parity coverage to non-scalar state shapes
+# (map / array / struct) before Step C deletes the inline path. The inline Ctx
+# construction in EmitWat.lowerModule is kept (dual-path) until Step C.
 
 set -euo pipefail
 
@@ -22,6 +26,9 @@ cd "$REPO_ROOT"
 
 FIXTURES=(
   "Counter"
+  "EvmMapProbe"
+  "EvmStorageArrayProbe"
+  "EvmStorageStructProbe"
 )
 
 mkdir -p build/wasm-near
