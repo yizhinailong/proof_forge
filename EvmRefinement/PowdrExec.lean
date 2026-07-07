@@ -768,6 +768,51 @@ theorem stepFE_sload_success_callStack_ok
       EvmSemantics.EVM.State.replaceStackAndIncrPC]
   · simp [hgasTotal] at hstep
 
+theorem stepF_mstore_ok
+    {state gasState : State} {offset value : UInt256} {rest : List UInt256}
+    (hstack : state.stack = offset :: value :: rest)
+    (hmem : gasState.canExpandMemory offset.toNat 32) :
+    EvmSemantics.EVM.stepF.stackMemFlow state gasState
+        (.MSTORE : EvmSemantics.Operation.StackMemFlowOps) =
+      .ok
+        ({ gasState.consumeMemExp offset.toNat 32 hmem with
+          toMachineState :=
+            EvmSemantics.MachineState.mstore
+              (gasState.consumeMemExp offset.toNat 32 hmem).toMachineState
+              offset value }.replaceStackAndIncrPC rest) := by
+  unfold EvmSemantics.EVM.stepF.stackMemFlow EvmSemantics.EVM.chargeMem
+  simp [hstack, hmem]
+
+theorem stepFE_mstore_ok
+    {state : State} {offset value : UInt256} {rest : List UInt256}
+    (hready :
+      StepFEReady state
+        (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps)))
+    (hdecoded :
+      state.decoded =
+        some (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps), none))
+    (hstack : state.stack = offset :: value :: rest)
+    (hmem :
+      (state.consumeGas
+        (EvmSemantics.EVM.Gas.baseCost state.fork
+          (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+            Operation)) hready.gas).canExpandMemory offset.toNat 32) :
+    EvmSemantics.EVM.stepFE state =
+      .ok
+        ({ (state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+              Operation)) hready.gas).consumeMemExp offset.toNat 32 hmem with
+          toMachineState :=
+            EvmSemantics.MachineState.mstore
+              ((state.consumeGas
+                (EvmSemantics.EVM.Gas.baseCost state.fork
+                  (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+                    Operation)) hready.gas).consumeMemExp offset.toNat 32 hmem).toMachineState
+              offset value }.replaceStackAndIncrPC rest) := by
+  rw [stepFE_stackMemFlow_dispatch hready hdecoded]
+  exact stepF_mstore_ok hstack hmem
+
 theorem stepFE_sstore_dispatch_ok
     {state : State}
     (hready :
