@@ -325,6 +325,24 @@ Golden plan 快照（Phase 7 stretch）会将 plan 序列化为 JSON 供人工 r
 - 添加 `ProofForge/Backend/Solana/Plan.lean`，含 `SolanaModulePlan` 及上述子 plan。
 - 重构 `SbpfAsm.lowerModuleCore`，使 `LowerCtx` **从 plan 派生**，而非内联构建。为 `CapabilityPlan` extension 保留 `lowerModuleWithPlan`。
 - 添加 `Tests/SolanaSemanticPlan.lean` 和 `just solana-semantic-plan`，镜像 `evm-plan`（layout + entrypoint + manifest + CPI/account schema 一致性）。
+- Step C（切换默认）—— **已落地（2026-07-07）。** plan-driven 路径现在是唯一的
+  lowering 路径。原先位于 `SbpfAsm.lowerModuleCore` 旁的内联 `buildCtx`（通过
+  `buildStateOffsetsAtBase` 派生 `stateFieldOffsets` 并逐字段装配 `LowerCtx`）已
+  删除；`lowerModuleCore` 现在通过 `SbpfAsm.buildLowerCtx` →
+  `SbpfAsm.LowerCtx.fromPlanSeed` 派生其 `LowerCtx`（由拥有 `LowerCtx` 类型的
+  `SbpfAsm` 拥有；`Solana.Plan.LowerCtx.fromSeed` 委托给它，保持 import 图单向）。
+  共享的 `lowerModuleCoreWithSeed` 体不变。Phase 2 落地的双路径 parity 检查退役
+  （已无第二条路径可对齐）；`Tests/SolanaModulePlan.lean` 现为单路径回归 gate
+  （plan golden diff + `--render` 确认 plan-driven lowering 仍能发出 sBPF 汇编，
+  字符数出现在 CI 日志中）。`scripts/solana/plan-smoke.sh` 切换为 `--render`。
+  所有 `SbpfAsm.lowerModule`/`renderModule`/`lowerModuleWithPlan` 调用点
+  （Cli.lean、九个 `Tests/Solana*.lean` 发射测试、`Package.renderPackageWithPlan`）
+  现在自动经由 plan 派生的 `LowerCtx` 进行 lowering。验证：`lake build` green；
+  `just solana-plan-smoke` 通过（4/4）；`just solana-build-examples` 通过
+  （`Counter.s` 匹配冻结 golden）；`just solana-lean` 与 `just solana-emit-control`
+  通过；冻结的 `.s` golden（`Counter.golden.s`、`ValueVault.golden.s`）及所有
+  `plan.txt` golden 不变。Render 字符数：Counter 3830、EvmStorageArrayProbe 6609、
+  EvmMapProbe 4470、EvmStorageStructProbe 2707，确认字节稳定。
 
 **改动清单：**
 

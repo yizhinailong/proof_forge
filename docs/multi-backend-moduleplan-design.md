@@ -1,6 +1,6 @@
 # Multi-backend ModulePlan — feasibility assessment and design
 
-Status: **Phase 4 Step A + Step B + Step B.2 + Step C landed** (plan-driven NEAR lowering is the only path; inline `Ctx` deleted; dual-path parity retired)
+Status: **Phase 4 Step A + Step B + Step B.2 + Step C landed** (plan-driven NEAR lowering is the only path; inline `Ctx` deleted; dual-path parity retired) **+ Solana Phase 2 Step C landed** (plan-driven Solana lowering is the only path; inline `buildCtx` deleted; dual-path parity retired)
 
 Date: 2026-07-07
 
@@ -505,7 +505,55 @@ RFC 0014 Phase 4 (en + zh) is updated to:
   RFC 0004 non-goal.
 - **Move-Sui / Psy plan implementation.** Deferred per §7.
 
-## 12. References
+## 13. Solana Phase 2 Step C (plan-driven lowering, single path)
+
+Solana Phase 2 landed `SolanaModulePlan` + `lowerModuleFromPlan` on `main`
+ahead of this NEAR feasibility doc. The Phase 2 work routed `Package.renderPackage`
+through `Plan.lowerModuleFromPlan`, but `SbpfAsm.lowerModuleCore` still built its
+`LowerCtx` inline via `buildCtx` — a separate lowering path that derived
+`stateFieldOffsets`/`structs`/`stateDecls` directly from the IR module. Dual-path
+parity (plan-driven asm vs inline asm) was verified byte-identical for the four
+fixtures (Counter, EvmStorageArrayProbe, EvmMapProbe, EvmStorageStructProbe).
+
+**Step C (RFC 0014 Phase 2, landed 2026-07-07).** Mirrors NEAR Step C exactly:
+the inline `buildCtx` is deleted; `SbpfAsm.lowerModuleCore` now derives its
+`LowerCtx` via `SbpfAsm.buildLowerCtx` → `SbpfAsm.LowerCtx.fromPlanSeed`, the
+same reconstruction `Solana.Plan.LowerCtx.fromSeed` delegates to, so the
+`*ModulePlan` is the authoritative source for lowering decisions and the two
+paths cannot drift. The shared `lowerModuleCoreWithSeed` body is unchanged.
+
+- `SbpfAsm.LowerCtx.fromPlanSeed` is owned by `SbpfAsm` (which owns the
+  `LowerCtx` type); `Solana.Plan.LowerCtx.fromSeed` delegates to it. This keeps
+  the import graph one-directional (`Plan.lean` imports `SbpfAsm.lean`, not
+  vice versa), mirroring how `NearModulePlan.Ctx.fromPlanSeed` delegates to
+  `EmitWat.Ctx.fromPlanSeed`.
+- `Tests/SolanaModulePlan.lean` is converted from a golden-only check to a
+  single-path regression gate: the plan golden diff pins the semantic artifact
+  and the `--render` flag renders the module via the plan-driven path
+  (`Solana.Plan.renderModuleFromPlan`), surfacing the sBPF assembly char count
+  in CI logs so byte-churn is observable. The dual-path parity check is retired
+  (there is no second path to agree with). The 4 fixtures
+  (Counter, EvmStorageArrayProbe, EvmMapProbe, EvmStorageStructProbe) stay as
+  the coverage set.
+- `scripts/solana/plan-smoke.sh` switches to the `--render` flag and rebrands
+  from "golden smoke" to "golden + render smoke", mirroring
+  `scripts/near/plan-smoke.sh`.
+- No Step C exceptions needed: all `SbpfAsm.lowerModule`/`renderModule`/
+  `lowerModuleWithPlan`/`renderModuleWithPlan` call sites (Cli.lean's three
+  Counter/ErrorRefProbe/ControlFlowAssertProbe emit paths, the nine
+  `Tests/Solana*.lean` emission tests, and `Package.renderPackageWithPlan`)
+  route through `lowerModuleCore` and now lower through the plan-derived
+  `LowerCtx` automatically.
+- Verification: `lake build` green; `just solana-plan-smoke` passes (4/4,
+  plan golden diff + plan-driven render); `just solana-build-examples`
+  passes (`Counter.s` and `manifest.toml` match frozen goldens);
+  `just solana-lean` and `just solana-emit-control` pass (all `SbpfAsm`
+  emission tests unaffected); frozen `.s` goldens (`Counter.golden.s`,
+  `ValueVault.golden.s`) and all `plan.txt` goldens unchanged. Render char
+  counts: Counter 3830, EvmStorageArrayProbe 6609, EvmMapProbe 4470,
+  EvmStorageStructProbe 2707.
+
+## 14. References
 
 - [RFC 0014](rfcs/0014-unified-semantic-lowering-contract.md) — Phase 4 source.
 - [target-lowering-interface.md](target-lowering-interface.md) — per-backend

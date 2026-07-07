@@ -238,9 +238,48 @@ frame. The label counter and state-field offsets are preserved by the caller. -/
 def LowerCtx.resetLocals (ctx : LowerCtx) : LowerCtx :=
   { ctx with locals := #[], nextLocalOffset := 8, scratchOffset := 8, allocator := Allocator.new }
 
-def buildCtx (module : Module) (stateDataOff : Nat) : Except LowerError LowerCtx := do
+/-- Reconstruct a `LowerCtx` from a `SolanaLowerCtxSeed`-shaped bundle plus the
+lowering-local mutable fields (all reset to their entry defaults). This is the
+Step C (RFC 0014 Phase 2) plan-driven `LowerCtx` builder: every `LowerCtx`
+field that carries a lowering decision (`stateFieldOffsets`, `structs`,
+`stateDecls`) comes from the seed; the lowering-local mutable fields
+(`locals`, `nextLocalOffset`, `scratchOffset`, `nextLabel`, `allocator`) are
+initialised exactly as the old inline `buildCtx` initialised them, so the
+shared `lowerModuleCoreWithSeed` body sees the same starting context.
+
+`ProofForge.Backend.Solana.Plan.LowerCtx.fromSeed` delegates here so the plan
+artifact and the lowering entry share one reconstruction path and cannot
+drift. The import graph stays one-directional: `Plan.lean` imports
+`SbpfAsm.lean`, not vice versa, because `SbpfAsm` owns the `LowerCtx` type. -/
+def LowerCtx.fromPlanSeed
+    (stateFieldOffsets : Array (String × Nat))
+    (structs : Array StructDecl)
+    (stateDecls : Array StateDecl) : LowerCtx :=
+  { stateFieldOffsets
+    structs
+    stateDecls
+    locals := #[]
+    nextLocalOffset := 8
+    scratchOffset := 8
+    nextLabel := 0
+    allocator := Allocator.new }
+
+/-- Build a `LowerCtx` for a module using the plan-derived path. This is the
+Step C single lowering path: the `stateFieldOffsets` array is computed exactly
+as `SolanaModulePlan.buildSolanaModulePlan` computes it (reusing
+`buildStateOffsetsAtBase` with the same `stateDataOff`), then handed to
+`LowerCtx.fromPlanSeed`. The ad-hoc inline `buildCtx` that previously lived
+beside `lowerModuleCore` is deleted; the `*ModulePlan` is now the
+authoritative source for lowering decisions, and `lowerModuleCore` is a thin
+wrapper over `LowerCtx.fromPlanSeed` + the shared `lowerModuleCoreWithSeed`
+body. `structs`/`stateDecls` are read-only metadata carried verbatim from the
+IR module, matching the `SolanaLowerCtxSeed` disposition. -/
+def buildLowerCtx (module : IR.Module) (stateDataOff : Nat) : LowerCtx :=
   let offsets := buildStateOffsetsAtBase module stateDataOff
-  return { stateFieldOffsets := offsets.map (fun f => (f.id, f.absOff)), structs := module.structs, stateDecls := module.state, locals := #[], nextLocalOffset := 8, scratchOffset := 8, nextLabel := 0, allocator := Allocator.new }
+  LowerCtx.fromPlanSeed
+    (offsets.map (fun f => (f.id, f.absOff)))
+    module.structs
+    module.state
 
 def SPL_TOKEN_ACCOUNT_DATA_SIZE : Nat := 165
 def SPL_TOKEN_MINT_DATA_SIZE : Nat := 82
@@ -1732,6 +1771,14 @@ partial def lowerModuleCoreWithSeed (module : IR.Module)
     ]
   .ok nodes
 
+/- Step C (RFC 0014 Phase 2): the lowering flows through the plan-derived
+`LowerCtx`. The inline `buildCtx` that previously lived beside this function
+(deriving `stateFieldOffsets` via `buildStateOffsetsAtBase` and assembling
+`LowerCtx` field-by-field) is deleted; `buildLowerCtx` derives the `LowerCtx`
+via `LowerCtx.fromPlanSeed`, the same reconstruction
+`Solana.Plan.LowerCtx.fromSeed` uses, so the `*ModulePlan` is the
+authoritative source for lowering decisions and the two paths cannot drift.
+The shared `lowerModuleCoreWithSeed` body is unchanged. -/
 partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions) :
     Except LowerError (Array AstNode) := do
   validateCapabilities module
@@ -1743,7 +1790,7 @@ partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions
       match schema.inputLayout.accounts[0]? with
       | some accountLayout => .ok accountLayout.dataStart
       | none => .error { message := "Solana account schema must contain at least one state account" }
-  let ctx ← buildCtx module stateDataOff
+  let ctx := buildLowerCtx module stateDataOff
   lowerModuleCoreWithSeed module schema.accounts schema.inputLayout extensions ctx
 
 partial def lowerModule (module : IR.Module) : Except LowerError (Array AstNode) :=

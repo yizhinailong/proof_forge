@@ -440,6 +440,29 @@ does not block it.
 - Add `Tests/SolanaSemanticPlan.lean` and `just solana-semantic-plan`,
   mirroring `evm-plan` (layout + entrypoint + manifest + CPI/account schema
   consistency).
+- Step C (switch default) — **LANDED (2026-07-07).** The plan-driven path is the
+  ONLY lowering path. The inline `buildCtx` that previously lived beside
+  `SbpfAsm.lowerModuleCore` (deriving `stateFieldOffsets` via
+  `buildStateOffsetsAtBase` and assembling `LowerCtx` field-by-field) is
+  deleted; `lowerModuleCore` now derives its `LowerCtx` via
+  `SbpfAsm.buildLowerCtx` → `SbpfAsm.LowerCtx.fromPlanSeed` (owned by `SbpfAsm`,
+  which owns the `LowerCtx` type; `Solana.Plan.LowerCtx.fromSeed` delegates to
+  it, keeping the import graph one-directional). The shared
+  `lowerModuleCoreWithSeed` body is unchanged. The dual-path parity check that
+  landed in Phase 2 is retired (there is no second path to agree with);
+  `Tests/SolanaModulePlan.lean` is now a single-path regression gate (plan
+  golden diff + `--render` confirms the plan-driven lowering still emits sBPF
+  assembly, char count surfaced in CI logs). `scripts/solana/plan-smoke.sh`
+  switches to `--render`. All `SbpfAsm.lowerModule`/`renderModule`/
+  `lowerModuleWithPlan` call sites (Cli.lean, the nine `Tests/Solana*.lean`
+  emission tests, `Package.renderPackageWithPlan`) now lower through the
+  plan-derived `LowerCtx` automatically. Verification: `lake build` green;
+  `just solana-plan-smoke` passes (4/4); `just solana-build-examples` passes
+  (`Counter.s` matches frozen golden); `just solana-lean` and
+  `just solana-emit-control` pass; frozen `.s` goldens
+  (`Counter.golden.s`, `ValueVault.golden.s`) and all `plan.txt` goldens
+  unchanged. Render char counts: Counter 3830, EvmStorageArrayProbe 6609,
+  EvmMapProbe 4470, EvmStorageStructProbe 2707, confirming byte-stability.
 
 **Touch list:**
 

@@ -345,21 +345,24 @@ def SolanaModulePlan.render (plan : SolanaModulePlan) : String :=
 -- ============================================================================
 
 /-- Build a `LowerCtx` from the plan's lowering seed, without re-deriving state
-offsets or account layout from the IR module. -/
+offsets or account layout from the IR module. Delegates to
+`SbpfAsm.LowerCtx.fromPlanSeed` (the `LowerCtx` owner) so the plan path and the
+`SbpfAsm.lowerModuleCore` lowering entry share one reconstruction path and
+cannot drift. The lowering-local mutable fields (`locals`, `nextLocalOffset`,
+`scratchOffset`, `nextLabel`, `allocator`) are initialised to their entry
+defaults inside `LowerCtx.fromPlanSeed`. -/
 def LowerCtx.fromSeed (seed : SolanaLowerCtxSeed) : SbpfAsm.LowerCtx :=
-  { stateFieldOffsets := seed.stateFieldOffsets
-    structs := seed.structs
-    stateDecls := seed.stateDecls
-    locals := #[]
-    nextLocalOffset := 8
-    scratchOffset := 8
-    nextLabel := 0
-    allocator := Allocator.new }
+  SbpfAsm.LowerCtx.fromPlanSeed
+    seed.stateFieldOffsets seed.structs seed.stateDecls
 
 /-- Lower a module using a pre-built `SolanaModulePlan`. This is the Tier B
 contract entry point: the lowering is a pure function of the plan (plus the IR
-module's statement bodies). The capability check is re-run here because it is
-a read-only validation gate, not a lowering decision. -/
+module's statement bodies). The reconstructed `LowerCtx` is handed to the
+shared `SbpfAsm.lowerModuleCoreWithSeed` body — the exact same body
+`SbpfAsm.lowerModuleCore` uses (Step C made it the only path) — so the
+plan-driven output is identical to the lowering entry's output. The
+capability check is re-run here because it is a read-only validation gate, not
+a lowering decision. -/
 def lowerModuleFromPlan (module : IR.Module) (plan : SolanaModulePlan) :
     Except SbpfAsm.LowerError (Array AstNode) := do
   SbpfAsm.validateCapabilities module
@@ -368,7 +371,10 @@ def lowerModuleFromPlan (module : IR.Module) (plan : SolanaModulePlan) :
   SbpfAsm.lowerModuleCoreWithSeed module seed.manifestAccounts seed.inputLayout
     seed.extensions ctx
 
-/-- Render a module to sBPF assembly text via the plan-driven path. -/
+/-- Render a module to sBPF assembly text via the plan-driven path. Step C
+made the plan-driven path the only lowering path, so this and
+`SbpfAsm.renderModule` share the same `lowerModuleCoreWithSeed` body via
+`LowerCtx.fromSeed` / `SbpfAsm.LowerCtx.fromPlanSeed`. -/
 def renderModuleFromPlan (module : IR.Module) (plan : SolanaModulePlan) :
     Except SbpfAsm.LowerError String := do
   let nodes ← lowerModuleFromPlan module plan
