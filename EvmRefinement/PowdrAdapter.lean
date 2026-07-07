@@ -80,6 +80,61 @@ theorem stepF_sound {state next : State} (h : stepF state = .ok next) :
 theorem runBytecode_zero (state : State) :
     runBytecode state 0 = .ok (state, (#[] : Array ObservableStep)) := rfl
 
+/-- A successful fuel-bounded executable run is backed by powdr's relational
+`Step` closure. This is the bridge future Counter entrypoint runners need to
+turn executable bytecode execution into C-proof evidence. -/
+theorem runBytecode_steps {fuel : Nat} :
+    ∀ {state finalState : State} {observations : Array ObservableStep},
+      runBytecode state fuel = .ok (finalState, observations) →
+        EvmSemantics.EVM.Steps state finalState := by
+  induction fuel with
+  | zero =>
+      intro state finalState observations hrun
+      have hpair : (state, (#[] : Array ObservableStep)) = (finalState, observations) := by
+        simpa [runBytecode] using hrun
+      cases hpair
+      exact EvmSemantics.EVM.Steps.refl state
+  | succ fuel ih =>
+      intro state finalState observations hrun
+      by_cases hHalted : isHalted state
+      · simp [runBytecode, hHalted] at hrun
+        have hpair : (state, (#[] : Array ObservableStep)) = (finalState, observations) := by
+          simpa using hrun
+        cases hpair
+        exact EvmSemantics.EVM.Steps.refl state
+      · simp [runBytecode, hHalted] at hrun
+        cases hstep : stepF state with
+        | error message =>
+            rw [hstep] at hrun
+            change (Except.bind (Except.error message)
+              (fun next : State =>
+                Except.bind (runBytecode next fuel)
+                  (fun result : State × Array ObservableStep =>
+                    Except.ok (result.fst, result.snd)))) =
+              Except.ok (finalState, observations) at hrun
+            simp [Except.bind] at hrun
+        | ok next =>
+            rw [hstep] at hrun
+            change (Except.bind (Except.ok next)
+              (fun next : State =>
+                Except.bind (runBytecode next fuel)
+                  (fun result : State × Array ObservableStep =>
+                    Except.ok (result.fst, result.snd)))) =
+              Except.ok (finalState, observations) at hrun
+            simp [Except.bind] at hrun
+            have hrunNext : runBytecode next fuel = .ok (finalState, observations) := by
+              cases hnext : runBytecode next fuel with
+              | error message =>
+                  rw [hnext] at hrun
+                  simp at hrun
+              | ok result =>
+                  rcases result with ⟨nextFinalState, nextObservations⟩
+                  rw [hnext] at hrun
+                  simp at hrun
+                  rcases hrun with ⟨rfl, rfl⟩
+                  rfl
+            exact EvmSemantics.EVM.Steps.trans (stepF_sound hstep) (ih hrunNext)
+
 abbrev PowdrState := State
 abbrev PowdrStep : PowdrState → PowdrState → Prop := Step
 abbrev PowdrObservableStep := ObservableStep

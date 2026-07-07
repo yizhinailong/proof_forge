@@ -139,9 +139,9 @@ forcing a downgrade/upgrade).
 ### Recommended next action
 
 Use the opt-in powdr wrapper plus the landed Counter storage relation to prove
-the Counter per-entrypoint simulation against powdr `Step`. Confirm whether
-powdr exposes a Yul-level relation; otherwise document the Yul→bytecode `solc`
-step as an explicit trust boundary.
+the Counter per-entrypoint simulation against powdr `Step`. The pinned powdr
+tree exposes bytecode semantics but no Yul-level relation, so keep the
+Yul→bytecode `solc` step as an explicit trust boundary.
 
 ## (e) Files changed (Phase 6b, blocked-seam deliverable)
 
@@ -168,7 +168,8 @@ step as an explicit trust boundary.
   `State`, `Step`, `StepF`, `BigStep`, and `Equiv` modules; exposes real
   powdr-backed `State`, `Step`, `stepF`, `step`, `isHalted`, and `runBytecode`
   wrappers; and proves the wrapper `stepF_sound` using
-  `EvmSemantics.EVM.stepF_sound`.
+  `EvmSemantics.EVM.stepF_sound`, plus `runBytecode_steps` from successful
+  fuel-bounded execution to powdr `Steps`.
 - `EvmRefinement/CounterRefinement.lean` — opt-in Counter relation layer that
   maps IR `count` to the powdr account storage word at ProofForge's EVM scalar
   slot 0.

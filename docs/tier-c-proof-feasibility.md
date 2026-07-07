@@ -277,10 +277,11 @@ ProofForge's default build still avoids powdr/mathlib imports.
   at `fabf563a7c95a166b8d7b6efca11c8b4dc9d911f`. The opt-in adapter now exposes
   real powdr-backed `State`, `Step`, `stepF`, and `runBytecode` wrappers. The
   Counter storage relation now maps the IR `count` binding to the powdr account
-  storage word at ProofForge's EVM layout slot 0. The remaining work is the
-  per-entrypoint powdr `Step` proof.
-  Confirm whether powdr exposes a Yul-level relation; otherwise the Yul→bytecode
-  `solc` step remains an explicit trust boundary.
+  storage word at ProofForge's EVM layout slot 0, and successful
+  `runBytecode` executions now lift to powdr's relational `Steps` closure.
+  The pinned powdr tree exposes bytecode semantics, not a Yul-level relation,
+  so the Yul→bytecode `solc` step remains an explicit trust boundary. The
+  remaining work is the per-entrypoint powdr `Step` proof.
 - **What was landed:**
   - `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` (new) — stub
     adapter with the public surface aligned to `Refinement.ObservableStep`,
@@ -291,7 +292,8 @@ ProofForge's default build still avoids powdr/mathlib imports.
     — opt-in powdr/mathlib target that imports powdr's `State`, `Step`,
     `StepF`, `BigStep`, and `Equiv` modules, exposes a seam-compatible
     `stepF : State → Except String State` wrapper, and checks the real
-    `EvmSemantics.EVM.stepF_sound` surface.
+    `EvmSemantics.EVM.stepF_sound` surface. It also proves successful
+    `runBytecode` executions imply powdr `Steps`.
   - `EvmRefinement/CounterRefinement.lean` — opt-in Counter relation layer that
     proves `count` is EVM scalar slot 0 and relates IR `count` to powdr
     `AccountMap`/`Storage` over `UInt256`.
