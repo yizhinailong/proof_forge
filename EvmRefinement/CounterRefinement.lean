@@ -2268,7 +2268,8 @@ theorem counterState_of_dispatcher_first_push0_stepFE_to_calldataload_ok
       nextState.decoded =
         some (.Env
           (.CALLDATALOAD : EvmSemantics.Operation.EnvOps), none) ∧
-      nextState.stack = EvmSemantics.UInt256.ofNat 0 :: rest := by
+      nextState.stack = EvmSemantics.UInt256.ofNat 0 :: rest ∧
+      nextState.executionEnv.calldata = state.executionEnv.calldata := by
   rcases hready with ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstate :=
     counterState_of_stepFE_push0_ok hrunning hprecompile
@@ -2286,10 +2287,13 @@ theorem counterState_of_dispatcher_first_push0_stepFE_to_calldataload_ok
         native_decide
       · simpa [EvmSemantics.EVM.State.consumeGas,
           EvmSemantics.EVM.State.replaceStackAndIncrPC] using hfork
-  refine ⟨hnextAt, counterPreparedDispatcherCalldataload_decoded hnextAt, ?_⟩
-  rw [hstate]
-  simp [EvmSemantics.EVM.State.consumeGas,
-    EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack]
+  refine ⟨hnextAt, counterPreparedDispatcherCalldataload_decoded hnextAt, ?_, ?_⟩
+  · rw [hstate]
+    simp [EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack]
+  · rw [hstate]
+    simp [EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.EVM.State.replaceStackAndIncrPC]
 
 theorem counterState_of_dispatcher_calldataload_stepFE_to_shift_push_ok
     {state nextState : EvmState}
@@ -2862,7 +2866,7 @@ theorem counterState_of_dispatcher_trampoline_stepFE_to_initialize_first_opcode_
     (hat0 : counterCompiledStateAt s0 0)
     (hready0 : counterStepFEReady s0 (.Push counterPush0Op))
     (hstep0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
-    (hcalldata1 : s1.executionEnv.calldata = counterCallCalldata .initialize)
+    (hcalldata0 : s0.executionEnv.calldata = counterCallCalldata .initialize)
     (hready1 :
       counterStepFEReady s1
         (.Env (.CALLDATALOAD : EvmSemantics.Operation.EnvOps)))
@@ -2913,9 +2917,11 @@ theorem counterState_of_dispatcher_trampoline_stepFE_to_initialize_first_opcode_
       s14.stack =
         EvmSemantics.UInt256.ofNat counterInitializeReturnOffset ::
           EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest := by
-  obtain ⟨hat1, _hdecoded1, hstack1⟩ :=
+  obtain ⟨hat1, _hdecoded1, hstack1, hcalldata1From0⟩ :=
     counterState_of_dispatcher_first_push0_stepFE_to_calldataload_ok
       h0 hat0 hready0 hstep0
+  have hcalldata1 : s1.executionEnv.calldata = counterCallCalldata .initialize := by
+    rw [hcalldata1From0, hcalldata0]
   obtain ⟨hat2, _hdecoded2, hstack2⟩ :=
     counterState_of_dispatcher_calldataload_stepFE_to_shift_push_ok
       hstack1 hcalldata1 hat1 hready1 hstep1
@@ -3764,6 +3770,24 @@ def counterPowdrTraceStep (cfg : PowdrCounterConfig) (state : EvmState)
 def CounterPreparedCall (cfg : PowdrCounterConfig) (call : CounterCall)
     (state : EvmState) : Prop :=
   ∃ sourceState, state = prepareCounterCall cfg.runtimeCode call sourceState
+
+theorem counterCompiledPreparedInitialize_entry_facts
+    {preparedState : EvmState}
+    (hprepared :
+      CounterPreparedCall counterCompiledPowdrConfig .initialize preparedState) :
+    counterCompiledStateAt preparedState 0 ∧
+      preparedState.stack = [] ∧
+      preparedState.executionEnv.calldata = counterCallCalldata .initialize ∧
+      preparedState.executionEnv.address = counterContractAddress := by
+  rcases hprepared with ⟨sourceState, rfl⟩
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · unfold counterCompiledStateAt
+    simp [counterCompiledPowdrConfig, prepareCounterCall, counterCallExecutionEnv]
+    change EvmSemantics.Fork.Shanghai.toOrd ≤ EvmSemantics.Fork.Cancun.toOrd
+    decide
+  · rfl
+  · rfl
+  · rfl
 
 theorem counterPreparedCall_isDone
     {cfg : PowdrCounterConfig} {call : CounterCall} {state : EvmState}

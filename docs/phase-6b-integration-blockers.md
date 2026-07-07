@@ -273,6 +273,10 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   composes the first body opcode through the prefix and SLOAD/AND/OR/PUSH0/SSTORE
   tail, proving the body writes `counterInitializeStorageWord` relative to the
   SLOAD-state storage word.
+  `counterCompiledPreparedInitialize_entry_facts` records the compiled prepared
+  initialize frame's PC0/code/fork, empty stack, initialize calldata, and
+  contract address facts for instantiating the composed path from a real
+  `CounterPreparedCall`.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -406,6 +410,9 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   under `lake build EvmRefinement`; the initialize body now composes from its
   first opcode through SSTORE and writes `counterInitializeStorageWord` relative
   to the SLOAD-state storage word.
+- `counterCompiledPreparedInitialize_entry_facts` — green under
+  `lake build EvmRefinement`; the compiled prepared initialize frame has the
+  PC0/code/fork, stack, calldata, and address facts needed by the composed path.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 
@@ -434,4 +441,5 @@ induction. `CounterTraceSafeAtState` is the current state/input predicate form;
 the remaining Phase 6c work is to prove the compiled runtime's prepared-frame
 EVM-only powdr storage models by connecting the composed dispatcher/trampoline/body
 `stepFE` path to the prepared-frame `counterPowdrPreparedTraceStep` result and
-instantiating the prepared-frame initialize storage model.
+instantiating the prepared-frame initialize storage model, including the final
+return/jump segment.

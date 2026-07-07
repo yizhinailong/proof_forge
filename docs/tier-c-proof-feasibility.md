@@ -419,6 +419,9 @@ ProofForge's default build still avoids powdr/mathlib imports.
     body opcode. `counterStorageValue_of_initialize_body_stepFE_from_first_opcode_ok`
     then composes that first opcode through SSTORE and proves the body writes
     `counterInitializeStorageWord` relative to the SLOAD-state storage word.
+    `counterCompiledPreparedInitialize_entry_facts` records the prepared
+    initialize frame facts needed to instantiate the composed path from a real
+    `CounterPreparedCall`.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
@@ -427,8 +430,8 @@ ProofForge's default build still avoids powdr/mathlib imports.
     per-entrypoint obligations then follow from the bridge/conversion theorems.
     The next concrete proof slice is to connect the composed
     dispatcher/trampoline/body `stepFE` path to the prepared-frame
-    `counterPowdrPreparedTraceStep` result and instantiate the prepared-frame
-    initialize storage model.
+    `counterPowdrPreparedTraceStep` result, including the final return/jump
+    segment, and instantiate the prepared-frame initialize storage model.
 - **Deliverable (revised):** a clean powdr-target seam plus the opt-in
   dependency path and wrapper. The conformance-tested EVM bytecode semantics is
   now callable from the `EvmRefinement` target; the implementation agent's next
