@@ -214,6 +214,64 @@ theorem runBytecode_extend_halted {fuel : Nat} :
             rw [hrunExtended]
             rfl
 
+theorem isHalted_of_halt_top_level {state : State}
+    (hhalt : state.halt ≠ .Running)
+    (hcallStack : state.callStack = []) :
+    isHalted state = true := by
+  cases h : state.halt <;>
+    simp [isHalted, EvmSemantics.EVM.State.isDone,
+      EvmSemantics.EVM.State.isHalted,
+      EvmSemantics.EVM.State.isRunning, h, hcallStack] at hhalt ⊢
+
+theorem isHalted_of_returned_top_level {state : State}
+    (hhalt : state.halt = .Returned)
+    (hcallStack : state.callStack = []) :
+    isHalted state = true := by
+  apply isHalted_of_halt_top_level
+  · intro hrunning
+    rw [hhalt] at hrunning
+    cases hrunning
+  · exact hcallStack
+
+theorem runBytecode_extend_to_fuel {fuel targetFuel extra : Nat}
+    {state finalState : State} {observations : Array ObservableStep}
+    (hrun : runBytecode state fuel = .ok (finalState, observations))
+    (hHalted : isHalted finalState = true)
+    (hFuel : targetFuel = extra + fuel) :
+    runBytecode state targetFuel = .ok (finalState, observations) := by
+  rw [hFuel]
+  exact runBytecode_extend_halted (fuel := fuel) (extra := extra) hrun hHalted
+
+theorem runBytecode_extend_to_fuel_of_returned_top_level
+    {fuel targetFuel extra : Nat}
+    {state finalState : State} {observations : Array ObservableStep}
+    (hrun : runBytecode state fuel = .ok (finalState, observations))
+    (hhalt : finalState.halt = .Returned)
+    (hcallStack : finalState.callStack = [])
+    (hFuel : targetFuel = extra + fuel) :
+    runBytecode state targetFuel = .ok (finalState, observations) := by
+  exact runBytecode_extend_to_fuel hrun
+    (isHalted_of_returned_top_level hhalt hcallStack) hFuel
+
+theorem runBytecode_extend_of_stepFEPath_done {pathFuel extra : Nat}
+    {state finalState : State}
+    (path : StepFEPath state pathFuel finalState)
+    (hHalted : isHalted finalState = true) :
+    runBytecode state (extra + pathFuel) =
+      .ok (finalState, (#[] : Array ObservableStep)) := by
+  exact runBytecode_extend_halted (fuel := pathFuel) (extra := extra)
+    (runBytecode_of_stepFEPath_done path) hHalted
+
+theorem runBytecode_extend_of_stepFEPath_returned_top_level
+    {pathFuel extra : Nat} {state finalState : State}
+    (path : StepFEPath state pathFuel finalState)
+    (hhalt : finalState.halt = .Returned)
+    (hcallStack : finalState.callStack = []) :
+    runBytecode state (extra + pathFuel) =
+      .ok (finalState, (#[] : Array ObservableStep)) := by
+  exact runBytecode_extend_of_stepFEPath_done path
+    (isHalted_of_returned_top_level hhalt hcallStack)
+
 theorem raw_stepF_sound (state : State) (hRunning : ¬ state.isDone) :
     Step state (rawStepF state) :=
   EvmSemantics.EVM.stepF_sound state hRunning

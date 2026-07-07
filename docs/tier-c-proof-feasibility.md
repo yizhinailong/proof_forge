@@ -467,15 +467,17 @@ ProofForge's default build still avoids powdr/mathlib imports.
     the 36-step theorem, proving the final frame's `callStack` equals the
     body-return-jump frame's `callStack`.
     `runBytecode_halted`, `runBytecode_extend_halted`,
-    `counterRunBytecode_extend_to_compiled_fuel`, and
-    `counterPowdrPreparedTraceStep_initialize_of_run36_ok` lift a 36-fuel
-    initialize run through the compiled config's 5000-fuel
-    `counterPowdrPreparedTraceStep` when the final state is known to be done.
-    `counterPowdrAdapter_isHalted_of_returned_top_level` and
+    `runBytecode_extend_to_fuel`,
+    `runBytecode_extend_to_fuel_of_returned_top_level`, and
+    `runBytecode_extend_of_stepFEPath_returned_top_level` lift any short fuel
+    run, or any packaged `StepFEPath`, to a larger target fuel once the final
+    frame is known to be halted. The Counter-specific compiled-fuel bridge is
+    now only a wrapper around that adapter-level interface.
+    `isHalted_of_returned_top_level` and
     `counterPowdrPreparedTraceStep_initialize_of_run36_returned_top_level_ok`
-    now reduce that side condition to returned halt plus an empty top-level
-    `callStack`; `counterCompiledPreparedInitialize_entry_facts` exposes the
-    prepared frame's initial empty `callStack`.
+    reduce the remaining side condition to returned halt plus an empty
+    top-level `callStack`; `counterCompiledPreparedInitialize_entry_facts`
+    exposes the prepared frame's initial empty `callStack`.
     The safe universal trace layer is green once
     `CounterCompiledPowdrPreparedStorageModels` is supplied; the scaling
     boundary is now the target-specific discharge of those prepared storage

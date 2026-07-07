@@ -5323,17 +5323,6 @@ def counterPowdrPreparedTraceStep (cfg : PowdrCounterConfig) (preparedState : Ev
   let observable ← counterObservableFromResult call finalState.toResult
   .ok (finalState, observable)
 
-theorem counterPowdrAdapter_isHalted_of_returned_top_level
-    {state : EvmState}
-    (hhalt : state.halt = .Returned)
-    (hcallStack : state.callStack = []) :
-    ProofForge.Backend.Evm.PowdrAdapter.isHalted state = true := by
-  simp [ProofForge.Backend.Evm.PowdrAdapter.isHalted,
-    EvmSemantics.EVM.State.isDone,
-    EvmSemantics.EVM.State.isHalted,
-    EvmSemantics.EVM.State.isRunning,
-    hhalt, hcallStack]
-
 theorem counterRunBytecode_extend_to_compiled_fuel
     {state finalState : EvmState}
     {observations : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep}
@@ -5343,13 +5332,11 @@ theorem counterRunBytecode_extend_to_compiled_fuel
     (hHalted : ProofForge.Backend.Evm.PowdrAdapter.isHalted finalState = true) :
     ProofForge.Backend.Evm.PowdrAdapter.runBytecode state counterCompiledRuntimeFuel =
       .ok (finalState, observations) := by
-  have hrunExtended :=
-    ProofForge.Backend.Evm.PowdrAdapter.runBytecode_extend_halted
-      (fuel := 36) (extra := counterCompiledRuntimeFuel - 36) hrun hHalted
-  have hfuel : counterCompiledRuntimeFuel = (counterCompiledRuntimeFuel - 36) + 36 := by
-    native_decide
-  rw [hfuel]
-  exact hrunExtended
+  exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_extend_to_fuel
+    (fuel := 36)
+    (targetFuel := counterCompiledRuntimeFuel)
+    (extra := counterCompiledRuntimeFuel - 36)
+    hrun hHalted (by native_decide)
 
 theorem counterPowdrPreparedTraceStep_initialize_of_run36_ok
     {preparedState finalState : EvmState}
@@ -5381,7 +5368,7 @@ theorem counterPowdrPreparedTraceStep_initialize_of_run36_returned_top_level_ok
     counterPowdrPreparedTraceStep counterCompiledPowdrConfig preparedState .initialize =
       .ok (finalState, .none) := by
   exact counterPowdrPreparedTraceStep_initialize_of_run36_ok hrun
-    (counterPowdrAdapter_isHalted_of_returned_top_level hhalt hcallStack)
+    (ProofForge.Backend.Evm.PowdrAdapter.isHalted_of_returned_top_level hhalt hcallStack)
     hobs
 
 def counterPowdrTraceStep (cfg : PowdrCounterConfig) (state : EvmState)

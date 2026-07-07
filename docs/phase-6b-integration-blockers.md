@@ -482,18 +482,21 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   call-stack preservation up through this 36-step theorem: the final frame's
   `callStack` is known equal to the body-return-jump frame's `callStack`.
 - `runBytecode_halted`, `runBytecode_extend_halted`,
-  `counterRunBytecode_extend_to_compiled_fuel`, and
-  `counterPowdrPreparedTraceStep_initialize_of_run36_ok` — green under
-  `lake build EvmRefinement`; a 36-fuel initialize run can now be lifted through
-  the compiled config's 5000-fuel prepared trace step once the final state is
-  proven `isDone`.
-- `counterPowdrAdapter_isHalted_of_returned_top_level`,
+  `runBytecode_extend_to_fuel`,
+  `runBytecode_extend_to_fuel_of_returned_top_level`, and
+  `runBytecode_extend_of_stepFEPath_returned_top_level` — green under
+  `lake build EvmRefinement`; any short fuel run, or any packaged
+  `StepFEPath`, can now be lifted to a larger target fuel once the final frame
+  is proven halted.
+- `isHalted_of_returned_top_level`,
+  `counterRunBytecode_extend_to_compiled_fuel`,
   `counterPowdrPreparedTraceStep_initialize_of_run36_returned_top_level_ok`,
   and the extended `counterCompiledPreparedInitialize_entry_facts` — green under
-  `lake build EvmRefinement`; once the remaining prefix proof shows that the
-  body-return-jump frame still has the prepared top-level empty `callStack`, the
-  36-step initialize run can discharge the `isDone` side condition without an
-  external `hHalted` assumption.
+  `lake build EvmRefinement`; the `isDone` side condition is now reduced by
+  adapter-level returned/top-level lemmas rather than a Counter-specific helper.
+  Once the remaining prefix proof shows that the body-return-jump frame still
+  has the prepared top-level empty `callStack`, the 36-step initialize run can
+  discharge the condition without an external `hHalted` assumption.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 
