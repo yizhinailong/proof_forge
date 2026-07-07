@@ -15,6 +15,8 @@ abbrev State := ProofForge.Backend.Evm.PowdrExec.State
 abbrev StepFEReady := ProofForge.Backend.Evm.PowdrExec.StepFEReady
 abbrev StepFEPath := ProofForge.Backend.Evm.PowdrExec.StepFEPath
 abbrev StepFEReduction := ProofForge.Backend.Evm.PowdrExec.StepFEReduction
+abbrev StepFEReductionChain :=
+  ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain
 abbrev ReadyOpcodeAt := ProofForge.Backend.Evm.PowdrExec.ReadyOpcodeAt
 abbrev ExecutionSegment :=
   ProofForge.Backend.Evm.PowdrExec.ExecutionSegment
@@ -154,10 +156,19 @@ theorem twoSlotReader_getBalance_executionSegment
   have hstopStep :
       EvmSemantics.EVM.stepFE s2 = .ok s3 :=
     ProofForge.Backend.Evm.PowdrExec.stepFE_stop_at_ok hstopAt
-  exact ProofForge.Backend.Evm.PowdrExec.executionSegment_three_reductions
-    ({ running := hpushAt.ready.running, step := hpushStep } : StepFEReduction s0 s1)
-    ({ running := hsloadAt.ready.running, step := hsloadStep } : StepFEReduction s1 s2)
-    ({ running := hstopAt.ready.running, step := hstopStep } : StepFEReduction s2 s3)
+  have chain : StepFEReductionChain s0 3 s3 :=
+    .cons
+      ({ running := hpushAt.ready.running, step := hpushStep } :
+        StepFEReduction s0 s1)
+      (.cons
+        ({ running := hsloadAt.ready.running, step := hsloadStep } :
+          StepFEReduction s1 s2)
+        (.cons
+          ({ running := hstopAt.ready.running, step := hstopStep } :
+            StepFEReduction s2 s3)
+          (.nil s3)))
+  exact ProofForge.Backend.Evm.PowdrExec.executionSegment_of_reductionChain
+    chain
     (by
       exact
         ⟨hpushAt, hsloadAt, hsloadGas, hstopAt, rfl⟩)

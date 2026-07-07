@@ -247,6 +247,30 @@ theorem StepFEReduction.executionSegment
     ExecutionSegment 1 post state nextState := by
   exact executionSegment_single reduction.running reduction.step hpost
 
+inductive StepFEReductionChain : State → Nat → State → Prop where
+  | nil (state : State) : StepFEReductionChain state 0 state
+  | cons {state nextState finalState : State} {fuel : Nat}
+      (head : StepFEReduction state nextState)
+      (tail : StepFEReductionChain nextState fuel finalState) :
+      StepFEReductionChain state (fuel + 1) finalState
+
+theorem StepFEReductionChain.path
+    {state finalState : State} {fuel : Nat}
+    (chain : StepFEReductionChain state fuel finalState) :
+    StepFEPath state fuel finalState := by
+  induction chain with
+  | nil state =>
+      exact .nil state
+  | cons head tail ih =>
+      exact .cons head.running head.step ih
+
+theorem executionSegment_of_reductionChain
+    {fuel : Nat} {post : State → State → Prop} {state finalState : State}
+    (chain : StepFEReductionChain state fuel finalState)
+    (hpost : post state finalState) :
+    ExecutionSegment fuel post state finalState := by
+  exact executionSegment_of_stepFEPath chain.path hpost
+
 theorem stepFEPath_two {s0 s1 s2 : State}
     (hr0 : s0.halt = .Running)
     (h0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
