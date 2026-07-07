@@ -6729,6 +6729,28 @@ def CounterPreparedCall (cfg : PowdrCounterConfig) (call : CounterCall)
     (state : EvmState) : Prop :=
   ∃ sourceState, state = prepareCounterCall cfg.runtimeCode call sourceState
 
+theorem counterPreparedCall_callStack
+    {cfg : PowdrCounterConfig} {call : CounterCall} {state : EvmState}
+    (hprepared : CounterPreparedCall cfg call state) :
+    state.callStack = [] := by
+  rcases hprepared with ⟨sourceState, rfl⟩
+  exact prepareCounterCall_callStack cfg.runtimeCode call sourceState
+
+theorem counterPowdrPreparedTraceStep_initialize_of_run36_returned_prepared_ok
+    {preparedState finalState : EvmState}
+    (hprepared :
+      CounterPreparedCall counterCompiledPowdrConfig .initialize preparedState)
+    (hrun :
+      ProofForge.Backend.Evm.PowdrAdapter.runBytecode preparedState 36 =
+        .ok (finalState, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)))
+    (hhalt : finalState.halt = .Returned)
+    (hcallStackPrepared : finalState.callStack = preparedState.callStack)
+    (hobs : counterObservableFromResult .initialize finalState.toResult = .ok .none) :
+    counterPowdrPreparedTraceStep counterCompiledPowdrConfig preparedState .initialize =
+      .ok (finalState, .none) := by
+  exact counterPowdrPreparedTraceStep_initialize_of_run36_returned_top_level_ok
+    hrun hhalt (hcallStackPrepared.trans (counterPreparedCall_callStack hprepared)) hobs
+
 theorem counterCompiledPreparedInitialize_entry_facts
     {preparedState : EvmState}
     (hprepared :
