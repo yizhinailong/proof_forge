@@ -336,3 +336,91 @@ refinement target** 接进来。三者分别打通：可验证、扩链广度、
 1. **Lean-语义-就绪 FV 车道**（最高 FV 价值）：EVM → Cairo（升级双路）→ Noir（新）→ JAR。
 2. **codegen 广度车道**：WASM 家族（W0 后 12+ 条）+ Move + 非 Move sourcegen + Aleo/Psy（ZK sourcegen，自建语义）。
 3. **policy/UTXO 家族**（不同产品）：Bitcoin Script/Miniscript → BCH → Zcash → Kaspa Toccata。
+
+---
+
+## 七、两处目标语义的具体任务分解（Solana sBPF + WASM 自建语义）
+
+> 这两块是"自建目标语义"桶里的核心（Solana 无 Lean 语义、WASM 无 Lean WASM 语义）。
+> 本质是**同一个模式**：给目标 VM 建一个 Lean 解释器（`step`/`run`）+ 建它到 IR 语义
+> 的映射（模拟关系 `R`）+ 差分/精化义务。Solana 已有设计 note
+> （`docs/solana-sbpf-executable-trace.md`），WASM 需新写。**先建共享接口，再各自实例化。**
+
+### 7.0 共享前置（做一次，两边复用）
+
+| # | 任务 | 落点 | 说明 |
+|---|---|---|---|
+| P1 | 统一 `TargetSemantics` 接口（= Track 1.2） | `Backend/Refinement/Core.lean`（新） | 抽出 `MachineState / step / run(fuel) / observe / R / executableTraceOk` + **共享** `ObservableReturn`/`TraceObligation`；两个解释器都 instantiate 它，三份复制的 obligation 类型就此合并 |
+| P2 | IR 小步/归纳（= Track 1.1，**部分已落**） | `IR/StepSemantics.lean` | Phase 6a 已有 `IRTraceMatches` + `runTraceListGen_sound`（归纳证明，非 native_decide）。**只是 C-proof 的前置，C-diff 不需要它** |
+
+**关键排期洞见**：C-diff 差分义务（`executableTraceOk` 用 `native_decide` 逐点跑）**只需
+P1，不需 P2**——因为 native_decide 直接求值，`partial def` 的 IR 解释器照跑。所以
+**下面 S1–S5 / W1–W5 现在就能做**，P2 + C-proof（S6/W6）是更难的后一层。
+
+### 7.1 Solana sBPF 语义（执行已有设计 note，Slice A→D）
+
+| # | 任务 | 产出 / 落点 | 依赖 |
+|---|---|---|---|
+| S1 | `SbpfInterpreter.lean`：`SbpfState`(regs/stack/entryR0/pc) + `step` 覆盖 Counter 指令子集（`mov64/add64/sub64/mul64/lsh64/lddw/ldxdw/stxdw/ja/jeq/exit` + storage syscall stub）+ label 表 + dispatch + fuel-bounded `run` | `Backend/Solana/SbpfInterpreter.lean`（新） | P1 |
+| S2 | `observe` + 差分义务 `sbpfExecutableTraceOk` + `counter_sbpf_executable_trace_ok`(native_decide)；**顺带废掉 Track 0.4 的裸子串 `hasEntrypointDispatch`**（真执行检查取代它） | `Backend/Solana/Refinement.lean` | S1 |
+| S3 | 模拟关系 `R : IR.State ↔ SbpfState`，用 `StateLayout.lean` 的账户数据偏移（Slice A：单个 U64 scalar slot） | `SbpfInterpreter.lean` | S1 |
+| S4 | Slice B：ValueVault 多 scalar 字段（多 slot），在 sBPF 层观测 accounting 不变量 | — | S3 |
+| S5 | Slice C：map/array —— 把 IR 存储-slot 模型移植到 sBPF scratch 内存 | — | S4 |
+| S6 | **C-proof**：per-entrypoint 模拟引理 `R s s' → R (stepIR …) (runSbpf …)` + trace 归纳 | — | P1+P2, S3 |
+| — | **非目标（留外部差分门）**：Slice D 的 CPI / PDA 派生 / 账户校验 prologue → Mollusk/Surfpool，不进 Lean | — | — |
+
+### 7.2 WASM 语义（先写设计 note，再把执行搬进 Lean）
+
+现状：执行在**外部 Rust `runtime/offline-host/main.rs`（882 行 wasmtime）**；Lean 内只有
+`WasmTraceOp` 语法级 trace 抽取 + offline-host 边界义务。任务是把可执行语义搬进 Lean。
+
+| # | 任务 | 产出 / 落点 | 依赖 |
+|---|---|---|---|
+| W1 | **新写设计 note**（镜像 Solana 那份）：Wasm 栈机子集 + 抽象 host 模型 + 分期 | `docs/wasm-executable-trace.md`（新） | — |
+| W2 | `WasmInterpreter.lean`：`WasmState`(值栈/locals/线性内存/抽象 host 态) + `step`/`eval` 覆盖 EmitWat 发出的指令子集（`i64.const/add/sub/mul`、`local.get/set`、`i64.load/store`、`block/loop/br/br_if/if/call/return`）+ fuel-bounded。**复用现有 `WasmTraceOp` 作指令枚举** | `Backend/WasmNear/WasmInterpreter.lean`（新） | P1, W1 |
+| W3 | host 模型：`HostBridge` 的 `storage_read/write/value_return/…` 作抽象 host 态上的纯转移；**按 `HostBridge` 参数化**（接 W0 → CosmWasm/Soroban 可复用） | `WasmInterpreter.lean` | W2 |
+| W4 | `observe` + 差分义务 `wasmExecutableTraceOk` + native_decide 定理。**把执行搬进 Lean**（今天靠外部 Rust host） | `Backend/WasmNear/Refinement.lean` | W2,W3 |
+| W5 | 模拟关系 `R : IR.State ↔ WasmState host storage`，用 `Layout.lean` 的 Borsh key 派生 | `WasmInterpreter.lean` | W2 |
+| W6 | **C-proof**：模拟引理 + 归纳 | — | P1+P2, W5 |
+| — | **非目标（留 offline-host/wasmtime 差分门）**：NEAR Promise / async / CPI 等价 | — | — |
+
+### 7.3 为什么必须先做 P1（两者的公共结构）
+
+| 部件 | Solana | WASM |
+|---|---|---|
+| 机器状态 | `SbpfState`（寄存器机） | `WasmState`（栈机 + host 态） |
+| `step` | 每指令 | 每指令 |
+| `run` | fuel-bounded → total | fuel-bounded → total |
+| `R` 关系 | `StateLayout` 账户偏移 | `Layout` Borsh key |
+| `observe` | r0@exit → `ObservableReturn` | `value_return` payload → `ObservableReturn` |
+| C-diff 义务 | `sbpfExecutableTraceOk` | `wasmExecutableTraceOk` |
+| C-proof | 模拟引理 + 归纳 | 模拟引理 + 归纳 |
+
+七行完全同构 → **不要建两套 bespoke 解释器 + 两套 obligation 类型**；先落 P1 的
+`TargetSemantics` 接口，两者各 instantiate。EVM 的 in-tree `YulSemantics` 也应回收进同一
+接口（第三个 instance）。
+
+### 7.4 放到哪里（你问的"看看放到哪里"）
+
+- **Solana 详细解释器设计**：已在 `docs/solana-sbpf-executable-trace.md`——**执行它**、完成后
+  更新其 Status 与 `formal-verification.md` 的 Tier C-diff 行。
+- **WASM 详细解释器设计**：**新写 `docs/wasm-executable-trace.md`**（W1，镜像 Solana 那份）。
+- **任务排期**：本节（7.x）即清单；可落地版应 graduate 到英文
+  [implementation-backlog](../implementation-backlog.md) 的 **Workstream 25（FV）**。
+- **新增代码文件**：`Backend/Refinement/Core.lean`（P1）、
+  `Backend/Solana/SbpfInterpreter.lean`（S1）、`Backend/WasmNear/WasmInterpreter.lean`（W2）。
+
+### 7.5 依赖顺序
+
+```text
+P1 共享接口 ─┬─→ S1→S2→S3 (Solana C-diff, 现在就能做) ─┬→ S4→S5 (深化)
+             └─→ W1→W2→W3→W4→W5 (WASM C-diff) ────────┘
+P2 IR 归纳(部分已落) ─┬─→ S6 (Solana C-proof)
+                      └─→ W6 (WASM  C-proof)
+```
+
+**一句话**：先落 P1 共享 `TargetSemantics` 接口，然后**两条 C-diff 解释器并行**
+（Solana 照 `solana-sbpf-executable-trace.md` 执行；WASM 先补 `wasm-executable-trace.md`
+再把执行从外部 Rust host 搬进 Lean）——这一步只需 P1、现在就能动，且立刻把 Solana 从
+"子串检查"、WASM 从"外部执行"升级成"in-Lean 真执行检查"。C-proof（S6/W6）是叠加在
+P2 归纳之上的后一层。
