@@ -1170,4 +1170,408 @@ theorem stepFE_return_ok
   rw [stepFE_return_dispatch_ok hready hdecoded]
   exact stepF_return_ok hstack hmem
 
+theorem stepFE_push0_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {op : EvmSemantics.Operation.PushOp}
+    {argOpt : Option (UInt256 × Nat)}
+    (hat : ReadyOpcodeAt code pc (.Push op) argOpt state)
+    (hwidth : op.width.val = 0) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.Push op : Operation)) hat.ready.gas).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.ofNat 0 :: state.stack)) := by
+  exact stepFE_push0_ok hwidth hat.ready hat.state_decoded
+
+theorem stepFE_push_data_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {op : EvmSemantics.Operation.PushOp}
+    {value : UInt256} {argBytes widthPred : Nat}
+    (hat : ReadyOpcodeAt code pc (.Push op) (some (value, argBytes)) state)
+    (hwidth : op.width.val = widthPred + 1) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.Push op : Operation)) hat.ready.gas).replaceStackAndIncrPC
+        (value :: state.stack) (pcΔ := argBytes + 1)) := by
+  exact stepFE_push_data_ok hwidth hat.ready hat.state_decoded
+
+theorem stepFE_dup_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {op : EvmSemantics.Operation.DupOp} {value : UInt256}
+    (hat : ReadyOpcodeAt code pc (.Dup op) none state)
+    (hindex : state.stack[op.idx.val]? = some value) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.Dup op : Operation)) hat.ready.gas).replaceStackAndIncrPC
+        (value :: state.stack)) := by
+  exact stepFE_dup_ok hat.ready hat.state_decoded hindex
+
+theorem stepFE_swap_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {op : EvmSemantics.Operation.SwapOp} {stack' : List UInt256}
+    (hat : ReadyOpcodeAt code pc (.Swap op) none state)
+    (hexchange : state.stack.exchange 0 (op.idx.val + 1) = some stack') :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.Swap op : Operation)) hat.ready.gas).replaceStackAndIncrPC
+        stack') := by
+  exact stepFE_swap_ok hat.ready hat.state_decoded hexchange
+
+theorem stepFE_calldataload_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {offset : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.Env (.CALLDATALOAD : EvmSemantics.Operation.EnvOps)) none state)
+    (hstack : state.stack = offset :: rest) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.Env (.CALLDATALOAD : EvmSemantics.Operation.EnvOps) :
+              Operation)) hat.ready.gas).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.ofNat
+          (EvmSemantics.Data.Bytes.bytesToBigEndianNat
+            (EvmSemantics.MachineState.readPadded
+              state.executionEnv.calldata offset.toNat 32)) :: rest)) := by
+  exact stepFE_calldataload_ok hat.ready hat.state_decoded hstack
+
+theorem stepFE_eq_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {a b : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.CompBit (.EQ : EvmSemantics.Operation.CompareBitwiseOps)) none state)
+    (hstack : state.stack = a :: b :: rest) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.CompBit (.EQ : EvmSemantics.Operation.CompareBitwiseOps) :
+              Operation)) hat.ready.gas).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.eq a b :: rest)) := by
+  exact stepFE_eq_ok hat.ready hat.state_decoded hstack
+
+theorem stepFE_gt_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {a b : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.CompBit (.GT : EvmSemantics.Operation.CompareBitwiseOps)) none state)
+    (hstack : state.stack = a :: b :: rest) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.CompBit (.GT : EvmSemantics.Operation.CompareBitwiseOps) :
+              Operation)) hat.ready.gas).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.gt a b :: rest)) := by
+  exact stepFE_gt_ok hat.ready hat.state_decoded hstack
+
+theorem stepFE_shl_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {shift value : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)) none state)
+    (hstack : state.stack = shift :: value :: rest) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps) :
+              Operation)) hat.ready.gas).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.shiftLeft value shift :: rest)) := by
+  exact stepFE_shl_ok hat.ready hat.state_decoded hstack
+
+theorem stepFE_shr_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {shift value : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps)) none state)
+    (hstack : state.stack = shift :: value :: rest) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps) :
+              Operation)) hat.ready.gas).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.shiftRight value shift :: rest)) := by
+  exact stepFE_shr_ok hat.ready hat.state_decoded hstack
+
+theorem stepFE_not_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {value : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps)) none state)
+    (hstack : state.stack = value :: rest) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps) :
+              Operation)) hat.ready.gas).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.lnot value :: rest)) := by
+  exact stepFE_not_ok hat.ready hat.state_decoded hstack
+
+theorem stepFE_and_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {a b : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.CompBit (.AND : EvmSemantics.Operation.CompareBitwiseOps)) none state)
+    (hstack : state.stack = a :: b :: rest) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.CompBit (.AND : EvmSemantics.Operation.CompareBitwiseOps) :
+              Operation)) hat.ready.gas).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.land a b :: rest)) := by
+  exact stepFE_and_ok hat.ready hat.state_decoded hstack
+
+theorem stepFE_or_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {a b : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.CompBit (.OR : EvmSemantics.Operation.CompareBitwiseOps)) none state)
+    (hstack : state.stack = a :: b :: rest) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.CompBit (.OR : EvmSemantics.Operation.CompareBitwiseOps) :
+              Operation)) hat.ready.gas).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.lor a b :: rest)) := by
+  exact stepFE_or_ok hat.ready hat.state_decoded hstack
+
+theorem stepFE_add_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {a b : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.StopArith (.ADD : EvmSemantics.Operation.StopArithOps)) none state)
+    (hstack : state.stack = a :: b :: rest) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.StopArith (.ADD : EvmSemantics.Operation.StopArithOps) :
+              Operation)) hat.ready.gas).replaceStackAndIncrPC
+        ((a + b) :: rest)) := by
+  exact stepFE_add_ok hat.ready hat.state_decoded hstack
+
+theorem stepFE_sub_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {a b : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps)) none state)
+    (hstack : state.stack = a :: b :: rest) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps) :
+              Operation)) hat.ready.gas).replaceStackAndIncrPC
+        ((a - b) :: rest)) := by
+  exact stepFE_sub_ok hat.ready hat.state_decoded hstack
+
+theorem stepFE_stop_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps)) none state) :
+    EvmSemantics.EVM.stepFE state =
+      .ok { state with halt := .Success, hReturn := .empty } := by
+  exact stepFE_stop_ok hat.ready hat.state_decoded
+
+theorem stepFE_jumpdest_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps))
+        none state) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.StackMemFlow
+              (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps) :
+              Operation)) hat.ready.gas).incrPC) := by
+  exact stepFE_jumpdest_ok hat.ready hat.state_decoded
+
+theorem stepFE_jump_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {dest : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps))
+        none state)
+    (hstack : state.stack = dest :: rest)
+    (hvalid :
+      EvmSemantics.EVM.Decode.isValidJumpDest code dest.toNat = true) :
+    EvmSemantics.EVM.stepFE state =
+      .ok { state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps) :
+              Operation)) hat.ready.gas with
+        pc := dest
+        stack := rest } := by
+  exact stepFE_jump_ok hat.ready hat.state_decoded hstack
+    (validJumpDest_of_code_eq hat.decoded.codePc.1 hvalid)
+
+theorem stepFE_jumpi_taken_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {dest cond : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps))
+        none state)
+    (hstack : state.stack = dest :: cond :: rest)
+    (hcond : cond.toNat ≠ 0)
+    (hvalid :
+      EvmSemantics.EVM.Decode.isValidJumpDest code dest.toNat = true) :
+    EvmSemantics.EVM.stepFE state =
+      .ok { state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps) :
+              Operation)) hat.ready.gas with
+        pc := dest
+        stack := rest } := by
+  exact stepFE_jumpi_taken_ok hat.ready hat.state_decoded hstack hcond
+    (validJumpDest_of_code_eq hat.decoded.codePc.1 hvalid)
+
+theorem stepFE_jumpi_not_taken_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {dest cond : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps))
+        none state)
+    (hstack : state.stack = dest :: cond :: rest)
+    (hcond : cond.toNat = 0) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps) :
+              Operation)) hat.ready.gas).replaceStackAndIncrPC rest) := by
+  exact stepFE_jumpi_not_taken_ok hat.ready hat.state_decoded hstack hcond
+
+theorem stepFE_sload_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {key : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps))
+        none state)
+    (hstack : state.stack = key :: rest)
+    (hgasTotal : EvmSemantics.EVM.Gas.sloadTotal state key ≤ state.gasAvailable) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ({ (state.consumeGas (EvmSemantics.EVM.Gas.sloadTotal state key)
+              hgasTotal) with
+          substate := state.substate.addAccessedStorageKey
+            (state.executionEnv.address, key) }.replaceStackAndIncrPC
+        ((state.accountMap state.executionEnv.address).storage key :: rest)) := by
+  exact stepFE_sload_ok hat.ready hat.state_decoded hstack hgasTotal
+
+theorem stepFE_mstore_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {offset value : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps))
+        none state)
+    (hstack : state.stack = offset :: value :: rest)
+    (hmem :
+      (state.consumeGas
+        (EvmSemantics.EVM.Gas.baseCost state.fork
+          (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+            Operation)) hat.ready.gas).canExpandMemory offset.toNat 32) :
+    EvmSemantics.EVM.stepFE state =
+      .ok
+        ({ (state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+              Operation)) hat.ready.gas).consumeMemExp offset.toNat 32 hmem with
+          toMachineState :=
+            EvmSemantics.MachineState.mstore
+              ((state.consumeGas
+                (EvmSemantics.EVM.Gas.baseCost state.fork
+                  (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+                    Operation)) hat.ready.gas).consumeMemExp offset.toNat 32 hmem).toMachineState
+              offset value }.replaceStackAndIncrPC rest) := by
+  exact stepFE_mstore_ok hat.ready hat.state_decoded hstack hmem
+
+theorem stepFE_sstore_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {key value : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps))
+        none state)
+    (hmut : state.executionEnv.permitStateMutation = true)
+    (hsentry :
+      EvmSemantics.EVM.Gas.sstoreSentry state.fork
+        (state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+              Operation)) hat.ready.gas).gasAvailable = false)
+    (hstack : state.stack = key :: value :: rest)
+    (hcost :
+      (let addr := state.executionEnv.address
+       let acc := state.accountMap addr
+       let current := acc.storage key
+       let original := state.substate.originalStorage addr key
+       EvmSemantics.EVM.Gas.sstoreCost state.fork original current value +
+         EvmSemantics.EVM.Gas.sstoreColdSurcharge state key) ≤
+        (state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+              Operation)) hat.ready.gas).gasAvailable) :
+    EvmSemantics.EVM.stepFE state =
+      .ok
+        (let gasState := state.consumeGas
+            (EvmSemantics.EVM.Gas.baseCost state.fork
+              (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+                Operation)) hat.ready.gas
+         let addr := state.executionEnv.address
+         let acc := state.accountMap addr
+         let current := acc.storage key
+         let original := state.substate.originalStorage addr key
+         let cost :=
+           EvmSemantics.EVM.Gas.sstoreCost state.fork original current value +
+             EvmSemantics.EVM.Gas.sstoreColdSurcharge state key
+         let acc' := { acc with storage := acc.storage.set key value }
+         let σ' := state.accountMap.set addr acc'
+         let refDelta :=
+           EvmSemantics.EVM.Gas.sstoreRefund state.fork original current value
+         let rb : Int := (state.substate.refundBalance.toNat : Int) + refDelta
+         let rb' : Nat := if rb < 0 then 0 else rb.toNat
+         let sub' : EvmSemantics.Substate :=
+           { state.substate.addAccessedStorageKey (addr, key) with
+             refundBalance := EvmSemantics.UInt256.ofNat rb' }
+         ({ (gasState.consumeGas cost hcost) with
+             accountMap := σ'
+             substate := sub' }.replaceStackAndIncrPC rest)) := by
+  exact stepFE_sstore_ok hat.ready hat.state_decoded hmut hsentry hstack hcost
+
+theorem stepFE_return_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {offset size : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.System (.RETURN : EvmSemantics.Operation.SystemOps)) none state)
+    (hstack : state.stack = offset :: size :: rest)
+    (hmem :
+      (state.consumeGas
+        (EvmSemantics.EVM.Gas.baseCost state.fork
+          (.System (.RETURN : EvmSemantics.Operation.SystemOps) :
+            Operation)) hat.ready.gas).canExpandMemory offset.toNat size.toNat) :
+    EvmSemantics.EVM.stepFE state =
+      .ok { (state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.System (.RETURN : EvmSemantics.Operation.SystemOps) :
+              Operation)) hat.ready.gas).consumeMemExp offset.toNat size.toNat hmem with
+        halt := .Returned
+        hReturn := EvmSemantics.MachineState.readPadded state.memory
+          offset.toNat size.toNat
+        stack := rest } := by
+  exact stepFE_return_ok hat.ready hat.state_decoded hstack hmem
+
 end ProofForge.Backend.Evm.PowdrExec
