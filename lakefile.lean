@@ -32,6 +32,7 @@ lean_lib EvmRefinement where
   roots := #[
     `EvmRefinement.PowdrAdapter,
     `EvmRefinement.PowdrExec,
+    `EvmRefinement.PowdrExecSmoke,
     `EvmRefinement.CounterRefinement
   ]
 
