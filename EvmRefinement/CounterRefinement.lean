@@ -1916,23 +1916,30 @@ theorem counterState_of_stepFE_system_return_empty_ok
       nextState.callStack = state.callStack ∧
       counterStorageValue counterContractAddress counterCountSlot nextState =
         counterStorageValue counterContractAddress counterCountSlot state := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      obtain ⟨hhalt, hreturn, hstackNext, hcallStack, hstorage⟩ :=
-        counterState_of_system_return_empty_ok hstack hstep
-      refine ⟨hhalt, hreturn, hstackNext, ?_, ?_⟩
-      · simpa [EvmSemantics.EVM.State.consumeGas] using hcallStack
-      · simpa [counterStorageValue, counterAccount,
-          EvmSemantics.EVM.State.consumeGas] using hstorage
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.System (.RETURN : EvmSemantics.Operation.SystemOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hmem :
+      (state.consumeGas
+        (EvmSemantics.EVM.Gas.baseCost state.fork
+          (.System (.RETURN : EvmSemantics.Operation.SystemOps) :
+            EvmSemantics.Operation)) hgas).canExpandMemory 0 0 := by
+    simp [EvmSemantics.EVM.State.canExpandMemory,
+      EvmSemantics.EVM.State.consumeGas,
+      EvmSemantics.MachineState.memExpansionDelta,
+      EvmSemantics.MachineState.activeWordsAfter]
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_return_ok
+      (offset := EvmSemantics.UInt256.ofNat 0)
+      (size := EvmSemantics.UInt256.ofNat 0)
+      (rest := rest) hready hdecoded hstack
+      (by simpa [counterUInt256_ofNat_zero_toNat] using hmem)
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  simp [counterUInt256_ofNat_zero_toNat, counterReadPadded_zero_zero,
+    counterStorageValue, counterAccount, EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.consumeMemExp]
 
 theorem counterStack_of_stepFE_stackMemFlow_sload_ok
     {state nextState : EvmState} {slot : EvmSemantics.UInt256}
@@ -2329,18 +2336,14 @@ theorem counterStorageValue_of_stepFE_stackMemFlow_sstore_ok
           EvmSemantics.Operation) ≤ state.gasAvailable)
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     counterStorageValue counterContractAddress counterCountSlot nextState = value := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterStorageValue_of_sstore_stackMemFlow_ok haddr hstack hslot hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hdispatch :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_sstore_dispatch_ok hready hdecoded
+  rw [hdispatch] at hstep
+  exact counterStorageValue_of_sstore_stackMemFlow_ok haddr hstack hslot hstep
 
 theorem counterStack_of_sstore_stackMemFlow_ok
     {state gasState nextState : EvmState} {slot value : EvmSemantics.UInt256}
@@ -2420,18 +2423,14 @@ theorem counterStack_of_stepFE_stackMemFlow_sstore_ok
           EvmSemantics.Operation) ≤ state.gasAvailable)
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     nextState.stack = rest := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterStack_of_sstore_stackMemFlow_ok hstack hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hdispatch :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_sstore_dispatch_ok hready hdecoded
+  rw [hdispatch] at hstep
+  exact counterStack_of_sstore_stackMemFlow_ok hstack hstep
 
 theorem counterCallStack_of_stepFE_stackMemFlow_sstore_ok
     {state nextState : EvmState} {slot value : EvmSemantics.UInt256}
@@ -2457,19 +2456,15 @@ theorem counterCallStack_of_stepFE_stackMemFlow_sstore_ok
           EvmSemantics.Operation) ≤ state.gasAvailable)
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     nextState.callStack = state.callStack := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      have hcallStack := counterCallStack_of_sstore_stackMemFlow_ok hstack hstep
-      simpa [EvmSemantics.EVM.State.consumeGas] using hcallStack
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hdispatch :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_sstore_dispatch_ok hready hdecoded
+  rw [hdispatch] at hstep
+  have hcallStack := counterCallStack_of_sstore_stackMemFlow_ok hstack hstep
+  simpa [EvmSemantics.EVM.State.consumeGas] using hcallStack
 
 theorem counterCodePcFork_of_sstore_stackMemFlow_ok
     {state gasState nextState : EvmState} {slot value : EvmSemantics.UInt256}
@@ -2526,23 +2521,19 @@ theorem counterCodePcFork_of_stepFE_stackMemFlow_sstore_ok
     nextState.executionEnv.code = state.executionEnv.code ∧
       nextState.pc = state.pc + EvmSemantics.UInt256.ofNat 1 ∧
       nextState.executionEnv.fork = state.executionEnv.fork := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      obtain ⟨hcode, hpc, hfork⟩ :=
-        counterCodePcFork_of_sstore_stackMemFlow_ok hstack hstep
-      refine ⟨?_, ?_, ?_⟩
-      · simpa [EvmSemantics.EVM.State.consumeGas] using hcode
-      · simpa [EvmSemantics.EVM.State.consumeGas] using hpc
-      · simpa [EvmSemantics.EVM.State.consumeGas] using hfork
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hdispatch :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_sstore_dispatch_ok hready hdecoded
+  rw [hdispatch] at hstep
+  obtain ⟨hcode, hpc, hfork⟩ :=
+    counterCodePcFork_of_sstore_stackMemFlow_ok hstack hstep
+  refine ⟨?_, ?_, ?_⟩
+  · simpa [EvmSemantics.EVM.State.consumeGas] using hcode
+  · simpa [EvmSemantics.EVM.State.consumeGas] using hpc
+  · simpa [EvmSemantics.EVM.State.consumeGas] using hfork
 
 theorem counterInitializeStorageValue_of_sstore_stackMemFlow_ok
     {state gasState nextState : EvmState} {rest : List EvmSemantics.UInt256}
