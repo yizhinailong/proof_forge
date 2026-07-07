@@ -1,4 +1,4 @@
-import EvmRefinement.PowdrAdapter
+import EvmRefinement.PowdrExec
 import ProofForge.Backend.Evm.Plan.Storage
 import ProofForge.Backend.Refinement.CounterUniversal
 
@@ -19,6 +19,7 @@ open ProofForge.Backend.Refinement
 abbrev IRState := ProofForge.IR.Semantics.State
 abbrev EvmState := ProofForge.Backend.Evm.PowdrAdapter.State
 abbrev EvmStepFEPath := ProofForge.Backend.Evm.PowdrAdapter.StepFEPath
+abbrev PowdrStepFEReady := ProofForge.Backend.Evm.PowdrExec.StepFEReady
 abbrev CounterCall := ProofForge.Backend.Refinement.CounterUniversal.CounterCall
 abbrev counterIRStep := ProofForge.Backend.Refinement.CounterUniversal.irStep
 
@@ -376,18 +377,14 @@ theorem counterState_of_stepFE_push0_ok
         (EvmSemantics.EVM.Gas.baseCost state.fork
           (.Push counterPush0Op : EvmSemantics.Operation)) hgas).replaceStackAndIncrPC
         (EvmSemantics.UInt256.ofNat 0 :: state.stack) := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterState_of_push0_ok hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready : PowdrStepFEReady state (.Push counterPush0Op) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_push0_ok
+      (op := counterPush0Op) (argOpt := argOpt) (by rfl) hready hdecoded
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  rfl
 
 theorem counterCallStack_of_stepFE_push0_ok
     {state nextState : EvmState}
@@ -492,18 +489,15 @@ theorem counterState_of_stepFE_push1_ok
         (EvmSemantics.EVM.Gas.baseCost state.fork
           (.Push counterPush1Op : EvmSemantics.Operation)) hgas).replaceStackAndIncrPC
         (value :: state.stack) (pcΔ := argBytes + 1) := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterState_of_push1_ok hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready : PowdrStepFEReady state (.Push counterPush1Op) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_push_data_ok
+      (op := counterPush1Op) (value := value) (argBytes := argBytes)
+      (widthPred := 0) (by rfl) hready hdecoded
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  rfl
 
 theorem counterCallStack_of_stepFE_push1_ok
     {state nextState : EvmState}
@@ -566,18 +560,15 @@ theorem counterState_of_stepFE_push4_ok
         (EvmSemantics.EVM.Gas.baseCost state.fork
           (.Push counterPush4Op : EvmSemantics.Operation)) hgas).replaceStackAndIncrPC
         (value :: state.stack) (pcΔ := argBytes + 1) := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterState_of_push4_ok hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready : PowdrStepFEReady state (.Push counterPush4Op) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_push_data_ok
+      (op := counterPush4Op) (value := value) (argBytes := argBytes)
+      (widthPred := 3) (by rfl) hready hdecoded
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  rfl
 
 theorem counterCallStack_of_stepFE_push4_ok
     {state nextState : EvmState}
@@ -653,18 +644,16 @@ theorem counterState_of_stepFE_env_calldataload_ok
           (EvmSemantics.Data.Bytes.bytesToBigEndianNat
             (EvmSemantics.MachineState.readPadded
               state.executionEnv.calldata offset.toNat 32)) :: rest) := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterState_of_env_calldataload_ok hstack hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready :
+      PowdrStepFEReady state
+        (.Env (.CALLDATALOAD : EvmSemantics.Operation.EnvOps)) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_calldataload_ok
+      hready hdecoded hstack
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  rfl
 
 theorem counterCallStack_of_stepFE_env_calldataload_ok
     {state nextState : EvmState}
@@ -775,18 +764,17 @@ theorem counterState_of_stepFE_dup1_ok
         (EvmSemantics.EVM.Gas.baseCost state.fork
           (.Dup counterDup1Op : EvmSemantics.Operation)) hgas).replaceStackAndIncrPC
         (top :: top :: rest) := by
-  unfold EvmSemantics.EVM.stepFE at hstep
-  simp only [Id.run] at hstep
-  split at hstep
-  · split at hstep
-    · rename_i hprecompileActual
-      rw [hprecompile] at hprecompileActual
-      contradiction
-    · simp [hdecoded, hstackOk, hgas] at hstep
-      exact counterState_of_dup1_ok hstack hstep
-  · rename_i hnotRunning
-    rw [hrunning] at hnotRunning
-    contradiction
+  have hready : PowdrStepFEReady state (.Dup counterDup1Op) :=
+    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hindex : state.stack[counterDup1Op.idx.val]? = some top := by
+    simp [counterDup1Op, hstack]
+  have hstepGeneric :=
+    ProofForge.Backend.Evm.PowdrExec.stepFE_dup_ok
+      (op := counterDup1Op) (value := top) hready hdecoded hindex
+  rw [hstep] at hstepGeneric
+  cases hstepGeneric
+  simp [hstack, EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
 
 theorem counterCallStack_of_stepFE_dup1_ok
     {state nextState : EvmState}
