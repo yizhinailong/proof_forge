@@ -8468,6 +8468,17 @@ theorem counterPreparedInitializeStepFEPath_to_path
     path.hready32 path.hstep32 path.hready33 path.hstep33
     path.hready34 path.hstep34 path.hready35 path.hstep35
 
+structure CounterPreparedInitializeSegmentModel (s0 s36 : EvmState) where
+  path : EvmStepFEPath s0 36 s36
+  returned : s36.halt = .Returned
+  callStack : s36.callStack = s0.callStack
+  storage_model :
+    counterStorageValue counterContractAddress counterCountSlot s36 =
+      counterInitializeStorageWord
+        (counterStorageValue counterContractAddress counterCountSlot s0)
+  observable :
+    counterObservableFromResult .initialize s36.toResult = .ok .none
+
 theorem counterCompiledPreparedInitialize_storage_model_of_dispatcher_body_and_return_ok
     {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17
       s18 s19 s20 s21 s22 s23 s24 s25 s26 s27 s28 s29 s30 s31 s32 s33
@@ -8634,6 +8645,62 @@ theorem counterCompiledPreparedInitialize_storage_model_of_dispatcher_body_and_r
   exact counterCompiledPreparedInitialize_storage_model_of_run36_returned_sload_ok
     hprepared hrun hhalt hcallStackPrepared hstorageRun hstoragePrefix hobs
 
+theorem counterPreparedInitializeSegmentModel_of_stepFE_path
+    {s0 s36 : EvmState}
+    (hprepared : CounterPreparedCall counterCompiledPowdrConfig .initialize s0)
+    (path : CounterPreparedInitializeStepFEPath s0 s36) :
+    CounterPreparedInitializeSegmentModel s0 s36 := by
+  obtain ⟨hat0, hstack0, hcalldata0, _haddr0, _hcallStack0⟩ :=
+    counterCompiledPreparedInitialize_entry_facts hprepared
+  obtain ⟨_hrun, hhalt, hstorageRun, hstoragePrefix, _hcallStackReturn,
+      _hcallStackBody, hcallStackPrepared, hobs⟩ :=
+    counterRunBytecode_initialize_dispatcher_body_and_return_ok
+      hstack0 hat0 path.hready0 path.hstep0 hcalldata0 path.hready1 path.hstep1
+      path.hready2 path.hstep2 path.hready3 path.hstep3 path.hready4 path.hstep4
+      path.hready5 path.hstep5 path.hready6 path.hstep6 path.hready7 path.hstep7
+      path.hready8 path.hstep8 path.hready9 path.hstep9 path.hat10
+      path.hready10 path.hstep10 path.hat11 path.hready11 path.hstep11
+      path.hat12 path.hready12 path.hstep12 path.hready13 path.hstep13
+      path.hready14 path.hstep14 path.hat15 path.hready15 path.hstep15
+      path.hat16 path.hready16 path.hstep16 path.hat17 path.hready17
+      path.hstep17 path.hat18 path.hready18 path.hstep18 path.hat19
+      path.hready19 path.hstep19 path.hat20 path.hready20 path.hstep20
+      path.hat21 path.hready21 path.hstep21 path.hat22 path.hready22
+      path.hstep22 path.hat23 path.hready23 path.hstep23 path.hat24
+      path.hready24 path.hstep24 path.hat25 path.hready25 path.hstep25
+      path.hat26 path.haddrSload path.hready26 path.hstep26 path.hat27
+      path.hready27 path.hstep27 path.hat28 path.hready28 path.hstep28
+      path.hat29 path.hready29 path.hstep29 path.hat30 path.haddrSstore
+      path.hready30 path.hstep30 path.hready31 path.hstep31 path.hready32
+      path.hstep32 path.hready33 path.hstep33 path.hready34 path.hstep34
+      path.hready35 path.hstep35
+  refine
+    { path := counterPreparedInitializeStepFEPath_to_path path
+      returned := hhalt
+      callStack := hcallStackPrepared
+      storage_model := ?_
+      observable := hobs }
+  rw [hstorageRun, hstoragePrefix]
+
+theorem counterCompiledPreparedInitialize_storage_model_of_segment_model_ok
+    {s0 s36 : EvmState}
+    (hprepared : CounterPreparedCall counterCompiledPowdrConfig .initialize s0)
+    (model : CounterPreparedInitializeSegmentModel s0 s36) :
+    ∃ nextEvm,
+      counterPowdrPreparedTraceStep counterCompiledPowdrConfig s0 .initialize =
+        .ok (nextEvm, .none) ∧
+      counterStorageValue counterContractAddress counterCountSlot nextEvm =
+        counterInitializeStorageWord
+          (counterStorageValue counterContractAddress counterCountSlot s0) := by
+  have hrun :
+      ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 36 =
+        .ok (s36, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) :=
+    ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath_done model.path
+  have hstep :=
+    counterPowdrPreparedTraceStep_initialize_of_run36_returned_prepared_ok
+      hprepared hrun model.returned model.callStack model.observable
+  exact ⟨s36, hstep, model.storage_model⟩
+
 theorem counterCompiledPreparedInitialize_storage_model_of_stepFE_path_ok
     {s0 s36 : EvmState}
     (hprepared : CounterPreparedCall counterCompiledPowdrConfig .initialize s0)
@@ -8644,36 +8711,8 @@ theorem counterCompiledPreparedInitialize_storage_model_of_stepFE_path_ok
       counterStorageValue counterContractAddress counterCountSlot nextEvm =
         counterInitializeStorageWord
           (counterStorageValue counterContractAddress counterCountSlot s0) := by
-  exact counterCompiledPreparedInitialize_storage_model_of_dispatcher_body_and_return_ok
-    hprepared
-    path.hready0 path.hstep0 path.hready1 path.hstep1
-    path.hready2 path.hstep2 path.hready3 path.hstep3
-    path.hready4 path.hstep4 path.hready5 path.hstep5
-    path.hready6 path.hstep6 path.hready7 path.hstep7
-    path.hready8 path.hstep8 path.hready9 path.hstep9
-    path.hat10 path.hready10 path.hstep10
-    path.hat11 path.hready11 path.hstep11
-    path.hat12 path.hready12 path.hstep12
-    path.hready13 path.hstep13 path.hready14 path.hstep14
-    path.hat15 path.hready15 path.hstep15
-    path.hat16 path.hready16 path.hstep16
-    path.hat17 path.hready17 path.hstep17
-    path.hat18 path.hready18 path.hstep18
-    path.hat19 path.hready19 path.hstep19
-    path.hat20 path.hready20 path.hstep20
-    path.hat21 path.hready21 path.hstep21
-    path.hat22 path.hready22 path.hstep22
-    path.hat23 path.hready23 path.hstep23
-    path.hat24 path.hready24 path.hstep24
-    path.hat25 path.hready25 path.hstep25
-    path.hat26 path.haddrSload path.hready26 path.hstep26
-    path.hat27 path.hready27 path.hstep27
-    path.hat28 path.hready28 path.hstep28
-    path.hat29 path.hready29 path.hstep29
-    path.hat30 path.haddrSstore path.hready30 path.hstep30
-    path.hready31 path.hstep31 path.hready32 path.hstep32
-    path.hready33 path.hstep33 path.hready34 path.hstep34
-    path.hready35 path.hstep35
+  exact counterCompiledPreparedInitialize_storage_model_of_segment_model_ok
+    hprepared (counterPreparedInitializeSegmentModel_of_stepFE_path hprepared path)
 
 theorem counterPreparedCall_isDone
     {cfg : PowdrCounterConfig} {call : CounterCall} {state : EvmState}
