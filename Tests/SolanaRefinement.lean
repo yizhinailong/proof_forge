@@ -24,6 +24,8 @@ open ProofForge.Backend.Solana.SbpfInterpreter
 -- lowered AST to the same observable trace as the IR reference semantics.
 #check counter_interpreter_smoke_ok
 #check counter_sbpf_executable_trace_ok
+#check value_vault_ir_observable_trace_ok
+#check value_vault_sbpf_executable_trace_ok
 
 -- Counter scalar simulation relation at the account-data offset computed by
 -- the Solana state layout.
@@ -37,5 +39,5 @@ open ProofForge.Backend.Solana.SbpfInterpreter
 end ProofForge.Tests.SolanaRefinement
 
 def main : IO UInt32 := do
-  IO.println "solana-refinement-smoke: Counter IR trace + sBPF artifact/executable trace + scalar R + revert rollback checked via native_decide"
+  IO.println "solana-refinement-smoke: Counter + ValueVault IR/sBPF executable traces, Counter scalar R, and revert rollback checked via native_decide"
   return 0

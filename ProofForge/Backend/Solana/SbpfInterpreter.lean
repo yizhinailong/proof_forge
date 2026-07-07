@@ -1,4 +1,5 @@
 import ProofForge.Backend.Refinement.Core
+import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Backend.Solana.Syscalls
 
@@ -7,6 +8,7 @@ namespace ProofForge.Backend.Solana.SbpfInterpreter
 open ProofForge.IR
 open ProofForge.Backend.Refinement
 open ProofForge.Backend.Solana.Asm
+open ProofForge.Backend.Solana.Manifest
 open ProofForge.Backend.Solana.SbpfAsm
 open ProofForge.Backend.Solana.StateLayout
 open ProofForge.Backend.Solana.Syscalls
@@ -198,6 +200,12 @@ def runSyscall (state : SbpfState) (name : String) : Except String SbpfState :=
     let value := state.memory.read ptr
     let state := setReg { state with returnData := some value } .r0 0
     .ok (nextPc state)
+  else if name == sol_get_clock_sysvar then
+    let ptr := regGet state.regs .r1
+    let state := setReg { state with memory := state.memory.write ptr 0 } .r0 0
+    .ok (nextPc state)
+  else if name == sol_log_64_ then
+    .ok (nextPc (setReg state .r0 0))
   else
     .error s!"unsupported sBPF syscall `{name}`"
 
@@ -277,7 +285,46 @@ def entrypointIndex? (module : Module) (entrypointName : String) : Option Nat :=
     idx := idx + 1
   return none
 
-def initialMemory (module : Module) (baseMemory : Memory) (discriminator : Nat) :
+def discriminatorBytes (module : Module) (entrypoint : Entrypoint) :
+    Except String (Array Nat) :=
+  match externalDiscriminatorBytes? entrypoint with
+  | some bytes => .ok bytes
+  | none =>
+      match entrypointIndex? module entrypoint.name with
+      | some idx => .ok #[idx]
+      | none => .error s!"entrypoint `{entrypoint.name}` not found in module `{module.name}`"
+
+def scalarArgNat (type : ValueType) (value : ProofForge.IR.Semantics.Value) :
+    Except String Nat :=
+  match type, value with
+  | .u64, .u64 value => .ok value
+  | .u32, .u32 value => .ok value
+  | .bool, .bool value => .ok (if value then 1 else 0)
+  | _, _ => .error s!"sBPF trace arg does not match parameter type `{type.name}`"
+
+def writeCallArgs (memory : Memory) (instructionDataOff : Nat) (call : TraceCall) :
+    Except String Memory := do
+  let mut memory := memory
+  let mut payloadOff := entrypointDiscriminatorSize call.entrypoint
+  for param in call.entrypoint.params, idx in [0:call.entrypoint.params.size] do
+    let (_, type) := param
+    let value ←
+      match call.args[idx]? with
+      | some value => .ok value
+      | none => .error s!"missing sBPF trace arg {idx} for `{call.entrypoint.name}`"
+    let scalar ← scalarArgNat type value
+    memory := memory.write (instructionDataOff + payloadOff) scalar
+    payloadOff := payloadOff + (instructionParamByteSize? type).getD 0
+  .ok memory
+
+def writeZeroPubkey (memory : Memory) (ptr : Nat) : Memory :=
+  memory
+    |>.write ptr 0
+    |>.write (ptr + 8) 0
+    |>.write (ptr + 16) 0
+    |>.write (ptr + 24) 0
+
+def initialMemory (module : Module) (baseMemory : Memory) (call : TraceCall) :
     Except String Memory := do
   let schema := buildModuleInputSchema module {}
   let accountLayout ←
@@ -285,25 +332,27 @@ def initialMemory (module : Module) (baseMemory : Memory) (discriminator : Nat) 
     | some layout => .ok layout
     | none => .error "sBPF interpreter requires at least one Solana account layout"
   let dataSize := moduleDataSize module
+  let discriminator ← discriminatorBytes module call.entrypoint
   let memory := baseMemory
     |>.write 0 schema.inputLayout.accounts.size
     |>.write accountLayout.dataLenOff dataSize
     |>.write accountLayout.writableOff 1
-    |>.write schema.inputLayout.instructionDataLenOff 1
-    |>.write schema.inputLayout.instructionDataOff discriminator
-  .ok memory
+    |>.write schema.inputLayout.instructionDataLenOff (instructionDataMinLen call.entrypoint)
+  let mut memory := memory
+  for byte in discriminator, idx in [0:discriminator.size] do
+    memory := memory.write (schema.inputLayout.instructionDataOff + idx) byte
+  let memoryWithArgs ← writeCallArgs memory schema.inputLayout.instructionDataOff call
+  let programIdPtr :=
+    schema.inputLayout.instructionDataOff + instructionDataMinLen call.entrypoint
+  .ok (writeZeroPubkey memoryWithArgs programIdPtr)
 
 def initialState (program : SbpfProgram) (module : Module) (baseMemory : Memory)
-    (entrypoint : Entrypoint) : Except String SbpfState := do
-  let discriminator ←
-    match entrypointIndex? module entrypoint.name with
-    | some idx => .ok idx
-    | none => .error s!"entrypoint `{entrypoint.name}` not found in module `{module.name}`"
+    (call : TraceCall) : Except String SbpfState := do
   let pc ←
     match program.label? "entrypoint" with
     | some pc => .ok pc
     | none => .error "sBPF program missing `entrypoint` label"
-  let memory ← initialMemory module baseMemory discriminator
+  let memory ← initialMemory module baseMemory call
   let regs := regSet (regSet emptyRegs .r1 inputBase) .r10 stackBase
   .ok { regs, memory, pc }
 
@@ -320,7 +369,7 @@ def observeEntrypoint (entrypoint : Entrypoint) (state : SbpfState) :
 
 def runEntrypointState (program : SbpfProgram) (module : Module) (memory : Memory)
     (call : TraceCall) : Except String (Memory × ObservableStep × SbpfState) := do
-  let initial ← initialState program module memory call.entrypoint
+  let initial ← initialState program module memory call
   let final ← run program defaultFuel initial
   if final.entryR0 == 0 then
     let returnValue ← observeEntrypoint call.entrypoint final

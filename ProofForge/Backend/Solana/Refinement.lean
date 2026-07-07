@@ -3,6 +3,7 @@ import ProofForge.Backend.Solana.SbpfInterpreter
 import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.IR.Semantics
 import ProofForge.IR.Examples.Counter
+import ProofForge.Contract.Examples.ValueVaultInvariant
 
 namespace ProofForge.Backend.Solana.Refinement
 
@@ -27,14 +28,15 @@ should refine against:
    `SbpfAsm.renderModule` contains the entrypoint dispatch labels named in the
    IR module's `entrypoints`.
 3. **Executable sBPF trace obligation** — the lowered structured `AstNode`
-   instruction list executes in the in-Lean Counter-slice sBPF interpreter and
-   produces the same observable trace as the IR reference semantics.
+   instruction list executes in the in-Lean sBPF interpreter and produces the
+   same observable trace as the IR reference semantics for the Counter slice
+   and the default ValueVault scalar/event slice.
 
 Future work (out of scope for this anchor):
 - account-validation sequence obligation (entrypoint prologue: signer/writable
   checks at documented offsets).
 - PDA derivation syscall sequence obligation.
-- wider executable sBPF coverage beyond the Counter scalar-storage slice.
+- wider executable sBPF coverage beyond the scalar-storage/event slice.
 -/
 
 /-! ### Observable trace (shared with EVM and NEAR refinement layers) -/
@@ -97,6 +99,63 @@ def counterTraceObligation : TraceObligation := {
   expected := counterExpectedTrace
 }
 
+def valueVaultEntrypointD (entrypointName : String) : Entrypoint :=
+  match ProofForge.Contract.Examples.ValueVaultInvariant.module.entrypoints.find?
+      (fun entrypoint => entrypoint.name == entrypointName) with
+  | some entrypoint => entrypoint
+  | none => ProofForge.IR.Examples.Counter.initializeEntrypoint
+
+def valueVaultCall (name : String)
+    (args : Array ProofForge.IR.Semantics.Value := #[]) : TraceCall := {
+  entrypoint := valueVaultEntrypointD name
+  args
+}
+
+def valueVaultTraceCalls : Array TraceCall :=
+  let inputs := ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs
+  #[
+    valueVaultCall "initialize" #[.u64 inputs.initial],
+    valueVaultCall "get_balance",
+    valueVaultCall "deposit" #[.u64 inputs.deposit],
+    valueVaultCall "get_balance",
+    valueVaultCall "charge_fee" #[.u64 inputs.grossCharge, .u64 inputs.feeBps],
+    valueVaultCall "get_balance",
+    valueVaultCall "get_net_value",
+    valueVaultCall "release" #[.u64 inputs.release],
+    valueVaultCall "get_balance",
+    valueVaultCall "snapshot",
+    valueVaultCall "get_net_value"
+  ]
+
+def valueVaultExpectedTrace : Array ObservableStep :=
+  let inputs := ProofForge.Contract.Examples.ValueVaultInvariant.defaultInputs
+  let fee := ProofForge.Contract.Examples.ValueVaultInvariant.expectedFee inputs
+  let afterDeposit := inputs.initial + inputs.deposit
+  let afterCharge := afterDeposit +
+    ProofForge.Contract.Examples.ValueVaultInvariant.expectedNetCharge inputs
+  let balance := ProofForge.Contract.Examples.ValueVaultInvariant.expectedBalance inputs
+  let netValue := ProofForge.Contract.Examples.ValueVaultInvariant.expectedNetValue inputs
+  #[
+    { entrypointName := "initialize", returnValue := .none },
+    { entrypointName := "get_balance", returnValue := .u64 inputs.initial },
+    { entrypointName := "deposit", returnValue := .none },
+    { entrypointName := "get_balance", returnValue := .u64 afterDeposit },
+    { entrypointName := "charge_fee", returnValue := .none },
+    { entrypointName := "get_balance", returnValue := .u64 afterCharge },
+    { entrypointName := "get_net_value", returnValue := .u64 (afterCharge - fee) },
+    { entrypointName := "release", returnValue := .none },
+    { entrypointName := "get_balance", returnValue := .u64 balance },
+    { entrypointName := "snapshot", returnValue := .u64 balance },
+    { entrypointName := "get_net_value", returnValue := .u64 netValue }
+  ]
+
+def valueVaultTraceObligation : TraceObligation := {
+  name := "ValueVault.default-scenario"
+  module := ProofForge.Contract.Examples.ValueVaultInvariant.module
+  calls := valueVaultTraceCalls
+  expected := valueVaultExpectedTrace
+}
+
 /-! ### Counter FV-4 artifact-surface and executable-trace theorems
 
 These are the first Solana refinement theorems. They mirror the NEAR
@@ -115,6 +174,14 @@ theorem counter_sbpf_executable_trace_ok :
     sbpfExecutableTraceOk counterTraceObligation = true := by
   native_decide
 
+theorem value_vault_ir_observable_trace_ok :
+    valueVaultTraceObligation.irTraceOk = true := by
+  native_decide
+
+theorem value_vault_sbpf_executable_trace_ok :
+    sbpfExecutableTraceOk valueVaultTraceObligation = true := by
+  native_decide
+
 /-! ### Revert-aware trace obligation
 
 This is the first trace obligation that asserts a **contract revert** as an
@@ -129,23 +196,15 @@ returns the pre-revert value. This is the chain-rollback invariant the
 revert-aware trace layer promises. -/
 
 /-- A minimal entrypoint that unconditionally reverts. -/
-def revertEntrypoint : Entrypoint := {
-  name := "revertAlways"
-  kind := .function
-  params := #[]
-  returns := .unit
-  body := #[ .revert "always rolls back" ]
-}
+def revertEntrypoint : Entrypoint :=
+  Entrypoint.mk "revertAlways" .function none #[] #[] .unit
+    #[ .revert "always rolls back" ]
 
 /-- A minimal entrypoint that returns a constant, used to observe post-revert
 state (it touches no storage, so it succeeds against any state). -/
-def readConstEntrypoint : Entrypoint := {
-  name := "readConst"
-  kind := .function
-  params := #[]
-  returns := .u64
-  body := #[ .return (.literal (.u64 7)) ]
-}
+def readConstEntrypoint : Entrypoint :=
+  Entrypoint.mk "readConst" .function none #[] #[] .u64
+    #[ .return (.literal (.u64 7)) ]
 
 /-- `revertAlways → readConst`: the revert is observed, and the subsequent read
 still succeeds (state was not corrupted/advanced by the revert). -/
