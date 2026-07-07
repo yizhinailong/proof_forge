@@ -425,10 +425,14 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterCompiledPreparedInitialize_entry_facts` records the prepared
     initialize frame facts needed to instantiate the composed path from a real
     `CounterPreparedCall`. The body final `JUMP` plus
-    `JUMPDEST; PUSH0; DUP1; RETURN` segment is now pinned by
+    `JUMPDEST; PUSH0; DUP1; RETURN` segment is now bridged by
     `counterCompiledRuntimeCode_decodes_initialize_body_return_jump`,
     `counterCompiledRuntimeCode_decodes_initialize_return*`, and
-    `counterPreparedInitializeReturn*_decoded`.
+    `counterPreparedInitializeReturn*_decoded`, plus
+    `counterState_of_stepFE_system_return_empty_ok` and
+    `counterState_of_initialize_return_stepFE_to_returned_empty_ok`, proving the
+    frame halts with `Returned ByteArray.empty`. `counterInitializeObservable_of_returned_empty`
+    maps that result to the Counter `initialize` observable `.none`.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
@@ -436,10 +440,9 @@ ProofForge's default build still avoids powdr/mathlib imports.
     postconditions against powdr `Step`; the ordinary postconditions and safe
     per-entrypoint obligations then follow from the bridge/conversion theorems.
     The next concrete proof slice is to connect the composed
-    dispatcher/trampoline/body `stepFE` path to the prepared-frame
-    `counterPowdrPreparedTraceStep` result, prove the now-stack-shaped final
-    return/jump segment executes to the `.none` observable, and instantiate the
-    prepared-frame initialize storage model.
+    dispatcher/trampoline/body/return `stepFE` path to the prepared-frame
+    `counterPowdrPreparedTraceStep` result and instantiate the prepared-frame
+    initialize storage model.
 - **Deliverable (revised):** a clean powdr-target seam plus the opt-in
   dependency path and wrapper. The conformance-tested EVM bytecode semantics is
   now callable from the `EvmRefinement` target; the implementation agent's next

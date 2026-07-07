@@ -429,6 +429,12 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   `counterPreparedInitializeReturn*_decoded` — green under
   `lake build EvmRefinement`; the final return/jump segment is pinned through
   prepared decoding.
+- `counterState_of_stepFE_system_return_empty_ok`,
+  `counterState_of_initialize_return_stepFE_to_returned_empty_ok`, and
+  `counterInitializeObservable_of_returned_empty` — green under
+  `lake build EvmRefinement`; the final return path now executes through
+  `JUMP; JUMPDEST; PUSH0; DUP1; RETURN`, halts with `Returned ByteArray.empty`,
+  and maps to the Counter `initialize` observable `.none`.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 
@@ -456,6 +462,5 @@ per-entrypoint obligation surface now also carries this boundary through
 induction. `CounterTraceSafeAtState` is the current state/input predicate form;
 the remaining Phase 6c work is to prove the compiled runtime's prepared-frame
 EVM-only powdr storage models by connecting the composed dispatcher/trampoline/body
-`stepFE` path to the prepared-frame `counterPowdrPreparedTraceStep` result and
-proving the now-stack-shaped final return/jump segment executes to the `.none`
-observable before instantiating the prepared-frame initialize storage model.
+and return `stepFE` path to the prepared-frame `counterPowdrPreparedTraceStep`
+result before instantiating the prepared-frame initialize storage model.

@@ -342,21 +342,24 @@ surface. Remaining EVM work is E3.
   initialize frame's PC0/code/fork, empty stack, initialize calldata, and
   contract address facts needed to instantiate the composed path from a real
   `CounterPreparedCall`.
-  The remaining return segment is now pinned at the bytecode/prepared-state
-  layer: `counterCompiledRuntimeCode_decodes_initialize_body_return_jump`,
+  The final return segment is now bridged at `stepFE` level:
+  `counterCompiledRuntimeCode_decodes_initialize_body_return_jump`,
   `counterCompiledRuntimeCode_valid_initialize_return_jumpdest`, the
-  `counterCompiledRuntimeCode_decodes_initialize_return*` facts, and
-  `counterPreparedInitializeReturn*_decoded` cover the body final `JUMP` plus
-  `JUMPDEST; PUSH0; DUP1; RETURN`.
+  `counterCompiledRuntimeCode_decodes_initialize_return*` facts,
+  `counterPreparedInitializeReturn*_decoded`,
+  `counterState_of_stepFE_system_return_empty_ok`, and
+  `counterState_of_initialize_return_stepFE_to_returned_empty_ok` cover the body
+  final `JUMP` plus `JUMPDEST; PUSH0; DUP1; RETURN` and prove the resulting
+  frame halts with `Returned ByteArray.empty`. `counterInitializeObservable_of_returned_empty`
+  maps that result to the Counter `initialize` observable `.none`.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
   remains an explicit trust boundary. The remaining E3 work is to discharge those
   prepared-frame storage models against the concrete runtime by connecting the
   composed dispatcher/trampoline/body `stepFE` path to the prepared-frame
-  `counterPowdrPreparedTraceStep` result, proving the now-stack-shaped final
-  return/jump segment executes to the `.none` observable, and instantiating the
-  prepared-frame initialize storage model.
+  `counterPowdrPreparedTraceStep` result and instantiating the prepared-frame
+  initialize storage model.
 - **Acceptance:** a universally-quantified refinement theorem (IR Counter ⟷ powdr EVM
   `Step`, by `induction`, **not** `native_decide`) type-checks under the opt-in target;
   `docs/formal-verification.md` EVM Tier C-proof row updated from aspirational/blocked to
