@@ -197,31 +197,19 @@ theorem twoSlotReader_getBalance_reductionChain
   let s1 := pushBalanceSlotPost s0 hpushAt.ready
   let s2 := sloadBalanceSlotPost s1 hsloadGas
   let s3 := stopPost s2
-  have hpushStep :
-      EvmSemantics.EVM.stepFE s0 = .ok s1 :=
-    ProofForge.Backend.Evm.PowdrExec.stepFE_push_data_at_ok
+  have pushReduction : StepFEReduction s0 s1 :=
+    ProofForge.Backend.Evm.PowdrExec.reduction_push_data_at_ok
       (op := twoSlotReaderPush1Op) (value := twoSlotReaderBalanceSlot)
       (argBytes := 1) (widthPred := 0) hpushAt (by rfl)
-  have hsloadStep :
-      EvmSemantics.EVM.stepFE s1 = .ok s2 :=
-    ProofForge.Backend.Evm.PowdrExec.stepFE_sload_at_ok
+  have sloadReduction : StepFEReduction s1 s2 :=
+    ProofForge.Backend.Evm.PowdrExec.reduction_sload_at_ok
       (rest := s0.stack) hsloadAt
       (by
         simp [pushBalanceSlotPost,
           EvmSemantics.EVM.State.replaceStackAndIncrPC])
       hsloadGas
-  have hstopStep :
-      EvmSemantics.EVM.stepFE s2 = .ok s3 :=
-    ProofForge.Backend.Evm.PowdrExec.stepFE_stop_at_ok hstopAt
-  have pushReduction : StepFEReduction s0 s1 :=
-    ProofForge.Backend.Evm.PowdrExec.StepFEReduction.of_readyOpcodeAt
-      hpushAt hpushStep
-  have sloadReduction : StepFEReduction s1 s2 :=
-    ProofForge.Backend.Evm.PowdrExec.StepFEReduction.of_readyOpcodeAt
-      hsloadAt hsloadStep
   have stopReduction : StepFEReduction s2 s3 :=
-    ProofForge.Backend.Evm.PowdrExec.StepFEReduction.of_readyOpcodeAt
-      hstopAt hstopStep
+    ProofForge.Backend.Evm.PowdrExec.reduction_stop_at_ok hstopAt
   have pushChain : StepFEReductionChain s0 1 s1 :=
     ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.single
       pushReduction
@@ -299,25 +287,17 @@ def twoSlotReaderGetBalancePrefixReductionChainProvider :
       ⟨hpushAt, hsloadAt, hsloadGas, hstopAt, _⟩
     let s1 := pushBalanceSlotPost s0 hpushAt.ready
     let s2 := sloadBalanceSlotPost s1 hsloadGas
-    have hpushStep :
-        EvmSemantics.EVM.stepFE s0 = .ok s1 :=
-      ProofForge.Backend.Evm.PowdrExec.stepFE_push_data_at_ok
+    have pushReduction : StepFEReduction s0 s1 :=
+      ProofForge.Backend.Evm.PowdrExec.reduction_push_data_at_ok
         (op := twoSlotReaderPush1Op) (value := twoSlotReaderBalanceSlot)
         (argBytes := 1) (widthPred := 0) hpushAt (by rfl)
-    have hsloadStep :
-        EvmSemantics.EVM.stepFE s1 = .ok s2 :=
-      ProofForge.Backend.Evm.PowdrExec.stepFE_sload_at_ok
+    have sloadReduction : StepFEReduction s1 s2 :=
+      ProofForge.Backend.Evm.PowdrExec.reduction_sload_at_ok
         (rest := s0.stack) hsloadAt
         (by
           simp [pushBalanceSlotPost,
             EvmSemantics.EVM.State.replaceStackAndIncrPC])
         hsloadGas
-    have pushReduction : StepFEReduction s0 s1 :=
-      ProofForge.Backend.Evm.PowdrExec.StepFEReduction.of_readyOpcodeAt
-        hpushAt hpushStep
-    have sloadReduction : StepFEReduction s1 s2 :=
-      ProofForge.Backend.Evm.PowdrExec.StepFEReduction.of_readyOpcodeAt
-        hsloadAt hsloadStep
     have pushChain : StepFEReductionChain s0 1 s1 :=
       ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.single
         pushReduction
@@ -338,28 +318,9 @@ def twoSlotReaderStopReductionChainProvider :
       intro s2 hpre
       rcases hpre with
         ⟨s0, hpushAt, _hsloadAt, hsloadGas, hstopAt, hs2⟩
-      have hstopStepExpected :
-          EvmSemantics.EVM.stepFE
-              (sloadBalanceSlotPost
-                (pushBalanceSlotPost s0 hpushAt.ready) hsloadGas) =
-            .ok
-              (stopPost
-                (sloadBalanceSlotPost
-                  (pushBalanceSlotPost s0 hpushAt.ready) hsloadGas)) :=
-        ProofForge.Backend.Evm.PowdrExec.stepFE_stop_at_ok hstopAt
-      have hstopStep :
-          EvmSemantics.EVM.stepFE s2 = .ok (stopPost s2) := by
+      have stopReduction : StepFEReduction s2 (stopPost s2) := by
         subst s2
-        exact hstopStepExpected
-      have hstopAtCurrent :
-          ReadyOpcodeAt twoSlotReaderCode 3
-            (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps))
-            none s2 := by
-        subst s2
-        exact hstopAt
-      have stopReduction : StepFEReduction s2 (stopPost s2) :=
-        ProofForge.Backend.Evm.PowdrExec.StepFEReduction.of_readyOpcodeAt
-          hstopAtCurrent hstopStep
+        exact ProofForge.Backend.Evm.PowdrExec.reduction_stop_at_ok hstopAt
       have hpost : twoSlotReaderStopPost s2 (stopPost s2) := by
         intro s0' hpushAt' hsloadAt' hsloadGas' hstopAt' hs2'
         exact congrArg stopPost hs2'
@@ -493,9 +454,6 @@ theorem mstore_word_runSteps
                     Operation)) hat.ready.gas).consumeMemExp offset.toNat 32 hmem).toMachineState
               offset value }.replaceStackAndIncrPC rest),
           (#[] : Array ProofForge.Backend.Evm.PowdrExec.ObservableStep)) := by
-  have hstep :=
-    ProofForge.Backend.Evm.PowdrExec.stepFE_mstore_at_ok
-      (offset := offset) (value := value) (rest := rest) hat hstack hmem
   have chain :
       StepFEReductionChain s0 1
         ({ (s0.consumeGas
@@ -510,8 +468,8 @@ theorem mstore_word_runSteps
                     Operation)) hat.ready.gas).consumeMemExp offset.toNat 32 hmem).toMachineState
               offset value }.replaceStackAndIncrPC rest) :=
     ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.single
-      (ProofForge.Backend.Evm.PowdrExec.StepFEReduction.of_readyOpcodeAt
-        hat hstep)
+      (ProofForge.Backend.Evm.PowdrExec.reduction_mstore_at_ok
+        (offset := offset) (value := value) (rest := rest) hat hstack hmem)
   exact ProofForge.Backend.Evm.PowdrExec.runSteps_of_reductionChain chain
 
 end ProofForge.Backend.Evm.PowdrExecSmoke

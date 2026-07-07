@@ -1454,6 +1454,20 @@ theorem stepFE_push_data_at_ok
         (value :: state.stack) (pcΔ := argBytes + 1)) := by
   exact stepFE_push_data_ok hwidth hat.ready hat.state_decoded
 
+theorem reduction_push_data_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {op : EvmSemantics.Operation.PushOp}
+    {value : UInt256} {argBytes widthPred : Nat}
+    (hat : ReadyOpcodeAt code pc (.Push op) (some (value, argBytes)) state)
+    (hwidth : op.width.val = widthPred + 1) :
+    StepFEReduction state
+      ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.Push op : Operation)) hat.ready.gas).replaceStackAndIncrPC
+        (value :: state.stack) (pcΔ := argBytes + 1)) := by
+  exact StepFEReduction.of_readyOpcodeAt hat
+    (stepFE_push_data_at_ok hat hwidth)
+
 theorem stepFE_dup_at_ok
     {code : ByteArray} {pc : Nat} {state : State}
     {op : EvmSemantics.Operation.DupOp} {value : UInt256}
@@ -1640,6 +1654,14 @@ theorem stepFE_stop_at_ok
       .ok { state with halt := .Success, hReturn := .empty } := by
   exact stepFE_stop_ok hat.ready hat.state_decoded
 
+theorem reduction_stop_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps)) none state) :
+    StepFEReduction state { state with halt := .Success, hReturn := .empty } := by
+  exact StepFEReduction.of_readyOpcodeAt hat (stepFE_stop_at_ok hat)
+
 theorem stepFE_jumpdest_at_ok
     {code : ByteArray} {pc : Nat} {state : State}
     (hat :
@@ -1728,6 +1750,24 @@ theorem stepFE_sload_at_ok
         ((state.accountMap state.executionEnv.address).storage key :: rest)) := by
   exact stepFE_sload_ok hat.ready hat.state_decoded hstack hgasTotal
 
+theorem reduction_sload_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {key : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps))
+        none state)
+    (hstack : state.stack = key :: rest)
+    (hgasTotal : EvmSemantics.EVM.Gas.sloadTotal state key ≤ state.gasAvailable) :
+    StepFEReduction state
+      ({ (state.consumeGas (EvmSemantics.EVM.Gas.sloadTotal state key)
+              hgasTotal) with
+          substate := state.substate.addAccessedStorageKey
+            (state.executionEnv.address, key) }.replaceStackAndIncrPC
+        ((state.accountMap state.executionEnv.address).storage key :: rest)) := by
+  exact StepFEReduction.of_readyOpcodeAt hat
+    (stepFE_sload_at_ok hat hstack hgasTotal)
+
 theorem stepFE_mstore_at_ok
     {code : ByteArray} {pc : Nat} {state : State}
     {offset value : UInt256} {rest : List UInt256}
@@ -1755,6 +1795,34 @@ theorem stepFE_mstore_at_ok
                     Operation)) hat.ready.gas).consumeMemExp offset.toNat 32 hmem).toMachineState
               offset value }.replaceStackAndIncrPC rest) := by
   exact stepFE_mstore_ok hat.ready hat.state_decoded hstack hmem
+
+theorem reduction_mstore_at_ok
+    {code : ByteArray} {pc : Nat} {state : State}
+    {offset value : UInt256} {rest : List UInt256}
+    (hat :
+      ReadyOpcodeAt code pc
+        (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps))
+        none state)
+    (hstack : state.stack = offset :: value :: rest)
+    (hmem :
+      (state.consumeGas
+        (EvmSemantics.EVM.Gas.baseCost state.fork
+          (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+            Operation)) hat.ready.gas).canExpandMemory offset.toNat 32) :
+    StepFEReduction state
+      ({ (state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+              Operation)) hat.ready.gas).consumeMemExp offset.toNat 32 hmem with
+          toMachineState :=
+            EvmSemantics.MachineState.mstore
+              ((state.consumeGas
+                (EvmSemantics.EVM.Gas.baseCost state.fork
+                  (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+                    Operation)) hat.ready.gas).consumeMemExp offset.toNat 32 hmem).toMachineState
+              offset value }.replaceStackAndIncrPC rest) := by
+  exact StepFEReduction.of_readyOpcodeAt hat
+    (stepFE_mstore_at_ok hat hstack hmem)
 
 theorem stepFE_sstore_at_ok
     {code : ByteArray} {pc : Nat} {state : State}
