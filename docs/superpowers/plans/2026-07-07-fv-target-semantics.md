@@ -327,13 +327,17 @@ surface. Remaining EVM work is E3.
   `counterState_of_dispatcher_initialize_jumpi_stepFE_to_trampoline_ok` prove
   the concrete initialize dispatcher reaches the initialize trampoline
   `JUMPDEST` with the selector left on the stack.
+  `counterState_of_dispatcher_trampoline_stepFE_to_initialize_first_opcode_ok`
+  now composes the dispatcher path, trampoline path, and initialize-body
+  `JUMPDEST`, reaching the first initialize body opcode with the return address
+  and selector stack shape preserved.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
   remains an explicit trust boundary. The remaining E3 work is to discharge those
   prepared-frame storage models against the concrete runtime by composing the
-  dispatcher-to-trampoline path with the existing trampoline/body proof and by
-  instantiating the prepared-frame initialize storage model.
+  first body opcode through the existing prefix/tail proof and instantiating the
+  prepared-frame initialize storage model.
 - **Acceptance:** a universally-quantified refinement theorem (IR Counter ⟷ powdr EVM
   `Step`, by `induction`, **not** `native_decide`) type-checks under the opt-in target;
   `docs/formal-verification.md` EVM Tier C-proof row updated from aspirational/blocked to

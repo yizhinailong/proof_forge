@@ -265,6 +265,10 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   `counterState_of_dispatcher_initialize_jumpi_stepFE_to_trampoline_ok` now
   proves the dispatcher reaches the initialize trampoline `JUMPDEST` with the
   selector left on the stack.
+  `counterState_of_dispatcher_trampoline_stepFE_to_initialize_first_opcode_ok`
+  composes that dispatcher path with the trampoline and body `JUMPDEST`, proving
+  the runtime reaches the first initialize body opcode with the return address
+  and selector stack shape preserved.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -391,6 +395,9 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   `counterState_of_dispatcher_initialize_jumpi_stepFE_to_trampoline_ok` —
   green under `lake build EvmRefinement`; the initialize dispatcher now reaches
   the trampoline `JUMPDEST`.
+- `counterState_of_dispatcher_trampoline_stepFE_to_initialize_first_opcode_ok`
+  — green under `lake build EvmRefinement`; the dispatcher, trampoline, and body
+  `JUMPDEST` now compose to the first initialize body opcode.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 
@@ -417,6 +424,6 @@ per-entrypoint obligation surface now also carries this boundary through
 `CounterStepSafe`, and the safe trace theorem carries it through universal trace
 induction. `CounterTraceSafeAtState` is the current state/input predicate form;
 the remaining Phase 6c work is to prove the compiled runtime's prepared-frame
-EVM-only powdr storage models by composing the dispatcher-to-trampoline path
-with the existing trampoline/body proof and instantiating the prepared-frame
+EVM-only powdr storage models by composing the first initialize body opcode
+through the existing prefix/tail proof and instantiating the prepared-frame
 initialize storage model.

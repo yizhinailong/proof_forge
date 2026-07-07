@@ -2855,6 +2855,98 @@ theorem counterState_of_initialize_body_jumpdest_stepFE_to_first_opcode_ok
   rw [hstate]
   simp [EvmSemantics.EVM.State.consumeGas, EvmSemantics.EVM.State.incrPC, hstack]
 
+theorem counterState_of_dispatcher_trampoline_stepFE_to_initialize_first_opcode_ok
+    {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (h0 : s0.stack = rest)
+    (hat0 : counterCompiledStateAt s0 0)
+    (hready0 : counterStepFEReady s0 (.Push counterPush0Op))
+    (hstep0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hcalldata1 : s1.executionEnv.calldata = counterCallCalldata .initialize)
+    (hready1 :
+      counterStepFEReady s1
+        (.Env (.CALLDATALOAD : EvmSemantics.Operation.EnvOps)))
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hready2 : counterStepFEReady s2 (.Push counterPush1Op))
+    (hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hready3 :
+      counterStepFEReady s3
+        (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4)
+    (hready4 : counterStepFEReady s4 (.Dup counterDup1Op))
+    (hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5)
+    (hready5 : counterStepFEReady s5 (.Push counterPush4Op))
+    (hstep5 : EvmSemantics.EVM.stepFE s5 = .ok s6)
+    (hready6 :
+      counterStepFEReady s6
+        (.CompBit (.EQ : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep6 : EvmSemantics.EVM.stepFE s6 = .ok s7)
+    (hready7 : counterStepFEReady s7 (.Push counterPush1Op))
+    (hstep7 : EvmSemantics.EVM.stepFE s7 = .ok s8)
+    (hready8 :
+      counterStepFEReady s8
+        (.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep8 : EvmSemantics.EVM.stepFE s8 = .ok s9)
+    (hready9 :
+      counterStepFEReady s9
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep9 : EvmSemantics.EVM.stepFE s9 = .ok s10)
+    (hat10 : counterCompiledStateAt s10 (counterInitializeTrampolineOffset + 1))
+    (hready10 : counterStepFEReady s10 (.Push counterPush1Op))
+    (hstep10 : EvmSemantics.EVM.stepFE s10 = .ok s11)
+    (hat11 : counterCompiledStateAt s11 (counterInitializeTrampolineOffset + 3))
+    (hready11 : counterStepFEReady s11 (.Push counterPush1Op))
+    (hstep11 : EvmSemantics.EVM.stepFE s11 = .ok s12)
+    (hat12 : counterCompiledStateAt s12 (counterInitializeTrampolineOffset + 5))
+    (hready12 :
+      counterStepFEReady s12
+        (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep12 : EvmSemantics.EVM.stepFE s12 = .ok s13)
+    (hready13 :
+      counterStepFEReady s13
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep13 : EvmSemantics.EVM.stepFE s13 = .ok s14) :
+    counterCompiledStateAt s14 (counterInitializeBodyOffset + 1) ∧
+      s14.decoded =
+        some (.Push counterPush0Op,
+          some (EvmSemantics.UInt256.ofNat 0, 0)) ∧
+      s14.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeReturnOffset ::
+          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest := by
+  obtain ⟨hat1, _hdecoded1, hstack1⟩ :=
+    counterState_of_dispatcher_first_push0_stepFE_to_calldataload_ok
+      h0 hat0 hready0 hstep0
+  obtain ⟨hat2, _hdecoded2, hstack2⟩ :=
+    counterState_of_dispatcher_calldataload_stepFE_to_shift_push_ok
+      hstack1 hcalldata1 hat1 hready1 hstep1
+  obtain ⟨hat3, _hdecoded3, hstack3⟩ :=
+    counterState_of_dispatcher_selector_shift_push_stepFE_to_shr_ok
+      hstack2 hat2 hready2 hstep2
+  obtain ⟨hat4, _hdecoded4, hstack4⟩ :=
+    counterState_of_dispatcher_selector_shr_stepFE_to_dup_ok
+      hstack3 hat3 hready3 hstep3
+  obtain ⟨hat5, _hdecoded5, hstack5⟩ :=
+    counterState_of_dispatcher_selector_dup_stepFE_to_selector_push_ok
+      hstack4 hat4 hready4 hstep4
+  obtain ⟨hat6, _hdecoded6, hstack6⟩ :=
+    counterState_of_dispatcher_initialize_selector_push_stepFE_to_eq_ok
+      hstack5 hat5 hready5 hstep5
+  obtain ⟨hat7, _hdecoded7, hstack7⟩ :=
+    counterState_of_dispatcher_initialize_eq_stepFE_to_trampoline_push_ok
+      hstack6 hat6 hready6 hstep6
+  obtain ⟨hat8, _hdecoded8, hstack8⟩ :=
+    counterState_of_dispatcher_trampoline_push_stepFE_to_jumpi_ok
+      hstack7 hat7 hready7 hstep7
+  obtain ⟨hat9, _hdecoded9, hstack9⟩ :=
+    counterState_of_dispatcher_initialize_jumpi_stepFE_to_trampoline_ok
+      hstack8 hat8 hready8 hstep8
+  obtain ⟨hat13, _hdecoded13, hstack13⟩ :=
+    counterState_of_initialize_trampoline_stepFE_to_body_ok
+      hstack9 hat9 hready9 hstep9 hat10 hready10 hstep10
+      hat11 hready11 hstep11 hat12 hready12 hstep12
+  exact counterState_of_initialize_body_jumpdest_stepFE_to_first_opcode_ok
+    hstack13 hat13 hready13 hstep13
+
 theorem counterPreparedInitializeSetValuePush192_decoded
     {state : EvmState}
     (hat : counterCompiledStateAt state (counterInitializeBodyOffset + 2)) :
