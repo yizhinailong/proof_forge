@@ -189,6 +189,9 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   The safe trace theorem also lifts this predicate through the universal
   Counter trace induction and exposes a compiled-runtime specialization.
   `CounterTraceSafeAtState` exposes the same boundary as a state/input predicate.
+  `CounterPowdrEvmPostconditions` and
+  `counterPowdrSafeEntrypointObligationsOfPostconditions` isolate the remaining
+  proof to EVM-only storage postconditions for the compiled runtime.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -227,6 +230,9 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   green under `lake build EvmRefinement`; `CounterTraceSafeAtState` plus the
   storage relation imply the universal IR/powdr Counter trace simulation for
   the concrete compiled runtime.
+- `counterPowdrSafeEntrypointObligationsOfPostconditions` — green under
+  `lake build EvmRefinement`; EVM-only storage postconditions imply the safe
+  per-entrypoint obligations.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 
@@ -251,5 +257,5 @@ green safe trace check and an explicit unsafe max-u64 increment check. The
 per-entrypoint obligation surface now also carries this boundary through
 `CounterStepSafe`, and the safe trace theorem carries it through universal trace
 induction. `CounterTraceSafeAtState` is the current state/input predicate form;
-the remaining Phase 6c work is to discharge those safe powdr obligations for
-the concrete runtime.
+the remaining Phase 6c work is to prove the compiled runtime's EVM-only powdr
+storage postconditions.

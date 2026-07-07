@@ -226,12 +226,16 @@ surface. Remaining EVM work is E3.
   `CounterTraceSafeAtState` and
   `counterCompiledPowdr_safe_trace_simulates_from_state_safe_obligations` expose
   the same boundary as a state/input predicate, which is the shape needed for a
-  later SupportedFragment gate.
+  later SupportedFragment gate. `CounterPowdrEvmPostconditions` and
+  `counterPowdrSafeEntrypointObligationsOfPostconditions` further isolate the
+  remaining powdr work: prove the compiled runtime's EVM-only storage
+  postconditions for `initialize`/safe `increment`/`get`, and the safe
+  per-entrypoint obligations follow.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
-  remains an explicit trust boundary. The remaining E3 work is to discharge the safe
-  powdr bytecode per-entrypoint obligations against the concrete runtime.
+  remains an explicit trust boundary. The remaining E3 work is to discharge those
+  EVM-only powdr storage postconditions against the concrete runtime.
 - **Acceptance:** a universally-quantified refinement theorem (IR Counter ⟷ powdr EVM
   `Step`, by `induction`, **not** `native_decide`) type-checks under the opt-in target;
   `docs/formal-verification.md` EVM Tier C-proof row updated from aspirational/blocked to

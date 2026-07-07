@@ -347,12 +347,15 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `CounterTraceSafeAtState` and
     `counterCompiledPowdr_safe_trace_simulates_from_state_safe_obligations`
     expose the boundary as a state/input predicate for the later supported-fragment
-    gate.
+    gate. `CounterPowdrEvmPostconditions` plus
+    `counterPowdrSafeEntrypointObligationsOfPostconditions` now reduce the
+    remaining proof to EVM-only storage postconditions for the compiled runtime.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
-  - Discharge Counter's safe per-entrypoint simulation lemmas against powdr
-    `Step` for the concrete compiled runtime (that is Phase 6c).
+  - Discharge the compiled runtime's EVM-only storage postconditions against
+    powdr `Step`; the safe per-entrypoint obligations then follow from the
+    conversion theorem (that is Phase 6c).
 - **Deliverable (revised):** a clean powdr-target seam + documented opt-in
   dependency path (not a conformance-tested EVM bytecode semantics callable
   from ProofForge proofs yet — that is the implementation agent's next step).
