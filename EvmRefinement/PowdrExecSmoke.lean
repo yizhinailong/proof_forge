@@ -126,6 +126,53 @@ def twoSlotReaderGetBalancePost (s0 finalState : State) : Prop :=
       stopPost
         (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushAt.ready) hsloadGas)
 
+def twoSlotReaderGetBalancePrefixPost (s0 s2 : State) : Prop :=
+  ∃ (hpushAt :
+      ReadyOpcodeAt twoSlotReaderCode 0 (.Push twoSlotReaderPush1Op)
+        (some (twoSlotReaderBalanceSlot, 1)) s0)
+    (_hsloadAt :
+      ReadyOpcodeAt twoSlotReaderCode 2
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps))
+        none (pushBalanceSlotPost s0 hpushAt.ready))
+    (hsloadGas :
+      SLoadGasSufficient
+        (pushBalanceSlotPost s0 hpushAt.ready) twoSlotReaderBalanceSlot)
+    (_hstopAt :
+      ReadyOpcodeAt twoSlotReaderCode 3
+        (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps))
+        none
+        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushAt.ready)
+          hsloadGas)),
+    s2 =
+      sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushAt.ready) hsloadGas
+
+def twoSlotReaderStopPre (s2 : State) : Prop :=
+  ∃ s0, twoSlotReaderGetBalancePrefixPost s0 s2
+
+def twoSlotReaderStopPost (s2 finalState : State) : Prop :=
+  ∀ {s0 : State}
+    (hpushAt :
+      ReadyOpcodeAt twoSlotReaderCode 0 (.Push twoSlotReaderPush1Op)
+        (some (twoSlotReaderBalanceSlot, 1)) s0)
+    (_hsloadAt :
+      ReadyOpcodeAt twoSlotReaderCode 2
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps))
+        none (pushBalanceSlotPost s0 hpushAt.ready))
+    (hsloadGas :
+      SLoadGasSufficient
+        (pushBalanceSlotPost s0 hpushAt.ready) twoSlotReaderBalanceSlot)
+    (_hstopAt :
+      ReadyOpcodeAt twoSlotReaderCode 3
+        (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps))
+        none
+        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushAt.ready)
+          hsloadGas)),
+    s2 =
+      sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushAt.ready) hsloadGas →
+    finalState =
+      stopPost
+        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushAt.ready) hsloadGas)
+
 theorem twoSlotReader_getBalance_reductionChain
     {s0 : State}
     (hpushAt :
@@ -243,20 +290,101 @@ theorem twoSlotReader_getBalance_stepFEPath
   (twoSlotReader_getBalance_executionSegment hpushAt
     hsloadAt hsloadGas hstopAt).path
 
-def twoSlotReaderGetBalanceReductionChainProvider :
-    ReductionChainProvider twoSlotReaderGetBalancePre 3
-      twoSlotReaderGetBalancePost where
+def twoSlotReaderGetBalancePrefixReductionChainProvider :
+    ReductionChainProvider twoSlotReaderGetBalancePre 2
+      twoSlotReaderGetBalancePrefixPost where
   chain := by
     intro s0 hpre
     rcases hpre with
       ⟨hpushAt, hsloadAt, hsloadGas, hstopAt, _⟩
-    refine
-      ⟨stopPost
-        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushAt.ready)
-          hsloadGas), ?_, ?_⟩
-    · exact twoSlotReader_getBalance_reductionChain hpushAt
-        hsloadAt hsloadGas hstopAt
-    · exact ⟨hpushAt, hsloadAt, hsloadGas, hstopAt, rfl⟩
+    let s1 := pushBalanceSlotPost s0 hpushAt.ready
+    let s2 := sloadBalanceSlotPost s1 hsloadGas
+    have hpushStep :
+        EvmSemantics.EVM.stepFE s0 = .ok s1 :=
+      ProofForge.Backend.Evm.PowdrExec.stepFE_push_data_at_ok
+        (op := twoSlotReaderPush1Op) (value := twoSlotReaderBalanceSlot)
+        (argBytes := 1) (widthPred := 0) hpushAt (by rfl)
+    have hsloadStep :
+        EvmSemantics.EVM.stepFE s1 = .ok s2 :=
+      ProofForge.Backend.Evm.PowdrExec.stepFE_sload_at_ok
+        (rest := s0.stack) hsloadAt
+        (by
+          simp [pushBalanceSlotPost,
+            EvmSemantics.EVM.State.replaceStackAndIncrPC])
+        hsloadGas
+    have pushReduction : StepFEReduction s0 s1 :=
+      ProofForge.Backend.Evm.PowdrExec.StepFEReduction.of_readyOpcodeAt
+        hpushAt hpushStep
+    have sloadReduction : StepFEReduction s1 s2 :=
+      ProofForge.Backend.Evm.PowdrExec.StepFEReduction.of_readyOpcodeAt
+        hsloadAt hsloadStep
+    have pushChain : StepFEReductionChain s0 1 s1 :=
+      ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.single
+        pushReduction
+    have sloadChain : StepFEReductionChain s1 1 s2 :=
+      ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.single
+        sloadReduction
+    have prefixChain : StepFEReductionChain s0 2 s2 :=
+      ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.append
+        pushChain sloadChain
+    exact ⟨s2, prefixChain,
+      ⟨hpushAt, hsloadAt, hsloadGas, hstopAt, rfl⟩⟩
+
+def twoSlotReaderStopReductionChainProvider :
+    ReductionChainProvider twoSlotReaderStopPre 1
+      twoSlotReaderStopPost :=
+  ProofForge.Backend.Evm.PowdrExec.reductionChainProvider_single_of_exists
+    (by
+      intro s2 hpre
+      rcases hpre with
+        ⟨s0, hpushAt, _hsloadAt, hsloadGas, hstopAt, hs2⟩
+      have hstopStepExpected :
+          EvmSemantics.EVM.stepFE
+              (sloadBalanceSlotPost
+                (pushBalanceSlotPost s0 hpushAt.ready) hsloadGas) =
+            .ok
+              (stopPost
+                (sloadBalanceSlotPost
+                  (pushBalanceSlotPost s0 hpushAt.ready) hsloadGas)) :=
+        ProofForge.Backend.Evm.PowdrExec.stepFE_stop_at_ok hstopAt
+      have hstopStep :
+          EvmSemantics.EVM.stepFE s2 = .ok (stopPost s2) := by
+        subst s2
+        exact hstopStepExpected
+      have hstopAtCurrent :
+          ReadyOpcodeAt twoSlotReaderCode 3
+            (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps))
+            none s2 := by
+        subst s2
+        exact hstopAt
+      have stopReduction : StepFEReduction s2 (stopPost s2) :=
+        ProofForge.Backend.Evm.PowdrExec.StepFEReduction.of_readyOpcodeAt
+          hstopAtCurrent hstopStep
+      have hpost : twoSlotReaderStopPost s2 (stopPost s2) := by
+        intro s0' hpushAt' hsloadAt' hsloadGas' hstopAt' hs2'
+        exact congrArg stopPost hs2'
+      exact ⟨stopPost s2, stopReduction, hpost⟩)
+
+def twoSlotReaderGetBalanceReductionChainProviderFromAppend :
+    ReductionChainProvider twoSlotReaderGetBalancePre 3
+      twoSlotReaderGetBalancePost :=
+  ProofForge.Backend.Evm.PowdrExec.reductionChainProvider_append
+    twoSlotReaderGetBalancePrefixReductionChainProvider
+    twoSlotReaderStopReductionChainProvider
+    (by
+      intro s0 s2 _hpre hprefix
+      exact ⟨s0, hprefix⟩)
+    (by
+      intro _s0 _s2 _finalState _hpre hprefix hstopPost
+      rcases hprefix with
+        ⟨hpushAt, hsloadAt, hsloadGas, hstopAt, hs2⟩
+      exact ⟨hpushAt, hsloadAt, hsloadGas, hstopAt,
+        hstopPost hpushAt hsloadAt hsloadGas hstopAt hs2⟩)
+
+def twoSlotReaderGetBalanceReductionChainProvider :
+    ReductionChainProvider twoSlotReaderGetBalancePre 3
+      twoSlotReaderGetBalancePost :=
+  twoSlotReaderGetBalanceReductionChainProviderFromAppend
 
 def twoSlotReaderGetBalanceSegmentProvider :
     SegmentProvider twoSlotReaderGetBalancePre 3

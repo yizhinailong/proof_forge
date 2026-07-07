@@ -341,6 +341,19 @@ theorem reductionChainProvider_single
       StepFEReductionChain.single (reduction hpre),
       postcondition hpre⟩
 
+theorem reductionChainProvider_single_of_exists
+    {pre : State → Prop} {post : State → State → Prop}
+    (step :
+      ∀ {state}, pre state →
+        ∃ nextState,
+          StepFEReduction state nextState ∧
+            post state nextState) :
+    ReductionChainProvider pre 1 post where
+  chain := by
+    intro state hpre
+    obtain ⟨nextState, reduction, hpost⟩ := step hpre
+    exact ⟨nextState, StepFEReductionChain.single reduction, hpost⟩
+
 theorem reductionChainProvider_append
     {leftPre rightPre : State → Prop}
     {leftFuel rightFuel : Nat}
