@@ -309,6 +309,24 @@ theorem counterCompiledRuntimeCode_dispatches_get :
       (counterCallCalldata .get) 26 = true := by
   native_decide
 
+def counterInitializeBodyOffset : Nat := 70
+
+def counterInitializeBodyBytes : ByteArray :=
+  ByteArray.mk #[
+    0x5b, 0x5f, 0x60, 0xc0, 0x1b, 0x60, 0x01, 0x80, 0x60, 0x40, 0x1b,
+    0x03, 0x60, 0xc0, 0x1b, 0x19, 0x5f, 0x54, 0x16, 0x17, 0x5f, 0x55,
+    0x56
+  ]
+
+theorem counterInitializeBodyBytes_size :
+    counterInitializeBodyBytes.size = 23 := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_has_initialize_body :
+    byteArrayHasSliceAt counterCompiledRuntimeCode
+      counterInitializeBodyBytes counterInitializeBodyOffset = true := by
+  native_decide
+
 def counterRuntimeGasAvailable : Nat := 1000000
 
 def counterRuntimeBlockGasLimit : Nat := 30000000
