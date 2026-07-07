@@ -443,11 +443,18 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   halted frame and produces the `.none` observable.
 - `runBytecode_halted_succ`, `runBytecode_step_succ`,
   `runBytecode_stepFE_succ`, `StepFEPath`, and
-  `runBytecode_of_stepFEPath` — green under `lake build EvmRefinement`;
+  `stepFEPath_append`, `runBytecode_of_stepFEPath`, and
+  `runBytecode_of_stepFEPath_done` — green under `lake build EvmRefinement`;
   the prepared-frame proof can now feed each successful `stepFE` opcode, or an
   already-packaged `stepFE` path segment, into the fuel-bounded powdr
   `runBytecode` driver. This is the first reusable path-composition layer for
   the deep opcode discharge.
+- `counterStepFEPath_initialize_return_segment_ok`,
+  `counterStepFEPath_initialize_body_and_return_ok`, and
+  `counterStepFEPath_initialize_dispatcher_body_and_return_ok` — green under
+  `lake build EvmRefinement`; the initialize deep path is now split into named
+  segment facts before being turned into `runBytecode`, so later entrypoints can
+  reuse the same segment-composition pattern.
 - `counterRunBytecode_initialize_return_segment_ok` — green under
   `lake build EvmRefinement`; the final return segment now has a
   `runBytecode` proof from the body return jump to the halted frame using 5

@@ -440,9 +440,15 @@ ProofForge's default build still avoids powdr/mathlib imports.
     return-path bridge from an already-established initialize storage model to
     the final halted frame plus `.none` observable. `runBytecode_halted_succ`,
     `runBytecode_step_succ`, `runBytecode_stepFE_succ`, `StepFEPath`, and
-    `runBytecode_of_stepFEPath` now expose the fuel-driver bridge needed to feed
-    either one successful `stepFE` opcode or a reusable composed `stepFE` path
-    segment into `counterPowdrPreparedTraceStep`.
+    `stepFEPath_append`, `runBytecode_of_stepFEPath`, and
+    `runBytecode_of_stepFEPath_done` now expose the fuel-driver bridge needed to
+    feed either one successful `stepFE` opcode or a reusable composed `stepFE`
+    path segment into `counterPowdrPreparedTraceStep`.
+    `counterStepFEPath_initialize_return_segment_ok`,
+    `counterStepFEPath_initialize_body_and_return_ok`, and
+    `counterStepFEPath_initialize_dispatcher_body_and_return_ok` split the
+    initialize deep path into named segment facts before converting it to
+    `runBytecode`.
     `counterRunBytecode_initialize_return_segment_ok` applies that bridge to
     the final return segment with 5 fuel steps.
     `counterRunBytecode_initialize_body_and_return_ok` composes the body and

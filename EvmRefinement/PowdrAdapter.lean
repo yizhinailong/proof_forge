@@ -123,6 +123,19 @@ inductive StepFEPath : State → Nat → State → Prop where
       (tail : StepFEPath nextState fuel finalState) :
       StepFEPath state (fuel + 1) finalState
 
+theorem stepFEPath_append {state midState finalState : State}
+    {prefixFuel suffixFuel : Nat}
+    (hprefix : StepFEPath state prefixFuel midState)
+    (suffix : StepFEPath midState suffixFuel finalState) :
+    StepFEPath state (prefixFuel + suffixFuel) finalState := by
+  induction hprefix with
+  | nil state =>
+      simpa using suffix
+  | cons hrunning hstep tail ih =>
+      have htail := ih suffix
+      simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using
+        StepFEPath.cons hrunning hstep htail
+
 theorem runBytecode_of_stepFEPath {prefixFuel tailFuel : Nat} :
     ∀ {state tailState finalState : State}
       {observations : Array ObservableStep},
@@ -138,6 +151,14 @@ theorem runBytecode_of_stepFEPath {prefixFuel tailFuel : Nat} :
       have hrunTail := ih hrun
       simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using
         runBytecode_stepFE_succ hrunning hstep hrunTail
+
+theorem runBytecode_of_stepFEPath_done {fuel : Nat} {state finalState : State}
+    (path : StepFEPath state fuel finalState) :
+    runBytecode state fuel = .ok (finalState, (#[] : Array ObservableStep)) := by
+  simpa using
+    runBytecode_of_stepFEPath (prefixFuel := fuel) (tailFuel := 0)
+      path (show runBytecode finalState 0 =
+        .ok (finalState, (#[] : Array ObservableStep)) from rfl)
 
 theorem runBytecode_extend_halted {fuel : Nat} :
     ∀ {state finalState : State} {observations : Array ObservableStep}

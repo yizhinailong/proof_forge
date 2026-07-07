@@ -4648,6 +4648,33 @@ theorem counterInitializeReturn_preserves_storage_model_stepFE_ok
   · rw [hresult]
     exact counterInitializeObservable_of_returned_empty
 
+theorem counterStepFEPath_initialize_return_segment_ok
+    {s0 s1 s2 s3 s4 s5 : EvmState}
+    (hready0 :
+      counterStepFEReady s0
+        (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hready1 :
+      counterStepFEReady s1
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hready2 : counterStepFEReady s2 (.Push counterPush0Op))
+    (hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hready3 : counterStepFEReady s3 (.Dup counterDup1Op))
+    (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4)
+    (hready4 :
+      counterStepFEReady s4
+        (.System (.RETURN : EvmSemantics.Operation.SystemOps)))
+    (hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5) :
+    EvmStepFEPath s0 5 s5 := by
+  exact
+    .cons hready0.1 hstep0
+      (.cons hready1.1 hstep1
+        (.cons hready2.1 hstep2
+          (.cons hready3.1 hstep3
+            (.cons hready4.1 hstep4
+              (.nil s5)))))
+
 theorem counterRunBytecode_initialize_return_segment_ok
     {s0 s1 s2 s3 s4 s5 : EvmState}
     (hready0 :
@@ -4668,15 +4695,109 @@ theorem counterRunBytecode_initialize_return_segment_ok
     (hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5) :
     ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 5 =
       .ok (s5, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) := by
-  have hpath : EvmStepFEPath s0 5 s5 :=
+  exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath_done
+    (counterStepFEPath_initialize_return_segment_ok
+      hready0 hstep0 hready1 hstep1 hready2 hstep2
+      hready3 hstep3 hready4 hstep4)
+
+theorem counterStepFEPath_initialize_body_and_return_ok
+    {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17
+      s18 s19 s20 s21 s22 : EvmState}
+    (hready0 : counterStepFEReady s0 (.Push counterPush0Op))
+    (hstep0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hready1 : counterStepFEReady s1 (.Push counterPush1Op))
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hready2 :
+      counterStepFEReady s2
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hready3 : counterStepFEReady s3 (.Push counterPush1Op))
+    (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4)
+    (hready4 : counterStepFEReady s4 (.Dup counterDup1Op))
+    (hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5)
+    (hready5 : counterStepFEReady s5 (.Push counterPush1Op))
+    (hstep5 : EvmSemantics.EVM.stepFE s5 = .ok s6)
+    (hready6 :
+      counterStepFEReady s6
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep6 : EvmSemantics.EVM.stepFE s6 = .ok s7)
+    (hready7 :
+      counterStepFEReady s7
+        (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps)))
+    (hstep7 : EvmSemantics.EVM.stepFE s7 = .ok s8)
+    (hready8 : counterStepFEReady s8 (.Push counterPush1Op))
+    (hstep8 : EvmSemantics.EVM.stepFE s8 = .ok s9)
+    (hready9 :
+      counterStepFEReady s9
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep9 : EvmSemantics.EVM.stepFE s9 = .ok s10)
+    (hready10 :
+      counterStepFEReady s10
+        (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep10 : EvmSemantics.EVM.stepFE s10 = .ok s11)
+    (hready11 : counterStepFEReady s11 (.Push counterPush0Op))
+    (hstep11 : EvmSemantics.EVM.stepFE s11 = .ok s12)
+    (hready12 :
+      counterStepFEReady s12
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep12 : EvmSemantics.EVM.stepFE s12 = .ok s13)
+    (hready13 :
+      counterStepFEReady s13
+        (.CompBit (.AND : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep13 : EvmSemantics.EVM.stepFE s13 = .ok s14)
+    (hready14 :
+      counterStepFEReady s14
+        (.CompBit (.OR : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep14 : EvmSemantics.EVM.stepFE s14 = .ok s15)
+    (hready15 : counterStepFEReady s15 (.Push counterPush0Op))
+    (hstep15 : EvmSemantics.EVM.stepFE s15 = .ok s16)
+    (hready16 :
+      counterStepFEReady s16
+        (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep16 : EvmSemantics.EVM.stepFE s16 = .ok s17)
+    (hready17 :
+      counterStepFEReady s17
+        (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep17 : EvmSemantics.EVM.stepFE s17 = .ok s18)
+    (hready18 :
+      counterStepFEReady s18
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep18 : EvmSemantics.EVM.stepFE s18 = .ok s19)
+    (hready19 : counterStepFEReady s19 (.Push counterPush0Op))
+    (hstep19 : EvmSemantics.EVM.stepFE s19 = .ok s20)
+    (hready20 : counterStepFEReady s20 (.Dup counterDup1Op))
+    (hstep20 : EvmSemantics.EVM.stepFE s20 = .ok s21)
+    (hready21 :
+      counterStepFEReady s21
+        (.System (.RETURN : EvmSemantics.Operation.SystemOps)))
+    (hstep21 : EvmSemantics.EVM.stepFE s21 = .ok s22) :
+    EvmStepFEPath s0 22 s22 := by
+  have hpathToReturn : EvmStepFEPath s0 17 s17 :=
     .cons hready0.1 hstep0
       (.cons hready1.1 hstep1
         (.cons hready2.1 hstep2
           (.cons hready3.1 hstep3
             (.cons hready4.1 hstep4
-              (.nil s5)))))
-  exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath
-    hpath (ProofForge.Backend.Evm.PowdrAdapter.runBytecode_zero s5)
+              (.cons hready5.1 hstep5
+                (.cons hready6.1 hstep6
+                  (.cons hready7.1 hstep7
+                    (.cons hready8.1 hstep8
+                      (.cons hready9.1 hstep9
+                        (.cons hready10.1 hstep10
+                          (.cons hready11.1 hstep11
+                            (.cons hready12.1 hstep12
+                              (.cons hready13.1 hstep13
+                                (.cons hready14.1 hstep14
+                                  (.cons hready15.1 hstep15
+                                    (.cons hready16.1 hstep16
+                                      (.nil s17)))))))))))))))))
+  have hpathReturn :=
+    counterStepFEPath_initialize_return_segment_ok
+      hready17 hstep17 hready18 hstep18 hready19 hstep19
+      hready20 hstep20 hready21 hstep21
+  simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using
+    ProofForge.Backend.Evm.PowdrAdapter.stepFEPath_append
+      hpathToReturn hpathReturn
 
 theorem counterRunBytecode_initialize_body_and_return_ok
     {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17
@@ -4797,35 +4918,19 @@ theorem counterRunBytecode_initialize_body_and_return_ok
   have hat17 : counterCompiledStateAt s17 (counterInitializeBodyOffset + 22) :=
     counterCompiledStateAt_of_initialize_sstore_stepFE_ok
       hat16 hstack16 hready16 hstep16
-  have hrunReturn :=
-    counterRunBytecode_initialize_return_segment_ok
-      hready17 hstep17 hready18 hstep18 hready19 hstep19
-      hready20 hstep20 hready21 hstep21
-  have hpathToReturn : EvmStepFEPath s0 17 s17 :=
-    .cons hready0.1 hstep0
-      (.cons hready1.1 hstep1
-        (.cons hready2.1 hstep2
-          (.cons hready3.1 hstep3
-            (.cons hready4.1 hstep4
-              (.cons hready5.1 hstep5
-                (.cons hready6.1 hstep6
-                  (.cons hready7.1 hstep7
-                    (.cons hready8.1 hstep8
-                      (.cons hready9.1 hstep9
-                        (.cons hready10.1 hstep10
-                          (.cons hready11.1 hstep11
-                            (.cons hready12.1 hstep12
-                              (.cons hready13.1 hstep13
-                                (.cons hready14.1 hstep14
-                                  (.cons hready15.1 hstep15
-                                    (.cons hready16.1 hstep16
-                                      (.nil s17)))))))))))))))))
   have hrun :
       ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 22 =
         .ok (s22, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) := by
-    simpa using
-      ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath
-        hpathToReturn hrunReturn
+    exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath_done
+      (counterStepFEPath_initialize_body_and_return_ok
+        hready0 hstep0 hready1 hstep1 hready2 hstep2
+        hready3 hstep3 hready4 hstep4 hready5 hstep5
+        hready6 hstep6 hready7 hstep7 hready8 hstep8
+        hready9 hstep9 hready10 hstep10 hready11 hstep11
+        hready12 hstep12 hready13 hstep13 hready14 hstep14
+        hready15 hstep15 hready16 hstep16 hready17 hstep17
+        hready18 hstep18 hready19 hstep19 hready20 hstep20
+        hready21 hstep21)
   have hstorage17 :
       counterStorageValue counterContractAddress counterCountSlot s17 =
         counterInitializeStorageWord
@@ -4859,6 +4964,151 @@ theorem counterRunBytecode_initialize_body_and_return_ok
       hstorage17 hstack17 hat17 hready17 hstep17 hready18 hstep18
       hready19 hstep19 hready20 hstep20 hready21 hstep21
   exact ⟨hrun, hstorage22, hobs22⟩
+
+theorem counterStepFEPath_initialize_dispatcher_body_and_return_ok
+    {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17
+      s18 s19 s20 s21 s22 s23 s24 s25 s26 s27 s28 s29 s30 s31 s32 s33
+      s34 s35 s36 : EvmState}
+    (hready0 : counterStepFEReady s0 (.Push counterPush0Op))
+    (hstep0 : EvmSemantics.EVM.stepFE s0 = .ok s1)
+    (hready1 :
+      counterStepFEReady s1
+        (.Env (.CALLDATALOAD : EvmSemantics.Operation.EnvOps)))
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2)
+    (hready2 : counterStepFEReady s2 (.Push counterPush1Op))
+    (hstep2 : EvmSemantics.EVM.stepFE s2 = .ok s3)
+    (hready3 :
+      counterStepFEReady s3
+        (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4)
+    (hready4 : counterStepFEReady s4 (.Dup counterDup1Op))
+    (hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5)
+    (hready5 : counterStepFEReady s5 (.Push counterPush4Op))
+    (hstep5 : EvmSemantics.EVM.stepFE s5 = .ok s6)
+    (hready6 :
+      counterStepFEReady s6
+        (.CompBit (.EQ : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep6 : EvmSemantics.EVM.stepFE s6 = .ok s7)
+    (hready7 : counterStepFEReady s7 (.Push counterPush1Op))
+    (hstep7 : EvmSemantics.EVM.stepFE s7 = .ok s8)
+    (hready8 :
+      counterStepFEReady s8
+        (.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep8 : EvmSemantics.EVM.stepFE s8 = .ok s9)
+    (hready9 :
+      counterStepFEReady s9
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep9 : EvmSemantics.EVM.stepFE s9 = .ok s10)
+    (hready10 : counterStepFEReady s10 (.Push counterPush1Op))
+    (hstep10 : EvmSemantics.EVM.stepFE s10 = .ok s11)
+    (hready11 : counterStepFEReady s11 (.Push counterPush1Op))
+    (hstep11 : EvmSemantics.EVM.stepFE s11 = .ok s12)
+    (hready12 :
+      counterStepFEReady s12
+        (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep12 : EvmSemantics.EVM.stepFE s12 = .ok s13)
+    (hready13 :
+      counterStepFEReady s13
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep13 : EvmSemantics.EVM.stepFE s13 = .ok s14)
+    (hready14 : counterStepFEReady s14 (.Push counterPush0Op))
+    (hstep14 : EvmSemantics.EVM.stepFE s14 = .ok s15)
+    (hready15 : counterStepFEReady s15 (.Push counterPush1Op))
+    (hstep15 : EvmSemantics.EVM.stepFE s15 = .ok s16)
+    (hready16 :
+      counterStepFEReady s16
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep16 : EvmSemantics.EVM.stepFE s16 = .ok s17)
+    (hready17 : counterStepFEReady s17 (.Push counterPush1Op))
+    (hstep17 : EvmSemantics.EVM.stepFE s17 = .ok s18)
+    (hready18 : counterStepFEReady s18 (.Dup counterDup1Op))
+    (hstep18 : EvmSemantics.EVM.stepFE s18 = .ok s19)
+    (hready19 : counterStepFEReady s19 (.Push counterPush1Op))
+    (hstep19 : EvmSemantics.EVM.stepFE s19 = .ok s20)
+    (hready20 :
+      counterStepFEReady s20
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep20 : EvmSemantics.EVM.stepFE s20 = .ok s21)
+    (hready21 :
+      counterStepFEReady s21
+        (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps)))
+    (hstep21 : EvmSemantics.EVM.stepFE s21 = .ok s22)
+    (hready22 : counterStepFEReady s22 (.Push counterPush1Op))
+    (hstep22 : EvmSemantics.EVM.stepFE s22 = .ok s23)
+    (hready23 :
+      counterStepFEReady s23
+        (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep23 : EvmSemantics.EVM.stepFE s23 = .ok s24)
+    (hready24 :
+      counterStepFEReady s24
+        (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep24 : EvmSemantics.EVM.stepFE s24 = .ok s25)
+    (hready25 : counterStepFEReady s25 (.Push counterPush0Op))
+    (hstep25 : EvmSemantics.EVM.stepFE s25 = .ok s26)
+    (hready26 :
+      counterStepFEReady s26
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep26 : EvmSemantics.EVM.stepFE s26 = .ok s27)
+    (hready27 :
+      counterStepFEReady s27
+        (.CompBit (.AND : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep27 : EvmSemantics.EVM.stepFE s27 = .ok s28)
+    (hready28 :
+      counterStepFEReady s28
+        (.CompBit (.OR : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep28 : EvmSemantics.EVM.stepFE s28 = .ok s29)
+    (hready29 : counterStepFEReady s29 (.Push counterPush0Op))
+    (hstep29 : EvmSemantics.EVM.stepFE s29 = .ok s30)
+    (hready30 :
+      counterStepFEReady s30
+        (.StackMemFlow (.SSTORE : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep30 : EvmSemantics.EVM.stepFE s30 = .ok s31)
+    (hready31 :
+      counterStepFEReady s31
+        (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep31 : EvmSemantics.EVM.stepFE s31 = .ok s32)
+    (hready32 :
+      counterStepFEReady s32
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstep32 : EvmSemantics.EVM.stepFE s32 = .ok s33)
+    (hready33 : counterStepFEReady s33 (.Push counterPush0Op))
+    (hstep33 : EvmSemantics.EVM.stepFE s33 = .ok s34)
+    (hready34 : counterStepFEReady s34 (.Dup counterDup1Op))
+    (hstep34 : EvmSemantics.EVM.stepFE s34 = .ok s35)
+    (hready35 :
+      counterStepFEReady s35
+        (.System (.RETURN : EvmSemantics.Operation.SystemOps)))
+    (hstep35 : EvmSemantics.EVM.stepFE s35 = .ok s36) :
+    EvmStepFEPath s0 36 s36 := by
+  have hpathDispatcher : EvmStepFEPath s0 14 s14 :=
+    .cons hready0.1 hstep0
+      (.cons hready1.1 hstep1
+        (.cons hready2.1 hstep2
+          (.cons hready3.1 hstep3
+            (.cons hready4.1 hstep4
+              (.cons hready5.1 hstep5
+                (.cons hready6.1 hstep6
+                  (.cons hready7.1 hstep7
+                    (.cons hready8.1 hstep8
+                      (.cons hready9.1 hstep9
+                        (.cons hready10.1 hstep10
+                          (.cons hready11.1 hstep11
+                            (.cons hready12.1 hstep12
+                              (.cons hready13.1 hstep13
+                                (.nil s14))))))))))))))
+  have hpathBody :=
+    counterStepFEPath_initialize_body_and_return_ok
+      hready14 hstep14 hready15 hstep15 hready16 hstep16
+      hready17 hstep17 hready18 hstep18 hready19 hstep19
+      hready20 hstep20 hready21 hstep21 hready22 hstep22
+      hready23 hstep23 hready24 hstep24 hready25 hstep25
+      hready26 hstep26 hready27 hstep27 hready28 hstep28
+      hready29 hstep29 hready30 hstep30 hready31 hstep31
+      hready32 hstep32 hready33 hstep33 hready34 hstep34
+      hready35 hstep35
+  simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using
+    ProofForge.Backend.Evm.PowdrAdapter.stepFEPath_append
+      hpathDispatcher hpathBody
 
 theorem counterRunBytecode_initialize_dispatcher_body_and_return_ok
     {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17
@@ -5030,29 +5280,24 @@ theorem counterRunBytecode_initialize_dispatcher_body_and_return_ok
       hat30 haddrSstore hready30 hstep30 hready31 hstep31
       hready32 hstep32 hready33 hstep33 hready34 hstep34
       hready35 hstep35
-  rcases hrunTail with ⟨hrunTail, hstorage, hobs⟩
-  have hpathDispatcher : EvmStepFEPath s0 14 s14 :=
-    .cons hready0.1 hstep0
-      (.cons hready1.1 hstep1
-        (.cons hready2.1 hstep2
-          (.cons hready3.1 hstep3
-            (.cons hready4.1 hstep4
-              (.cons hready5.1 hstep5
-                (.cons hready6.1 hstep6
-                  (.cons hready7.1 hstep7
-                    (.cons hready8.1 hstep8
-                      (.cons hready9.1 hstep9
-                        (.cons hready10.1 hstep10
-                          (.cons hready11.1 hstep11
-                            (.cons hready12.1 hstep12
-                              (.cons hready13.1 hstep13
-                                (.nil s14))))))))))))))
+  rcases hrunTail with ⟨_hrunTail, hstorage, hobs⟩
   have hrun :
       ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 36 =
         .ok (s36, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) := by
-    simpa using
-      ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath
-        hpathDispatcher hrunTail
+    exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath_done
+      (counterStepFEPath_initialize_dispatcher_body_and_return_ok
+        hready0 hstep0 hready1 hstep1 hready2 hstep2
+        hready3 hstep3 hready4 hstep4 hready5 hstep5
+        hready6 hstep6 hready7 hstep7 hready8 hstep8
+        hready9 hstep9 hready10 hstep10 hready11 hstep11
+        hready12 hstep12 hready13 hstep13 hready14 hstep14
+        hready15 hstep15 hready16 hstep16 hready17 hstep17
+        hready18 hstep18 hready19 hstep19 hready20 hstep20
+        hready21 hstep21 hready22 hstep22 hready23 hstep23
+        hready24 hstep24 hready25 hstep25 hready26 hstep26
+        hready27 hstep27 hready28 hstep28 hready29 hstep29
+        hready30 hstep30 hready31 hstep31 hready32 hstep32
+        hready33 hstep33 hready34 hstep34 hready35 hstep35)
   exact ⟨hrun, hstorage, hobs⟩
 
 def counterPowdrPreparedTraceStep (cfg : PowdrCounterConfig) (preparedState : EvmState)

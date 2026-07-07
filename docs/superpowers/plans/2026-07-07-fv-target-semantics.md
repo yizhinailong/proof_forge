@@ -363,9 +363,14 @@ surface. Remaining EVM work is E3.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure.
   The adapter now has `runBytecode_halted_succ`, `runBytecode_step_succ`,
-  `runBytecode_stepFE_succ`, `StepFEPath`, and `runBytecode_of_stepFEPath`, so
-  the composed `stepFE` path can be fed into the prepared-frame `runBytecode`
-  driver either one opcode at a time or as a reusable path segment.
+  `runBytecode_stepFE_succ`, `StepFEPath`, `stepFEPath_append`,
+  `runBytecode_of_stepFEPath`, and `runBytecode_of_stepFEPath_done`, so the
+  composed `stepFE` path can be fed into the prepared-frame `runBytecode` driver
+  either one opcode at a time or as reusable path segments.
+  `counterStepFEPath_initialize_return_segment_ok`,
+  `counterStepFEPath_initialize_body_and_return_ok`, and
+  `counterStepFEPath_initialize_dispatcher_body_and_return_ok` now name those
+  reusable initialize segments before the `runBytecode` conversion.
   `counterRunBytecode_initialize_return_segment_ok` applies that bridge to the
   final return segment, proving 5 fuel steps from the body return jump reach the
   halted return frame. `counterRunBytecode_initialize_body_and_return_ok`
