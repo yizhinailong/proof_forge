@@ -521,6 +521,25 @@ theorem stepFE_eq_ok
   unfold EvmSemantics.EVM.stepF.compBit
   simp [hstack]
 
+theorem stepFE_gt_ok
+    {state : State} {a b : UInt256} {rest : List UInt256}
+    (hready :
+      StepFEReady state
+        (.CompBit (.GT : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hdecoded :
+      state.decoded =
+        some (.CompBit (.GT : EvmSemantics.Operation.CompareBitwiseOps), none))
+    (hstack : state.stack = a :: b :: rest) :
+    EvmSemantics.EVM.stepFE state =
+      .ok ((state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.CompBit (.GT : EvmSemantics.Operation.CompareBitwiseOps) :
+              Operation)) hready.gas).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.gt a b :: rest)) := by
+  rw [stepFE_compBit_dispatch hready hdecoded]
+  unfold EvmSemantics.EVM.stepF.compBit
+  simp [hstack]
+
 theorem stepFE_shl_ok
     {state : State} {shift value : UInt256} {rest : List UInt256}
     (hready :
