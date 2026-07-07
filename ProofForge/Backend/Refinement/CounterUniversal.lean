@@ -63,16 +63,40 @@ def targetRunTraceList : List CounterCall → Nat → Nat × Array ObservableRet
       let (finalCount, observables) := targetRunTraceList rest nextCount
       (finalCount, #[observable] ++ observables)
 
+def targetTraceStep (count : Nat) (call : CounterCall) :
+    Except String (Nat × ObservableReturn) :=
+  let (nextCount, observable) := targetStep count call
+  .ok (nextCount, observable)
+
+theorem targetRunTraceList_eq_runTraceListGen (calls : List CounterCall) (count : Nat) :
+    .ok (targetRunTraceList calls count) =
+      ProofForge.IR.StepSemantics.runTraceListGen targetTraceStep calls count := by
+  induction calls generalizing count with
+  | nil =>
+      rfl
+  | cons call rest ih =>
+      let next := targetStep count call
+      have hstep : targetTraceStep count call = .ok (next.1, next.2) := by
+        simp [targetTraceStep, next]
+      have hrest :
+          ProofForge.IR.StepSemantics.runTraceListGen targetTraceStep rest next.1 =
+            .ok (targetRunTraceList rest next.1) :=
+        (ih next.1).symm
+      have hrun := ProofForge.IR.StepSemantics.runTraceListGen_cons_ok
+        targetTraceStep call rest count next.1 next.2
+        (targetRunTraceList rest next.1).1 (targetRunTraceList rest next.1).2
+        hstep hrest
+      simpa [targetRunTraceList, next] using hrun.symm
+
 def counterModelTargetSemantics : TargetSemantics := {
   id := "counter-model"
   supportedFragments := #[.counter]
   MachineState := Nat
   Call := CounterCall
   Obs := ObservableReturn
-  traceStep := fun count call =>
-    let (nextCount, observable) := targetStep count call
-    .ok (nextCount, observable)
+  traceStep := targetTraceStep
   runTrace := fun calls count => .ok (targetRunTraceList calls count)
+  runTrace_eq_traceStep := targetRunTraceList_eq_runTraceListGen
   executableTraceOk := fun obligation => FormalFragment.counter.acceptsModule obligation.module
 }
 

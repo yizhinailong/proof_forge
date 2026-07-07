@@ -1,5 +1,6 @@
 import ProofForge.IR.Contract
 import ProofForge.IR.Semantics
+import ProofForge.IR.StepSemantics
 
 namespace ProofForge.Backend.Refinement
 
@@ -224,7 +225,32 @@ structure TargetSemantics where
   Obs : Type
   traceStep : MachineState → Call → Except String (MachineState × Obs)
   runTrace : List Call → MachineState → Except String (MachineState × Array Obs)
+  runTrace_eq_traceStep :
+    ∀ calls state, runTrace calls state =
+      ProofForge.IR.StepSemantics.runTraceListGen traceStep calls state
   executableTraceOk : TraceObligation → Bool
+
+def TargetSemantics.TraceMatches (semantics : TargetSemantics)
+    (state : semantics.MachineState) (calls : List semantics.Call)
+    (observations : Array semantics.Obs) : Prop :=
+  ProofForge.IR.StepSemantics.IRTraceMatches semantics.traceStep state calls observations
+
+theorem TargetSemantics.runTrace_sound (semantics : TargetSemantics)
+    (calls : List semantics.Call) (state : semantics.MachineState) :
+    match semantics.runTrace calls state with
+    | .ok (_, observations) => semantics.TraceMatches state calls observations
+    | .error _ => True := by
+  rw [semantics.runTrace_eq_traceStep calls state]
+  cases hrun : ProofForge.IR.StepSemantics.runTraceListGen
+      semantics.traceStep calls state with
+  | ok result =>
+      rcases result with ⟨_, observations⟩
+      have hsound := ProofForge.IR.StepSemantics.runTraceListGen_sound
+        semantics.traceStep calls state
+      rw [hrun] at hsound
+      simpa [TargetSemantics.TraceMatches] using hsound
+  | error _ =>
+      trivial
 
 def TargetSemantics.supportsProofFragment
     (semantics : TargetSemantics) (fragment : FormalFragment) : Bool :=

@@ -17,6 +17,7 @@ open ProofForge.IR.StepSemantics
 #check ProofForge.Backend.Evm.Refinement.evmYulTargetSemantics
 #check ProofForge.Backend.Solana.Refinement.solanaSbpfTargetSemantics
 #check ProofForge.Backend.WasmNear.Refinement.wasmNearTargetSemantics
+#check TargetSemantics.runTrace_sound
 
 theorem evm_counter_target_semantics_trace_ok :
     ProofForge.Backend.Evm.Refinement.evmYulTargetSemantics.executableTraceOk
@@ -34,29 +35,20 @@ theorem wasm_counter_target_semantics_trace_ok :
   native_decide
 
 #check (fun (object : Lean.Compiler.Yul.Object) calls storage =>
-  runTraceListGen_sound
-    (MachineState := ProofForge.Backend.Evm.Refinement.EvmYulMachineState)
-    (Call := TraceCall)
-    (Obs := ObservableStep)
-    ProofForge.Backend.Evm.Refinement.evmYulTargetSemantics.traceStep calls
+  TargetSemantics.runTrace_sound
+    ProofForge.Backend.Evm.Refinement.evmYulTargetSemantics calls
     ({ object, storage } : ProofForge.Backend.Evm.Refinement.EvmYulMachineState))
 
 #check (fun (program : ProofForge.Backend.Solana.SbpfInterpreter.SbpfProgram)
     (module : ProofForge.IR.Module) calls memory =>
-  runTraceListGen_sound
-    (MachineState := ProofForge.Backend.Solana.Refinement.SolanaSbpfMachineState)
-    (Call := TraceCall)
-    (Obs := ObservableStep)
-    ProofForge.Backend.Solana.Refinement.solanaSbpfTargetSemantics.traceStep calls
+  TargetSemantics.runTrace_sound
+    ProofForge.Backend.Solana.Refinement.solanaSbpfTargetSemantics calls
     ({ program, module, memory } :
       ProofForge.Backend.Solana.Refinement.SolanaSbpfMachineState))
 
 #check (fun (wasm : ProofForge.Compiler.Wasm.Module) calls state =>
-  runTraceListGen_sound
-    (MachineState := ProofForge.Backend.WasmNear.Refinement.WasmNearMachineState)
-    (Call := TraceCall)
-    (Obs := ObservableStep)
-    ProofForge.Backend.WasmNear.Refinement.wasmNearTargetSemantics.traceStep calls
+  TargetSemantics.runTrace_sound
+    ProofForge.Backend.WasmNear.Refinement.wasmNearTargetSemantics calls
     ({ wasm, state } : ProofForge.Backend.WasmNear.Refinement.WasmNearMachineState))
 
 end ProofForge.Tests.TargetSemanticsInstances

@@ -428,6 +428,9 @@ def evmYulTargetSemantics : TargetSemantics := {
   traceStep := EvmYulMachineState.traceStep
   runTrace := fun calls state => ProofForge.IR.StepSemantics.runTraceListGen
     EvmYulMachineState.traceStep calls state
+  runTrace_eq_traceStep := by
+    intro calls state
+    rfl
   executableTraceOk := evmYulTraceOk
 }
 

@@ -178,6 +178,9 @@ def wasmNearTargetSemantics : TargetSemantics := {
   traceStep := WasmNearMachineState.traceStep
   runTrace := fun calls state => ProofForge.IR.StepSemantics.runTraceListGen
     WasmNearMachineState.traceStep calls state
+  runTrace_eq_traceStep := by
+    intro calls state
+    rfl
   executableTraceOk := wasmExecutableTraceOk
 }
 

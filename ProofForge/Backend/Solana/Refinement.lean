@@ -98,6 +98,9 @@ def solanaSbpfTargetSemantics : TargetSemantics := {
   traceStep := SolanaSbpfMachineState.traceStep
   runTrace := fun calls state => ProofForge.IR.StepSemantics.runTraceListGen
     SolanaSbpfMachineState.traceStep calls state
+  runTrace_eq_traceStep := by
+    intro calls state
+    rfl
   executableTraceOk := sbpfExecutableTraceOk
 }
 
