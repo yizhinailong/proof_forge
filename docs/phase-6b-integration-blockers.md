@@ -463,7 +463,8 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   `lake build EvmRefinement`; the initialize body plus return segment now has a
   22-fuel `runBytecode` proof from the first body opcode to the halted `.none`
   result while preserving the initialize storage model. The theorem now derives
-  the post-SSTORE body-return-jump `counterCompiledStateAt` fact internally.
+  the post-SSTORE body-return-jump `counterCompiledStateAt` fact internally and
+  carries the final `halt = .Returned` fact out of the return segment.
 - `counterCodePcFork_of_sstore_stackMemFlow_ok`,
   `counterCodePcFork_of_stepFE_stackMemFlow_sstore_ok`, and
   `counterCompiledStateAt_of_initialize_sstore_stepFE_ok` — green under
@@ -479,8 +480,9 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   are now prepended to the body+return bridge through `StepFEPath`, giving a
   36-fuel `runBytecode` proof from PC0 to the halted `.none` result while
   preserving the initialize storage model. The return-path facts now also carry
-  call-stack preservation up through this 36-step theorem: the final frame's
-  `callStack` is known equal to the body-return-jump frame's `callStack`.
+  the returned-halt fact and call-stack preservation up through this 36-step
+  theorem: the final frame's `callStack` is known equal to the
+  body-return-jump frame's `callStack`.
 - `runBytecode_halted`, `runBytecode_extend_halted`,
   `runBytecode_extend_to_fuel`,
   `runBytecode_extend_to_fuel_of_returned_top_level`, and
@@ -496,7 +498,8 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   adapter-level returned/top-level lemmas rather than a Counter-specific helper.
   Once the remaining prefix proof shows that the body-return-jump frame still
   has the prepared top-level empty `callStack`, the 36-step initialize run can
-  discharge the condition without an external `hHalted` assumption.
+  discharge the condition without an external `hHalted` assumption; the
+  returned-halt half is already carried by the 36-step bridge.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 

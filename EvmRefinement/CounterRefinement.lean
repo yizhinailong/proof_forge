@@ -4646,18 +4646,18 @@ theorem counterInitializeReturn_preserves_storage_model_stepFE_ok
       counterStepFEReady s4
         (.System (.RETURN : EvmSemantics.Operation.SystemOps)))
     (hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5) :
-    counterStorageValue counterContractAddress counterCountSlot s5 =
+    s5.halt = .Returned ∧
+      counterStorageValue counterContractAddress counterCountSlot s5 =
         counterInitializeStorageWord
           (counterStorageValue counterContractAddress counterCountSlot sloadState) ∧
       s5.callStack = s0.callStack ∧
       counterObservableFromResult .initialize s5.toResult = .ok .none := by
-  obtain ⟨_hhalt, _hreturn, hresult, _hstack, _hcallStack, hstorage⟩ :=
+  obtain ⟨hhalt, _hreturn, hresult, _hstack, hcallStack, hstorage⟩ :=
     counterState_of_initialize_return_stepFE_to_returned_empty_ok
       h0 hat0 hready0 hstep0 hready1 hstep1 hready2 hstep2 hready3 hstep3
       hready4 hstep4
-  refine ⟨?_, ?_, ?_⟩
+  refine ⟨hhalt, ?_, hcallStack, ?_⟩
   · rw [hstorage, hstorage0]
-  · exact _hcallStack
   · rw [hresult]
     exact counterInitializeObservable_of_returned_empty
 
@@ -4908,6 +4908,7 @@ theorem counterRunBytecode_initialize_body_and_return_ok
     (hstep21 : EvmSemantics.EVM.stepFE s21 = .ok s22) :
     ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 22 =
         .ok (s22, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) ∧
+      s22.halt = .Returned ∧
       counterStorageValue counterContractAddress counterCountSlot s22 =
         counterInitializeStorageWord
           (counterStorageValue counterContractAddress counterCountSlot s12) ∧
@@ -4973,11 +4974,11 @@ theorem counterRunBytecode_initialize_body_and_return_ok
       hat12 haddrSload hready12 hstep12 hat13 hready13 hstep13
       hat14 hready14 hstep14 hat15 hready15 hstep15
       hat16 hready16 hstep16
-  obtain ⟨hstorage22, hcallStack22, hobs22⟩ :=
+  obtain ⟨hhalt22, hstorage22, hcallStack22, hobs22⟩ :=
     counterInitializeReturn_preserves_storage_model_stepFE_ok
       hstorage17 hstack17 hat17 hready17 hstep17 hready18 hstep18
       hready19 hstep19 hready20 hstep20 hready21 hstep21
-  exact ⟨hrun, hstorage22, hcallStack22, hobs22⟩
+  exact ⟨hrun, hhalt22, hstorage22, hcallStack22, hobs22⟩
 
 theorem counterStepFEPath_initialize_dispatcher_body_and_return_ok
     {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17
@@ -5265,6 +5266,7 @@ theorem counterRunBytecode_initialize_dispatcher_body_and_return_ok
     (hstep35 : EvmSemantics.EVM.stepFE s35 = .ok s36) :
     ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 36 =
         .ok (s36, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) ∧
+      s36.halt = .Returned ∧
       counterStorageValue counterContractAddress counterCountSlot s36 =
         counterInitializeStorageWord
           (counterStorageValue counterContractAddress counterCountSlot s26) ∧
@@ -5279,6 +5281,7 @@ theorem counterRunBytecode_initialize_dispatcher_body_and_return_ok
   have hrunTail :
       ProofForge.Backend.Evm.PowdrAdapter.runBytecode s14 22 =
         .ok (s36, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) ∧
+      s36.halt = .Returned ∧
       counterStorageValue counterContractAddress counterCountSlot s36 =
         counterInitializeStorageWord
           (counterStorageValue counterContractAddress counterCountSlot s26) ∧
@@ -5296,7 +5299,7 @@ theorem counterRunBytecode_initialize_dispatcher_body_and_return_ok
       hat30 haddrSstore hready30 hstep30 hready31 hstep31
       hready32 hstep32 hready33 hstep33 hready34 hstep34
       hready35 hstep35
-  rcases hrunTail with ⟨_hrunTail, hstorage, hcallStack, hobs⟩
+  rcases hrunTail with ⟨_hrunTail, hhalt, hstorage, hcallStack, hobs⟩
   have hrun :
       ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 36 =
         .ok (s36, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) := by
@@ -5314,7 +5317,7 @@ theorem counterRunBytecode_initialize_dispatcher_body_and_return_ok
         hready27 hstep27 hready28 hstep28 hready29 hstep29
         hready30 hstep30 hready31 hstep31 hready32 hstep32
         hready33 hstep33 hready34 hstep34 hready35 hstep35)
-  exact ⟨hrun, hstorage, hcallStack, hobs⟩
+  exact ⟨hrun, hhalt, hstorage, hcallStack, hobs⟩
 
 def counterPowdrPreparedTraceStep (cfg : PowdrCounterConfig) (preparedState : EvmState)
     (call : CounterCall) : Except String (EvmState × ObservableReturn) := do

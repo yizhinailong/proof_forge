@@ -453,7 +453,8 @@ ProofForge's default build still avoids powdr/mathlib imports.
     the final return segment with 5 fuel steps.
     `counterRunBytecode_initialize_body_and_return_ok` composes the body and
     return paths into a 22-fuel bridge from the first body opcode to the halted
-    `.none` result, with storage model preservation.
+    `.none` result, with storage model preservation and the final
+    `halt = .Returned` fact carried out of the return segment.
     `counterStack_of_initialize_tail_stepFE_to_sstore_ok` and
     `counterStack_of_initialize_body_stepFE_to_sstore_ok` expose the pre-SSTORE
     stack fact from the composed tail/body path, and
@@ -463,9 +464,9 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterRunBytecode_initialize_dispatcher_body_and_return_ok` now prepends
     the initialize selector dispatcher and trampoline through `StepFEPath`,
     yielding a 36-fuel `runBytecode` bridge from PC0 to the halted `.none`
-    result. The return-path bridge now carries call-stack preservation through
-    the 36-step theorem, proving the final frame's `callStack` equals the
-    body-return-jump frame's `callStack`.
+    result. The return-path bridge now carries returned halt and call-stack
+    preservation through the 36-step theorem, proving the final frame's
+    `callStack` equals the body-return-jump frame's `callStack`.
     `runBytecode_halted`, `runBytecode_extend_halted`,
     `runBytecode_extend_to_fuel`,
     `runBytecode_extend_to_fuel_of_returned_top_level`, and
@@ -477,7 +478,10 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterPowdrPreparedTraceStep_initialize_of_run36_returned_top_level_ok`
     reduce the remaining side condition to returned halt plus an empty
     top-level `callStack`; `counterCompiledPreparedInitialize_entry_facts`
-    exposes the prepared frame's initial empty `callStack`.
+    exposes the prepared frame's initial empty `callStack`. The returned-halt
+    half is already available from the 36-step bridge, so the remaining prefix
+    proof only has to carry the prepared empty `callStack` to the
+    body-return-jump frame.
     The safe universal trace layer is green once
     `CounterCompiledPowdrPreparedStorageModels` is supplied; the scaling
     boundary is now the target-specific discharge of those prepared storage

@@ -376,7 +376,8 @@ surface. Remaining EVM work is E3.
   halted return frame. `counterRunBytecode_initialize_body_and_return_ok`
   composes the body path with that return segment: from the first initialize
   body opcode, 22 fuel steps reach the halted frame, preserve the initialize
-  storage model, and expose the `.none` observable.
+  storage model, expose the `.none` observable, and carry out the final
+  `halt = .Returned` fact.
   `counterStack_of_initialize_tail_stepFE_to_sstore_ok` and
   `counterStack_of_initialize_body_stepFE_to_sstore_ok` now expose the
   pre-SSTORE stack shape consumed by
@@ -387,9 +388,9 @@ surface. Remaining EVM work is E3.
   the initialize selector dispatcher plus trampoline path to that body+return
   bridge through `StepFEPath`, proving a 36-fuel `runBytecode` path from PC0 to
   the halted `.none` result while preserving the initialize storage model. The
-  return-path proof now also carries call-stack preservation through that
-  36-step theorem, so the final frame's `callStack` is known equal to the
-  body-return-jump frame's `callStack`.
+  return-path proof now also carries returned halt and call-stack preservation
+  through that 36-step theorem, so the final frame's `callStack` is known equal
+  to the body-return-jump frame's `callStack`.
   `runBytecode_halted`, `runBytecode_extend_halted`,
   `runBytecode_extend_to_fuel`,
   `runBytecode_extend_to_fuel_of_returned_top_level`, and
@@ -401,7 +402,9 @@ surface. Remaining EVM work is E3.
   `counterPowdrPreparedTraceStep_initialize_of_run36_returned_top_level_ok`
   reduce the `isDone` premise to returned halt plus an empty top-level
   `callStack`; `counterCompiledPreparedInitialize_entry_facts` now exposes the
-  prepared frame's initial empty `callStack`.
+  prepared frame's initial empty `callStack`. The returned-halt half is already
+  available from the 36-step bridge, so the remaining prefix proof only has to
+  carry the prepared empty `callStack` to the body-return-jump frame.
   The shared safe trace layer is green once
   `CounterCompiledPowdrPreparedStorageModels` is supplied; the hard remaining
   work is target-specific prepared-storage-model discharge. Do not widen by
