@@ -450,6 +450,12 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   `lake build EvmRefinement`; the final return segment now has a
   `runBytecode` proof from the body return jump to the halted frame using 5
   fuel steps.
+- `counterRunBytecode_initialize_body_and_return_ok` — green under
+  `lake build EvmRefinement`; the initialize body plus return segment now has a
+  22-fuel `runBytecode` proof from the first body opcode to the halted `.none`
+  result while preserving the initialize storage model. The theorem still takes
+  the post-SSTORE body-return-jump `counterCompiledStateAt` fact as an explicit
+  premise.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 

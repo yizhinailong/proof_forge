@@ -444,6 +444,11 @@ ProofForge's default build still avoids powdr/mathlib imports.
     to feed the composed `stepFE` path into `counterPowdrPreparedTraceStep`.
     `counterRunBytecode_initialize_return_segment_ok` applies that bridge to
     the final return segment with 5 fuel steps.
+    `counterRunBytecode_initialize_body_and_return_ok` composes the body and
+    return paths into a 22-fuel bridge from the first body opcode to the halted
+    `.none` result, with storage model preservation. It still carries an
+    explicit post-SSTORE `counterCompiledStateAt` premise for the body return
+    jump.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).

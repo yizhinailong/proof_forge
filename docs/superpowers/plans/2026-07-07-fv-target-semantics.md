@@ -369,7 +369,13 @@ surface. Remaining EVM work is E3.
   into the prepared-frame `runBytecode` driver one opcode at a time.
   `counterRunBytecode_initialize_return_segment_ok` applies that bridge to the
   final return segment, proving 5 fuel steps from the body return jump reach the
-  halted return frame. The pinned
+  halted return frame. `counterRunBytecode_initialize_body_and_return_ok`
+  composes the body path with that return segment: from the first initialize
+  body opcode, 22 fuel steps reach the halted frame, preserve the initialize
+  storage model, and expose the `.none` observable. The remaining proof still
+  carries an explicit post-SSTORE `counterCompiledStateAt` premise for the body
+  return jump; the next slice should derive that premise from the SSTORE step
+  and then prepend the dispatcher/trampoline path. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
   remains an explicit trust boundary. The remaining E3 work is to discharge those
   prepared-frame storage models against the concrete runtime by connecting the
