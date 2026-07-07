@@ -20,6 +20,8 @@ abbrev StepFEReductionChain :=
 abbrev ReadyOpcodeAt := ProofForge.Backend.Evm.PowdrExec.ReadyOpcodeAt
 abbrev SLoadGasSufficient :=
   ProofForge.Backend.Evm.PowdrExec.SLoadGasSufficient
+abbrev MemoryExpansionSufficientAfterBase :=
+  ProofForge.Backend.Evm.PowdrExec.MemoryExpansionSufficientAfterBase
 abbrev ExecutionSegment :=
   ProofForge.Backend.Evm.PowdrExec.ExecutionSegment
 abbrev SegmentProvider :=
@@ -53,6 +55,15 @@ theorem twoSlotReaderCode_decode_sload :
 theorem twoSlotReaderCode_decode_stop :
     EvmSemantics.EVM.Decode.decodeAt twoSlotReaderCode 3 =
       some (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps), none) := by
+  native_decide
+
+def mstoreWordCode : ByteArray :=
+  ByteArray.mk #[0x52]
+
+theorem mstoreWordCode_decode_mstore :
+    EvmSemantics.EVM.Decode.decodeAt mstoreWordCode 0 =
+      some (.StackMemFlow
+        (.MSTORE : EvmSemantics.Operation.StackMemFlowOps), none) := by
   native_decide
 
 def pushBalanceSlotPost (state : State)
@@ -322,37 +333,50 @@ theorem twoSlotReader_getBalance_runSteps_from_reductionChain
 
 theorem mstore_word_runSteps
     {s0 : State} {offset value : UInt256} {rest : List UInt256}
-    (hready :
-      StepFEReady s0
-        (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps)))
-    (hdecoded :
-      s0.decoded =
-        some (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps), none))
+    (hat :
+      ReadyOpcodeAt mstoreWordCode 0
+        (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps))
+        none s0)
     (hstack : s0.stack = offset :: value :: rest)
     (hmem :
-      (s0.consumeGas
-        (EvmSemantics.EVM.Gas.baseCost s0.fork
-          (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps) :
-            Operation)) hready.gas).canExpandMemory offset.toNat 32) :
+      MemoryExpansionSufficientAfterBase s0
+        (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+          Operation)
+        hat.ready.gas offset.toNat 32) :
     ProofForge.Backend.Evm.PowdrExec.runSteps s0 1 =
       .ok
         (({ (s0.consumeGas
           (EvmSemantics.EVM.Gas.baseCost s0.fork
             (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps) :
-              Operation)) hready.gas).consumeMemExp offset.toNat 32 hmem with
+              Operation)) hat.ready.gas).consumeMemExp offset.toNat 32 hmem with
           toMachineState :=
             EvmSemantics.MachineState.mstore
               ((s0.consumeGas
                 (EvmSemantics.EVM.Gas.baseCost s0.fork
                   (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps) :
-                    Operation)) hready.gas).consumeMemExp offset.toNat 32 hmem).toMachineState
+                    Operation)) hat.ready.gas).consumeMemExp offset.toNat 32 hmem).toMachineState
               offset value }.replaceStackAndIncrPC rest),
           (#[] : Array ProofForge.Backend.Evm.PowdrExec.ObservableStep)) := by
   have hstep :=
-    ProofForge.Backend.Evm.PowdrExec.stepFE_mstore_ok
-      hready hdecoded hstack hmem
-  exact ProofForge.Backend.Evm.PowdrExec.runSteps_of_stepFEPath_done
-    (ProofForge.Backend.Evm.PowdrExec.stepFEPath_single
-      hready.running hstep)
+    ProofForge.Backend.Evm.PowdrExec.stepFE_mstore_at_ok
+      (offset := offset) (value := value) (rest := rest) hat hstack hmem
+  have chain :
+      StepFEReductionChain s0 1
+        ({ (s0.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost s0.fork
+            (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+              Operation)) hat.ready.gas).consumeMemExp offset.toNat 32 hmem with
+          toMachineState :=
+            EvmSemantics.MachineState.mstore
+              ((s0.consumeGas
+                (EvmSemantics.EVM.Gas.baseCost s0.fork
+                  (.StackMemFlow (.MSTORE : EvmSemantics.Operation.StackMemFlowOps) :
+                    Operation)) hat.ready.gas).consumeMemExp offset.toNat 32 hmem).toMachineState
+              offset value }.replaceStackAndIncrPC rest) :=
+    .cons
+      (ProofForge.Backend.Evm.PowdrExec.StepFEReduction.of_readyOpcodeAt
+        hat hstep)
+      (.nil _)
+  exact ProofForge.Backend.Evm.PowdrExec.runSteps_of_reductionChain chain
 
 end ProofForge.Backend.Evm.PowdrExecSmoke
