@@ -29,7 +29,8 @@ lean_lib ProofForge where
 
 lean_lib EvmRefinement where
   roots := #[
-    `EvmRefinement.PowdrAdapter
+    `EvmRefinement.PowdrAdapter,
+    `EvmRefinement.CounterRefinement
   ]
 
 @[default_target]

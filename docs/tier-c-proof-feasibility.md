@@ -254,7 +254,7 @@ Phase 6c simulation-prerequisite) is left to Phase 6b+.
 
 ### Phase 6b — Integrate `powdr-labs/evm-semantics` as the EVM bytecode semantics
 
-**Status: preferred target selected; opt-in powdr target and wrapper landed; default build still mathlib-free (2026-07-07).**
+**Status: preferred target selected; opt-in powdr target, wrapper, and Counter storage relation landed; default build still mathlib-free (2026-07-07).**
 The original `EVMYulLean` route was blocked by a Lean toolchain + mathlib
 version mismatch. That blocker is avoided by switching the refinement target to
 `powdr-labs/evm-semantics`, which pins Lean `v4.31.0` and mathlib `v4.31.0`.
@@ -276,7 +276,9 @@ ProofForge's default build still avoids powdr/mathlib imports.
   `ae13dbc506158f9d0c7e05634636b17e2bccf850`, with mathlib pinned transitively
   at `fabf563a7c95a166b8d7b6efca11c8b4dc9d911f`. The opt-in adapter now exposes
   real powdr-backed `State`, `Step`, `stepF`, and `runBytecode` wrappers. The
-  remaining work is the Counter simulation relation and per-entrypoint proof.
+  Counter storage relation now maps the IR `count` binding to the powdr account
+  storage word at ProofForge's EVM layout slot 0. The remaining work is the
+  per-entrypoint powdr `Step` proof.
   Confirm whether powdr exposes a Yul-level relation; otherwise the Yul→bytecode
   `solc` step remains an explicit trust boundary.
 - **What was landed:**
@@ -290,11 +292,14 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `StepF`, `BigStep`, and `Equiv` modules, exposes a seam-compatible
     `stepF : State → Except String State` wrapper, and checks the real
     `EvmSemantics.EVM.stepF_sound` surface.
+  - `EvmRefinement/CounterRefinement.lean` — opt-in Counter relation layer that
+    proves `count` is EVM scalar slot 0 and relates IR `count` to powdr
+    `AccountMap`/`Storage` over `UInt256`.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
 - **What was NOT done (deferred to the implementation agent):**
   - Wire the adapter into `Refinement.lean`'s theorems (that is Phase 6c).
-  - Wire the real powdr relation into Counter's per-entrypoint simulation
-    lemmas (that is Phase 6c).
+  - Prove Counter's per-entrypoint simulation lemmas against powdr `Step` (that
+    is Phase 6c).
 - **Deliverable (revised):** a clean powdr-target seam + documented opt-in
   dependency path (not a conformance-tested EVM bytecode semantics callable
   from ProofForge proofs yet — that is the implementation agent's next step).

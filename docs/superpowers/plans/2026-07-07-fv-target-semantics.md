@@ -171,6 +171,11 @@ surface. Remaining EVM work is E3.
   universal (`∀` call list) **IR↔EVM-bytecode** refinement. Also confirm whether powdr
   exposes a **Yul-level** relation; if not, document the Yul→bytecode (`solc`) step as an
   explicit trust boundary (the §2 granularity caveat).
+- **Progress:** `EvmRefinement/CounterRefinement.lean` now starts the E3 relation layer:
+  it proves the ProofForge EVM layout maps Counter `count` to scalar slot 0, defines the
+  IR `count` ↔ powdr `AccountMap`/`Storage` relation over `UInt256`, and proves the
+  relation after writing `count`. The remaining E3 work is the powdr bytecode
+  per-entrypoint simulation plus the universal trace lift.
 - **Acceptance:** a universally-quantified refinement theorem (IR Counter ⟷ powdr EVM
   `Step`, by `induction`, **not** `native_decide`) type-checks under the opt-in target;
   `docs/formal-verification.md` EVM Tier C-proof row updated from aspirational/blocked to
