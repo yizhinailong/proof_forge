@@ -309,6 +309,20 @@ theorem counterCompiledRuntimeCode_dispatches_get :
       (counterCallCalldata .get) 26 = true := by
   native_decide
 
+def counterInitializeTrampolineOffset : Nat := 60
+
+def counterInitializeTrampolineBytes : ByteArray :=
+  ByteArray.mk #[0x5b, 0x60, 0x42, 0x60, 0x46, 0x56]
+
+theorem counterInitializeTrampolineBytes_size :
+    counterInitializeTrampolineBytes.size = 6 := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_has_initialize_trampoline :
+    byteArrayHasSliceAt counterCompiledRuntimeCode
+      counterInitializeTrampolineBytes counterInitializeTrampolineOffset = true := by
+  native_decide
+
 def counterInitializeBodyOffset : Nat := 70
 
 def counterInitializeBodyBytes : ByteArray :=
