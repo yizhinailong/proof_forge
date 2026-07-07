@@ -33,55 +33,31 @@ theorem wasm_counter_target_semantics_trace_ok :
       ProofForge.Backend.WasmNear.Refinement.counterTraceObligation = true := by
   native_decide
 
-def evmTraceStep (object : Lean.Compiler.Yul.Object)
-    (storage : ProofForge.Backend.Evm.YulSemantics.WordBindings)
-    (call : TraceCall) :
-    Except String (ProofForge.Backend.Evm.YulSemantics.WordBindings × ObservableReturn) := do
-  let (storage, step) ←
-    ProofForge.Backend.Evm.Refinement.runEvmEntrypointObservable object storage call
-  .ok (storage, step.returnValue)
-
-def solanaTraceStep
-    (program : ProofForge.Backend.Solana.SbpfInterpreter.SbpfProgram)
-    (module : ProofForge.IR.Module)
-    (memory : ProofForge.Backend.Solana.SbpfInterpreter.Memory)
-    (call : TraceCall) :
-    Except String (ProofForge.Backend.Solana.SbpfInterpreter.Memory × ObservableReturn) := do
-  let (memory, step, _) ←
-    ProofForge.Backend.Solana.SbpfInterpreter.runEntrypointState
-      program module memory call
-  .ok (memory, step.returnValue)
-
-def wasmTraceStep (wasm : ProofForge.Compiler.Wasm.Module)
-    (state : ProofForge.Backend.WasmNear.WasmInterpreter.WasmState)
-    (call : TraceCall) :
-    Except String (ProofForge.Backend.WasmNear.WasmInterpreter.WasmState × ObservableReturn) := do
-  let state ← ProofForge.Backend.WasmNear.WasmInterpreter.runExport wasm state call
-  let returnValue ←
-    ProofForge.Backend.WasmNear.WasmInterpreter.observeEntrypoint call.entrypoint state
-  .ok (state, returnValue)
-
 #check (fun (object : Lean.Compiler.Yul.Object) calls storage =>
   runTraceListGen_sound
-    (MachineState := ProofForge.Backend.Evm.YulSemantics.WordBindings)
+    (MachineState := ProofForge.Backend.Evm.Refinement.EvmYulMachineState)
     (Call := TraceCall)
-    (Obs := ObservableReturn)
-    (evmTraceStep object) calls storage)
+    (Obs := ObservableStep)
+    ProofForge.Backend.Evm.Refinement.evmYulTargetSemantics.traceStep calls
+    ({ object, storage } : ProofForge.Backend.Evm.Refinement.EvmYulMachineState))
 
 #check (fun (program : ProofForge.Backend.Solana.SbpfInterpreter.SbpfProgram)
     (module : ProofForge.IR.Module) calls memory =>
   runTraceListGen_sound
-    (MachineState := ProofForge.Backend.Solana.SbpfInterpreter.Memory)
+    (MachineState := ProofForge.Backend.Solana.Refinement.SolanaSbpfMachineState)
     (Call := TraceCall)
-    (Obs := ObservableReturn)
-    (solanaTraceStep program module) calls memory)
+    (Obs := ObservableStep)
+    ProofForge.Backend.Solana.Refinement.solanaSbpfTargetSemantics.traceStep calls
+    ({ program, module, memory } :
+      ProofForge.Backend.Solana.Refinement.SolanaSbpfMachineState))
 
 #check (fun (wasm : ProofForge.Compiler.Wasm.Module) calls state =>
   runTraceListGen_sound
-    (MachineState := ProofForge.Backend.WasmNear.WasmInterpreter.WasmState)
+    (MachineState := ProofForge.Backend.WasmNear.Refinement.WasmNearMachineState)
     (Call := TraceCall)
-    (Obs := ObservableReturn)
-    (wasmTraceStep wasm) calls state)
+    (Obs := ObservableStep)
+    ProofForge.Backend.WasmNear.Refinement.wasmNearTargetSemantics.traceStep calls
+    ({ wasm, state } : ProofForge.Backend.WasmNear.Refinement.WasmNearMachineState))
 
 end ProofForge.Tests.TargetSemanticsInstances
 

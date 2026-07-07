@@ -10,6 +10,7 @@ import ProofForge.Contract.Examples.ValueVault
 import ProofForge.Contract.Examples.ValueVaultInvariant
 import ProofForge.Backend.WasmNear.Refinement.Core
 import ProofForge.Backend.WasmNear.WasmInterpreter
+import ProofForge.IR.StepSemantics
 
 namespace ProofForge.Backend.WasmNear.Refinement
 
@@ -155,50 +156,28 @@ def wasmExecutableTraceOk (obligation : TraceObligation) : Bool :=
 structure WasmNearMachineState where
   wasm : ProofForge.Compiler.Wasm.Module
   state : ProofForge.Backend.WasmNear.WasmInterpreter.WasmState
-  call : TraceCall
-  result? : Option (ProofForge.Backend.WasmNear.WasmInterpreter.WasmState × ObservableReturn) := none
 
-def WasmNearMachineState.step (machine : WasmNearMachineState) :
-    Except String WasmNearMachineState := do
-  match machine.result? with
-  | some _ => .ok machine
-  | none =>
-      let state ←
-        ProofForge.Backend.WasmNear.WasmInterpreter.runExport
-          machine.wasm machine.state machine.call
-      let observable ←
-        ProofForge.Backend.WasmNear.WasmInterpreter.observeEntrypoint
-          machine.call.entrypoint state
-      .ok { machine with
-        state
-        result? := some (state, observable)
-      }
-
-def WasmNearMachineState.run : Nat → WasmNearMachineState →
-    Except String WasmNearMachineState
-  | 0, machine =>
-      match machine.result? with
-      | some _ => .ok machine
-      | none => .error "Wasm-NEAR target semantics fuel exhausted"
-  | fuel + 1, machine => do
-      match machine.result? with
-      | some _ => .ok machine
-      | none =>
-          let machine ← machine.step
-          WasmNearMachineState.run fuel machine
-
-def WasmNearMachineState.observe (machine : WasmNearMachineState) :
-    ObservableReturn :=
-  match machine.result? with
-  | some (_, observable) => observable
-  | none => .reverted "Wasm-NEAR target semantics has not executed a call"
+def WasmNearMachineState.traceStep (machine : WasmNearMachineState) (call : TraceCall) :
+    Except String (WasmNearMachineState × ObservableStep) := do
+  let state ←
+    ProofForge.Backend.WasmNear.WasmInterpreter.runExport
+      machine.wasm machine.state call
+  let observable ←
+    ProofForge.Backend.WasmNear.WasmInterpreter.observeEntrypoint
+      call.entrypoint state
+  .ok ({ machine with state }, {
+    entrypointName := call.entrypoint.name
+    returnValue := observable
+  })
 
 def wasmNearTargetSemantics : TargetSemantics := {
   id := "wasm-near"
   MachineState := WasmNearMachineState
-  step := WasmNearMachineState.step
-  run := WasmNearMachineState.run
-  observe := WasmNearMachineState.observe
+  Call := TraceCall
+  Obs := ObservableStep
+  traceStep := WasmNearMachineState.traceStep
+  runTrace := fun calls state => ProofForge.IR.StepSemantics.runTraceListGen
+    WasmNearMachineState.traceStep calls state
   executableTraceOk := wasmExecutableTraceOk
 }
 

@@ -220,9 +220,10 @@ structure TargetSemantics where
   id : String := "anonymous-target-semantics"
   supportedFragments : Array FormalFragment := #[]
   MachineState : Type
-  step : MachineState → Except String MachineState
-  run : Nat → MachineState → Except String MachineState
-  observe : MachineState → ObservableReturn
+  Call : Type
+  Obs : Type
+  traceStep : MachineState → Call → Except String (MachineState × Obs)
+  runTrace : List Call → MachineState → Except String (MachineState × Array Obs)
   executableTraceOk : TraceObligation → Bool
 
 def TargetSemantics.supportsProofFragment

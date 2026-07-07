@@ -413,46 +413,21 @@ def evmYulTraceOk (obligation : TraceObligation) : Bool :=
 structure EvmYulMachineState where
   object : Lean.Compiler.Yul.Object
   storage : ProofForge.Backend.Evm.YulSemantics.WordBindings := []
-  call : TraceCall
-  result? : Option (ProofForge.Backend.Evm.YulSemantics.WordBindings × ObservableReturn) := none
 
-def EvmYulMachineState.step (state : EvmYulMachineState) :
-    Except String EvmYulMachineState := do
-  match state.result? with
-  | some _ => .ok state
-  | none =>
-      let (storage, observableStep) ←
-        runEvmEntrypointObservable state.object state.storage state.call
-      .ok { state with
-        storage
-        result? := some (storage, observableStep.returnValue)
-      }
-
-def EvmYulMachineState.run : Nat → EvmYulMachineState →
-    Except String EvmYulMachineState
-  | 0, state =>
-      match state.result? with
-      | some _ => .ok state
-      | none => .error "EVM Yul target semantics fuel exhausted"
-  | fuel + 1, state => do
-      match state.result? with
-      | some _ => .ok state
-      | none =>
-          let state ← state.step
-          EvmYulMachineState.run fuel state
-
-def EvmYulMachineState.observe (state : EvmYulMachineState) :
-    ObservableReturn :=
-  match state.result? with
-  | some (_, observable) => observable
-  | none => .reverted "EVM Yul target semantics has not executed a call"
+def EvmYulMachineState.traceStep (state : EvmYulMachineState) (call : TraceCall) :
+    Except String (EvmYulMachineState × ObservableStep) := do
+  let (storage, observableStep) ←
+    runEvmEntrypointObservable state.object state.storage call
+  .ok ({ state with storage }, observableStep)
 
 def evmYulTargetSemantics : TargetSemantics := {
   id := "evm-yul-subset"
   MachineState := EvmYulMachineState
-  step := EvmYulMachineState.step
-  run := EvmYulMachineState.run
-  observe := EvmYulMachineState.observe
+  Call := TraceCall
+  Obs := ObservableStep
+  traceStep := EvmYulMachineState.traceStep
+  runTrace := fun calls state => ProofForge.IR.StepSemantics.runTraceListGen
+    EvmYulMachineState.traceStep calls state
   executableTraceOk := evmYulTraceOk
 }
 

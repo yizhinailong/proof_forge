@@ -67,9 +67,12 @@ def counterModelTargetSemantics : TargetSemantics := {
   id := "counter-model"
   supportedFragments := #[.counter]
   MachineState := Nat
-  step := fun count => .ok count
-  run := fun _fuel count => .ok count
-  observe := fun count => .u64 count
+  Call := CounterCall
+  Obs := ObservableReturn
+  traceStep := fun count call =>
+    let (nextCount, observable) := targetStep count call
+    .ok (nextCount, observable)
+  runTrace := fun calls count => .ok (targetRunTraceList calls count)
   executableTraceOk := fun obligation => FormalFragment.counter.acceptsModule obligation.module
 }
 

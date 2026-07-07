@@ -2,6 +2,7 @@ import ProofForge.Backend.Refinement.Core
 import ProofForge.Backend.Solana.SbpfInterpreter
 import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.IR.Semantics
+import ProofForge.IR.StepSemantics
 import ProofForge.IR.Examples.ArrayProbe
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.EvmMapProbe
@@ -82,46 +83,21 @@ structure SolanaSbpfMachineState where
   program : SbpfProgram
   module : Module
   memory : Memory := #[]
-  call : TraceCall
-  result? : Option (Memory × ObservableReturn) := none
 
-def SolanaSbpfMachineState.step (state : SolanaSbpfMachineState) :
-    Except String SolanaSbpfMachineState := do
-  match state.result? with
-  | some _ => .ok state
-  | none =>
-      let (memory, observableStep, _) ←
-        runEntrypointState state.program state.module state.memory state.call
-      .ok { state with
-        memory
-        result? := some (memory, observableStep.returnValue)
-      }
-
-def SolanaSbpfMachineState.run : Nat → SolanaSbpfMachineState →
-    Except String SolanaSbpfMachineState
-  | 0, state =>
-      match state.result? with
-      | some _ => .ok state
-      | none => .error "Solana sBPF target semantics fuel exhausted"
-  | fuel + 1, state => do
-      match state.result? with
-      | some _ => .ok state
-      | none =>
-          let state ← state.step
-          SolanaSbpfMachineState.run fuel state
-
-def SolanaSbpfMachineState.observe (state : SolanaSbpfMachineState) :
-    ObservableReturn :=
-  match state.result? with
-  | some (_, observable) => observable
-  | none => .reverted "Solana sBPF target semantics has not executed a call"
+def SolanaSbpfMachineState.traceStep (state : SolanaSbpfMachineState) (call : TraceCall) :
+    Except String (SolanaSbpfMachineState × ObservableStep) := do
+  let (memory, observableStep, _) ←
+    runEntrypointState state.program state.module state.memory call
+  .ok ({ state with memory }, observableStep)
 
 def solanaSbpfTargetSemantics : TargetSemantics := {
   id := "solana-sbpf-asm"
   MachineState := SolanaSbpfMachineState
-  step := SolanaSbpfMachineState.step
-  run := SolanaSbpfMachineState.run
-  observe := SolanaSbpfMachineState.observe
+  Call := TraceCall
+  Obs := ObservableStep
+  traceStep := SolanaSbpfMachineState.traceStep
+  runTrace := fun calls state => ProofForge.IR.StepSemantics.runTraceListGen
+    SolanaSbpfMachineState.traceStep calls state
   executableTraceOk := sbpfExecutableTraceOk
 }
 
