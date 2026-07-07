@@ -705,13 +705,27 @@ external dependency, but the external differential gate stays (Background "Two-h
 > `native_decide`). MISSING: the generic core is **not separated** (`runNearHostCall` is
 > inlined at :226), no per-instruction lemmas, no C-proof.
 >
-> **Chain order — NEAR → CosmWasm → ICP:**
-> - **NEAR** — the reference (interpreter exists; synchronous host storage read/write).
-> - **CosmWasm** — the second chain; **proves the core is chain-generic** (just swap the host
->   model: `db_read`/`db_write`). This is the killer test of the WASM-family thesis.
-> - **ICP — DEFERRED.** Its async inter-canister + update/query split + Candid + cycles do NOT
->   fit the current synchronous IR effect set; it needs the **"IR async effect" design first**
->   (execution-plan §2.4). Do NOT start ICP on adapter momentum — it is not a host-model swap.
+> **WASM host-family map — you add a HOST, not a chain (one host serves many chains).**
+> The WASM contract chains cluster into a few host families; formalize per host family,
+> prioritized by reach. `WasmExec` (the core) is shared by ALL of them; each row is a thin
+> `*Host.lean`.
+>
+> | Host family (`*Host.lean`) | Chains it serves | Fit / when |
+> |---|---|---|
+> | **NEAR** | NEAR | reference (WASM-2) — synchronous storage |
+> | **CosmWasm** (`db_read`/`db_write`, JSON msg) | the **entire Cosmos WASM ecosystem** — Secret, Sei, Injective, Osmosis, Juno, Neutron, Archway, Nibiru, Terra… | **2nd host (WASM-5b)** — highest reach; the killer chain-genericity test |
+> | **Soroban** (storage + TTL, XDR values) | Stellar Soroban | 3rd — clean sync host (simplest of the three per the SDK survey) |
+> | **MultiversX** | MultiversX | sync host; later |
+> | **Concordium** | Concordium | sync host; later |
+> | **Casper** (Odra) | Casper | sync host; needs a target note first |
+> | **ink!/Substrate** | Polkadot, Aleph Zero, Astar | sync host, BUT Polkadot is moving to PolkaVM/RISC-V — check before investing |
+> | **EVM (Stylus)** — SPECIAL | Arbitrum Stylus | **its host IS the EVM**: Stylus WASM shares EVM storage slots + account model + Solidity ABI (MultiVM). So Stylus = `WasmExec` core **+ the EVM host we already formalize via powdr (E-lane)** — the WASM and EVM lanes MEET here. Advanced, high-value cross-over |
+> | **Radix** (Scrypto) — different model | Radix | asset/resource-oriented, not a plain storage host; may not fit the generic pattern — research first |
+> | **ICP / Vara-Gear** — DEFERRED (async) | ICP, Vara/Gear | async inter-canister / actor messaging does NOT fit the synchronous IR effect set; needs the **"IR async effect" design first** (execution-plan §2.4). Not a host-model swap |
+>
+> **Order:** NEAR (WASM-2) → CosmWasm (WASM-5b, dozens of chains) → Soroban → MultiversX /
+> Concordium / Casper / ink! (each a thin host) → Stylus (EVM-host cross-over) → ICP / Vara
+> (after the async-effect design). **One core, N hosts — that is the whole point.**
 >
 > **Two-hop trust (keep forever):** "our WASM interpreter ≈ real wasmtime" stays checked by the
 > external offline-host / wasmtime differential gate. **Non-goals (external gate):** NEAR
