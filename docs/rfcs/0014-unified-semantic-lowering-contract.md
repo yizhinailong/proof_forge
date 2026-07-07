@@ -854,21 +854,24 @@ A full feasibility assessment has been completed and is recorded in
   [`docs/tier-c-proof-feasibility.md`](../tier-c-proof-feasibility.md).
 - **Phase 6b — Integrate `powdr-labs/evm-semantics` as an opt-in EVM refinement target.**
   Add `powdr-labs/evm-semantics` as a pinned, opt-in `lake` dependency for EVM
-  refinement modules only; keep the default build mathlib-free. Provide a thin adapter
-  `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` exposing powdr's `State` / `Step` /
-  executable `stepF` aligned with `ObservableStep`. Deliverable: a conformance-gated EVM
-  bytecode semantics callable from Lean proofs.
-  **Status (2026-07-07): preferred target selected — seam only.** The earlier
+  refinement modules only; keep the default build mathlib-free. Provide a thin opt-in
+  adapter exposing powdr's `State` / `Step` / executable `stepF` aligned with
+  `ObservableStep`. Deliverable: a conformance-gated EVM bytecode semantics callable
+  from Lean proofs.
+  **Status (2026-07-07): powdr target wired; Phase 6b unblocked.** The earlier
   `EVMYulLean` route was investigated and blocked by a Lean toolchain + mathlib version
-  mismatch (`v4.22.0` vs ProofForge's `v4.31.0`). The `require` entry was NOT added to
-  `lakefile.lean`; `lake build` stays green. The seam now mirrors
-  `powdr-labs/evm-semantics`: a stub `State`, relational `Step`, executable-shadow
-  `stepF`, `runBytecode`, and sorry-free stub theorems (`stepF_sound`, `step_noop`,
-  `runBytecode_empty`). The remaining work is to pin powdr behind an opt-in target, keep
-  mathlib out of the default target graph, and replace the stub bodies with real
-  `EvmSemantics` imports. Confirm whether powdr exposes a Yul-level relation; otherwise
-  the Yul→bytecode `solc` step remains an explicit trust boundary. See
-  [tier-c-proof-feasibility.md §2](../tier-c-proof-feasibility.md).
+  mismatch (`v4.22.0` vs ProofForge's `v4.31.0`). The refinement target is now
+  `powdr-labs/evm-semantics`, pinned in `lakefile.lean` and `lake-manifest.json` behind
+  the opt-in `EvmRefinement` target, so default `lake build` remains mathlib-free while
+  `lake build EvmRefinement` imports the real `EvmSemantics` modules. The default-build
+  seam in `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` remains a mathlib-free stub
+  by design; the real wrapper is `EvmRefinement/PowdrAdapter.lean`, which exposes
+  powdr-backed `State`, `Step`, `stepF`, `runBytecode`, and the `runBytecode_steps`
+  bridge to powdr's relational `Steps`. The pinned powdr tree exposes bytecode semantics,
+  not a Yul-level relation, so the Yul→bytecode `solc` step remains an explicit trust
+  boundary. Remaining Phase 6c work is the Counter per-entrypoint powdr `Step` proof,
+  currently reduced to prepared-frame EVM-only storage postconditions against the
+  compiled runtime. See [tier-c-proof-feasibility.md §2](../tier-c-proof-feasibility.md).
 - **Phase 6c — Prove IR → bytecode refinement for Counter.** Define the simulation relation
   `R : IR.State ↔ EVM.State` for the Counter module (single U64 scalar → one storage slot);
   prove `R`-simulation for `initialize`/`increment`/`get`; lift to a trace theorem by

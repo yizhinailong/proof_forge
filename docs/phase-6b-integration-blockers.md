@@ -1,6 +1,6 @@
 # Phase 6b — EVM semantics target switch and integration blockers
 
-Status: **preferred target switched to `powdr-labs/evm-semantics`; opt-in target and wrapper landed, default seam still stubbed.**
+Status: **preferred target switched to `powdr-labs/evm-semantics`; opt-in target and wrapper landed, default mathlib-free seam remains stubbed by design.**
 Date: 2026-07-07.
 RFC: RFC 0014 Phase 6b (Path 5b — Tier C-proof).
 Roadmap: `docs/tier-c-proof-feasibility.md` §5 Phase 6b.
@@ -145,21 +145,20 @@ Yul→bytecode `solc` step as an explicit trust boundary.
 
 ## (e) Files changed (Phase 6b, blocked-seam deliverable)
 
-- `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` (new/updated) — stub
-  adapter with the public surface (`State`, `Step`, `stepF`, `step`,
-  `runBytecode`) aligned to the powdr target shape and
-  `Refinement.ObservableStep`, `sorry`-free stub theorems (`stepF_sound`,
-  `step_noop`, `runBytecode_empty`), and a module docstring recording the
-  target switch.
-  Compiles with NO external dependency (imports only
-  `ProofForge.Backend.Evm.Refinement`).
+- `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` (new/updated) — the
+  default-build, mathlib-free adapter seam with the public surface (`State`,
+  `Step`, `stepF`, `step`, `runBytecode`) aligned to the powdr target shape
+  and `Refinement.ObservableStep`. Its stub body is intentional fallback
+  surface; real powdr imports live in the opt-in `EvmRefinement` target.
 - `docs/phase-6b-integration-blockers.md` (new/updated — this file).
 - `docs/tier-c-proof-feasibility.md` (modified) — Phase 6b section marked
-  "blocked — seam only (2026-07-07)" with a one-paragraph note.
+  as powdr-target wired, with the EVMYulLean blocker retained as historical
+  context/fallback.
 - `docs/rfcs/0014-unified-semantic-lowering-contract.md` (modified) —
-  Path 5b Phase 6b status updated to "blocked — seam only".
+  Path 5b Phase 6b status updated to powdr-target wired and Phase 6b
+  unblocked.
 - `docs/zh/rfcs/0014-unified-semantic-lowering-contract.zh.md` (modified)
-  — Path 5b Phase 6b status updated (zh translation sync).
+  — Path 5b Phase 6b status updated by zh translation sync.
 - `lakefile.lean` — modified to add the pinned `evm_semantics` dependency and
   an opt-in `EvmRefinement` target; the default `proof-forge` target does not
   import powdr/mathlib.
@@ -212,8 +211,7 @@ Yul→bytecode `solc` step as an explicit trust boundary.
 ## (f) Verification
 
 - `lake build ProofForge.Backend.Evm.EvmBytecodeSemantics` — green (the
-  stub module compiles with no external dependency; only imports
-  `ProofForge.Backend.Evm.Refinement` which already builds).
+  default mathlib-free seam compiles with no external dependency).
 - `lake build proof-forge` — green; default target does not build powdr/mathlib.
 - `lake build EvmRefinement` — green; builds the opt-in powdr/mathlib adapter
   target.
@@ -256,8 +254,8 @@ Yul→bytecode `solc` step as an explicit trust boundary.
 
 - `docs/tier-c-proof-feasibility.md` Phase 6b: marked as powdr-target seam,
   with the old EVMYulLean mismatch retained as historical blocker/fallback.
-- RFC 0014 Path 5b Phase 6b: status updated to the powdr target switch and
-  opt-in mathlib isolation plan, cross-referencing this file.
+- RFC 0014 Path 5b Phase 6b: status updated to powdr-target wired and Phase
+  6b unblocked, cross-referencing this file.
 
 ## (h) Remaining proof boundary
 

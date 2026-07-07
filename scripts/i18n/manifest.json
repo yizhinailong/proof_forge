@@ -95,6 +95,11 @@
     "zh": "docs/zh/rfcs/0004-evm-semantic-plan.zh.md",
     "model": "gemini-3-flash-preview"
   },
+  "docs/rfcs/0014-unified-semantic-lowering-contract.md": {
+    "sha256": "17b6f8d8188b0e36810f8e675dbc88b7940298771f54e371b91523ba3f64dcf5",
+    "zh": "docs/zh/rfcs/0014-unified-semantic-lowering-contract.zh.md",
+    "model": "manual"
+  },
   "docs/targets/README.md": {
     "sha256": "c868eace5ce86443309e6a710243cf114f3077a9499b4797af7d7a2b6b88a30a",
     "zh": "docs/zh/targets-README.zh.md",

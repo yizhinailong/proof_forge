@@ -369,9 +369,11 @@ ProofForge's default build still avoids powdr/mathlib imports.
     postconditions against powdr `Step`; the ordinary postconditions and safe
     per-entrypoint obligations then follow from the bridge/conversion theorems
     (that is Phase 6c).
-- **Deliverable (revised):** a clean powdr-target seam + documented opt-in
-  dependency path (not a conformance-tested EVM bytecode semantics callable
-  from ProofForge proofs yet — that is the implementation agent's next step).
+- **Deliverable (revised):** a clean powdr-target seam plus the opt-in
+  dependency path and wrapper. The conformance-tested EVM bytecode semantics is
+  now callable from the `EvmRefinement` target; the implementation agent's next
+  step is the Counter per-entrypoint simulation proof against that powdr
+  `Step`, currently reduced to prepared-frame storage postconditions.
 
 ### Phase 6c — Prove IR → bytecode refinement for Counter
 
