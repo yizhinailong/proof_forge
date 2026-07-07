@@ -41,6 +41,34 @@ Starknet uses provable execution, but the product target is a chain contract
 class and deployed contract instance. That is different from `psy-dpn`, where
 the primary output is a circuit package.
 
+## Lean 4 semantics availability — the FV-import path (2026-07)
+
+Unlike most sourcegen targets, Cairo has an **existing Lean 4 formal semantics**, which
+makes Starknet a **double-path candidate: sourcegen (deploy) AND FV-import (verify)**.
+
+- **[`starkware-libs/formal-proofs`](https://github.com/starkware-libs/formal-proofs)** — a
+  Lean project (the `main` folder is Lean 4; a `lean3` folder holds legacy CairoZero work).
+  It contains a specification of the **Cairo CPU/VM execution semantics** (`Cpu.lean`,
+  `Vm.lean`), a proof of the **AIR (STARK) encoding** correctness, and soundness/completeness
+  proofs for a growing set of Cairo **libfuncs**. It is a proof-producing-compiler line of
+  work (papers: CPP 2022 "A verified algebraic representation of Cairo program execution";
+  JAR 2025 "A Proof-Producing Compiler for Blockchain Applications").
+
+Because the Cairo VM semantics is an *executable/relational Lean 4 model*, ProofForge can
+treat Cairo like the EVM lane treats `powdr-labs/evm-semantics`: **refine the portable IR
+against Cairo's `Step` via the shared `CounterUniversal` induction.** See the **ZK-import
+group** in
+[the FV target-semantics plan](../superpowers/plans/2026-07-07-fv-target-semantics.md) and
+the Lean-semantics axis in [execution-plan §6](../zh/execution-plan-2026-07.md).
+
+**Boundary (non-goal, like `solc`):** the STARK proving/verification stays external — we
+prove IR ⟷ Cairo's computed function; "the STARK is sound / the proof verifies" is
+StarkWare's `formal-proofs` job, not ProofForge's.
+
+**Prerequisite:** this FV path is **gated on first building the IR → Cairo codegen** (the
+sourcegen Road below). No Lean semantics can be refined against an artifact that does not
+exist yet.
+
 ## Why This Matters For ProofForge
 
 ProofForge should model Starknet around Cairo contracts, contract classes, and
