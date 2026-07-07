@@ -148,11 +148,96 @@ def TraceObligation.irTraceOk (obligation : TraceObligation) : Bool :=
   | .ok actual => actual == obligation.expected
   | .error _ => false
 
+inductive FormalFragment where
+  | counter
+  deriving Repr, BEq, DecidableEq
+
+def FormalFragment.id : FormalFragment → String
+  | .counter => "counter"
+
+def noArgFunctionReturning (entrypoint : Entrypoint) (name : String)
+    (returns : ValueType) : Bool :=
+  entrypoint.name == name &&
+    entrypoint.kind == .function &&
+    entrypoint.params.size == 0 &&
+    entrypoint.returns == returns
+
+def isCounterStateDecl (decl : StateDecl) : Bool :=
+  decl.id == "count" &&
+    decl.kind == .scalar &&
+    decl.type == .u64
+
+def isCounterInitializeEntrypoint (entrypoint : Entrypoint) : Bool :=
+  noArgFunctionReturning entrypoint "initialize" .unit &&
+    entrypoint.selector? == some "8129fc1c" &&
+    match entrypoint.body.toList with
+    | [.effect (.storageScalarWrite stateId (.literal (.u64 0)))] =>
+        stateId == "count"
+    | _ => false
+
+def isCounterIncrementEntrypoint (entrypoint : Entrypoint) : Bool :=
+  noArgFunctionReturning entrypoint "increment" .unit &&
+    entrypoint.selector? == some "d09de08a" &&
+    match entrypoint.body.toList with
+    | [
+        .letBind localName localType (.effect (.storageScalarRead readStateId)),
+        .effect (.storageScalarWrite writeStateId
+          (.add (.local addLocalName) (.literal (.u64 1))))
+      ] =>
+        localName == "n" &&
+          localType == .u64 &&
+          readStateId == "count" &&
+          writeStateId == "count" &&
+          addLocalName == "n"
+    | _ => false
+
+def isCounterGetEntrypoint (entrypoint : Entrypoint) : Bool :=
+  noArgFunctionReturning entrypoint "get" .u64 &&
+    entrypoint.selector? == some "6d4ce63c" &&
+    match entrypoint.body.toList with
+    | [.return (.effect (.storageScalarRead stateId))] =>
+        stateId == "count"
+    | _ => false
+
+def isCounterModule (module : Module) : Bool :=
+  module.name == "Counter" &&
+    module.structs.size == 0 &&
+    module.evmProxyPattern?.isNone &&
+    module.nearCrosscallStrings.size == 0 &&
+    !module.overflowChecked &&
+    match module.state.toList, module.entrypoints.toList with
+    | stateDecl :: [], entry0 :: entry1 :: entry2 :: [] =>
+        isCounterStateDecl stateDecl &&
+          isCounterInitializeEntrypoint entry0 &&
+          isCounterIncrementEntrypoint entry1 &&
+          isCounterGetEntrypoint entry2
+    | _, _ => false
+
+def FormalFragment.acceptsModule : FormalFragment → Module → Bool
+  | .counter, module => isCounterModule module
+
 structure TargetSemantics where
+  id : String := "anonymous-target-semantics"
+  supportedFragments : Array FormalFragment := #[]
   MachineState : Type
   step : MachineState → Except String MachineState
   run : Nat → MachineState → Except String MachineState
   observe : MachineState → ObservableReturn
   executableTraceOk : TraceObligation → Bool
+
+def TargetSemantics.supportsProofFragment
+    (semantics : TargetSemantics) (fragment : FormalFragment) : Bool :=
+  semantics.supportedFragments.any (fun supported => supported == fragment)
+
+def TargetSemantics.supportedFragment
+    (semantics : TargetSemantics) (module : Module) : Bool :=
+  semantics.supportedFragments.any (fun fragment => fragment.acceptsModule module)
+
+def TargetSemantics.requireSupportedFragment
+    (semantics : TargetSemantics) (module : Module) : Except String Module :=
+  if semantics.supportedFragment module then
+    .ok module
+  else
+    .error s!"target semantics `{semantics.id}` does not support module `{module.name}` in its proved fragment"
 
 end ProofForge.Backend.Refinement

@@ -63,6 +63,16 @@ def targetRunTraceList : List CounterCall → Nat → Nat × Array ObservableRet
       let (finalCount, observables) := targetRunTraceList rest nextCount
       (finalCount, #[observable] ++ observables)
 
+def counterModelTargetSemantics : TargetSemantics := {
+  id := "counter-model"
+  supportedFragments := #[.counter]
+  MachineState := Nat
+  step := fun count => .ok count
+  run := fun _fuel count => .ok count
+  observe := fun count => .u64 count
+  executableTraceOk := fun obligation => FormalFragment.counter.acceptsModule obligation.module
+}
+
 def CounterStateRel (state : State) (count : Nat) : Prop :=
   state.read "count" = some (.u64 count)
 
