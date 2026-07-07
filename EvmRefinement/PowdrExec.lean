@@ -53,6 +53,14 @@ theorem runSteps_of_executionSegment
       .ok (finalState, (#[] : Array ObservableStep)) := by
   exact runSteps_of_stepFEPath_done segment.path
 
+theorem executionSegment_of_stepFEPath
+    {fuel : Nat} {post : State → State → Prop} {state finalState : State}
+    (path : StepFEPath state fuel finalState)
+    (hpost : post state finalState) :
+    ExecutionSegment fuel post state finalState :=
+  { path := path
+    postcondition := hpost }
+
 theorem executionSegment_single
     {post : State → State → Prop} {state nextState : State}
     (hrunning : state.halt = .Running)

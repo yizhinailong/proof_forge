@@ -8681,8 +8681,8 @@ theorem counterPreparedInitializeSegmentModel_of_stepFE_path
       path.hready35 path.hstep35
   refine
     { segment :=
-        { path := counterPreparedInitializeStepFEPath_to_path path
-          postcondition := ?_ } }
+        ProofForge.Backend.Evm.PowdrExec.executionSegment_of_stepFEPath
+          (counterPreparedInitializeStepFEPath_to_path path) ?_ }
   refine ⟨hhalt, hcallStackPrepared, ?_, hobs⟩
   rw [hstorageRun, hstoragePrefix]
 
