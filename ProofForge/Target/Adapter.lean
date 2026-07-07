@@ -135,6 +135,17 @@ def defaultResolve (profile : TargetProfile) (spec : ProofForge.Contract.Contrac
       match ProofForge.Contract.UpgradePolicy.checkSupported profile.id policy spec.proxyPattern? with
       | .ok () => pure ()
       | .error message => .error { message }
+  -- FV-5 checked-overflow gate: a module that declares `overflowChecked`
+  -- (Solidity-0.8-style revert-on-overflow) can only resolve to a target whose
+  -- profile declares the `arith.checked` capability. This is a standalone gate
+  -- (separate from the per-call capability plan) because `overflowChecked` is a
+  -- module-level property that the per-intent call derivation does not surface.
+  if spec.module.overflowChecked && !(profile.capabilities.contains .checkedArithmetic) then
+    .error {
+      message := s!"target `{profile.id}` does not support capability `arith.checked`: \
+        module `{spec.module.name}` declares checked overflow but the target profile \
+        lowers to wrapping arithmetic (silent overflow)"
+    }
   let plan : CapabilityPlan := {
     targetId := profile.id
     calls := capabilityCallsForSpec spec

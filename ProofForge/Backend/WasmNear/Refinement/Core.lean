@@ -26,6 +26,7 @@ inductive ObservableReturn where
   | u32 (value : Nat)
   | u64 (value : Nat)
   | hash (a b c d : Nat)
+  | reverted (message : String)
   deriving Repr, BEq, DecidableEq
 
 structure ObservableStep where
@@ -54,9 +55,17 @@ def observableReturn (expectedType : ValueType) (value? : Option ProofForge.IR.S
 
 def runEntrypointObservable (state : ProofForge.IR.Semantics.State) (entrypoint : Entrypoint) :
     Except String (ProofForge.IR.Semantics.State × ObservableStep) := do
-  let (nextState, result?) ← ProofForge.IR.Semantics.runEntrypoint state entrypoint
-  let returnValue ← observableReturn entrypoint.returns result?
-  .ok (nextState, { exportName := entrypoint.name, returnValue := returnValue })
+  -- Revert-aware trace: a contract revert is a first-class observable outcome.
+  -- State is *not* advanced on revert (chain rollback semantics); an interpreter
+  -- error still fails the trace.
+  match ProofForge.IR.Semantics.runEntrypointResult state entrypoint with
+  | .ok (nextState, result?) =>
+      let returnValue ← observableReturn entrypoint.returns result?
+      .ok (nextState, { exportName := entrypoint.name, returnValue := returnValue })
+  | .reverted message =>
+      .ok (state, { exportName := entrypoint.name, returnValue := .reverted message })
+  | .error message =>
+      .error message
 
 def runTraceList : List Entrypoint → ProofForge.IR.Semantics.State →
     Except String (ProofForge.IR.Semantics.State × Array ObservableStep)
@@ -422,6 +431,7 @@ def observableReturnHex : ObservableReturn → String
   | .u64 value => littleEndianHex 8 value
   | .hash a b c d =>
       littleEndianHex 8 a ++ littleEndianHex 8 b ++ littleEndianHex 8 c ++ littleEndianHex 8 d
+  | .reverted _ => ""
 
 def offlineHostReturnFragment : ObservableReturn → String
   | .none => "return=<none>"
@@ -430,6 +440,7 @@ def offlineHostReturnFragment : ObservableReturn → String
   | .u64 value => s!"return_hex={observableReturnHex (.u64 value)} return_u64={value}"
   | .hash a b c d =>
       s!"return_hex={observableReturnHex (.hash a b c d)} return_len=32"
+  | .reverted message => s!"reverted=true revert_reason={message}"
 
 structure OfflineHostExecutionStep where
   exportName : String

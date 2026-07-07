@@ -19,8 +19,12 @@ open ProofForge.Backend.Solana.Refinement
 -- entrypoint name; assembly-level execution semantics is future work).
 #check counter_sbpf_artifact_surface_ok
 
+-- Revert-aware trace obligation: a contract revert is observed as
+-- `ObservableReturn.reverted`, and state is not advanced (rollback semantics).
+#check revert_rollback_ir_trace_ok
+
 end ProofForge.Tests.SolanaRefinement
 
 def main : IO UInt32 := do
-  IO.println "solana-refinement-smoke: Counter IR observable trace + sBPF artifact-surface obligation checked via native_decide"
+  IO.println "solana-refinement-smoke: Counter IR observable trace + sBPF artifact-surface obligation + revert-aware rollback trace checked via native_decide"
   return 0

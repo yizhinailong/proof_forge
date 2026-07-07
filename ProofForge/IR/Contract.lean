@@ -306,6 +306,18 @@ structure Module where
   /-- NEAR EmitWat host strings indexed by `.literal (.address i)` (remote account/method
       names and local promise callback method names). -/
   nearCrosscallStrings : Array String := #[]
+  /-- Integer-overflow mode for this module's `Expr.add/.sub/.mul` nodes.
+
+      `false` (default): portable wrapping arithmetic — matches Solana (sBPF
+      `add64`/`mul64`) and NEAR (Wasm `i64.add`) native behavior. This is the
+      safe cross-target default.
+      `true`: checked arithmetic that reverts on overflow — matches EVM
+      Solidity-0.8 semantics. A module that sets this declares the
+      `arith.checked` capability and can only resolve to a target profile that
+      also declares it (currently EVM-only). See `docs/capability-registry.md`
+      "Semantic Divergence Notes — `arith.checked`" and FV-5 in
+      `docs/formal-verification.md`. -/
+  overflowChecked : Bool := false
   deriving Repr
 
 def Effect.capability : Effect → ProofForge.Target.Capability
@@ -493,6 +505,7 @@ def Entrypoint.capabilities (entrypoint : Entrypoint) : Array ProofForge.Target.
 def Module.capabilities (module : Module) : Array ProofForge.Target.Capability :=
   module.structs.foldl (fun acc decl => acc ++ decl.capabilities) #[] ++
     module.state.foldl (fun acc state => acc ++ state.capabilities) #[] ++
-    module.entrypoints.foldl (fun acc entrypoint => acc ++ entrypoint.capabilities) #[]
+    module.entrypoints.foldl (fun acc entrypoint => acc ++ entrypoint.capabilities) #[] ++
+    (if module.overflowChecked then #[.checkedArithmetic] else #[])
 
 end ProofForge.IR
