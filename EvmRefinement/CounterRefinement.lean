@@ -298,6 +298,13 @@ def counterStepFEReady (state : EvmState) (op : EvmSemantics.Operation) : Prop :
     ¬ state.stack.length + op.pushArity > 1024 + op.popArity ∧
     EvmSemantics.EVM.Gas.baseCost state.fork op ≤ state.gasAvailable
 
+theorem counterStepFEReady_to_powdr
+    {state : EvmState} {op : EvmSemantics.Operation}
+    (hready : counterStepFEReady state op) :
+    PowdrStepFEReady state op := by
+  rcases hready with ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  exact ⟨hrunning, hprecompile, hstackOk, hgas⟩
+
 theorem counterStack_of_push0_ok
     {state gasState nextState : EvmState}
     {argOpt : Option (EvmSemantics.UInt256 × Nat)}
@@ -344,7 +351,8 @@ theorem counterStack_of_stepFE_push0_ok
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     nextState.stack = EvmSemantics.UInt256.ofNat 0 :: state.stack := by
   have hready : PowdrStepFEReady state (.Push counterPush0Op) :=
-    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+    counterStepFEReady_to_powdr
+      ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstepGeneric :=
     ProofForge.Backend.Evm.PowdrExec.stepFE_push0_ok
       (op := counterPush0Op) (argOpt := argOpt) (by rfl) hready hdecoded
@@ -375,7 +383,8 @@ theorem counterState_of_stepFE_push0_ok
           (.Push counterPush0Op : EvmSemantics.Operation)) hgas).replaceStackAndIncrPC
         (EvmSemantics.UInt256.ofNat 0 :: state.stack) := by
   have hready : PowdrStepFEReady state (.Push counterPush0Op) :=
-    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+    counterStepFEReady_to_powdr
+      ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstepGeneric :=
     ProofForge.Backend.Evm.PowdrExec.stepFE_push0_ok
       (op := counterPush0Op) (argOpt := argOpt) (by rfl) hready hdecoded
@@ -438,7 +447,8 @@ theorem counterStack_of_stepFE_push1_ok
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     nextState.stack = value :: state.stack := by
   have hready : PowdrStepFEReady state (.Push counterPush1Op) :=
-    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+    counterStepFEReady_to_powdr
+      ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstepGeneric :=
     ProofForge.Backend.Evm.PowdrExec.stepFE_push_data_ok
       (op := counterPush1Op) (value := value) (argBytes := argBytes)
@@ -485,7 +495,8 @@ theorem counterState_of_stepFE_push1_ok
           (.Push counterPush1Op : EvmSemantics.Operation)) hgas).replaceStackAndIncrPC
         (value :: state.stack) (pcΔ := argBytes + 1) := by
   have hready : PowdrStepFEReady state (.Push counterPush1Op) :=
-    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+    counterStepFEReady_to_powdr
+      ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstepGeneric :=
     ProofForge.Backend.Evm.PowdrExec.stepFE_push_data_ok
       (op := counterPush1Op) (value := value) (argBytes := argBytes)
@@ -556,7 +567,8 @@ theorem counterState_of_stepFE_push4_ok
           (.Push counterPush4Op : EvmSemantics.Operation)) hgas).replaceStackAndIncrPC
         (value :: state.stack) (pcΔ := argBytes + 1) := by
   have hready : PowdrStepFEReady state (.Push counterPush4Op) :=
-    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+    counterStepFEReady_to_powdr
+      ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstepGeneric :=
     ProofForge.Backend.Evm.PowdrExec.stepFE_push_data_ok
       (op := counterPush4Op) (value := value) (argBytes := argBytes)
@@ -725,7 +737,8 @@ theorem counterStack_of_stepFE_dup1_ok
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
     nextState.stack = top :: top :: rest := by
   have hready : PowdrStepFEReady state (.Dup counterDup1Op) :=
-    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+    counterStepFEReady_to_powdr
+      ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstepGeneric :=
     ProofForge.Backend.Evm.PowdrExec.stepFE_dup_ok
       (op := counterDup1Op) (value := top) hready hdecoded
@@ -758,7 +771,8 @@ theorem counterState_of_stepFE_dup1_ok
           (.Dup counterDup1Op : EvmSemantics.Operation)) hgas).replaceStackAndIncrPC
         (top :: top :: rest) := by
   have hready : PowdrStepFEReady state (.Dup counterDup1Op) :=
-    ⟨hrunning, hprecompile, hstackOk, hgas⟩
+    counterStepFEReady_to_powdr
+      ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hindex : state.stack[counterDup1Op.idx.val]? = some top := by
     simp [counterDup1Op, hstack]
   have hstepGeneric :=
