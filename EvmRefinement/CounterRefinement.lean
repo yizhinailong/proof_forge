@@ -247,6 +247,37 @@ def setCounterStorageWord (address : EvmSemantics.AccountAddress)
       word := by
   simp [counterStorageValue, counterAccount]
 
+@[simp] theorem counterStorageValue_consumeGas
+    (address : EvmSemantics.AccountAddress) (slot : EvmSemantics.UInt256)
+    (state : EvmState) (gas : Nat) (hgas : gas ≤ state.gasAvailable) :
+    counterStorageValue address slot (state.consumeGas gas hgas) =
+      counterStorageValue address slot state := by
+  simp [counterStorageValue, counterAccount, EvmSemantics.EVM.State.consumeGas]
+
+@[simp] theorem counterStorageValue_incrPC
+    (address : EvmSemantics.AccountAddress) (slot : EvmSemantics.UInt256)
+    (state : EvmState) :
+    counterStorageValue address slot state.incrPC =
+      counterStorageValue address slot state := by
+  simp [counterStorageValue, counterAccount, EvmSemantics.EVM.State.incrPC]
+
+@[simp] theorem counterStorageValue_replaceStackAndIncrPC
+    (address : EvmSemantics.AccountAddress) (slot : EvmSemantics.UInt256)
+    (state : EvmState) (stack : List EvmSemantics.UInt256) (pcΔ : Nat) :
+    counterStorageValue address slot
+        (state.replaceStackAndIncrPC stack (pcΔ := pcΔ)) =
+      counterStorageValue address slot state := by
+  simp [counterStorageValue, counterAccount,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC]
+
+@[simp] theorem counterStorageValue_with_pc_stack
+    (address : EvmSemantics.AccountAddress) (slot : EvmSemantics.UInt256)
+    (state : EvmState) (pc : EvmSemantics.UInt256)
+    (stack : List EvmSemantics.UInt256) :
+    counterStorageValue address slot ({ state with pc := pc, stack := stack } : EvmState) =
+      counterStorageValue address slot state := by
+  simp [counterStorageValue, counterAccount]
+
 def counterPush0Op : EvmSemantics.Operation.PushOp :=
   { width := ⟨0, by decide⟩ }
 
