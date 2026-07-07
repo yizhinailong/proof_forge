@@ -14,6 +14,10 @@ namespace ProofForge.Backend.Evm.PowdrExecSmoke
 abbrev State := ProofForge.Backend.Evm.PowdrExec.State
 abbrev StepFEReady := ProofForge.Backend.Evm.PowdrExec.StepFEReady
 abbrev StepFEPath := ProofForge.Backend.Evm.PowdrExec.StepFEPath
+abbrev ExecutionSegment :=
+  ProofForge.Backend.Evm.PowdrExec.ExecutionSegment
+abbrev SegmentProvider :=
+  ProofForge.Backend.Evm.PowdrExec.SegmentProvider
 abbrev UInt256 := EvmSemantics.UInt256
 abbrev Operation := EvmSemantics.Operation
 
@@ -44,6 +48,62 @@ def sloadBalanceSlotPost (state : State)
 
 def stopPost (state : State) : State :=
   { state with halt := .Success, hReturn := .empty }
+
+def twoSlotReaderGetBalancePre (s0 : State) : Prop :=
+  ∃ (hpushReady : StepFEReady s0 (.Push twoSlotReaderPush1Op))
+    (_hpushDecoded :
+      s0.decoded =
+        some (.Push twoSlotReaderPush1Op,
+          some (twoSlotReaderBalanceSlot, 1)))
+    (_hsloadReady :
+      StepFEReady (pushBalanceSlotPost s0 hpushReady)
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps)))
+    (_hsloadDecoded :
+      (pushBalanceSlotPost s0 hpushReady).decoded =
+        some (.StackMemFlow
+          (.SLOAD : EvmSemantics.Operation.StackMemFlowOps), none))
+    (hsloadGas :
+      EvmSemantics.EVM.Gas.sloadTotal
+          (pushBalanceSlotPost s0 hpushReady) twoSlotReaderBalanceSlot ≤
+        (pushBalanceSlotPost s0 hpushReady).gasAvailable)
+    (_hstopReady :
+      StepFEReady
+        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady) hsloadGas)
+        (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps)))
+    (_hstopDecoded :
+      (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady)
+        hsloadGas).decoded =
+        some (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps), none)),
+    True
+
+def twoSlotReaderGetBalancePost (s0 finalState : State) : Prop :=
+  ∃ (hpushReady : StepFEReady s0 (.Push twoSlotReaderPush1Op))
+    (_hpushDecoded :
+      s0.decoded =
+        some (.Push twoSlotReaderPush1Op,
+          some (twoSlotReaderBalanceSlot, 1)))
+    (_hsloadReady :
+      StepFEReady (pushBalanceSlotPost s0 hpushReady)
+        (.StackMemFlow (.SLOAD : EvmSemantics.Operation.StackMemFlowOps)))
+    (_hsloadDecoded :
+      (pushBalanceSlotPost s0 hpushReady).decoded =
+        some (.StackMemFlow
+          (.SLOAD : EvmSemantics.Operation.StackMemFlowOps), none))
+    (hsloadGas :
+      EvmSemantics.EVM.Gas.sloadTotal
+          (pushBalanceSlotPost s0 hpushReady) twoSlotReaderBalanceSlot ≤
+        (pushBalanceSlotPost s0 hpushReady).gasAvailable)
+    (_hstopReady :
+      StepFEReady
+        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady) hsloadGas)
+        (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps)))
+    (_hstopDecoded :
+      (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady)
+        hsloadGas).decoded =
+        some (.StopArith (.STOP : EvmSemantics.Operation.StopArithOps), none)),
+    finalState =
+      stopPost
+        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady) hsloadGas)
 
 theorem twoSlotReader_getBalance_stepFEPath
     {s0 : State}
@@ -104,6 +164,37 @@ theorem twoSlotReader_getBalance_stepFEPath
     hpushReady.running hpushStep
     hsloadReady.running hsloadStep
     hstopReady.running hstopStep
+
+def twoSlotReaderGetBalanceSegmentProvider :
+    SegmentProvider twoSlotReaderGetBalancePre 3
+      twoSlotReaderGetBalancePost where
+  segment := by
+    intro s0 hpre
+    rcases hpre with
+      ⟨hpushReady, hpushDecoded, hsloadReady, hsloadDecoded,
+        hsloadGas, hstopReady, hstopDecoded, _⟩
+    refine
+      ⟨stopPost
+        (sloadBalanceSlotPost (pushBalanceSlotPost s0 hpushReady)
+          hsloadGas), ?_⟩
+    exact
+      { path :=
+          twoSlotReader_getBalance_stepFEPath hpushReady hpushDecoded
+            hsloadReady hsloadDecoded hsloadGas hstopReady hstopDecoded
+        postcondition :=
+          ⟨hpushReady, hpushDecoded, hsloadReady, hsloadDecoded,
+            hsloadGas, hstopReady, hstopDecoded, rfl⟩ }
+
+theorem twoSlotReader_getBalance_runSteps_from_segmentProvider
+    {s0 : State} (hpre : twoSlotReaderGetBalancePre s0) :
+    ∃ finalState,
+      ProofForge.Backend.Evm.PowdrExec.runSteps s0 3 =
+        .ok
+          (finalState,
+            (#[] : Array ProofForge.Backend.Evm.PowdrExec.ObservableStep)) ∧
+      twoSlotReaderGetBalancePost s0 finalState :=
+  ProofForge.Backend.Evm.PowdrExec.runSteps_post_of_segmentProvider
+    twoSlotReaderGetBalanceSegmentProvider hpre
 
 theorem twoSlotReader_getBalance_runSteps
     {s0 : State}
