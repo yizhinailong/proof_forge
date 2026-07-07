@@ -40,6 +40,38 @@ theorem runSteps_of_stepFEPath_done {fuel : Nat} {state finalState : State}
     runSteps state fuel = .ok (finalState, (#[] : Array ObservableStep)) := by
   exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath_done path
 
+structure ExecutionSegment
+    (fuel : Nat) (post : State → State → Prop)
+    (state finalState : State) : Prop where
+  path : StepFEPath state fuel finalState
+  postcondition : post state finalState
+
+theorem runSteps_of_executionSegment
+    {fuel : Nat} {post : State → State → Prop} {state finalState : State}
+    (segment : ExecutionSegment fuel post state finalState) :
+    runSteps state fuel =
+      .ok (finalState, (#[] : Array ObservableStep)) := by
+  exact runSteps_of_stepFEPath_done segment.path
+
+structure SegmentProvider
+    (pre : State → Prop) (fuel : Nat)
+    (post : State → State → Prop) : Prop where
+  segment :
+    ∀ {state}, pre state →
+      ∃ finalState, ExecutionSegment fuel post state finalState
+
+theorem runSteps_post_of_segmentProvider
+    {pre : State → Prop} {fuel : Nat}
+    {post : State → State → Prop} {state : State}
+    (provider : SegmentProvider pre fuel post) (hpre : pre state) :
+    ∃ finalState,
+      runSteps state fuel =
+        .ok (finalState, (#[] : Array ObservableStep)) ∧
+      post state finalState := by
+  obtain ⟨finalState, segment⟩ := provider.segment hpre
+  exact ⟨finalState, runSteps_of_executionSegment segment,
+    segment.postcondition⟩
+
 theorem stepFEPath_single {state nextState : State}
     (hrunning : state.halt = .Running)
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :

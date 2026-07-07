@@ -8714,12 +8714,36 @@ theorem counterCompiledPreparedInitialize_storage_model_of_stepFE_path_ok
   exact counterCompiledPreparedInitialize_storage_model_of_segment_model_ok
     hprepared (counterPreparedInitializeSegmentModel_of_stepFE_path hprepared path)
 
-structure CounterPreparedInitializeSegmentProvider where
-  initialize_segment_model :
-    ∀ {preparedState},
-      CounterPreparedCall counterCompiledPowdrConfig .initialize preparedState →
-      ∃ finalState,
-        CounterPreparedInitializeSegmentModel preparedState finalState
+def counterPreparedInitializeSegmentPre (state : EvmState) : Prop :=
+  CounterPreparedCall counterCompiledPowdrConfig .initialize state
+
+def counterPreparedInitializeSegmentPost (state finalState : EvmState) : Prop :=
+  finalState.halt = .Returned ∧
+    finalState.callStack = state.callStack ∧
+    counterStorageValue counterContractAddress counterCountSlot finalState =
+      counterInitializeStorageWord
+        (counterStorageValue counterContractAddress counterCountSlot state) ∧
+    counterObservableFromResult .initialize finalState.toResult = .ok .none
+
+abbrev CounterPreparedInitializeSegmentProvider :=
+  ProofForge.Backend.Evm.PowdrExec.SegmentProvider
+    counterPreparedInitializeSegmentPre 36
+    counterPreparedInitializeSegmentPost
+
+def counterPreparedInitializeSegmentModel_of_executionSegment
+    {s0 s36 : EvmState}
+    (segment :
+      ProofForge.Backend.Evm.PowdrExec.ExecutionSegment 36
+        counterPreparedInitializeSegmentPost s0 s36) :
+    CounterPreparedInitializeSegmentModel s0 s36 := by
+  rcases segment.postcondition with
+    ⟨hreturned, hcallStack, hstorage, hobservable⟩
+  exact
+    { path := segment.path
+      returned := hreturned
+      callStack := hcallStack
+      storage_model := hstorage
+      observable := hobservable }
 
 theorem counterCompiledPreparedInitialize_storage_model_of_segment_provider_ok
     (provider : CounterPreparedInitializeSegmentProvider) :
@@ -8734,10 +8758,11 @@ theorem counterCompiledPreparedInitialize_storage_model_of_segment_provider_ok
             (counterStorageValue counterContractAddress counterCountSlot
               preparedState) := by
   intro preparedState hprepared
-  obtain ⟨finalState, model⟩ :=
-    provider.initialize_segment_model hprepared
+  obtain ⟨finalState, segment⟩ :=
+    provider.segment hprepared
   exact counterCompiledPreparedInitialize_storage_model_of_segment_model_ok
-    hprepared model
+    hprepared
+    (counterPreparedInitializeSegmentModel_of_executionSegment segment)
 
 theorem counterPreparedCall_isDone
     {cfg : PowdrCounterConfig} {call : CounterCall} {state : EvmState}
