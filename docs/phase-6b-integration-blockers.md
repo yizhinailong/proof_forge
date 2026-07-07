@@ -256,7 +256,12 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   `counterCompiledStateAt`, and
   `counterState_of_dispatcher_first_push0_stepFE_to_calldataload_ok` proves the
   first dispatcher `stepFE` advances from PC 0 to the `CALLDATALOAD` opcode
-  with selector offset 0 on the stack.
+  with selector offset 0 on the stack. The dispatcher bridge now also has
+  generic state lemmas for `CALLDATALOAD`, `SHR`, `EQ`, and taken `JUMPI`,
+  plus concrete initialize selector facts and path theorems through
+  `counterState_of_dispatcher_selector_shr_stepFE_to_dup_ok`, proving the
+  concrete initialize dispatcher reaches PC 5 (`DUP1`) with the extracted
+  selector on top of the stack.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -369,6 +374,13 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   under `lake build EvmRefinement`; the initialize selector dispatcher is pinned
   through `JUMPI`, and its first top-level `stepFE` reaches the `CALLDATALOAD`
   opcode with selector offset 0 on the stack.
+- `counterState_of_stepFE_env_calldataload_ok`,
+  `counterState_of_stepFE_compBit_shr_ok`,
+  `counterState_of_stepFE_compBit_eq_ok`,
+  `counterState_of_stepFE_stackMemFlow_jumpi_taken_ok`, and the concrete path
+  through `counterState_of_dispatcher_selector_shr_stepFE_to_dup_ok` — green
+  under `lake build EvmRefinement`; the initialize dispatcher now reaches the
+  `DUP1` at PC 5 with the extracted initialize selector on the stack.
 - `just evm-bytecode-semantics-smoke` — green; checks the local powdr-target
   seam without importing powdr or mathlib.
 
@@ -396,5 +408,5 @@ per-entrypoint obligation surface now also carries this boundary through
 induction. `CounterTraceSafeAtState` is the current state/input predicate form;
 the remaining Phase 6c work is to prove the compiled runtime's prepared-frame
 EVM-only powdr storage models, finishing the selector dispatcher path from
-`CALLDATALOAD` through taken `JUMPI` to the initialize trampoline and
+`DUP1; PUSH4; EQ; PUSH1 trampoline; JUMPI` to the initialize trampoline and
 instantiating the prepared-frame initialize storage model.

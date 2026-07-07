@@ -310,15 +310,25 @@ surface. Remaining EVM work is E3.
   `counterCompiledStateAt`, and
   `counterState_of_dispatcher_first_push0_stepFE_to_calldataload_ok` proves the
   first top-level dispatcher `stepFE` advances from PC 0 to the `CALLDATALOAD`
-  opcode with selector offset 0 on the stack.
+  opcode with selector offset 0 on the stack. The dispatcher bridge now also
+  has `counterState_of_stepFE_env_calldataload_ok`,
+  `counterState_of_stepFE_compBit_shr_ok`, and
+  `counterState_of_stepFE_compBit_eq_ok` generic state lemmas, a taken-branch
+  `counterState_of_stepFE_stackMemFlow_jumpi_taken_ok`, concrete initialize
+  calldata selector facts, and the path theorems
+  `counterState_of_dispatcher_calldataload_stepFE_to_shift_push_ok`,
+  `counterState_of_dispatcher_selector_shift_push_stepFE_to_shr_ok`, and
+  `counterState_of_dispatcher_selector_shr_stepFE_to_dup_ok`; together these
+  prove the concrete initialize dispatcher reaches the `DUP1` at PC 5 with the
+  extracted initialize selector on top of the stack.
   `EvmRefinement/PowdrAdapter.lean` also proves `runBytecode_steps`: every successful
   fuel-bounded executable run is backed by powdr's relational `Steps` closure. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
   remains an explicit trust boundary. The remaining E3 work is to discharge those
   prepared-frame storage models against the concrete runtime by proving the
   rest of the selector dispatcher reaches the initialize trampoline
-  (`CALLDATALOAD` through taken `JUMPI`) and by instantiating the prepared-frame
-  initialize storage model.
+  (`DUP1; PUSH4; EQ; PUSH1 trampoline; JUMPI`) and by instantiating the
+  prepared-frame initialize storage model.
 - **Acceptance:** a universally-quantified refinement theorem (IR Counter ⟷ powdr EVM
   `Step`, by `induction`, **not** `native_decide`) type-checks under the opt-in target;
   `docs/formal-verification.md` EVM Tier C-proof row updated from aspirational/blocked to
