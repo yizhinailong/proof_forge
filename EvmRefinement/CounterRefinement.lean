@@ -43,6 +43,28 @@ def counterPackedCountNat (count : Nat) : Nat :=
 def counterPackedCountValue (count : Nat) : EvmSemantics.UInt256 :=
   EvmSemantics.UInt256.ofNat (counterPackedCountNat count)
 
+def counterPaddedCountValue (count padding : Nat) : EvmSemantics.UInt256 :=
+  EvmSemantics.UInt256.ofNat (counterPackedCountNat count + padding)
+
+/-- The generated runtime stores `count : U64` in the high 64 bits and leaves
+the lower 192 bits as padding/other-packed-field space. The relation therefore
+tracks the high-bit count while allowing arbitrary low padding. -/
+def CounterStorageWordRel (word : EvmSemantics.UInt256) (count : Nat) : Prop :=
+  ∃ padding,
+    padding < counterU64StorageShift ∧
+    word = EvmSemantics.UInt256.ofNat (counterPackedCountNat count + padding)
+
+theorem counterStorageWordRel_packed (count : Nat) :
+    CounterStorageWordRel (counterPackedCountValue count) count := by
+  refine ⟨0, ?_, ?_⟩
+  · native_decide
+  · simp [counterPackedCountValue, counterPackedCountNat]
+
+theorem counterStorageWordRel_padded {count padding : Nat}
+    (hpadding : padding < counterU64StorageShift) :
+    CounterStorageWordRel (counterPaddedCountValue count padding) count := by
+  exact ⟨padding, hpadding, rfl⟩
+
 /-- Placeholder contract account address for the storage relation.
 
 The later bytecode-entrypoint proof should replace this default with the
@@ -65,12 +87,27 @@ def setCounterStorage (address : EvmSemantics.AccountAddress)
   { state with
     accountMap := state.accountMap.set address { account with storage := storage } }
 
+def setCounterStorageWord (address : EvmSemantics.AccountAddress)
+    (slot : EvmSemantics.UInt256) (state : EvmState)
+    (word : EvmSemantics.UInt256) : EvmState :=
+  let account := state.accountMap address
+  let storage := account.storage.set slot word
+  { state with
+    accountMap := state.accountMap.set address { account with storage := storage } }
+
 @[simp] theorem counterStorageValue_setCounterStorage_same
     (address : EvmSemantics.AccountAddress) (slot : EvmSemantics.UInt256)
     (state : EvmState) (value : Nat) :
     counterStorageValue address slot (setCounterStorage address slot state value) =
       counterPackedCountValue value := by
   simp [counterStorageValue, counterAccount, setCounterStorage]
+
+@[simp] theorem counterStorageValue_setCounterStorageWord_same
+    (address : EvmSemantics.AccountAddress) (slot : EvmSemantics.UInt256)
+    (state : EvmState) (word : EvmSemantics.UInt256) :
+    counterStorageValue address slot (setCounterStorageWord address slot state word) =
+      word := by
+  simp [counterStorageValue, counterAccount, setCounterStorageWord]
 
 def irCounterCount? (state : IRState) : Option Nat :=
   match state.read "count" with
@@ -87,7 +124,7 @@ def CounterStorageRelAt (address : EvmSemantics.AccountAddress)
   ∃ count,
     irCounterCount? irState = some count ∧
     count < counterU64Modulus ∧
-    counterStorageValue address slot evmState = counterPackedCountValue count
+    CounterStorageWordRel (counterStorageValue address slot evmState) count
 
 def CounterStorageRel : IRState → EvmState → Prop :=
   CounterStorageRelAt counterContractAddress counterCountSlot
@@ -150,7 +187,7 @@ theorem counterStorageRelAt_set_count (address : EvmSemantics.AccountAddress)
       (irState.write "count" (.u64 count))
       (setCounterStorage address slot evmState count) := by
   refine ⟨count, irCounterCount?_write_count irState count, hbound, ?_⟩
-  simp
+  simp [counterStorageWordRel_packed]
 
 theorem counterStorageRel_set_count (irState : IRState) (evmState : EvmState)
     (count : Nat) (hbound : count < counterU64Modulus) :
@@ -523,11 +560,26 @@ theorem counterCompiledPowdr_get_packed_seven_executable_smoke :
       .get (.u64 7) = true := by
   native_decide
 
+theorem counterCompiledPowdr_get_padded_seven_executable_smoke :
+    counterPowdrStepReturns counterCompiledPowdrConfig
+      (setCounterStorageWord counterContractAddress counterCountSlot counterBaseEvmState
+        (counterPaddedCountValue 7 123))
+      .get (.u64 7) = true := by
+  native_decide
+
 theorem counterCompiledPowdr_increment_packed_seven_executable_smoke :
     counterPowdrTraceReturns counterCompiledPowdrConfig
       [.increment, .get]
       (setCounterStorage counterContractAddress counterCountSlot counterBaseEvmState 7)
       #[.none, .u64 8] = true := by
+  native_decide
+
+theorem counterCompiledPowdr_initialize_padded_get_executable_smoke :
+    counterPowdrTraceReturns counterCompiledPowdrConfig
+      [.initialize, .get]
+      (setCounterStorageWord counterContractAddress counterCountSlot counterBaseEvmState
+        (counterPaddedCountValue 7 123))
+      #[.none, .u64 0] = true := by
   native_decide
 
 theorem counterCompiledPowdr_initialize_increment_get_executable_smoke :
@@ -688,26 +740,26 @@ structure CounterPowdrEvmPostconditions (cfg : PowdrCounterConfig) where
     ∀ {evmState},
       ∃ nextEvm,
         counterPowdrTraceStep cfg evmState .initialize = .ok (nextEvm, .none) ∧
-        counterStorageValue counterContractAddress counterCountSlot nextEvm =
-          counterPackedCountValue 0
+        CounterStorageWordRel
+          (counterStorageValue counterContractAddress counterCountSlot nextEvm) 0
   increment_writes_succ :
     ∀ {evmState count},
       count + 1 < counterU64Modulus →
-      counterStorageValue counterContractAddress counterCountSlot evmState =
-        counterPackedCountValue count →
+      CounterStorageWordRel
+        (counterStorageValue counterContractAddress counterCountSlot evmState) count →
       ∃ nextEvm,
         counterPowdrTraceStep cfg evmState .increment = .ok (nextEvm, .none) ∧
-        counterStorageValue counterContractAddress counterCountSlot nextEvm =
-          counterPackedCountValue (count + 1)
+        CounterStorageWordRel
+          (counterStorageValue counterContractAddress counterCountSlot nextEvm) (count + 1)
   get_returns_count :
     ∀ {evmState count},
       count < counterU64Modulus →
-      counterStorageValue counterContractAddress counterCountSlot evmState =
-        counterPackedCountValue count →
+      CounterStorageWordRel
+        (counterStorageValue counterContractAddress counterCountSlot evmState) count →
       ∃ nextEvm,
         counterPowdrTraceStep cfg evmState .get = .ok (nextEvm, .u64 count) ∧
-        counterStorageValue counterContractAddress counterCountSlot nextEvm =
-          counterPackedCountValue count
+        CounterStorageWordRel
+          (counterStorageValue counterContractAddress counterCountSlot nextEvm) count
 
 def counterPowdrSafeEntrypointObligationsOfPostconditions
     (cfg : PowdrCounterConfig) (post : CounterPowdrEvmPostconditions cfg) :

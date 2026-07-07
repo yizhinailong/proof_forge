@@ -172,7 +172,8 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   fuel-bounded execution to powdr `Steps`.
 - `EvmRefinement/CounterRefinement.lean` — opt-in Counter relation layer that
   maps IR `count` to the powdr account storage word at ProofForge's EVM scalar
-  slot 0 using the generated packed U64 word (`count * 2^192`, `count < 2^64`),
+  slot 0 using the generated packed U64 shape: high 64 bits carry `count`, low
+  192 bits are padding/other-packed-field space, and `count < 2^64`,
   embeds the current CLI-generated Counter runtime bytecode witness, proves its
   selector offsets, exposes the compiled-runtime powdr config, and specializes
   the initialize-prefixed trace theorem to that concrete runtime target. It also
@@ -191,7 +192,9 @@ Yul→bytecode `solc` step as an explicit trust boundary.
   `CounterTraceSafeAtState` exposes the same boundary as a state/input predicate.
   `CounterPowdrEvmPostconditions` and
   `counterPowdrSafeEntrypointObligationsOfPostconditions` isolate the remaining
-  proof to EVM-only storage postconditions for the compiled runtime.
+  proof to EVM-only storage postconditions for the compiled runtime. Padded-slot
+  native smokes confirm `get` reads the high 64-bit count and `initialize; get`
+  returns `0` even when the low 192 bits are nonzero.
 - `scripts/evm/powdr-counter-runtime-smoke.sh` + `just evm-powdr-counter-runtime`
   — opt-in drift gate that regenerates the Counter runtime and checks it still
   matches the embedded powdr witness.
@@ -245,8 +248,9 @@ Yul→bytecode `solc` step as an explicit trust boundary.
 
 ## (h) Remaining proof boundary
 
-The Counter relation now carries `count < 2^64`, matching the generated packed
-U64 storage word. The next relational proof slice must decide how Phase 6c
+The Counter relation now carries `count < 2^64` plus the generated high-64-bit
+packed storage shape with low 192-bit padding allowed. The next relational
+proof slice must decide how Phase 6c
 handles `increment` at `2^64 - 1`: either the supported input predicate excludes
 overflowing traces, or the total Counter IR semantics is changed to match the
 compiled EVM runtime's checked/wrapping behavior. Until that is resolved, the

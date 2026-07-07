@@ -173,10 +173,12 @@ surface. Remaining EVM work is E3.
   explicit trust boundary (the §2 granularity caveat).
 - **Progress:** `EvmRefinement/CounterRefinement.lean` now starts the E3 relation layer:
   it proves the ProofForge EVM layout maps Counter `count` to scalar slot 0, defines the
-  IR `count` ↔ powdr `AccountMap`/`Storage` relation over the generated EVM packed
-  U64 slot word (`count * 2^192`, with `count < 2^64`), and proves the
-  relation after writing `count`. This corrected the earlier raw-`UInt256.ofNat count`
-  relation, which does not match the compiled runtime's `get`. It also defines selector calldata plus
+  IR `count` ↔ powdr `AccountMap`/`Storage` relation over the generated EVM
+  packed U64 slot shape: `count` occupies the high 64 bits and the low 192 bits
+  are padding/other-packed-field space, with `count < 2^64`. This corrected the
+  earlier raw-`UInt256.ofNat count` relation, and later corrected the too-strong
+  canonical whole-word equality relation, neither of which matches the compiled
+  runtime's `get`/write behavior. It also defines selector calldata plus
   `prepareCounterCall`, a runtime-bytecode-parameterized powdr frame setup for Counter
   calls, and proves that preparation preserves `CounterStorageRel`. It also embeds the
   current CLI-generated Counter runtime bytecode as `counterCompiledRuntimeCode`, proves
@@ -193,8 +195,9 @@ surface. Remaining EVM work is E3.
   `counterCompiledPowdr_executable_trace_ok`. Prepared calls now normalize a fresh
   top-level EVM frame (gas/header/fork/caller/pc/stack/halt) while preserving storage, so
   the relation is not accidentally blocked by stale halted frames or zero-gas defaults.
-  Packed-storage smokes show `get` reads packed `7` as `7` and `increment; get` reaches
-  `8`. It now exposes
+  Packed-storage smokes show `get` reads packed `7` as `7`, `get` also reads a
+  padded high-bit `7` as `7`, `initialize; get` returns `0` from a padded slot,
+  and `increment; get` reaches `8`. It now exposes
   `counterPowdrTraceStep` / `counterPowdrTargetSemantics`, which run prepared Counter
   calls through powdr `runBytecode`, project EVM results to Counter observables, and prove
   successful trace steps are backed by powdr `Steps` with the stated observable projection;

@@ -276,8 +276,9 @@ ProofForge's default build still avoids powdr/mathlib imports.
   `ae13dbc506158f9d0c7e05634636b17e2bccf850`, with mathlib pinned transitively
   at `fabf563a7c95a166b8d7b6efca11c8b4dc9d911f`. The opt-in adapter now exposes
   real powdr-backed `State`, `Step`, `stepF`, and `runBytecode` wrappers. The
-  Counter storage relation now maps the IR `count` binding to the powdr account
-  storage word at ProofForge's EVM layout slot 0, and successful
+  Counter storage relation now maps the IR `count` binding to the high 64 bits
+  of the powdr account storage word at ProofForge's EVM layout slot 0, allowing
+  low 192-bit padding, and successful
   `runBytecode` executions now lift to powdr's relational `Steps` closure.
   The pinned powdr tree exposes bytecode semantics, not a Yul-level relation,
   so the Yul→bytecode `solc` step remains an explicit trust boundary. The
@@ -296,10 +297,12 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `runBytecode` executions imply powdr `Steps`.
   - `EvmRefinement/CounterRefinement.lean` — opt-in Counter relation layer that
     proves `count` is EVM scalar slot 0 and relates IR `count` to powdr
-    `AccountMap`/`Storage` over the generated EVM packed U64 slot word
-    (`count * 2^192`, with `count < 2^64`). This corrects the earlier
-    raw-`UInt256.ofNat count` relation, which does not match the compiled
-    runtime's `get`. It also prepares runtime-code parameterized Counter call
+    `AccountMap`/`Storage` over the generated EVM packed U64 slot shape:
+    `count` occupies the high 64 bits, the low 192 bits are padding/other-packed
+    field space, and `count < 2^64`. This corrects both the earlier
+    raw-`UInt256.ofNat count` relation and the too-strong canonical whole-word
+    equality relation, neither of which matches the compiled runtime's `get` and
+    write behavior. It also prepares runtime-code parameterized Counter call
     frames and proves that preparation preserves the
     storage relation. It now embeds the current CLI-generated Counter runtime
     bytecode witness, proves its size and selector offsets, exposes
@@ -317,7 +320,9 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterCompiledPowdr_executable_trace_ok`. Prepared calls now normalize a
     fresh top-level EVM frame while preserving storage, so stale halted frames or
     zero-gas defaults are not accidental counterexamples. Packed-storage smokes
-    show `get` reads packed `7` as `7` and `increment; get` reaches `8`. The
+    show `get` reads packed `7` as `7`, `get` also reads a padded high-bit `7`
+    as `7`, `initialize; get` returns `0` from a padded slot, and
+    `increment; get` reaches `8`. The
     module now exposes a
     powdr-backed Counter trace-step surface and proves successful trace steps
     are backed by powdr `Steps` plus the stated observable projection; the
