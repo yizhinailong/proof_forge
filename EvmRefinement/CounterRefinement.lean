@@ -291,6 +291,9 @@ def counterPush4Op : EvmSemantics.Operation.PushOp :=
 def counterDup1Op : EvmSemantics.Operation.DupOp :=
   { idx := ⟨0, by decide⟩ }
 
+def counterDup2Op : EvmSemantics.Operation.DupOp :=
+  { idx := ⟨1, by decide⟩ }
+
 def counterSwap1Op : EvmSemantics.Operation.SwapOp :=
   { idx := ⟨0, by decide⟩ }
 
@@ -2868,6 +2871,102 @@ theorem counterCompiledRuntimeCode_has_get_body :
       counterGetBodyBytes counterGetBodyOffset = true := by
   native_decide
 
+def counterIncrementTrampolineOffset : Nat := 50
+
+def counterIncrementReturnOffset : Nat := 56
+
+def counterIncrementBodyOffset : Nat := 93
+
+def counterIncrementWriteBodyOffset : Nat := 113
+
+def counterIncrementCheckedAddOffset : Nat := 151
+
+def counterIncrementOverflowRevertOffset : Nat := 164
+
+def counterIncrementSelectorNat : Nat := 3500007562
+
+def counterIncrementTrampolineBytes : ByteArray :=
+  ByteArray.mk #[0x5b, 0x60, 0x38, 0x60, 0x5d, 0x56]
+
+theorem counterIncrementTrampolineBytes_size :
+    counterIncrementTrampolineBytes.size = 6 := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_has_increment_trampoline :
+    byteArrayHasSliceAt counterCompiledRuntimeCode
+      counterIncrementTrampolineBytes counterIncrementTrampolineOffset = true := by
+  native_decide
+
+def counterIncrementReturnBytes : ByteArray :=
+  ByteArray.mk #[0x5b, 0x5f, 0x80, 0xf3]
+
+theorem counterIncrementReturnBytes_size :
+    counterIncrementReturnBytes.size = 4 := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_has_increment_return :
+    byteArrayHasSliceAt counterCompiledRuntimeCode
+      counterIncrementReturnBytes counterIncrementReturnOffset = true := by
+  native_decide
+
+def counterIncrementBodyBytes : ByteArray :=
+  ByteArray.mk #[
+    0x5b, 0x60, 0x71, 0x60, 0x01, 0x80, 0x80, 0x60, 0x40, 0x1b,
+    0x03, 0x5f, 0x54, 0x60, 0xc0, 0x1c, 0x16, 0x60, 0x97, 0x56
+  ]
+
+theorem counterIncrementBodyBytes_size :
+    counterIncrementBodyBytes.size = 20 := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_has_increment_body :
+    byteArrayHasSliceAt counterCompiledRuntimeCode
+      counterIncrementBodyBytes counterIncrementBodyOffset = true := by
+  native_decide
+
+def counterIncrementWriteBodyBytes : ByteArray :=
+  ByteArray.mk #[
+    0x5b, 0x60, 0xc0, 0x1b, 0x60, 0x01, 0x80, 0x60, 0x40, 0x1b,
+    0x03, 0x60, 0xc0, 0x1b, 0x19, 0x5f, 0x54, 0x16, 0x17, 0x5f,
+    0x55, 0x56
+  ]
+
+theorem counterIncrementWriteBodyBytes_size :
+    counterIncrementWriteBodyBytes.size = 22 := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_has_increment_write_body :
+    byteArrayHasSliceAt counterCompiledRuntimeCode
+      counterIncrementWriteBodyBytes counterIncrementWriteBodyOffset = true := by
+  native_decide
+
+def counterIncrementCheckedAddBytes : ByteArray :=
+  ByteArray.mk #[
+    0x5b, 0x81, 0x5f, 0x19, 0x03, 0x81, 0x11, 0x60, 0xa4, 0x57,
+    0x01, 0x90, 0x56
+  ]
+
+theorem counterIncrementCheckedAddBytes_size :
+    counterIncrementCheckedAddBytes.size = 13 := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_has_increment_checked_add :
+    byteArrayHasSliceAt counterCompiledRuntimeCode
+      counterIncrementCheckedAddBytes counterIncrementCheckedAddOffset = true := by
+  native_decide
+
+def counterIncrementOverflowRevertBytes : ByteArray :=
+  ByteArray.mk #[0x5b, 0x5f, 0x80, 0xfd]
+
+theorem counterIncrementOverflowRevertBytes_size :
+    counterIncrementOverflowRevertBytes.size = 4 := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_has_increment_overflow_revert :
+    byteArrayHasSliceAt counterCompiledRuntimeCode
+      counterIncrementOverflowRevertBytes counterIncrementOverflowRevertOffset = true := by
+  native_decide
+
 def counterInitializeTrampolineOffset : Nat := 60
 
 def counterInitializeSelectorNat : Nat := 2167012380
@@ -2949,6 +3048,35 @@ theorem counterCompiledRuntimeCode_decodes_dispatcher_initialize_trampoline_push
 
 theorem counterCompiledRuntimeCode_decodes_dispatcher_initialize_jumpi :
     EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode 14 =
+      some (.StackMemFlow
+        (.JUMPI : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_dispatcher_increment_selector_dup1 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode 15 =
+      some (.Dup counterDup1Op, none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_dispatcher_increment_selector_push4 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode 16 =
+      some (.Push counterPush4Op,
+        some (EvmSemantics.UInt256.ofNat counterIncrementSelectorNat, 4)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_dispatcher_increment_eq :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode 21 =
+      some (.CompBit
+        (.EQ : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_dispatcher_increment_trampoline_push :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode 22 =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat counterIncrementTrampolineOffset, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_dispatcher_increment_jumpi :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode 24 =
       some (.StackMemFlow
         (.JUMPI : EvmSemantics.Operation.StackMemFlowOps), none) := by
   native_decide
@@ -3145,6 +3273,412 @@ theorem counterCompiledRuntimeCode_decodes_get_body_return_jump :
         (counterGetBodyOffset + 15) =
       some (.StackMemFlow
         (.JUMP : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_trampoline_jumpdest :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        counterIncrementTrampolineOffset =
+      some (.StackMemFlow
+        (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_valid_increment_trampoline_jumpdest :
+    EvmSemantics.EVM.Decode.isValidJumpDest counterCompiledRuntimeCode
+        counterIncrementTrampolineOffset = true := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_trampoline_return_push :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementTrampolineOffset + 1) =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat counterIncrementReturnOffset, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_trampoline_body_push :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementTrampolineOffset + 3) =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat counterIncrementBodyOffset, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_trampoline_jump :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementTrampolineOffset + 5) =
+      some (.StackMemFlow
+        (.JUMP : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_return_jumpdest :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        counterIncrementReturnOffset =
+      some (.StackMemFlow
+        (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_valid_increment_return_jumpdest :
+    EvmSemantics.EVM.Decode.isValidJumpDest counterCompiledRuntimeCode
+        counterIncrementReturnOffset = true := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_return_push0 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementReturnOffset + 1) =
+      some (.Push counterPush0Op,
+        some (EvmSemantics.UInt256.ofNat 0, 0)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_return_dup1 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementReturnOffset + 2) =
+      some (.Dup counterDup1Op, none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_return :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementReturnOffset + 3) =
+      some (.System
+        (.RETURN : EvmSemantics.Operation.SystemOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_body_jumpdest :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        counterIncrementBodyOffset =
+      some (.StackMemFlow
+        (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_valid_increment_body_jumpdest :
+    EvmSemantics.EVM.Decode.isValidJumpDest counterCompiledRuntimeCode
+        counterIncrementBodyOffset = true := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_body_push :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementBodyOffset + 1) =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat counterIncrementWriteBodyOffset, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_one_push :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementBodyOffset + 3) =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat 1, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_one_dup1 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementBodyOffset + 5) =
+      some (.Dup counterDup1Op, none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_value_dup1 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementBodyOffset + 6) =
+      some (.Dup counterDup1Op, none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_mask_push64 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementBodyOffset + 7) =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat 64, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_mask_shl64 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementBodyOffset + 9) =
+      some (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_mask_sub :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementBodyOffset + 10) =
+      some (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_sload_slot_push0 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementBodyOffset + 11) =
+      some (.Push counterPush0Op,
+        some (EvmSemantics.UInt256.ofNat 0, 0)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_sload :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementBodyOffset + 12) =
+      some (.StackMemFlow
+        (.SLOAD : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_shift_push192 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementBodyOffset + 13) =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat 192, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_shift_shr192 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementBodyOffset + 15) =
+      some (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_and :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementBodyOffset + 16) =
+      some (.CompBit (.AND : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_checked_add_push :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementBodyOffset + 17) =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat counterIncrementCheckedAddOffset, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_body_checked_add_jump :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementBodyOffset + 19) =
+      some (.StackMemFlow
+        (.JUMP : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_body_jumpdest :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        counterIncrementWriteBodyOffset =
+      some (.StackMemFlow
+        (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_valid_increment_write_body_jumpdest :
+    EvmSemantics.EVM.Decode.isValidJumpDest counterCompiledRuntimeCode
+        counterIncrementWriteBodyOffset = true := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_setvalue_push192 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementWriteBodyOffset + 1) =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat 192, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_setvalue_shl :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementWriteBodyOffset + 3) =
+      some (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_mask_push1 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementWriteBodyOffset + 4) =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat 1, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_mask_dup1 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementWriteBodyOffset + 6) =
+      some (.Dup counterDup1Op, none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_mask_push64 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementWriteBodyOffset + 7) =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat 64, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_mask_shl64 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementWriteBodyOffset + 9) =
+      some (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_mask_sub :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementWriteBodyOffset + 10) =
+      some (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_mask_push192 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementWriteBodyOffset + 11) =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat 192, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_mask_shl192 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementWriteBodyOffset + 13) =
+      some (.CompBit (.SHL : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_mask_not :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementWriteBodyOffset + 14) =
+      some (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_sload_slot_push0 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementWriteBodyOffset + 15) =
+      some (.Push counterPush0Op,
+        some (EvmSemantics.UInt256.ofNat 0, 0)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_sload :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementWriteBodyOffset + 16) =
+      some (.StackMemFlow
+        (.SLOAD : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_and :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementWriteBodyOffset + 17) =
+      some (.CompBit (.AND : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_or :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementWriteBodyOffset + 18) =
+      some (.CompBit (.OR : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_sstore_slot_push0 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementWriteBodyOffset + 19) =
+      some (.Push counterPush0Op,
+        some (EvmSemantics.UInt256.ofNat 0, 0)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_sstore :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementWriteBodyOffset + 20) =
+      some (.StackMemFlow
+        (.SSTORE : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_write_body_return_jump :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementWriteBodyOffset + 21) =
+      some (.StackMemFlow
+        (.JUMP : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_checked_add_jumpdest :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        counterIncrementCheckedAddOffset =
+      some (.StackMemFlow
+        (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_valid_increment_checked_add_jumpdest :
+    EvmSemantics.EVM.Decode.isValidJumpDest counterCompiledRuntimeCode
+        counterIncrementCheckedAddOffset = true := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_checked_add_dup2_a :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementCheckedAddOffset + 1) =
+      some (.Dup counterDup2Op, none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_checked_add_push0 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementCheckedAddOffset + 2) =
+      some (.Push counterPush0Op,
+        some (EvmSemantics.UInt256.ofNat 0, 0)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_checked_add_not :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementCheckedAddOffset + 3) =
+      some (.CompBit (.NOT : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_checked_add_sub :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementCheckedAddOffset + 4) =
+      some (.StopArith (.SUB : EvmSemantics.Operation.StopArithOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_checked_add_dup2_b :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementCheckedAddOffset + 5) =
+      some (.Dup counterDup2Op, none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_checked_add_gt :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementCheckedAddOffset + 6) =
+      some (.CompBit (.GT : EvmSemantics.Operation.CompareBitwiseOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_checked_add_revert_push :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementCheckedAddOffset + 7) =
+      some (.Push counterPush1Op,
+        some (EvmSemantics.UInt256.ofNat counterIncrementOverflowRevertOffset, 1)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_checked_add_jumpi :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementCheckedAddOffset + 9) =
+      some (.StackMemFlow
+        (.JUMPI : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_checked_add_add :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementCheckedAddOffset + 10) =
+      some (.StopArith (.ADD : EvmSemantics.Operation.StopArithOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_checked_add_swap1 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementCheckedAddOffset + 11) =
+      some (.Swap counterSwap1Op, none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_checked_add_return_jump :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementCheckedAddOffset + 12) =
+      some (.StackMemFlow
+        (.JUMP : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_overflow_revert_jumpdest :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        counterIncrementOverflowRevertOffset =
+      some (.StackMemFlow
+        (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_valid_increment_overflow_revert_jumpdest :
+    EvmSemantics.EVM.Decode.isValidJumpDest counterCompiledRuntimeCode
+        counterIncrementOverflowRevertOffset = true := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_overflow_revert_push0 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementOverflowRevertOffset + 1) =
+      some (.Push counterPush0Op,
+        some (EvmSemantics.UInt256.ofNat 0, 0)) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_overflow_revert_dup1 :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementOverflowRevertOffset + 2) =
+      some (.Dup counterDup1Op, none) := by
+  native_decide
+
+theorem counterCompiledRuntimeCode_decodes_increment_overflow_revert :
+    EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode
+        (counterIncrementOverflowRevertOffset + 3) =
+      some (.System
+        (.REVERT : EvmSemantics.Operation.SystemOps), none) := by
   native_decide
 
 def counterInitializeReturnOffset : Nat := 66
