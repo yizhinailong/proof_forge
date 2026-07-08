@@ -1610,6 +1610,20 @@ theorem reduction_mov64_imm_at_ok
     StepReduction program state (execMov64 state dst value) :=
   StepReduction.of_readyOpcodeAt hat (step_mov64_imm_at_ok hat)
 
+theorem step_lddw_at_ok
+    {program : Program} {pc : Nat} {state : State} {dst : Reg} {value : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .lddw (some dst) none none (some (.num value))) state) :
+    step program state = .ok (execLddw state dst value) :=
+  step_lddw_ok hat.stepReady hat.currentInst?
+
+theorem reduction_lddw_at_ok
+    {program : Program} {pc : Nat} {state : State} {dst : Reg} {value : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .lddw (some dst) none none (some (.num value))) state) :
+    StepReduction program state (execLddw state dst value) :=
+  StepReduction.of_readyOpcodeAt hat (step_lddw_at_ok hat)
+
 theorem step_ldxdw_at_ok
     {program : Program} {pc : Nat} {state : State}
     {dst base : Reg} {off addr value : Nat}

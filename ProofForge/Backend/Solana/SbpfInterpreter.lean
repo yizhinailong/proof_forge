@@ -346,6 +346,10 @@ theorem regs_size_execLoad (state : SbpfState) (dst : Reg) (addr value : Nat) :
     (execLoad state dst addr value).regs.size = state.regs.size := by
   simp [execLoad, regs_size_nextPc, regs_size_setReg]
 
+theorem regs_size_execLddw (state : SbpfState) (dst : Reg) (value : Nat) :
+    (execLddw state dst value).regs.size = state.regs.size := by
+  simp [execLddw, regs_size_nextPc, regs_size_setReg]
+
 theorem regs_size_execMov64 (state : SbpfState) (dst : Reg) (value : Nat) :
     (execMov64 state dst value).regs.size = state.regs.size := by
   simp [execMov64, regs_size_nextPc, regs_size_setReg]
@@ -375,6 +379,11 @@ theorem regGet_execLoad_same_of_lt (state : SbpfState) (dst : Reg) (addr value :
     regGet (execLoad state dst addr value).regs dst = value := by
   simp [execLoad, regGet_nextPc, regGet_setReg_same_of_lt, hidx]
 
+theorem regGet_execLddw_same_of_lt (state : SbpfState) (dst : Reg) (value : Nat)
+    (hidx : dst.idx < state.regs.size) :
+    regGet (execLddw state dst value).regs dst = value := by
+  simp [execLddw, regGet_nextPc, regGet_setReg_same_of_lt, hidx]
+
 theorem regGet_execMov64_same_of_lt (state : SbpfState) (dst : Reg) (value : Nat)
     (hidx : dst.idx < state.regs.size) :
     regGet (execMov64 state dst value).regs dst = value := by
@@ -387,6 +396,11 @@ theorem regGet_execLoad_of_ne (state : SbpfState) {src dst : Reg} (addr value : 
     (hne : dst ≠ src) :
     regGet (execLoad state src addr value).regs dst = regGet state.regs dst := by
   simp [execLoad, regGet_nextPc, regGet_setReg_of_ne, hne]
+
+theorem regGet_execLddw_of_ne (state : SbpfState) {src dst : Reg} (value : Nat)
+    (hne : dst ≠ src) :
+    regGet (execLddw state src value).regs dst = regGet state.regs dst := by
+  simp [execLddw, regGet_nextPc, regGet_setReg_of_ne, hne]
 
 theorem regGet_execMov64_of_ne (state : SbpfState) {src dst : Reg} (value : Nat)
     (hne : dst ≠ src) :
@@ -416,6 +430,14 @@ theorem memory_execLoad (state : SbpfState) (dst : Reg) (addr value : Nat) :
 theorem memory_read_execLoad
     (state : SbpfState) (dst : Reg) (addr value readAddr : Nat) :
     (execLoad state dst addr value).memory.read readAddr =
+      state.memory.read readAddr := rfl
+
+theorem memory_execLddw (state : SbpfState) (dst : Reg) (value : Nat) :
+    (execLddw state dst value).memory = state.memory := rfl
+
+theorem memory_read_execLddw
+    (state : SbpfState) (dst : Reg) (value readAddr : Nat) :
+    (execLddw state dst value).memory.read readAddr =
       state.memory.read readAddr := rfl
 
 theorem memory_execMov64 (state : SbpfState) (dst : Reg) (value : Nat) :
@@ -462,6 +484,9 @@ theorem returnData_setReg (state : SbpfState) (reg : Reg) (value : Nat) :
 
 theorem returnData_execLoad (state : SbpfState) (dst : Reg) (addr value : Nat) :
     (execLoad state dst addr value).returnData = state.returnData := rfl
+
+theorem returnData_execLddw (state : SbpfState) (dst : Reg) (value : Nat) :
+    (execLddw state dst value).returnData = state.returnData := rfl
 
 theorem returnData_execMov64 (state : SbpfState) (dst : Reg) (value : Nat) :
     (execMov64 state dst value).returnData = state.returnData := rfl
