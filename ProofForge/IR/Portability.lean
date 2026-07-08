@@ -222,15 +222,9 @@ def classifyEntrypoint (ep : Entrypoint) : Array PortabilityFinding :=
     ep.body.foldl (fun acc stmt => acc ++ classifyStatement s!"entrypoint.{ep.name}" stmt) #[]
   kindFindings ++ selectorFindings ++ abiFindings ++ bodyFindings
 
-def classifyState (state : StateDecl) : Array PortabilityFinding :=
-  match state.owner with
-  | .contract => #[]
-  | .resource =>
-      #[finding s!"state.{state.id}.owner" "StorageOwner.resource"
-          (.targetFamilyOnly .move)]
-  | .object =>
-      #[finding s!"state.{state.id}.owner" "StorageOwner.object"
-          (.targetFamilyOnly .move)]
+/-- Portable state declarations are always chain-neutral (shape only).
+Native binding is target-resolved via `Target.StorageBinding`, not IR fields. -/
+def classifyState (_state : StateDecl) : Array PortabilityFinding := #[]
 
 def classifyModule (module : Module) : Array PortabilityFinding :=
   let stateFindings := module.state.foldl (fun acc s => acc ++ classifyState s) #[]

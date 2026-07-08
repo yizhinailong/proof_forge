@@ -88,40 +88,17 @@ inductive StateKind where
   | dynamicArray
   deriving BEq, DecidableEq, Repr
 
-/-- Ownership / binding model for persistent state. Orthogonal to `StateKind`
-(shape: scalar/map/array). The portable default is `contract` (global contract
-storage used by EVM/NEAR/Solana account-layout backends).
+/-- Portable persistent state declaration.
 
-Move-family targets prefer explicit owners:
-* `resource` — Aptos account-owned resource (`has key`)
-* `object` — Sui object with UID (`has key`)
-
-Portable Counter/ValueVault modules keep `owner := .contract` so the same IR
-fixture resolves on EVM/Solana/NEAR. Move adapters may still accept that legacy
-scalar shape for the Counter MVP, but new Move authoring should set the owner
-explicitly (see D-050 / `ProofForge.IR.Portability`). -/
-inductive StorageOwner where
-  | contract
-  | resource
-  | object
-  deriving BEq, DecidableEq, Repr
-
-def StorageOwner.id : StorageOwner → String
-  | .contract => "contract"
-  | .resource => "resource"
-  | .object => "object"
-
-def StorageOwner.capability? : StorageOwner → Option ProofForge.Target.Capability
-  | .contract => none
-  | .resource => some .storageResource
-  | .object => some .storageObject
-
+Shape only (`kind` + `type`). Chain-native binding (EVM slots, Solana account
+bytes, NEAR host KV, Aptos `has key` resources, Sui objects with UID) is **not**
+chosen here — the selected `--target` adapter resolves binding during lowering
+(D-050 / D-028). Authors write `state count: scalar U64`; Sui emits an object,
+Aptos a resource, EVM a storage slot. -/
 structure StateDecl where
   id : String
   kind : StateKind
   type : ValueType
-  /-- Binding model for this state slot. Defaults to portable contract-global. -/
-  owner : StorageOwner := .contract
   deriving Repr
 
 inductive Literal where
@@ -514,17 +491,11 @@ def StructDecl.capabilities (decl : StructDecl) : Array ProofForge.Target.Capabi
   #[.dataStruct] ++ decl.fields.foldl (fun acc field => acc ++ field.capabilities) #[]
 
 def StateDecl.capabilities (state : StateDecl) : Array ProofForge.Target.Capability :=
-  let shapeCaps :=
-    match state.kind with
-    | .scalar => state.type.capabilities
-    | .map keyType _ => #[.storageMap] ++ keyType.capabilities ++ state.type.capabilities
-    | .array _ => #[.storageArray, .dataFixedArray] ++ state.type.capabilities
-    | .dynamicArray => #[.storageArray, .dataDynamicArray] ++ state.type.capabilities
-  let ownerCaps :=
-    match state.owner.capability? with
-    | some cap => #[cap]
-    | none => #[]
-  ownerCaps ++ shapeCaps
+  match state.kind with
+  | .scalar => state.type.capabilities
+  | .map keyType _ => #[.storageMap] ++ keyType.capabilities ++ state.type.capabilities
+  | .array _ => #[.storageArray, .dataFixedArray] ++ state.type.capabilities
+  | .dynamicArray => #[.storageArray, .dataDynamicArray] ++ state.type.capabilities
 
 def Statement.capabilities : Statement → Array ProofForge.Target.Capability
   | .letBind _ type value => type.capabilities ++ value.capabilities

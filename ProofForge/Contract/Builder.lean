@@ -105,18 +105,13 @@ def scopeEntryIntent (entrypointName : String) (intent : Intent) : Intent := {
 def struct (decl : StructDecl) : ModuleM Unit := do
   modify fun builder => { builder with structs := builder.structs.push decl }
 
-def state (id : String) (type : ValueType) (kind : StateKind := .scalar)
-    (owner : StorageOwner := .contract) : ModuleM Unit := do
-  modify fun builder => { builder with state := builder.state.push { id, kind, type, owner } }
+def state (id : String) (type : ValueType) (kind : StateKind := .scalar) : ModuleM Unit := do
+  modify fun builder => { builder with state := builder.state.push { id, kind, type } }
 
-def scalarState (id : String) (type : ValueType) (owner : StorageOwner := .contract) : ModuleM Unit :=
-  state id type .scalar owner
-
-def objectState (id : String) (type : ValueType) : ModuleM Unit :=
-  state id type .scalar .object
-
-def resourceState (id : String) (type : ValueType) : ModuleM Unit :=
-  state id type .scalar .resource
+/-- Portable scalar persistent state. Binding (slot / account / resource /
+object) is chosen by `--target`, not by the author. -/
+def scalarState (id : String) (type : ValueType) : ModuleM Unit :=
+  state id type .scalar
 
 def constructorParam (name : String) (abiType : String) : ModuleM Unit := do
   modify fun builder =>

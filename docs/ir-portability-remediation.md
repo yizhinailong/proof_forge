@@ -1,74 +1,77 @@
 # IR Portability Remediation
 
-Status: **In progress (D-050 slice 1 landed 2026-07-09)**
+Status: **In progress (D-050 corrected 2026-07-09 — target-resolved binding)**
 
-Addresses the review finding that the portable IR evolved under EVM pressure
-and under-expresses Move / account-object ownership, while also carrying
-target-family constructors that look portable.
+Addresses the review finding that the portable IR evolved under EVM pressure.
+The authoring surface and IR stay **chain-neutral**; chain-native materialization
+is chosen only by `--target`.
 
 Related: [portable-ir.md](portable-ir.md), [D-027](decisions.md),
-[D-050](decisions.md), `ProofForge/IR/Portability.lean`.
+[D-028](decisions.md), [D-050](decisions.md),
+`ProofForge/IR/Portability.lean`, `ProofForge/Target/StorageBinding.lean`.
 
-## Problem
+## Principle (non-negotiable)
 
-| Smell | Example | Impact |
+```text
+Author / portable IR          Target adapter (--target)
+─────────────────────         ─────────────────────────
+state count: scalar U64  →    evm        → contract storage slot
+                         →    solana     → account data field
+                         →    wasm-near  → host KV key
+                         →    move-aptos → has-key resource
+                         →    move-sui   → object with UID
+```
+
+Authors **never** write `objectState` / `resourceState` / EVM slot annotations
+in the portable path. Those are lowering *outputs*, not IR *inputs*.
+
+## Wrong direction (reverted)
+
+An early D-050 draft put `StorageOwner.resource` / `.object` on `StateDecl`
+and exposed `objectState` / `resourceState` builders. That forced authors to
+pick a chain at write time and violated D-028. **Removed.**
+
+## Correct layering
+
+| Layer | Owns | Does not own |
 |---|---|---|
-| EVM-named fields on core IR | `paramEvmAbiWords`, `evmProxyPattern?` | Signals EVM-first design; confuses non-EVM adapters |
-| Missing ownership model | State only had shape (`scalar`/`map`/`array`) | Move object/resource semantics forced into Counter-name templates |
-| Family-only constructors in `Expr` | `nearPromise*`, `crosscallCreate2`, `fallback`/`receive` | Looks portable; only one family can lower them |
-| Docs/code drift | docs listed `account_owned`/`object` kinds; code had `array`/`dynamicArray` | Authors could not express documented shapes |
+| Contract Intent / `contract_source` | Portable state, entrypoints, arithmetic, events | Object vs resource vs slot |
+| Portable IR (`StateDecl`) | Shape: `scalar` / `map` / `array` + `ValueType` | Chain binding model |
+| Capability plan | `storage.scalar`, … | How a chain stores it |
+| `Target.StorageBinding` | Profile → native binding enum | Author annotations |
+| Backend plan / emit | Materialize binding (Yul `sstore`, Move `has key`, …) | Portable business logic |
 
-## Strategy (do not rewrite IR from scratch)
+## Slice 1 (landed, corrected)
 
-1. **Shape vs ownership** — keep `StateKind` for layout shape; add `StorageOwner`
-   for binding model (`contract` default).
-2. **Classify, then migrate** — `IR.Portability` tags every non-core constructor;
-   backends may reject family-only findings for the wrong family.
-3. **Rename EVM baggage** — neutral field names first; move remaining baggage
-   into target metadata bags over time (D-027).
-4. **No silent semantics** — EVM rejects `resource`/`object` owners; Move
-   rejects the wrong owner for its model; portable fixtures stay on `contract`.
-
-## Slice 1 (landed)
-
-- [x] `StorageOwner` + `storage.resource` / `storage.object` capabilities
-- [x] `paramAbiWords` / `proxyPattern?` renames (+ compatibility aliases)
-- [x] `ProofForge.IR.Portability` classifier
-- [x] EVM `validateState` owner checks
-- [x] Aptos/Sui accept explicit owners (still Counter MVP for entrypoints)
-- [x] `just ir-portability-smoke` in `just check`
+- [x] Portable `StateDecl` is shape-only (no owner field)
+- [x] `Target.StorageBinding` resolves binding from target id/family
+- [x] EVM/Solana/NEAR/Aptos/Sui adapters map the **same** Counter IR
+- [x] Neutral renames: `paramAbiWords`, `proxyPattern?` (metadata, not author intent)
+- [x] `ProofForge.IR.Portability` flags true family-only *constructors*
+      (create2, NEAR Promise ops, fallback/receive) — not storage binding
+- [x] `just ir-portability-smoke`
 
 ## Slice 2 (next)
 
-- [ ] Move NEAR Promise `Expr` constructors behind host-extension metadata
-      (keep capability `.nearPromise`; stop looking portable)
-- [ ] Generalize Move entrypoint lowering beyond hardcoded
-      `initialize`/`increment`/`get` names for scalar object/resource modules
-- [ ] Optional: `contract_source` surface helpers for `objectState` /
-      `resourceState` in portable authoring docs
-- [ ] Context field split: portable env (`timestamp`, `checkpointId`) vs
-      EVM-only (`baseFee`, `prevRandao`, `coinbase`)
-
-## Slice 3 (later)
-
-- [ ] Target-metadata bag on `Module` for all family baggage
-      (`proxyPattern`, `nearCrosscallStrings`, future Solana layout hints)
-- [ ] Expand Portability findings into CLI `check` diagnostics
-- [ ] Formal: prove family-only constructors never appear in
-      `isPortableCoreModule` witnesses used by three-chain testkit
+- [ ] Move NEAR Promise `Expr` constructors behind host-extension metadata (D-027)
+- [ ] Generalize Move entrypoint lowering beyond Counter body shapes
+- [ ] Context field split: portable env vs EVM-only (`baseFee`, `prevRandao`, …)
+- [ ] Portable identity type vocabulary (`ValueType.address` → documented as
+      chain-neutral account/identity handle; target ABI renames in metadata)
+- [ ] Surface `storageBinding` in artifact/deploy JSON for debugging
 
 ## Author guidance
 
-```text
-Portable (evm + solana + near):
-  state count: scalar u64            # owner defaults to contract
+```lean
+-- One source for every target:
+scalarState "count" .u64
 
-Sui-native authoring:
-  state count: scalar u64 owner object
-
-Aptos-native authoring:
-  state count: scalar u64 owner resource
+-- Build:
+--   proof-forge build --target evm ...
+--   proof-forge build --target move-sui ...
+--   proof-forge build --target move-aptos ...
 ```
 
-Builder helpers: `scalarState`, `objectState`, `resourceState` in
-`ProofForge.Contract.Builder`.
+Target Extension SDKs (Solana PDA/CPI, …) remain the only place for
+*explicit* chain-native authoring — and they still lower through capabilities
+and metadata, not portable IR constructors (D-027).

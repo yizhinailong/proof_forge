@@ -119,8 +119,7 @@ def stateJson (state : StateDecl) : String :=
   Json.object #[
     ("id", Json.string state.id),
     ("kind", stateKindJson state.kind),
-    ("type", valueTypeJson state.type),
-    ("owner", Json.string state.owner.id)
+    ("type", valueTypeJson state.type)
   ]
 
 def structFieldJson (field : StructField) : String :=

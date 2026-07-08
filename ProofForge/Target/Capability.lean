@@ -28,10 +28,6 @@ inductive Capability where
   | runtimeReturnData
   | runtimeComputeUnits
   | storagePda
-  /-- Aptos-style account-owned resource state (`StorageOwner.resource`). -/
-  | storageResource
-  /-- Sui-style object-owned state with UID (`StorageOwner.object`). -/
-  | storageObject
   | crosscallCpi
   | checkedArithmetic
   | zkCircuit
@@ -63,8 +59,6 @@ def Capability.id : Capability → String
   | .runtimeReturnData => "runtime.return_data"
   | .runtimeComputeUnits => "runtime.compute_units"
   | .storagePda => "storage.pda"
-  | .storageResource => "storage.resource"
-  | .storageObject => "storage.object"
   | .crosscallCpi => "crosscall.cpi"
   | .checkedArithmetic => "arith.checked"
   | .zkCircuit => "zk.circuit"

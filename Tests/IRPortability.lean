@@ -2,8 +2,7 @@
 Copyright (c) 2026 DaviRain. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
-D-050 IR portability smoke: Counter is portable-core; Move object ownership is
-flagged as Move-family-only; EVM rejects non-contract storage owners.
+D-050: portable IR stays chain-neutral; `--target` selects storage binding.
 -/
 import ProofForge.IR.Portability
 import ProofForge.IR.Examples.Counter
@@ -11,6 +10,7 @@ import ProofForge.Backend.Move.Sui
 import ProofForge.Backend.Move.Aptos
 import ProofForge.Backend.Evm.Validate
 import ProofForge.Target.Registry
+import ProofForge.Target.StorageBinding
 
 open ProofForge.IR
 open ProofForge.IR.Portability
@@ -21,18 +21,8 @@ def require (cond : Bool) (msg : String) : IO Unit :=
 
 def counterModule : Module := ProofForge.IR.Examples.Counter.module
 
-def objectCounterModule : Module := {
-  counterModule with
-  state := #[{ id := "count", kind := .scalar, type := .u64, owner := .object }]
-}
-
-def resourceCounterModule : Module := {
-  counterModule with
-  state := #[{ id := "count", kind := .scalar, type := .u64, owner := .resource }]
-}
-
 def main : IO Unit := do
-  -- Shared Counter fixture stays portable across primary targets.
+  -- Same portable Counter IR for every primary target.
   require (isPortableCoreModule counterModule)
     "Counter module must classify as portable-core (+ neutral selector metadata)"
   require (familyOnlyViolations counterModule .evm).isEmpty
@@ -41,66 +31,43 @@ def main : IO Unit := do
     "Counter must not carry non-Solana family-only constructors"
   require (familyOnlyViolations counterModule .wasmHost).isEmpty
     "Counter must not carry non-Wasm family-only constructors"
+  require (familyOnlyViolations counterModule .move).isEmpty
+    "Counter must not carry non-Move family-only constructors"
 
-  -- Explicit Sui object ownership is Move-family-only.
-  let objectFindings := classifyModule objectCounterModule
-  require (objectFindings.any fun f =>
-      match f.class_ with
-      | .targetFamilyOnly .move => true
-      | _ => false)
-    "StorageOwner.object must classify as move target-family-only"
-  require (!(isPortableCoreModule objectCounterModule))
-    "object-owned Counter is not a portable-core module"
-  require ((familyOnlyViolations objectCounterModule .evm).size > 0)
-    "object ownership must violate EVM family lowering"
-  require (familyOnlyViolations objectCounterModule .move).isEmpty
-    "object ownership must be legal for Move family"
+  -- Target (not author) chooses native storage binding.
+  require (evm.storageBinding == .contractGlobal)
+    "evm must bind portable state as contract-global storage"
+  require (solanaSbpfAsm.storageBinding == .accountData)
+    "solana-sbpf-asm must bind portable state as account data"
+  require (wasmNear.storageBinding == .hostKeyValue)
+    "wasm-near must bind portable state as host key/value"
+  require (moveAptos.storageBinding == .moveResource)
+    "move-aptos must bind portable state as Move resource"
+  require (moveSui.storageBinding == .moveObject)
+    "move-sui must bind portable state as Move object"
+  require ((storageBindingForTargetId? "move-sui") == some .moveObject)
+    "storageBindingForTargetId? must resolve move-sui"
 
-  -- Sui accepts object owner and portable contract owner; rejects resource.
-  match ProofForge.Backend.Move.Sui.requireScalarState objectCounterModule with
-  | .ok "count" => pure ()
-  | .ok other => throw (IO.userError s!"Sui object owner unexpected field `{other}`")
-  | .error e => throw (IO.userError s!"Sui should accept object owner: {e.message}")
-  match ProofForge.Backend.Move.Sui.requireScalarState counterModule with
-  | .ok "count" => pure ()
-  | .ok other => throw (IO.userError s!"Sui portable owner unexpected field `{other}`")
-  | .error e => throw (IO.userError s!"Sui should accept portable contract owner: {e.message}")
-  match ProofForge.Backend.Move.Sui.requireScalarState resourceCounterModule with
-  | .error _ => pure ()
-  | .ok _ => throw (IO.userError "Sui must reject StorageOwner.resource")
-
-  -- Aptos accepts resource owner and portable contract owner; rejects object.
-  match ProofForge.Backend.Move.Aptos.requireScalarState resourceCounterModule with
-  | .ok "count" => pure ()
-  | .ok other => throw (IO.userError s!"Aptos resource owner unexpected field `{other}`")
-  | .error e => throw (IO.userError s!"Aptos should accept resource owner: {e.message}")
-  match ProofForge.Backend.Move.Aptos.requireScalarState objectCounterModule with
-  | .error _ => pure ()
-  | .ok _ => throw (IO.userError "Aptos must reject StorageOwner.object")
-
-  -- EVM validate rejects Move ownership models.
-  match ProofForge.Backend.Evm.Validate.validateState objectCounterModule with
-  | .error e =>
-      require (e.message.contains "StorageOwner.object")
-        s!"EVM object rejection message unexpected: {e.message}"
-  | .ok _ => throw (IO.userError "EVM must reject StorageOwner.object")
-  match ProofForge.Backend.Evm.Validate.validateState resourceCounterModule with
-  | .error e =>
-      require (e.message.contains "StorageOwner.resource")
-        s!"EVM resource rejection message unexpected: {e.message}"
-  | .ok _ => throw (IO.userError "EVM must reject StorageOwner.resource")
+  -- Same IR accepted by EVM, Sui, and Aptos adapters (target maps binding).
   match ProofForge.Backend.Evm.Validate.validateState counterModule with
   | .ok _ => pure ()
   | .error e => throw (IO.userError s!"EVM must accept portable Counter: {e.message}")
+  match ProofForge.Backend.Move.Sui.requireScalarState counterModule with
+  | .ok "count" => pure ()
+  | .ok other => throw (IO.userError s!"Sui unexpected field `{other}`")
+  | .error e => throw (IO.userError s!"Sui must accept portable Counter: {e.message}")
+  match ProofForge.Backend.Move.Aptos.requireScalarState counterModule with
+  | .ok "count" => pure ()
+  | .ok other => throw (IO.userError s!"Aptos unexpected field `{other}`")
+  | .error e => throw (IO.userError s!"Aptos must accept portable Counter: {e.message}")
 
-  -- Capability emission for explicit owners.
-  require (objectCounterModule.capabilities.any (· == .storageObject))
-    "object owner must declare storage.object capability"
-  require (resourceCounterModule.capabilities.any (· == .storageResource))
-    "resource owner must declare storage.resource capability"
-  require (moveSui.capabilities.contains .storageObject)
-    "move-sui profile must advertise storage.object"
-  require (moveAptos.capabilities.contains .storageResource)
-    "move-aptos profile must advertise storage.resource"
+  -- Portable scalar state declares only storage.scalar — never chain-native caps.
+  require (counterModule.capabilities.all fun c =>
+      !(c == .storagePda))
+    "portable Counter must not require Solana-only storage.pda"
+  require (!(counterModule.capabilities.any fun c => c.id == "storage.resource"))
+    "portable IR must not emit storage.resource"
+  require (!(counterModule.capabilities.any fun c => c.id == "storage.object"))
+    "portable IR must not emit storage.object"
 
   IO.println "ir-portability: ok"

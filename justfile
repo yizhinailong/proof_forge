@@ -125,9 +125,9 @@ ir-counter-semantics-smoke:
     lake build ProofForge.IR.CounterSemantics
     lake env lean --run Tests/IRCounterSemantics.lean
 
-# D-050: IR portability classification + StorageOwner Move/EVM boundary smoke.
+# D-050: portable IR + target-resolved StorageBinding smoke.
 ir-portability-smoke:
-    lake build ProofForge.IR.Portability ProofForge.IR.Examples.Counter ProofForge.Backend.Evm.Validate ProofForge.Backend.Move.Sui ProofForge.Backend.Move.Aptos
+    lake build ProofForge.IR.Portability ProofForge.Target.StorageBinding ProofForge.IR.Examples.Counter ProofForge.Backend.Evm.Validate ProofForge.Backend.Move.Sui ProofForge.Backend.Move.Aptos
     lake env lean --run Tests/IRPortability.lean
 
 # FV-9.0 M6: exercise the shared total fueled IR interpreter (the ∀-module theorem's quantification target).

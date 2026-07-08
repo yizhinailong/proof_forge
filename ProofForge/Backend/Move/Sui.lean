@@ -15,7 +15,6 @@ def err (msg : String) : Except EmitError α := .error { message := msg }
 
 def supportedCapabilities : ProofForge.Target.CapabilitySet := #[
   .storageScalar,
-  .storageObject,
   .assertions,
   .accountExplicit
 ]
@@ -25,9 +24,8 @@ def checkCapabilities (mod : Module) : Except EmitError Unit :=
     if supportedCapabilities.contains capability then .ok ()
     else err ("Sui Counter MVP: capability `" ++ capability.id ++ "` is not supported")) ()
 
-/-- Accept a single scalar u64 state. Preferred owner is `StorageOwner.object`
-(Sui object model). The portable Counter fixture still uses `owner := .contract`;
-Sui accepts that as a Counter-MVP legacy mapping onto an object field (D-050). -/
+/-- Accept a single portable scalar u64 state. The Sui adapter always materializes
+it as a Move object with UID — authors do not declare "object" in IR (D-050). -/
 def requireScalarState (mod : Module) : Except EmitError String := do
   if mod.state.size != 1 then
     err "Sui Counter MVP: exactly one scalar u64 state is required"
@@ -40,11 +38,7 @@ def requireScalarState (mod : Module) : Except EmitError String := do
         else if state.type != .u64 then
           err ("Sui Counter MVP: state `" ++ state.id ++ "` must be u64")
         else
-          match state.owner with
-          | .object | .contract => pure state.id
-          | .resource =>
-              err ("Sui Counter MVP: state `" ++ state.id ++
-                "` has StorageOwner.resource; use StorageOwner.object (or portable contract for MVP)")
+          pure state.id
 
 def renderSource (mod : Module) : Except EmitError String := do
   checkCapabilities mod

@@ -71,16 +71,17 @@ constructors to the portable IR.
 ### State
 
 - `id`: stable state variable name
-- `kind`: `scalar` | `map` | `array` | `dynamicArray` (shape)
+- `kind`: `scalar` | `map` | `array` | `dynamicArray` (shape only)
 - `type`: portable type reference
-- `owner`: `contract` | `resource` | `object` (binding model, default `contract`)
 
-`owner` is orthogonal to `kind` (D-050). Portable Counter/ValueVault use
-`owner := contract` so the same IR resolves on EVM, Solana, and NEAR. Move
-targets prefer `resource` (Aptos) or `object` (Sui); those owners declare
-`storage.resource` / `storage.object` and are rejected on EVM. See
-`ProofForge.IR.Portability` for the machine-checked portable vs family-only
-inventory.
+State is **chain-neutral**. Native binding (EVM slots, Solana account bytes,
+NEAR host KV, Aptos resources, Sui objects) is **not** part of the IR: the
+selected `--target` resolves it via `ProofForge.Target.StorageBinding`
+(D-050 / D-028). Authors write `state count: scalar U64` once; each backend
+materializes that shape for its chain.
+
+See `ProofForge.IR.Portability` for family-only *constructors* (e.g. CREATE2,
+NEAR Promise ops) that must not pretend to be portable core.
 
 ### Effect (target-resolved capability call)
 
