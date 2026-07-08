@@ -386,6 +386,9 @@ theorem memory_execLoad (state : SbpfState) (dst : Reg) (addr value : Nat) :
 theorem memory_execMov64 (state : SbpfState) (dst : Reg) (value : Nat) :
     (execMov64 state dst value).memory = state.memory := rfl
 
+theorem memory_execSetReturnData (state : SbpfState) (value : Nat) :
+    (execSetReturnData state value).memory = state.memory := rfl
+
 theorem memory_read_execStore (state : SbpfState) (addr value : Nat) :
     (execStore state addr value).memory.read addr = value := by
   unfold execStore
@@ -402,6 +405,27 @@ theorem memory_read_execStore_of_ne (state : SbpfState) {readAddr writeAddr valu
 
 theorem memory_execExit (state : SbpfState) (r0 : Nat) :
     (execExit state r0).memory = state.memory := rfl
+
+theorem returnData_nextPc (state : SbpfState) :
+    (nextPc state).returnData = state.returnData := rfl
+
+theorem returnData_setReg (state : SbpfState) (reg : Reg) (value : Nat) :
+    (setReg state reg value).returnData = state.returnData := rfl
+
+theorem returnData_execLoad (state : SbpfState) (dst : Reg) (addr value : Nat) :
+    (execLoad state dst addr value).returnData = state.returnData := rfl
+
+theorem returnData_execMov64 (state : SbpfState) (dst : Reg) (value : Nat) :
+    (execMov64 state dst value).returnData = state.returnData := rfl
+
+theorem returnData_execStore (state : SbpfState) (addr value : Nat) :
+    (execStore state addr value).returnData = state.returnData := rfl
+
+theorem returnData_execExit (state : SbpfState) (r0 : Nat) :
+    (execExit state r0).returnData = state.returnData := rfl
+
+theorem returnData_execSetReturnData (state : SbpfState) (value : Nat) :
+    (execSetReturnData state value).returnData = some value := rfl
 
 def readLoad (program : SbpfProgram) (state : SbpfState) (inst : Inst) :
     Except String SbpfState :=

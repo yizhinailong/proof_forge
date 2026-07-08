@@ -1883,9 +1883,10 @@ theorem getNetValue_runSteps (b f : Nat) :
 
 theorem getNetValue_return_data (b f : Nat) :
     (getNetFinalState b f).returnData = some (b - f) := by
-  unfold getNetFinalState getNetState17 getNetState16 execExit execMov64
-    execSetReturnData setReg nextPc
-  rfl
+  unfold getNetFinalState getNetState17
+  rw [returnData_execExit, returnData_execMov64]
+  unfold getNetState16
+  exact returnData_execSetReturnData (getNetState15 b f) (b - f)
 
 theorem balanceOff_matches_layout :
     stateFieldOffset? ProofForge.IR.Examples.ValueVault.module "balance" = some balanceOff := by
