@@ -223,6 +223,18 @@ Implementation sketch:
    - Materialize Promise from portable `crosscall.invoke` + async policy;
      remove author-facing `nearPromise*` from portable Expr (D-050 Slice 3).
 
+5. **Crosscall materialization (Phase B.3) — landed for primary chains**
+   - Authors write portable `crosscall.invoke` only; never CPI metas / Promise
+     chains / STATICCALL opcodes on the portable path.
+   - **EVM:** CALL (STATICCALL/DELEGATECALL/create remain extension-shaped).
+   - **Solana:** CPI-shaped sBPF lower (`Backend.Solana.PortableCrosscall` +
+     `SbpfAsm` method+args → ix data; auto `callee_program` account;
+     `sol_log_64_` + `sol_get_return_data` stub). `Source.Solana` CPI remains
+     for hand-tuned account vectors.
+   - **NEAR:** `promise_create` via `nearCrosscallStrings` address-literal
+     indices; typed/STATIC/DELEGATE/create reject with honest diagnostics.
+   - Map + gate: `Target.CrosscallMaterialize` + `just crosscall-materialize`.
+
 **Exit:** Shared RoleGatedToken / StakingVault / Counter compile to Solana
 **without** `import Source.Solana` and without any `account`/`cpi` line, and
 pass Solana light gates.
@@ -245,7 +257,7 @@ pass Solana light gates.
 - Crosscall map: `Target.CrosscallMaterialize.forProfile` (portable intent → native form)
 - Artifact field **`materialization`** on primary emit paths; Solana keeps
   `solanaMaterialization` for account lists
-- Gate: `just primary-materialize`
+- Gates: `just primary-materialize`, `just crosscall-materialize`
 
 ### Phase C — Clean portable IR (compiler hygiene)
 
@@ -309,7 +321,8 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 | 3 | Solana Source opt-in (stop default teaching CPI) | ✅ Landed (bridge) |
 | 4 | **Solana auto-materialize portable IR → Plan/accounts** | ✅ B.2 landed (`Backend.Solana.Materialize`, artifact field) |
 | 4b | **Unified primary-chain materialize (EVM·Solana·Wasm-NEAR)** | ✅ `Target.Materialize` + artifact `materialization` on all three; `just primary-materialize` |
-| 5 | NEAR Promise out of portable Expr; crosscall materialize | IR hygiene + async |
+| 4c | **Portable crosscall.invoke materialize (EVM CALL · Solana CPI · NEAR Promise)** | ✅ B.3 primary path; `just crosscall-materialize`; full `sol_invoke` packing later |
+| 5 | NEAR Promise constructors out of portable Expr (D-050 Slice 3) | IR hygiene; materialization stays backend-owned |
 | 6 | Mark `Source.Solana` fixture-only; demote from product docs | After auto-materialize works for Counter/Vault |
 | 7 | Stdlib portable policies → multi-target lowering | One Ownable/Token intent |
 | 8 | Spec/Builder de-EVM naming | Product surface cleanup |

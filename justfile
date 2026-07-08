@@ -638,7 +638,7 @@ solana-web3-compat:
     python3 scripts/solana/check-web3-compat-wrappers.py
 
 # Run all Solana gates that are safe for default CI.
-solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke portable-value-vault solana-emit-asm solana-plan-smoke solana-auto-materialize primary-materialize solana-web3-compat solana-pinocchio-reference-equivalence solana-sbpf-exec-smoke solana-sbpf-genericity-smoke solana-counter-sbpf-regression solana-refinement-smoke
+solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke portable-value-vault solana-emit-asm solana-plan-smoke solana-auto-materialize primary-materialize crosscall-materialize solana-web3-compat solana-pinocchio-reference-equivalence solana-sbpf-exec-smoke solana-sbpf-genericity-smoke solana-counter-sbpf-regression solana-refinement-smoke
 
 # Check shared-vs-target example topology.
 examples-topology:
@@ -660,6 +660,11 @@ solana-auto-materialize:
 primary-materialize:
     lake build ProofForge.Target.Materialize ProofForge.Target.CrosscallMaterialize Examples.Shared.Counter
     lake env lean --run Tests/PrimaryMaterialize.lean
+
+# Phase B.3: portable crosscall.invoke materialization (EVM CALL · Solana CPI · NEAR Promise).
+crosscall-materialize:
+    lake build ProofForge.Backend.Solana.PortableCrosscall ProofForge.IR.Examples.CrosscallProbe ProofForge.IR.Examples.NearCrosscallProbe ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmNear.EmitWat
+    lake env lean --run Tests/CrosscallMaterialize.lean
 
 
 # Check translated documentation freshness and example topology.

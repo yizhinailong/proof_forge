@@ -56,9 +56,10 @@ def diagnosticError (err : ProofForge.Target.Diagnostic) : LowerError := {
 }
 
 /-- Reject IR modules whose portable capabilities are not in the
-`solana-sbpf-asm` target profile (V-GATE-SOLANA-05). For Solana this mainly
-rules out the generic `.crosscallInvoke` (Solana uses `.crosscallCpi`,
-D-027) and the ZK capabilities. -/
+`solana-sbpf-asm` target profile (V-GATE-SOLANA-05). Portable
+`crosscall.invoke` is accepted and materialized as CPI-shaped execution
+(Phase B.3). Explicit Source.Solana CPI/PDA remain extension-only (D-027).
+ZK capabilities stay unsupported. -/
 def validateCapabilities (module : IR.Module) : Except LowerError Unit := do
   match ProofForge.Target.resolveModule ProofForge.Target.solanaSbpfAsm module with
   | .ok _ => .ok ()

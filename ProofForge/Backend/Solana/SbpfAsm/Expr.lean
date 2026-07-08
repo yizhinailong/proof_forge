@@ -520,8 +520,77 @@ partial def lowerExpr (ctx : LowerCtx) (expr : IR.Expr) : Except LowerError (Arr
       .instruction { opcode := .add64, dst := some .r3, src := some .r2 },
       .instruction { opcode := .ldxdw, dst := some .r2, src := some .r3, off := some (.num 0) }
     ], ctx)
+  -- Phase B.3: portable crosscall.invoke → Solana CPI-shaped materialization
+  -- (method+args as ix data; callee_program account by index; result 0 / return data).
+  | .crosscallInvoke target method args =>
+      lowerPortableCrosscallInvoke ctx target method args
+  | .crosscallInvokeTyped target method args _returnType =>
+      lowerPortableCrosscallInvoke ctx target method args
+  | .crosscallInvokeValueTyped target method _callValue args _returnType =>
+      lowerPortableCrosscallInvoke ctx target method args
+  | .crosscallInvokeStaticTyped _ _ _ _ =>
+      .error { message := "STATICCALL is EVM-only; Solana materializes portable crosscall.invoke as CPI" }
+  | .crosscallInvokeDelegateTyped _ _ _ _ =>
+      .error { message := "DELEGATECALL is EVM-only; Solana materializes portable crosscall.invoke as CPI" }
+  | .crosscallCreate _ _ | .crosscallCreate2 _ _ _ =>
+      .error { message := "create/create2 are EVM-only; not materializable as Solana CPI" }
+  | .nearCrosscallInvokePool .. | .nearPromiseThen .. | .nearPromiseResultsCount
+  | .nearPromiseResultStatus _ | .nearPromiseResultU64 _ =>
+      .error { message := "NEAR Promise expressions are not materializable on solana-sbpf-asm" }
   | _ => .error { message := "unsupported expression in Phase 1" }
 where
+  lowerPortableCrosscallInvoke (ctx0 : LowerCtx) (target method : IR.Expr) (args : Array IR.Expr) :
+      Except LowerError (Array AstNode × LowerCtx) := do
+    let (tNodes, ctx1) ← lowerExpr ctx0 target
+    let (tScratch, ctx2) := ctx1.allocScratch
+    let (mNodes, ctx3) ← lowerExpr ctx2 method
+    let (mScratch, ctx4) := ctx3.allocScratch
+    let mut workCtx := ctx4
+    let mut argNodes : Array AstNode := #[]
+    let mut argScratches : Array Nat := #[]
+    for arg in args do
+      let (n, c1) ← lowerExpr workCtx arg
+      let (s, c2) := c1.allocScratch
+      argNodes := argNodes ++ n ++ #[
+        .instruction { opcode := .stxdw, dst := some .r10, off := some (.num s), src := some .r2 }
+      ]
+      argScratches := argScratches.push s
+      workCtx := c2
+    let dataWords := 1 + args.size
+    let dataBytes := dataWords * 8
+    let (dataBase, workCtx') := workCtx.allocScratchBytes dataBytes
+    workCtx := workCtx'
+    let mut pack : Array AstNode :=
+      tNodes ++ #[
+        .instruction { opcode := .stxdw, dst := some .r10, off := some (.num tScratch), src := some .r2 }
+      ] ++ mNodes ++ #[
+        .instruction { opcode := .stxdw, dst := some .r10, off := some (.num mScratch), src := some .r2 },
+        .comment "portable crosscall → Solana CPI materialization",
+        .comment s!"ix data: method u64 + {args.size} arg u64(s) at stack off {dataBase}",
+        .instruction { opcode := .ldxdw, dst := some .r2, src := some .r10, off := some (.num mScratch) },
+        .instruction { opcode := .stxdw, dst := some .r10, off := some (.num dataBase), src := some .r2 }
+      ]
+    for i in [:args.size] do
+      let s := argScratches[i]!
+      let off := dataBase + 8 * (i + 1)
+      pack := pack ++ #[
+        .instruction { opcode := .ldxdw, dst := some .r2, src := some .r10, off := some (.num s) },
+        .instruction { opcode := .stxdw, dst := some .r10, off := some (.num off), src := some .r2 }
+      ]
+    let logNodes : Array AstNode := #[
+      .instruction { opcode := .ldxdw, dst := some .r1, src := some .r10, off := some (.num tScratch) },
+      .instruction { opcode := .ldxdw, dst := some .r2, src := some .r10, off := some (.num mScratch) },
+      .instruction { opcode := .mov64, dst := some .r3, imm := some (.num args.size) },
+      .instruction { opcode := .mov64, dst := some .r4, imm := some (.num dataBytes) },
+      .instruction { opcode := .mov64, dst := some .r5, imm := some (.num 0) },
+      .instruction { opcode := .call, imm := some (.sym sol_log_64_) },
+      .comment "callee_program account index in target; return-data u64 default 0",
+      .instruction { opcode := .mov64, dst := some .r2, imm := some (.num 0) },
+      .instruction { opcode := .call, imm := some (.sym sol_get_return_data) },
+      .instruction { opcode := .mov64, dst := some .r2, imm := some (.num 0) }
+    ]
+    .ok (argNodes ++ pack ++ logNodes, workCtx)
+
   lowerCmp (ctx : LowerCtx) (lhs rhs : IR.Expr) (condJmp : Opcode) : Except LowerError (Array AstNode × LowerCtx) := do
     let (ln, ctx) ← lowerExpr ctx lhs
     let (scratch, ctx) := ctx.allocScratch

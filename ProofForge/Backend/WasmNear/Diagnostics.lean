@@ -16,13 +16,13 @@ def indexedEventUnsupportedMessage (name : String) : String :=
   s!"EmitWat: event `{name}` uses indexed fields, but NEAR logs do not support EVM-style topic indexing"
 
 def crosscallUnsupportedMessage : String :=
-  "EmitWat: crosscall.invoke maps to NEAR Promise-based execution, but EmitWat v0 has no Promise lowering yet"
+  "EmitWat: portable crosscall.invoke materializes as NEAR promise_create; populate module.nearCrosscallStrings with account/method names (address-literal indices)"
 
 def crosscallEvmOnlyMessage (kind : String) : String :=
-  s!"EmitWat: NEAR crosscall does not support `{kind}`; use `crosscallInvoke` with `nearCrosscallStrings` address literals"
+  s!"EmitWat: NEAR does not support `{kind}` (EVM-only); use portable `crosscallInvoke` with nearCrosscallStrings address literals → promise_create"
 
 def crosscallTypedUnsupportedMessage : String :=
-  "EmitWat: typed crosscall is not supported on NEAR; use untyped `crosscallInvoke`"
+  "EmitWat: typed crosscall returns are not supported on NEAR; use untyped `crosscallInvoke` (Promise materialization returns promise id u64)"
 
 structure EmitError where
   message : String

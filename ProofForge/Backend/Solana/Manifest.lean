@@ -435,8 +435,26 @@ def buildEntrypointAccounts (module : Module) (extensions : ProgramExtensions)
   alignInstructionAccountsWithModuleOrder moduleAccounts
     (buildInstructionAccounts module extensions entrypoint)
 
+/-- Phase B.3: when portable IR uses `crosscall.invoke`, materialize a
+`callee_program` executable account so CPI can resolve program id by index. -/
+def ensurePortableCrosscallAccounts (module : Module) (accounts : Array AccountEntry) :
+    Array AccountEntry :=
+  if !(module.capabilities.any (fun c => c == .crosscallInvoke)) then
+    accounts
+  else if accounts.any (fun a => a.name == "callee_program") then
+    accounts
+  else
+    pushAccount accounts {
+      name := "callee_program"
+      index := 0
+      signer := false
+      writable := false
+      owner := "executable"
+    }
+
 def buildModuleAccounts (module : Module) (extensions : ProgramExtensions) : Array AccountEntry :=
   let accounts := buildDefaultAccounts module
+  let accounts := ensurePortableCrosscallAccounts module accounts
   let accounts :=
     extensions.pdas.foldl
       (fun accounts pda => pushAccount accounts (pdaInstructionAccount pda))

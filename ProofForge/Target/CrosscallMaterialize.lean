@@ -125,19 +125,19 @@ def forProfile (profile : TargetProfile) : Report :=
   let note :=
     match form with
     | .evmCall =>
-        "Portable crosscall.invoke → EVM CALL; STATICCALL/DELEGATECALL remain EVM extensions"
+        "Portable crosscall.invoke → EVM CALL; STATICCALL/DELEGATECALL/create remain EVM extensions"
     | .solanaCpi =>
-        "Portable crosscall.invoke is rejected on Solana product path; use CPI capability with auto-synthesized metas (extension or future auto-CPI)"
+        "Portable crosscall.invoke → Solana CPI materialization (method+args as ix data; callee_program account by index; Source.Solana CPI still for hand-tuned layouts)"
     | .nearPromise =>
-        "Portable crosscall.invoke → NEAR Promise materialization (full async still partial)"
+        "Portable crosscall.invoke → NEAR promise_create (nearCrosscallStrings string pool for account/method names)"
     | .cosmWasmMsg =>
-        "Portable crosscall.invoke → CosmWasm WasmMsg/submessage via host adapter"
+        "Portable crosscall.invoke → CosmWasm WasmMsg/submessage via host adapter (spike coverage)"
     | .workersBinding =>
         "Portable crosscall.invoke reinterpreted as Workers binding/fetch (off-chain host)"
     | .moveCall =>
         "Portable crosscall.invoke → Move package call shape (spike; limited coverage)"
     | .zkCircuitCall =>
-        "Portable crosscall is restricted in ZK lanes; circuits prefer closed call graphs"
+        "Portable crosscall restricted in ZK lanes; Psy accepts untyped U64 crosscall, typed/create rejected"
     | .unsupported =>
         "No portable crosscall materialization for this target"
   { targetId := profile.id

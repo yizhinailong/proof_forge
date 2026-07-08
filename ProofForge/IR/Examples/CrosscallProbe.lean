@@ -175,4 +175,16 @@ def psyModule : Module := {
   entrypoints := #[callRemote]
 }
 
+/-- Solana-portable subset: scalar `crosscall.invoke` / typed invoke only.
+EVM-only STATICCALL/DELEGATECALL/create and Hash/struct-heavy entrypoints are
+excluded so `solana-sbpf-asm` can lower CPI materialization without extension
+surface. -/
+def solanaPortableModule : Module := {
+  name := "CrosscallProbeSolana"
+  state := #[stateMarker]
+  entrypoints := #[
+    callRemote, callWithArgs, callRemoteBool, callRemoteU32, callRemoteValue
+  ]
+}
+
 end ProofForge.IR.Examples.CrosscallProbe

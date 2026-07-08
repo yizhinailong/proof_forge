@@ -201,8 +201,10 @@ def solanaSbpfLinker : TargetProfile := {
 
 def solanaSbpfAsm : TargetProfile := {
   -- Canonical Solana route (D-026). Direct sBPF assembly codegen via the
-  -- blueshift-gg/sbpf toolchain. CPI and PDA effects stay Solana-specific
-  -- (D-027): crosscall.cpi and storage.pda, not crosscall.invoke.
+  -- blueshift-gg/sbpf toolchain. Explicit Source.Solana CPI/PDA remain
+  -- extension-only (D-027). Portable `crosscall.invoke` is accepted and
+  -- **materialized** as CPI-shaped execution (Phase B.3): method/args → ix
+  -- data, program account by index (`callee_program`).
   id := "solana-sbpf-asm"
   family := .solana
   artifactKind := .solanaElf
@@ -227,7 +229,8 @@ def solanaSbpfAsm : TargetProfile := {
     .runtimeReturnData,
     .runtimeComputeUnits,
     .storagePda,
-    .crosscallCpi
+    .crosscallCpi,
+    .crosscallInvoke
   ]
   requiredTools := #["sbpf"]
 }
