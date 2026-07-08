@@ -1,11 +1,19 @@
 # Shared Portable Examples
 
-`Examples/Shared` is the canonical place for reusable `contract_source`
-examples. A shared example keeps business logic in one Lean file and lets
-`proof-forge build --target ...` choose the chain artifact.
+`Examples/Shared` is the **portable-default product path**: authors write
+business logic (or `TokenSpec` features) only. `proof-forge build --target …`
+materializes chain form (EVM slots/ABI, Solana accounts/CPI/SPL, NEAR host, …).
+
+**Rules (enforced by `just portable-default`):**
+
+- No `import ProofForge.Solana` / chain backends in Shared sources.
+- No author-selected `TokenStandard` (ERC-20 / SPL / Token-2022) — only
+  `TokenFeature`s; `planForTarget` resolves the standard.
+- No Account/PDA/CPI authoring helpers — those are Solana Extension examples
+  under `Examples/Solana/`.
 
 Target directories such as `Examples/Evm`, `Examples/Solana`, and
-`Examples/WasmNear` should only keep chain-specific fixtures, golden files, and
+`Examples/WasmNear` keep chain-specific fixtures, golden files, and
 compatibility entrypoints. New portable product examples should start here.
 
 ## Primary Multi-Target Examples
@@ -36,12 +44,12 @@ product-level intent once and let target routing choose the chain form:
 
 | Example | Source | Current target status |
 |---|---|---|
-| FungibleToken | [FungibleToken.lean](FungibleToken.lean) | `just token-intent-smoke`; `TokenSpec` lowers to EVM or Solana token artifacts below the shared intent layer; NEAR token lowering is still gated |
-| FeeToken | [FeeToken.lean](FeeToken.lean) | `just token-intent-smoke`; `TokenSpec` lowers the transfer-fee intent to a Solana Token-2022 plan while keeping the authored source target-neutral |
-| SoulboundToken | [SoulboundToken.lean](SoulboundToken.lean) | `just token-intent-smoke`; `TokenSpec` lowers the non-transferable intent to a Solana Token-2022 plan while keeping the authored source target-neutral |
+| FungibleToken | [FungibleToken.lean](FungibleToken.lean) | `just token-intent-smoke` / `just shared-token-intent`; mintable+burnable → EVM ERC-20 or Solana SPL |
+| FeeToken | [FeeToken.lean](FeeToken.lean) | feature `transfer_fee` only; Solana → Token-2022; EVM → **reject** (not yet materializable) |
+| SoulboundToken | [SoulboundToken.lean](SoulboundToken.lean) | feature `non_transferable` only; Solana → Token-2022; EVM → **reject** |
 
-The sources do not mention ERC-20, SPL Token, Token-2022, or NEP-141. Those
-names are target outputs chosen below the shared intent layer.
+Shared sources describe **intents and features**, not ERC-20 / SPL / Token-2022.
+Those names appear only in plan/artifact output after `--target` is chosen.
 
 Legacy `.learn` examples remain parser/equivalence fixtures. New product
 examples should use ordinary `.lean` files with `contract_source` or a

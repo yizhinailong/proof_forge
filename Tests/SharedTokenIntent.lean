@@ -1,5 +1,6 @@
 import Examples.Shared.FungibleToken
 import Examples.Shared.FeeToken
+import Examples.Shared.SoulboundToken
 import ProofForge.Contract.Token.Learn
 import ProofForge.Target.Registry
 
@@ -105,6 +106,33 @@ def main : IO UInt32 := do
   | .error err =>
       require (err == "target `wasm-near` does not have a TokenSpec lowering plan yet")
         s!"unexpected shared token NEAR diagnostic: {err}"
+
+  -- Phase A: TokenStandard is target-resolved only (not on TokenSpec).
+  match resolveTokenStandard evm Examples.Shared.FungibleToken.spec with
+  | .ok .erc20 => pure ()
+  | .ok other => throw <| IO.userError s!"FungibleToken on EVM should resolve to erc20, got {repr other}"
+  | .error err => throw <| IO.userError err
+  match resolveTokenStandard solanaSbpfAsm Examples.Shared.FungibleToken.spec with
+  | .ok .splToken => pure ()
+  | .ok other => throw <| IO.userError s!"FungibleToken on Solana should resolve to spl-token, got {repr other}"
+  | .error err => throw <| IO.userError err
+  match resolveTokenStandard solanaSbpfAsm Examples.Shared.FeeToken.spec with
+  | .ok .splToken2022 => pure ()
+  | .ok other => throw <| IO.userError s!"FeeToken on Solana should resolve to Token-2022, got {repr other}"
+  | .error err => throw <| IO.userError err
+  match resolveTokenStandard evm Examples.Shared.FeeToken.spec with
+  | .ok _ => throw <| IO.userError "FeeToken must not silently lower on EVM (transfer_fee unsupported)"
+  | .error err =>
+      require (err.contains "transfer_fee")
+        s!"EVM FeeToken rejection should cite transfer_fee, got: {err}"
+  match resolveTokenStandard evm Examples.Shared.SoulboundToken.spec with
+  | .ok _ => throw <| IO.userError "SoulboundToken must not silently lower on EVM"
+  | .error err =>
+      require (err.contains "non_transferable")
+        s!"EVM Soulbound rejection should cite non_transferable, got: {err}"
+  match planForTarget evm Examples.Shared.FeeToken.spec with
+  | .ok _ => throw <| IO.userError "planForTarget must reject FeeToken on EVM"
+  | .error _ => pure ()
 
   IO.println "shared-token-intent: ok"
   return 0

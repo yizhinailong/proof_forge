@@ -135,6 +135,21 @@ chain keyword in source, and build to `evm`, `solana-sbpf-asm`, `wasm-near`.
 **Exit:** `just portable-counter-multi-target` + portable token smoke for
 EVM + Solana without extension syntax in shared examples.
 
+#### Phase A status (2026-07-09) — landed
+
+| Item | Evidence |
+|---|---|
+| Shared portable-default lint | `just portable-default` → `scripts/portable/check-portable-default.py` + topology |
+| No chain Surface / TokenStandard in `Examples/Shared` | Gate rejects forbidden imports and `TokenStandard.*` |
+| TokenSpec has no author `standard` field | Structure is features-only; `resolveTokenStandard` is adapter-only |
+| Feature → standard is target-resolved | FungibleToken → erc20 / spl-token; FeeToken → spl-token-2022 on Solana |
+| Unsupported features **reject** (no silent drop) | FeeToken / Soulbound on `evm` error citing `transfer_fee` / `non_transferable` |
+| Product docs | `Examples/Shared/README.md`, Token.lean module header |
+
+Still open for later Phase A/B: split `Contract.Source` so Solana helpers are
+not even *visible* without an extension import; Solana auto-materialization of
+accounts for portable contracts (not just TokenSpec plans).
+
 ### Phase B — Automatic chain materialization (compiler)
 
 **Goal:** Adapters synthesize accounts/PDA/CPI/host layout from portable IR

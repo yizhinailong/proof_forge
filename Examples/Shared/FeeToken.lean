@@ -4,19 +4,17 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Canonical high-level fungible token intent with transfer fees.
 
-This file describes a product-level token intent once. It does not name the
-Solana Token-2022 program in the authored contract; the Solana target selects
-Token-2022 because the shared intent asks for transfer fees.
+Authors write business features only (`transfer_fee`). They never pick a chain
+token standard. `planForTarget` / `--target` materialize the standard:
 
-Compile by changing only `--target`:
+  - `solana-sbpf-asm` → Token-2022 plan (transfer_fee extension)
+  - `evm` → **rejected** until ERC-20 fee materialization exists (honest diagnostic)
+
+Compile:
 
   lake env proof-forge build --target solana-sbpf-asm --token --root . \
-    -o build/shared-fee-token/FeeToken.solana-token-2022-plan.json \
+    -o build/shared-fee-token/FeeToken.token-plan.json \
     Examples/Shared/FeeToken.lean
-
-The EVM target currently lowers this intent to an ERC-20-compatible artifact
-without a transfer-fee extension because ERC-20 fee semantics are not yet part
-of ProofForge's EVM TokenSpec lowering.
 -/
 import ProofForge.Contract.Token
 

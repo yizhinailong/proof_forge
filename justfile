@@ -644,8 +644,15 @@ solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-s
 examples-topology:
     python3 scripts/examples/check-topology.py
 
+# Phase A portable-default: Shared examples are business-intent only (no chain Surface / TokenStandard pick).
+portable-default:
+    python3 scripts/portable/check-portable-default.py
+    python3 scripts/examples/check-topology.py
+    lake build Examples.Shared.FungibleToken Examples.Shared.FeeToken Examples.Shared.SoulboundToken
+    lake env lean --run Tests/SharedTokenIntent.lean
+
 # Check translated documentation freshness and example topology.
-docs-check: examples-topology
+docs-check: examples-topology portable-default
     scripts/i18n/check-sync.sh
 
 # Mechanical doc↔code drift report (advisory; see docs/doc-code-sync-audit-2026-07.md).

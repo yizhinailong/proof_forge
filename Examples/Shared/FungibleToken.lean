@@ -20,9 +20,10 @@ Compile the same token intent by changing only `--target`:
     -o build/shared-fungible-token/FungibleToken.solana-token-plan.json \
     Examples/Shared/FungibleToken.lean
 
-The EVM target currently lowers this intent to an ERC-20-compatible contract.
-The Solana target lowers it to an SPL Token mint/account plan, or Token-2022
-when features require extensions.
+`--target` chooses the native standard (authors never set `TokenStandard`):
+
+  - `evm` → ERC-20 contract
+  - `solana-sbpf-asm` → SPL Token plan (or Token-2022 if features require it)
 -/
 import ProofForge.Contract.Token
 

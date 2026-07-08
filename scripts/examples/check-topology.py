@@ -61,6 +61,23 @@ def check_shared_sources() -> None:
         else:
             fail(f"{rel}: shared example must use contract_source or TokenSpec")
 
+        # Portable-default (Phase A): Shared must not pull chain Surface modules.
+        for forbidden in (
+            "import ProofForge.Solana",
+            "import ProofForge.Backend.Solana",
+            "import ProofForge.Backend.Evm",
+            "import ProofForge.Evm",
+            "import Lean.Evm",
+            "TokenStandard.erc20",
+            "TokenStandard.splToken",
+            "TokenStandard.splToken2022",
+        ):
+            if forbidden in text:
+                fail(
+                    f"{rel}: portable Shared must not contain `{forbidden}` "
+                    "(business intent only; --target materializes chain form)"
+                )
+
 
 def check_wrapper(rel: str, shared_name: str) -> None:
     text = read(rel)

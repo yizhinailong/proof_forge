@@ -2,22 +2,19 @@
 Copyright (c) 2026 DaviRain. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
-Canonical high-level non-transferable token intent.
+Canonical high-level non-transferable (soulbound) token intent.
 
-This file describes a product-level soulbound token once. It does not name the
-Solana Token-2022 program in the authored contract; the Solana target selects
-Token-2022 because the shared intent asks for non-transferability.
+Authors write `feature non_transferable` only. Chain standards are resolved by
+`--target`:
 
-Compile by changing only `--target`:
+  - `solana-sbpf-asm` → Token-2022 plan (non_transferable extension)
+  - `evm` → **rejected** until soulbound ERC-20 materialization exists
+
+Compile:
 
   lake env proof-forge build --target solana-sbpf-asm --token --root . \
-    -o build/shared-soulbound-token/SoulboundToken.solana-token-2022-plan.json \
+    -o build/shared-soulbound-token/SoulboundToken.token-plan.json \
     Examples/Shared/SoulboundToken.lean
-
-EVM token lowering currently emits ERC-20-compatible artifacts for the common
-fungible-token subset. Non-transferable semantics are target-gated below this
-shared intent layer and are currently validated through the Solana Token-2022
-plan.
 -/
 import ProofForge.Contract.Token
 

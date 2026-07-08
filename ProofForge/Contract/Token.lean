@@ -1,3 +1,14 @@
+/-
+# Multi-chain Token Intent SDK (RFC 0006 / product authoring architecture)
+
+Authors write a chain-neutral `TokenSpec`: name, symbol, decimals, supply, and
+**business features** (`mintable`, `transfer_fee`, …). They never pick
+`TokenStandard` (ERC-20 / SPL / Token-2022).
+
+`planForTarget` / `resolveTokenStandard` select the native standard from
+`--target` + features. Token-2022 extensions, SPL CPI plans, and ERC-20
+bytecode are **target materializations**, not author-facing extensions.
+-/
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
 import ProofForge.Target.Registry
@@ -6,6 +17,10 @@ namespace ProofForge.Contract.Token
 
 open ProofForge.Target
 
+/-- Native token **artifact** kind chosen by a target adapter.
+
+Not part of authoring. Authors write `TokenFeature`s; `resolveTokenStandard`
+and `planForTarget` fill this in. -/
 inductive TokenStandard where
   | erc20
   | splToken
@@ -17,6 +32,8 @@ def TokenStandard.id : TokenStandard → String
   | .splToken => "spl-token"
   | .splToken2022 => "spl-token-2022"
 
+/-- Portable business features. Chain programs (Token-2022, ERC-20 hooks, …)
+are selected by the target, not by feature id naming. -/
 inductive TokenFeature where
   | mintable
   | burnable
@@ -83,6 +100,8 @@ def TokenFeature.parse (id : String) : Except String TokenFeature :=
   | none =>
       .error s!"unknown token feature `{id}`; known features: {String.intercalate ", " knownFeatureIds.toList}"
 
+/-- Author-facing token intent. Intentionally has **no** `standard` field —
+standards are resolved only when a target is selected. -/
 structure TokenSpec where
   name : String
   symbol : String
@@ -94,6 +113,8 @@ structure TokenSpec where
 def TokenSpec.hasFeature (spec : TokenSpec) (feature : TokenFeature) : Bool :=
   spec.features.any (fun item => item == feature)
 
+/-- Features that force Solana Token-2022 (vs legacy SPL Token) when targeting
+Solana. Authors never write "token-2022"; this is adapter policy. -/
 def TokenSpec.needsToken2022 (spec : TokenSpec) : Bool :=
   spec.hasFeature .transferFee ||
   spec.hasFeature .nonTransferable ||
@@ -102,6 +123,12 @@ def TokenSpec.needsToken2022 (spec : TokenSpec) : Bool :=
   spec.hasFeature .metadataPointer ||
   spec.hasFeature .defaultAccountState ||
   spec.hasFeature .immutableOwner
+
+/-- Features not yet materializable as ERC-20 contract logic in the EVM TokenSpec
+lane. Rejected with a capability-style diagnostic (no silent drop). -/
+def TokenSpec.evmUnsupportedFeatures (spec : TokenSpec) : Array TokenFeature :=
+  #[.transferFee, .nonTransferable, .confidentialTransfer, .transferHook,
+    .metadataPointer, .defaultAccountState, .immutableOwner].filter spec.hasFeature
 
 inductive TokenArtifactKind where
   | evmErc20Contract
@@ -274,6 +301,30 @@ def validateSolanaTokenFeatures (spec : TokenSpec) : Except String Unit := do
     .error "Solana Token-2022 features `transfer_fee` and `non_transferable` cannot be enabled on the same token mint"
   else
     .ok ()
+
+def validateEvmTokenFeatures (spec : TokenSpec) : Except String Unit :=
+  match spec.evmUnsupportedFeatures.toList with
+  | [] => .ok ()
+  | feature :: rest =>
+      let ids := (feature :: rest).map TokenFeature.id
+      .error <|
+        "target `evm` does not yet lower TokenSpec feature(s) " ++
+        String.intercalate ", " (ids.map (fun id => s!"`{id}`")) ++
+        "; keep the intent portable and build with a target that materializes them " ++
+        "(e.g. `solana-sbpf-asm` for transfer_fee / non_transferable), or drop the feature"
+
+/-- Resolve the native token standard for a target + intent.
+
+This is the single product entrypoint for "which chain program/standard?".
+Authors call `planForTarget`; they do not set `TokenStandard` on `TokenSpec`. -/
+def resolveTokenStandard (target : TargetProfile) (spec : TokenSpec) : Except String TokenStandard :=
+  if target.family == .evm then
+    validateEvmTokenFeatures spec *> .ok .erc20
+  else if target.family == .solana then
+    validateSolanaTokenFeatures spec *>
+      .ok (if spec.needsToken2022 then .splToken2022 else .splToken)
+  else
+    .error s!"target `{target.id}` does not have a TokenSpec lowering plan yet"
 
 private def param (name type source : String) : SolanaTokenInstructionParam := {
   name := name
@@ -701,11 +752,12 @@ def solanaTokenPlan (target : TargetProfile) (spec : TokenSpec) : TokenPlan :=
     ]
   }
 
-def planForTarget (target : TargetProfile) (spec : TokenSpec) : Except String TokenPlan :=
+def planForTarget (target : TargetProfile) (spec : TokenSpec) : Except String TokenPlan := do
+  let _standard ← resolveTokenStandard target spec
   if target.family == .evm then
     .ok (evmErc20Plan target spec)
   else if target.family == .solana then
-    validateSolanaTokenFeatures spec *> .ok (solanaTokenPlan target spec)
+    .ok (solanaTokenPlan target spec)
   else
     .error s!"target `{target.id}` does not have a TokenSpec lowering plan yet"
 
