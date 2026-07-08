@@ -210,22 +210,8 @@ theorem twoSlotReader_getBalance_reductionChain
       hsloadGas
   have stopReduction : StepFEReduction s2 s3 :=
     ProofForge.Backend.Evm.PowdrExec.reduction_stop_at_ok hstopAt
-  have pushChain : StepFEReductionChain s0 1 s1 :=
-    ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.single
-      pushReduction
-  have sloadChain : StepFEReductionChain s1 1 s2 :=
-    ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.single
-      sloadReduction
-  have prefixChain : StepFEReductionChain s0 2 s2 :=
-    ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.append
-      pushChain sloadChain
-  have stopChain : StepFEReductionChain s2 1 s3 :=
-    ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.single
-      stopReduction
-  have chain : StepFEReductionChain s0 3 s3 :=
-    ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.append
-      prefixChain stopChain
-  exact chain
+  exact ProofForge.Backend.Evm.PowdrExec.stepFEReductionChain_three
+    pushReduction sloadReduction stopReduction
 
 theorem twoSlotReader_getBalance_executionSegment
     {s0 : State}
@@ -298,15 +284,9 @@ def twoSlotReaderGetBalancePrefixReductionChainProvider :
           simp [pushBalanceSlotPost,
             EvmSemantics.EVM.State.replaceStackAndIncrPC])
         hsloadGas
-    have pushChain : StepFEReductionChain s0 1 s1 :=
-      ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.single
-        pushReduction
-    have sloadChain : StepFEReductionChain s1 1 s2 :=
-      ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.single
-        sloadReduction
     have prefixChain : StepFEReductionChain s0 2 s2 :=
-      ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.append
-        pushChain sloadChain
+      ProofForge.Backend.Evm.PowdrExec.stepFEReductionChain_two
+        pushReduction sloadReduction
     exact ⟨s2, prefixChain,
       ⟨hpushAt, hsloadAt, hsloadGas, hstopAt, rfl⟩⟩
 
