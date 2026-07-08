@@ -2,15 +2,17 @@
 Copyright (c) 2026 DaviRain. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
-Primary-chain materialization parity (EVM · Solana · Wasm-NEAR).
+Materialization + crosscall mapping for every implemented registry target
+(EVM · Solana · Wasm family · Move · Psy · Aleo).
 -/
 import Examples.Shared.Counter
-import ProofForge.Backend.Solana.Extension
+import ProofForge.Target.CrosscallMaterialize
 import ProofForge.Target.Materialize
 import ProofForge.Target.Registry
 
 open ProofForge.Target
 open ProofForge.Target.Materialize
+open ProofForge.Target.CrosscallMaterialize
 
 def require (cond : Bool) (msg : String) : IO Unit :=
   if cond then pure () else throw (IO.userError msg)
@@ -18,48 +20,75 @@ def require (cond : Bool) (msg : String) : IO Unit :=
 def main : IO Unit := do
   let counter := Examples.Shared.Counter.module
 
-  -- EVM
+  -- Primary three
   let evmR := forEvm counter
-  require (evmR.targetId == "evm") "EVM targetId"
-  require (evmR.storageBinding == "contract-global") "EVM storageBinding"
-  require (evmR.mode == .autoPortable) "EVM auto-portable for Shared Counter"
-  require (evmR.layoutKind == "contract-global-slots") "EVM layoutKind"
-  require (evmR.stateUnits == 1) "EVM stateUnits"
-  require (evmR.entrypointCount == 3) "EVM entrypoints initialize/increment/get"
-  require evmR.hostBridge?.isNone "EVM has no host bridge"
-
-  -- Solana
   let solR := forSolana counter {}
-  require (solR.targetId == "solana-sbpf-asm") "Solana targetId"
-  require (solR.storageBinding == "account-data") "Solana storageBinding"
-  require (solR.mode == .autoPortable) "Solana auto-portable for Shared Counter"
-  require (solR.layoutKind == "account-data") "Solana layoutKind"
-  require (solR.stateUnits == 1) "Solana stateUnits"
-  require solR.hostBridge?.isNone "Solana has no host bridge"
-
-  -- Wasm-NEAR
   let nearR := forWasmNear counter
-  require (nearR.targetId == "wasm-near") "NEAR targetId"
-  require (nearR.storageBinding == "host-key-value") "NEAR storageBinding"
-  require (nearR.mode == .autoPortable) "NEAR auto-portable for Shared Counter"
-  require (nearR.layoutKind == "host-key-value") "NEAR layoutKind"
-  require (nearR.stateUnits == 1) "NEAR stateUnits"
-  require (nearR.hostBridge? == some "near") "NEAR hostBridge"
+  require (evmR.mode == .autoPortable) "EVM auto-portable"
+  require (solR.mode == .autoPortable) "Solana auto-portable"
+  require (nearR.mode == .autoPortable) "NEAR auto-portable"
+  require (evmR.storageBinding == "contract-global") "EVM binding"
+  require (solR.storageBinding == "account-data") "Solana binding"
+  require (nearR.storageBinding == "host-key-value") "NEAR binding"
+  require (nearR.hostBridge? == some "near") "NEAR host"
 
-  -- Profile dispatch
-  require ((forPrimaryProfile evm counter).isSome) "forPrimaryProfile evm"
-  require ((forPrimaryProfile solanaSbpfAsm counter).isSome) "forPrimaryProfile solana"
-  require ((forPrimaryProfile wasmNear counter).isSome) "forPrimaryProfile wasm-near"
+  -- Other Wasm hosts
+  let cosmwasmR := forWasmCosmWasm counter
+  require (cosmwasmR.targetId == "wasm-cosmwasm") "CosmWasm id"
+  require (cosmwasmR.hostBridge? == some "cosmwasm") "CosmWasm host"
+  require (cosmwasmR.layoutKind == "cosmwasm-storage") "CosmWasm layout"
+  require (cosmwasmR.mode == .autoPortable) "CosmWasm auto-portable"
 
-  -- Same portable module → three different bindings
-  require (evmR.storageBinding != solR.storageBinding) "EVM ≠ Solana binding"
-  require (solR.storageBinding != nearR.storageBinding) "Solana ≠ NEAR binding"
-  require (evmR.storageBinding != nearR.storageBinding) "EVM ≠ NEAR binding"
+  let cfR := forWasmCloudflareWorkers counter
+  require (cfR.targetId == "wasm-cloudflare-workers") "CF Workers id"
+  require (cfR.layoutKind == "workers-bindings") "CF layout"
+  require cfR.hostBridge?.isNone "CF Workers has no consensus host bridge"
 
-  -- JSON shape
-  for r in #[evmR, solR, nearR] do
-    let js := Report.json r
-    require (js.contains r.targetId) s!"json targetId {r.targetId}"
-    require (js.contains "auto-portable") s!"json mode for {r.targetId}"
+  -- Move
+  let aptosR := forMoveAptos counter
+  let suiR := forMoveSui counter
+  require (aptosR.storageBinding == "move-resource") "Aptos resource"
+  require (suiR.storageBinding == "move-object") "Sui object"
+  require (aptosR.mode == .autoPortable && suiR.mode == .autoPortable) "Move auto"
 
-  IO.println "primary-materialize: ok (evm + solana + wasm-near)"
+  -- ZK
+  let psyR := forPsyDpn counter
+  let aleoR := forAleoLeo counter
+  require (psyR.storageBinding == "circuit-mapping") "Psy circuit"
+  require (aleoR.storageBinding == "circuit-mapping") "Aleo circuit"
+  require (psyR.layoutKind == "psy-circuit-storage") "Psy layout"
+  require (aleoR.layoutKind == "leo-mapping-storage") "Aleo layout"
+
+  -- Every active registry profile yields a report
+  let reports := reportsForAllImplemented counter
+  require (reports.size == all.size)
+    s!"expected report per active target, got {reports.size} vs {all.size}"
+  for profile in all do
+    match forImplementedProfile profile counter with
+    | none => throw (IO.userError s!"missing materialize for {profile.id}")
+    | some r =>
+        require (r.targetId == profile.id) s!"targetId mismatch for {profile.id}"
+        require (r.mode == .autoPortable)
+          s!"Shared Counter should be auto-portable on {profile.id}"
+
+  -- Crosscall materialization table for all implemented targets
+  let xcalls := CrosscallMaterialize.reportsForAllImplemented
+  require (xcalls.size == all.size) "crosscall report per target"
+  let evmX := forProfile evm
+  let solX := forProfile solanaSbpfAsm
+  let nearX := forProfile wasmNear
+  let cosmwasmX := forProfile wasmCosmWasm
+  let cfX := forProfile wasmCloudflareWorkers
+  let psyX := forProfile psyDpn
+  let aleoX := forProfile aleoLeo
+  require (evmX.nativeForm == .evmCall) "EVM crosscall form"
+  require (solX.nativeForm == .solanaCpi) "Solana crosscall form"
+  require (nearX.nativeForm == .nearPromise) "NEAR crosscall form"
+  require (cosmwasmX.nativeForm == .cosmWasmMsg) "CosmWasm crosscall form"
+  require (cfX.nativeForm == .workersBinding) "CF crosscall form"
+  require (psyX.nativeForm == .zkCircuitCall) "Psy crosscall form"
+  require (aleoX.nativeForm == .zkCircuitCall) "Aleo crosscall form"
+  require (!(moduleUsesPortableCrosscall counter))
+    "Counter fixture should not use portable crosscall nodes"
+
+  IO.println s!"implemented-materialize: ok ({reports.size} targets + crosscall map)"

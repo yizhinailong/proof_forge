@@ -336,6 +336,9 @@ def writeEvmDeployManifest
     ("targetFamily", jsonString "evm"),
     ("storageBinding", jsonString ProofForge.Target.evm.storageBinding.id),
     ("materialization", materializationJson),
+    ("crosscallMaterialization",
+      ProofForge.Target.CrosscallMaterialize.Report.json
+        (ProofForge.Target.CrosscallMaterialize.forProfile ProofForge.Target.evm)),
     ("artifactKind", jsonString "evm-initcode-deploy"),
     ("fixture", jsonString fixture),
     ("contractName", jsonString (contractNameForFixture fixture)),
@@ -446,6 +449,9 @@ def writeEvmArtifactMetadata
     ("targetFamily", jsonString "evm"),
     ("storageBinding", jsonString ProofForge.Target.evm.storageBinding.id),
     ("materialization", materializationJson),
+    ("crosscallMaterialization",
+      ProofForge.Target.CrosscallMaterialize.Report.json
+        (ProofForge.Target.CrosscallMaterialize.forProfile ProofForge.Target.evm)),
     ("artifactKind", jsonString "evm-bytecode"),
     ("fixture", jsonString fixture),
     ("sourceKind", jsonString sourceKind),

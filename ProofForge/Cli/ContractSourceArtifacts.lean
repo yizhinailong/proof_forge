@@ -92,6 +92,9 @@ unsafe def compileContractSourceSbpf (opts : CliOptions) : IO UInt32 := do
           ProofForge.Target.Materialize.Report.json
             (ProofForge.Target.Materialize.forSolana spec.module
               (ProofForge.Backend.Solana.Extension.ProgramExtensions.fromPlan plan))),
+        ("crosscallMaterialization",
+          ProofForge.Target.CrosscallMaterialize.Report.json
+            (ProofForge.Target.CrosscallMaterialize.forProfile ProofForge.Target.solanaSbpfAsm)),
         ("solanaMaterialization",
           ProofForge.Backend.Solana.Materialize.reportJson
             (ProofForge.Backend.Solana.Materialize.report spec.module

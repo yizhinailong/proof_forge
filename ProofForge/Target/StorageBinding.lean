@@ -55,7 +55,8 @@ def TargetProfile.storageBinding (profile : TargetProfile) : StorageBinding :=
   match profile.id with
   | "evm" => .contractGlobal
   | "solana-sbpf-asm" | "solana-sbpf-linker" | "solana-zig-fork" => .accountData
-  | "wasm-near" | "wasm-cosmwasm" | "wasm-cloudflare-workers" => .hostKeyValue
+  | "wasm-near" | "wasm-cosmwasm" | "wasm-cloudflare-workers"
+  | "wasm-stellar-soroban" => .hostKeyValue
   | "move-aptos" => .moveResource
   | "move-sui" => .moveObject
   | "psy-dpn" | "aleo-leo" => .circuitMapping

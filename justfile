@@ -656,9 +656,9 @@ solana-auto-materialize:
     lake build ProofForge.Backend.Solana.Materialize Examples.Shared.Counter Examples.Shared.ValueVault ProofForge.Solana.Examples.Vault
     lake env lean --run Tests/SolanaAutoMaterialize.lean
 
-# Primary chains (EVM · Solana · Wasm-NEAR): unified materialization report for Shared Counter.
+# All implemented registry targets: materialization + crosscall map for Shared Counter.
 primary-materialize:
-    lake build ProofForge.Target.Materialize Examples.Shared.Counter
+    lake build ProofForge.Target.Materialize ProofForge.Target.CrosscallMaterialize Examples.Shared.Counter
     lake env lean --run Tests/PrimaryMaterialize.lean
 
 

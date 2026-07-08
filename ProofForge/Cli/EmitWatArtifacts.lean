@@ -95,12 +95,20 @@ def writeEmitWatDeployManifest
     ("materialization",
       match ProofForge.Target.find? targetId with
       | some profile =>
-          match ProofForge.Target.Materialize.forPrimaryProfile profile module with
+          match ProofForge.Target.Materialize.forImplementedProfile profile module with
           | some report => ProofForge.Target.Materialize.Report.json report
           | none => ProofForge.Target.Materialize.Report.json
               (ProofForge.Target.Materialize.forWasmNear module)
       | none => ProofForge.Target.Materialize.Report.json
           (ProofForge.Target.Materialize.forWasmNear module)),
+    ("crosscallMaterialization",
+      match ProofForge.Target.find? targetId with
+      | some profile =>
+          ProofForge.Target.CrosscallMaterialize.Report.json
+            (ProofForge.Target.CrosscallMaterialize.forProfile profile)
+      | none =>
+          ProofForge.Target.CrosscallMaterialize.Report.json
+            (ProofForge.Target.CrosscallMaterialize.forProfile ProofForge.Target.wasmNear)),
     ("artifactKind", jsonString "wasm-deploy"),
     ("fixture", jsonString fixture),
     ("sourceKind", jsonString sourceKind),
@@ -155,12 +163,20 @@ def writeEmitWatArtifactMetadata
   let materializationJson :=
     match ProofForge.Target.find? targetId with
     | some profile =>
-        match ProofForge.Target.Materialize.forPrimaryProfile profile module with
+        match ProofForge.Target.Materialize.forImplementedProfile profile module with
         | some report => ProofForge.Target.Materialize.Report.json report
         | none => ProofForge.Target.Materialize.Report.json
             (ProofForge.Target.Materialize.forWasmNear module)
     | none => ProofForge.Target.Materialize.Report.json
         (ProofForge.Target.Materialize.forWasmNear module)
+  let crosscallJson :=
+    match ProofForge.Target.find? targetId with
+    | some profile =>
+        ProofForge.Target.CrosscallMaterialize.Report.json
+          (ProofForge.Target.CrosscallMaterialize.forProfile profile)
+    | none =>
+        ProofForge.Target.CrosscallMaterialize.Report.json
+          (ProofForge.Target.CrosscallMaterialize.forProfile ProofForge.Target.wasmNear)
   let metadata := jsonObject #[
     ("schemaVersion", "1"),
     ("target", jsonString targetId),
@@ -169,6 +185,7 @@ def writeEmitWatArtifactMetadata
       | some binding => binding.id
       | none => "unknown")),
     ("materialization", materializationJson),
+    ("crosscallMaterialization", crosscallJson),
     ("artifactKind", jsonString "wasm"),
     ("fixture", jsonString fixture),
     ("sourceKind", jsonString sourceKind),

@@ -2,6 +2,7 @@ import ProofForge.Target.Capability
 import ProofForge.Target.Registry
 import ProofForge.Target.StorageBinding
 import ProofForge.Target.Materialize
+import ProofForge.Target.CrosscallMaterialize
 import ProofForge.Target.Check
 import ProofForge.Target.Plan
 import ProofForge.Target.Adapter

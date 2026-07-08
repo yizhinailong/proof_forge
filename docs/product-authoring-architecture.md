@@ -227,17 +227,25 @@ Implementation sketch:
 **without** `import Source.Solana` and without any `account`/`cpi` line, and
 pass Solana light gates.
 
-#### Primary-chain materialize table (landed)
+#### Implemented-target materialize table (landed)
 
-| Target | `storageBinding` | `layoutKind` | auto-portable for Shared Counter |
+| Target | `storageBinding` | `layoutKind` / host | Crosscall native form |
 |---|---|---|---|
-| `evm` | `contract-global` | `contract-global-slots` | ✅ |
-| `solana-sbpf-asm` | `account-data` | `account-data` | ✅ (state account synthesized) |
-| `wasm-near` | `host-key-value` | `host-key-value` | ✅ (host bridge `near`) |
+| `evm` | `contract-global` | `contract-global-slots` | `evm-call` |
+| `solana-sbpf-asm` | `account-data` | `account-data` | `solana-cpi` |
+| `wasm-near` | `host-key-value` | host `near` | `near-promise` |
+| `wasm-cosmwasm` | `host-key-value` | host `cosmwasm` | `cosmwasm-msg` |
+| `wasm-cloudflare-workers` | `host-key-value` | `workers-bindings` | `workers-binding` |
+| `move-aptos` | `move-resource` | `move-resource` | `move-call` |
+| `move-sui` | `move-object` | `move-object` | `move-call` |
+| `psy-dpn` | `circuit-mapping` | `psy-circuit-storage` | `zk-circuit-call` |
+| `aleo-leo` | `circuit-mapping` | `leo-mapping-storage` | `zk-circuit-call` |
 
-Artifact field **`materialization`** is the same JSON shape on all three
-primary chains so operators can compare builds without learning three schemas.
-Solana also keeps `solanaMaterialization` with account lists for detail.
+- Shared API: `Target.Materialize.forImplementedProfile` / `reportsForAllImplemented`
+- Crosscall map: `Target.CrosscallMaterialize.forProfile` (portable intent → native form)
+- Artifact field **`materialization`** on primary emit paths; Solana keeps
+  `solanaMaterialization` for account lists
+- Gate: `just primary-materialize`
 
 ### Phase C — Clean portable IR (compiler hygiene)
 
