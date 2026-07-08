@@ -51,6 +51,10 @@ backend ASTs.
   source when the contract intentionally needs chain-native semantics. Those
   extensions lower to target metadata and helper actions, not to portable IR
   constructors unless multiple chain families share the same semantic shape.
+  **Opt-in import:** portable Shared examples use
+  `import ProofForge.Contract.Source` only; Solana-native `contract_source`
+  files must use `import ProofForge.Contract.Source.Solana` (see
+  [product-authoring-architecture](product-authoring-architecture.md)).
 - Literal strings are acceptable for real protocol bytes, such as PDA literal
   seeds. They should not be the primary representation for accounts, owners,
   capability names, methods, or deployment configuration.

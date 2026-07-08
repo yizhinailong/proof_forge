@@ -1,4 +1,4 @@
-import ProofForge.Contract.Source
+import ProofForge.Contract.Source.Solana
 import ProofForge.Solana.Surface
 
 namespace ProofForge.Solana.Examples.AccountRealloc

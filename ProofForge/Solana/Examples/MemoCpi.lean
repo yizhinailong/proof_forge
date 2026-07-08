@@ -1,4 +1,4 @@
-import ProofForge.Contract.Source
+import ProofForge.Contract.Source.Solana
 
 namespace ProofForge.Solana.Examples.MemoCpi
 

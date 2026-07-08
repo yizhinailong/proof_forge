@@ -146,9 +146,18 @@ EVM + Solana without extension syntax in shared examples.
 | Unsupported features **reject** (no silent drop) | FeeToken / Soulbound on `evm` error citing `transfer_fee` / `non_transferable` |
 | Product docs | `Examples/Shared/README.md`, Token.lean module header |
 
-Still open for later Phase A/B: split `Contract.Source` so Solana helpers are
-not even *visible* without an extension import; Solana auto-materialization of
-accounts for portable contracts (not just TokenSpec plans).
+**Phase B.1 (2026-07-09) — Solana Source opt-in:**
+
+| Item | Evidence |
+|---|---|
+| Portable default import | `import ProofForge.Contract.Source` |
+| Solana extension import | `import ProofForge.Contract.Source.Solana` (re-exports Source + Solana Surface/Builders) |
+| Solana examples | `ProofForge/Solana/Examples/*` that use account/PDA/CPI import `Source.Solana` |
+| Shared gate | `portable-default` forbids `Source.Solana` and Solana DSL keywords |
+
+Still open for later Phase B: Solana **auto-materialization** of accounts for
+portable contracts (not just TokenSpec plans); stop pulling Solana Surface as a
+compile-time dependency of the portable elaborator module.
 
 ### Phase B — Automatic chain materialization (compiler)
 

@@ -1,3 +1,18 @@
+/-
+# `contract_source` authoring surface
+
+Portable-default product path for Shared examples: import this module only.
+
+Solana account / PDA / CPI / allocator syntax is implemented here but requires
+an explicit opt-in import so Solana Surface is on the search path:
+
+```lean
+import ProofForge.Contract.Source.Solana
+```
+
+`Source.Solana` re-exports this module plus `ProofForge.Solana` / `Solana.Surface`.
+Portable Shared files must not import `Source.Solana` (`just portable-default`).
+-/
 import Lean
 import ProofForge.Contract.Surface
 import ProofForge.Solana.Surface

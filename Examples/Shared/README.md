@@ -6,11 +6,13 @@ materializes chain form (EVM slots/ABI, Solana accounts/CPI/SPL, NEAR host, …)
 
 **Rules (enforced by `just portable-default`):**
 
+- Import `ProofForge.Contract.Source` only — **not**
+  `ProofForge.Contract.Source.Solana` (Solana account/PDA/CPI opt-in).
 - No `import ProofForge.Solana` / chain backends in Shared sources.
 - No author-selected `TokenStandard` (ERC-20 / SPL / Token-2022) — only
   `TokenFeature`s; `planForTarget` resolves the standard.
-- No Account/PDA/CPI authoring helpers — those are Solana Extension examples
-  under `Examples/Solana/`.
+- No Account/PDA/CPI DSL (`account` / `pda` / `cpi` / `invoke` …) — those
+  require `import ProofForge.Contract.Source.Solana` under `ProofForge/Solana/Examples`.
 
 Target directories such as `Examples/Evm`, `Examples/Solana`, and
 `Examples/WasmNear` keep chain-specific fixtures, golden files, and

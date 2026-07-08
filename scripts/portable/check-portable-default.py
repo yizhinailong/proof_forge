@@ -19,6 +19,7 @@ SHARED = REPO_ROOT / "Examples" / "Shared"
 FORBIDDEN_IMPORT_RE = re.compile(
     r"^\s*import\s+("
     r"ProofForge\.Solana"
+    r"|ProofForge\.Contract\.Source\.Solana"
     r"|ProofForge\.Backend\.(Solana|Evm|WasmNear|Move)"
     r"|ProofForge\.Evm\b"
     r"|Lean\.Evm\b"
@@ -33,7 +34,7 @@ FORBIDDEN_STANDARD_RE = re.compile(
 )
 
 # Solana account model must not appear as authoring in Shared (extensions live
-# under Examples/Solana and ProofForge.Solana).
+# under Examples/Solana and ProofForge.Solana / Source.Solana).
 FORBIDDEN_SOLANA_AUTHORING = [
     "pdaAccount",
     "pda_account",
@@ -45,7 +46,17 @@ FORBIDDEN_SOLANA_AUTHORING = [
     "spl_token_transfer",
     "systemTransfer",
     "system_transfer",
+    "allocator bump",
+    "derive pda",
+    "literal_seed",
+    "account_seed",
+    "signer_seeds",
 ]
+
+# contract_source DSL lines that are Solana-extension-only
+FORBIDDEN_SOLANA_DSL_RE = re.compile(
+    r"(?m)^\s*(account |pda |cpi |derive pda |invoke |realloc |init_transfer_hook)"
+)
 
 
 def fail(message: str) -> None:
@@ -71,8 +82,15 @@ def check_shared_file(path: Path) -> None:
         if needle in text:
             fail(
                 f"{rel}: portable Shared must not contain Solana authoring `{needle}`; "
-                "use business logic / TokenSpec and let --target materialize accounts/CPI"
+                "use business logic / TokenSpec and let --target materialize accounts/CPI "
+                "(or import ProofForge.Contract.Source.Solana only in Examples/Solana)"
             )
+
+    if FORBIDDEN_SOLANA_DSL_RE.search(text):
+        fail(
+            f"{rel}: portable Shared must not use Solana account/PDA/CPI DSL; "
+            "import ProofForge.Contract.Source only (extension: Source.Solana)"
+        )
 
     if "TokenSpec" in text or "def spec : TokenSpec" in text or "def spec : ProofForge.Contract.Token.TokenSpec" in text:
         if "import ProofForge.Contract.Token" not in text and "import ProofForge.Contract.Token." not in text:

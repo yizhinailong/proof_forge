@@ -64,6 +64,7 @@ def check_shared_sources() -> None:
         # Portable-default (Phase A): Shared must not pull chain Surface modules.
         for forbidden in (
             "import ProofForge.Solana",
+            "import ProofForge.Contract.Source.Solana",
             "import ProofForge.Backend.Solana",
             "import ProofForge.Backend.Evm",
             "import ProofForge.Evm",
