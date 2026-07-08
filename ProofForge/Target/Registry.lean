@@ -28,6 +28,7 @@ inductive ArtifactKind where
   | solanaElf
   | movePackage
   | psyCircuitJson
+  | leoSource
   deriving BEq, DecidableEq, Repr
 
 def ArtifactKind.id : ArtifactKind → String
@@ -37,6 +38,7 @@ def ArtifactKind.id : ArtifactKind → String
   | .solanaElf => "solana-elf"
   | .movePackage => "move-package"
   | .psyCircuitJson => "psy-circuit-json"
+  | .leoSource => "leo-source"
 
 structure TargetProfile where
   id : String
@@ -297,6 +299,37 @@ def psyDpn : TargetProfile := {
   requiredTools := #["dargo"]
 }
 
+/-- Aleo/Leo target (Phase 4 ZK lane, Road 1 sourcegen).
+
+First ZK-app-sourcegen registry entry alongside `psy-dpn`. The Road 1 spike
+lowers the portable IR `Counter` fixture to a Leo 4.0 program with a public
+`mapping`, `@noupgrade constructor`, and `fn ... -> Final` entrypoints. The
+ZK-specific value proposition (private records, transitions, proof
+generation) is future Road 2 work; this profile owns the codegen boundary and
+the `leo build` / `leo test` validation gate. See
+`docs/targets/aleo-leo.md` for the full capability proposal and research-exit
+plan. -/
+def aleoLeo : TargetProfile := {
+  id := "aleo-leo"
+  family := .zkCircuitSourcegen
+  artifactKind := .leoSource
+  capabilities := #[
+    .storageMap,
+    .callerSender,
+    .envBlock,
+    .controlConditional,
+    .controlBoundedLoop,
+    .dataStruct,
+    .cryptoHash,
+    .assertions,
+    .accountExplicit,
+    .checkedArithmetic,
+    .zkCircuit,
+    .zkProof
+  ]
+  requiredTools := #["leo"]
+}
+
 /-- All defined profiles, including deprecated ones. Tests that exercise
 legacy routing (e.g. `Tests/ValueVaultExample`) import the individual
 constants and may use this. -/
@@ -310,7 +343,8 @@ def allIncludingDeprecated : Array TargetProfile := #[
   solanaZigFork,
   moveAptos,
   moveSui,
-  psyDpn
+  psyDpn,
+  aleoLeo
 ]
 
 /-- Active (non-deprecated) profiles. This is the public target surface:

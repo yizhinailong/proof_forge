@@ -1,8 +1,11 @@
 # Aleo Leo Target
 
-Status: **Spike (local smoke exists — `scripts/aleo/counter-smoke.sh`)**
+Status: **Registry target (Phase 4 ZK lane, Road 1 sourcegen) — `aleo-leo` is now
+in `ProofForge.Target.Registry.all` / `knownIds` and exposed by
+`proof-forge --list-targets`**
 
-Candidate target id: **`aleo-leo`**
+Candidate target id: **`aleo-leo`** (registered as `ProofForge.Target.aleoLeo`,
+family `.zkCircuitSourcegen`, artifact kind `.leoSource`).
 
 This note records the first ProofForge classification for Aleo and the
 implemented Road 1 spike. It does not add a Lean target profile yet; the spike
@@ -277,9 +280,57 @@ Aleo can leave Research only when we have:
   package, even if proving-heavy gates are optional in CI.
 
 **Status:** The Road 1 spike satisfies the reproducible local command and
-artifact manifest schema criteria. The remaining criteria (target profile,
-full capability proposal, devnet validation) stay open until private records
-and transitions are reviewed.
+artifact manifest schema criteria. **Phase 4 (2026-07-08) landed the target
+profile criterion**: `aleo-leo` is now a registered `TargetProfile`
+(`ProofForge.Target.aleoLeo`, family `.zkCircuitSourcegen`, artifact kind
+`.leoSource`) and exposed by `proof-forge --list-targets`. The Lean-side
+codegen gate `just aleo-leo-codegen-smoke` (in `just check`) witnesses the
+Counter→Leo lowering + structure markers without needing the external `leo`
+CLI. The remaining criteria (full capability proposal review, private-record
+Road 2, devnet validation) stay open.
+
+## Phase 4 Update (2026-07-08): Registry entry landed
+
+`aleo-leo` is now a registered target profile (`ProofForge.Target.aleoLeo`),
+exposed by `proof-forge --list-targets`. The profile uses family
+`.zkCircuitSourcegen` (same as `psy-dpn`) and artifact kind `.leoSource`. The
+canonical capability set for the Road 1 spike is:
+`storage.map`, `caller.sender`, `env.block`, `control.conditional`,
+`control.bounded_loop`, `data.struct`, `crypto.hash`, `assertions`,
+`account.explicit`, `checked.arithmetic`, `zk.circuit`, `zk.proof`.
+
+A Lean-side codegen gate (`just aleo-leo-codegen-smoke`, in `just check`)
+verifies the registry entry and that the portable IR `Counter` fixture lowers
+to a Leo program with the expected Road 1 structure markers. The external
+`leo build` / `leo test` end-to-end gate stays in the GitHub CI `aleo-smoke`
+job (`scripts/aleo/counter-smoke.sh` + `pure-math-smoke.sh`).
+
+Road 2 (private records, transitions, proof generation) and Road 3 (direct
+Aleo Instructions) remain future work. FV-import for Aleo would require a
+Lean 4 semantics of the Aleo VM, which is not yet available; Aleo stays a
+codegen target until such a semantics lands.
+
+## Phase 4 Update (2026-07-08)
+
+`aleo-leo` is now a **registry target** (`ProofForge.Target.aleoLeo`):
+- `TargetFamily.zkCircuitSourcegen`, `ArtifactKind.leoSource`.
+- Capabilities: `storage.map`, `caller.sender`, `env.block`,
+  `control.conditional`, `control.bounded_loop`, `data.struct`, `crypto.hash`,
+  `assertions`, `account.explicit`, `arith.checked`, `zk.circuit`, `zk.proof`.
+- Exposed by `proof-forge --list-targets` / `ProofForge.Target.knownIds`.
+- Lean-side codegen gate `just aleo-leo-codegen-smoke` (in `just check`):
+  verifies the registry entry, Counter fixture lowering, and Leo structure
+  markers without needing the external `leo` CLI.
+- The external `leo build` / `leo test` end-to-end gate remains in the GitHub
+  CI `aleo-smoke` job (`scripts/aleo/counter-smoke.sh`,
+  `scripts/aleo/pure-math-smoke.sh`).
+
+Road 2 (private records, transitions, proof generation) and Road 3 (direct
+Aleo Instructions) remain future work. The FV-import lane (Road 2 of the ZK
+lane in the roadmap) for Aleo would require an external Lean 4 Aleo VM
+semantics, which is not yet available; Cairo (`starkware-libs/formal-proofs`)
+and Noir (`reilabs/lampe`) are the ZK targets with ready Lean semantics and
+are prioritised for FV-import once the codegen lane lands.
 
 ## Research Exit Plan
 

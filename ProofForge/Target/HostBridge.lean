@@ -22,11 +22,13 @@ hard-coding NEAR semantics. -/
 inductive HostBridge where
   | near
   | cosmWasm
+  | soroban
   deriving BEq, DecidableEq, Repr
 
 def HostBridge.id : HostBridge → String
   | .near => "near"
   | .cosmWasm => "cosmwasm"
+  | .soroban => "soroban"
 
 /-- A host function import description. `params`/`results` use WAT type names
 (`i32`, `i64`) so that the bridge module stays independent of the Wasm AST. -/
@@ -41,6 +43,7 @@ respective chain validation tools (e.g. `near-cli`, `cosmwasm-check`). -/
 def HostBridge.requiredExports : HostBridge → Array String
   | .near => #["main"]
   | .cosmWasm => #["interface_version_8", "allocate", "deallocate", "instantiate", "execute", "query"]
+  | .soroban => #["_start", "__contract_spec_setup"]
 
 /-- Standard host function imports required by each bridge. This is a
 metadata-only list; the actual lowering is backend-specific. -/
@@ -64,6 +67,12 @@ def HostBridge.requiredImports : HostBridge → Array String
   | .cosmWasm => #[
       "env.db_read",
       "env.db_write"
+    ]
+  | .soroban => #[
+      "env._put",
+      "env._get",
+      "env.log_from_slice",
+      "env.require_auth_for_args"
     ]
 
 /-- Full host-function signatures for each bridge. Used by generic Wasm
@@ -93,6 +102,12 @@ def HostBridge.hostFunctions : HostBridge → Array HostFunction
   | .cosmWasm => #[
       { name := "db_read",  params := #["i32"], results := #["i32"] },
       { name := "db_write", params := #["i32", "i32"], results := #[] }
+    ]
+  | .soroban => #[
+      { name := "_put",  params := #["i32", "i32", "i32", "i32"], results := #[] },
+      { name := "_get",  params := #["i32", "i32"], results := #["i32"] },
+      { name := "log_from_slice", params := #["i32", "i32"], results := #[] },
+      { name := "require_auth_for_args", params := #["i32", "i32"], results := #["i32"] }
     ]
 
 end ProofForge.Target

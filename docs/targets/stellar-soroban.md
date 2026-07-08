@@ -1,6 +1,9 @@
 # Stellar Soroban Target
 
-Status: **Research (docs-first candidate)**
+Status: **Phase 4 WASM host-family adapter landed (first spike) —
+`wasm-stellar-soroban` host bridge is implemented as `ProofForge.Target.HostBridge.soroban`
++ `ProofForge.Backend.WasmNear.SorobanHost.lean`, reusing the shared `WasmExec` core.
+Not yet a separate registry id; the Counter refinement reuses the host-agnostic core.**
 
 Candidate target id: **`wasm-stellar-soroban`**
 
@@ -164,3 +167,33 @@ Soroban can leave Research only when we have:
 - at least one reproducible local validation command;
 - artifact metadata for Wasm, contract spec, deployment manifest, and validation
   result.
+
+## Phase 4 First Spike (2026-07-08) — WASM host-family adapter
+
+The first Soroban spike took Road 2 (Wasm Host Bridge) and proved the WASM
+host-family thesis: a new WASM chain is a thin `*Host.lean` on top of the
+shared `WasmExec` core, not a forked EmitWat.
+
+Landed:
+
+- `ProofForge.Target.HostBridge.soroban` — third `HostBridge` variant (after
+  `.near` / `.cosmWasm`) with `requiredExports`, `requiredImports`, and
+  `hostFunctions` for the minimal first-spike surface (`_put` / `_get` /
+  `log_from_slice` / `require_auth_for_args`).
+- `ProofForge.Backend.WasmNear.WasmInterpreter.runSorobanHostCall` +
+  `sorobanHostArity` + `runHostCall` dispatch arm. The storage model is the
+  same byte-keyed `lookupStorage?` / `writeStorage` table NEAR and CosmWasm
+  use, so contract-axis proofs reuse the same abstract scalar reasoning.
+- `ProofForge.Backend.WasmNear.SorobanHost.lean` — thin host-call lemmas
+  (`_get` hit/miss, `_put`, `set_return_data`, `log`, `require_auth`) +
+  `soroban_host_smoke_ok`.
+- `ProofForge.Backend.WasmNear.CounterSorobanRefinement.lean` — Counter
+  universal C-proof reusing the SAME host-agnostic
+  `counterWasmCoreTraceStep` core as NEAR/CosmWasm; only the host
+  instantiation differs.
+- `just wasm-soroban-host-smoke` (in `just check`) — machine-checked witness.
+
+Not yet done (future Soroban spikes): real Soroban `Env` API (instance /
+persistent / temporary storage with TTL, real `require_auth`, ledger reads,
+cross-contract calls), `wasm32v1-none` artifact emit, Stellar CLI
+build/deploy/invoke validation, separate `wasm-stellar-soroban` registry id.

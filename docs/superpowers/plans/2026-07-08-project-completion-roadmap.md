@@ -7,6 +7,39 @@
 > [execution-plan §7](../../zh/execution-plan-2026-07.md),
 > [platform gaps](../../platform-gaps-2026-07.md).
 
+## 🔬 Independent verification (2026-07-08) — re-checked from source, not commit messages
+
+- **Default build green — 572 jobs**, no errors (one unused-var lint). **EVM opt-in
+  `lake build EvmRefinement` green — 574 jobs** (`EvmRefinement.CounterRefinement`).
+- **No `sorry` / `admit` / `axiom`** anywhere in `Backend/WasmNear`, `Backend/Solana`, `IR`.
+- **Track 0 all fixed (code, not just docs):** 0.1 `overflowChecked` is now a node field on
+  `.add/.sub/.mul` (default checked, threaded through `Builder`/`Surface`); 0.2
+  `capabilityCallsForSpec` no longer `intent`-OR-`module` (the `if calls.size == 0` branch is gone);
+  0.3 a `.nearPromise`-style capability exists in `Target/Capability.lean`.
+- **WASM-5b chain-axis CLOSED, not gated-out:** `CounterCosmWasmRefinement.lean` carries the real
+  `counterCosmWasm_initialize/increment/get/step/trace_simulates` chain +
+  `counterCosmWasm_canonical_safe_trace_simulates`.
+- **One honest asymmetry (not a hole):** WASM ValueVault genericity uses the lighter *abstract-core
+  route* (relation-level, ~14 theorems) vs Solana's 283 per-instruction theorems. Same genericity
+  claim, coarser grain, fully proven + green. Matching Solana's per-instruction granularity is an
+  optional strengthening, **not** required for the second-contract claim.
+
+**Verdict: the core is DONE.** Everything hard — three-chain universal refinement, WASM double
+genericity, the Track 0 correctness bugs, and the Track 1 FV foundation (1.2–1.7) — is landed,
+closed, green, no `sorry`. What remains (Phase 4/5 below) is **breadth** (new chains) +
+**product surface** (deploy / client tooling), which was always roadmap, not unfinished core.
+
+> **One honest qualifier on "universal" (→ FV-9).** The three-chain refinement is universal *over
+> inputs* for the proven contracts (Counter, ValueVault) + generic *per-instruction*. It is **not
+> yet universal over contracts** — there is no `∀ m ∈ fragment, IR ⊑ target(compile m)` theorem;
+> the two contracts are witnesses, not the compiler-correctness theorem. Closing that (the
+> CompCert-style keystone) is scoped in
+> **[FV-9 — Universal compiler correctness](2026-07-08-fv9-universal-compiler-correctness.md)**.
+> The 2026-07-08 scout found the real blocker: the generic IR interpreter is `partial` (unprovable)
+> and the proof-usable one is Counter-local — so FV-9 first builds a shared total IR interpreter,
+> then inducts over program structure reusing the L1 layers. This is the deepest remaining FV work;
+> prioritize it above Phase 4/5 breadth if the goal is a *provably general* compiler, not more targets.
+
 ## ✅ DONE — the big achievement: three-chain universal FV
 
 Machine-checked, universally-quantified (`∀ safe input`) IR↔target refinement, green, no `sorry`:
@@ -260,14 +293,43 @@ divergences). **All three verified STILL OPEN (2026-07-08):**
 
 ## Phase 4 — Breadth (after the primaries are solid) — parallelizable
 
-- **WASM host families** — add Soroban / MultiversX / Casper / … hosts, each a thin `*Host.lean`
-  reusing the SAME `WasmExec` (one CosmWasm host already serves the whole Cosmos ecosystem). Order
-  + fit: the WASM host-family map in [FV target-semantics plan](2026-07-07-fv-target-semantics.md).
-- **ZK lane** — Road 1 codegen (Noir `NR-1..4` first — pure-function, cleanest — then Cairo
-  `CR-1..4`), then Road 2 FV-import (Cairo→`starkware-libs/formal-proofs`, Noir→`reilabs/lampe`,
-  copying the EVM E-lane; each ZK target has a ready Lean 4 semantics). Card:
+- **WASM host families** — **Soroban DONE (2026-07-08, first host-family adapter).**
+  Added `ProofForge.Target.HostBridge.soroban` (third `HostBridge` variant) with
+  `requiredExports`/`requiredImports`/`hostFunctions` for the minimal first-spike
+  surface (`_put`/`_get`/`log_from_slice`/`require_auth_for_args`). Wired
+  `runSorobanHostCall` + `sorobanHostArity` + `runHostCall` dispatch into
+  `WasmInterpreter.lean` (same byte-keyed `lookupStorage?`/`writeStorage` storage
+  model as NEAR/CosmWasm, so contract-axis proofs reuse the same abstract scalar
+  reasoning). Added thin `ProofForge.Backend.WasmNear.SorobanHost.lean` host-call
+  lemmas (`_get` hit/miss, `_put`, `set_return_data`, `log`, `require_auth`) +
+  `soroban_host_smoke_ok`. Added
+  `ProofForge.Backend.WasmNear.CounterSorobanRefinement.lean` — Counter universal
+  C-proof reusing the SAME host-agnostic `counterWasmCoreTraceStep` core as
+  NEAR/CosmWasm; only the host instantiation differs. This proves the WASM
+  host-family thesis: a new WASM chain is a thin `*Host.lean` on top of the
+  shared `WasmExec` core, not a forked EmitWat. Gated by
+  `just wasm-soroban-host-smoke` (in `just check`). Future Soroban spikes: real
+  `Env` API (storage TTL, real `require_auth`, ledger reads, cross-contract
+  calls), `wasm32v1-none` artifact emit, Stellar CLI validation, separate
+  `wasm-stellar-soroban` registry id. MultiversX / Casper / … hosts follow the
+  same adapter template. Order + fit: the WASM host-family map in
+  [FV target-semantics plan](2026-07-07-fv-target-semantics.md).
+- **ZK lane** — **Aleo/Leo DONE (2026-07-08, Road 1 sourcegen registry entry).**
+  Promoted `aleo-leo` from a CLI-only spike to a registered `TargetProfile`
+  (`ProofForge.Target.aleoLeo`, family `.zkCircuitSourcegen`, artifact kind
+  `.leoSource`) — now exposed by `proof-forge --list-targets`. Added Lean-side
+  codegen gate `just aleo-leo-codegen-smoke` (in `just check`) witnessing the
+  Counter→Leo lowering + Road 1 structure markers (`program counter.aleo`,
+  `mapping count`, `@noupgrade constructor`, `fn ... -> Final`) without needing
+  the external `leo` CLI. The heavier `leo build`/`leo test` end-to-end gate
+  stays in GitHub CI `aleo-smoke`. Aleo has no ready Lean 4 semantics, so Road 2
+  FV-import is deferred (unlike Cairo/Noir which have `starkware-libs/formal-proofs` /
+  `reilabs/lampe`). Future Aleo: private-record Road 2, direct Aleo Instructions
+  Road 3, devnet validation. Remaining ZK lane: Noir `NR-1..4` + Cairo `CR-1..4`
+  Road 1 codegen, then Road 2 FV-import. Card:
   [ZK sourcegen spike](2026-07-08-zk-sourcegen-spike.md); target notes:
-  [noir-aztec](../../targets/noir-aztec.md), [starknet-cairo](../../targets/starknet-cairo.md).
+  [aleo-leo](../../targets/aleo-leo.md), [noir-aztec](../../targets/noir-aztec.md),
+  [starknet-cairo](../../targets/starknet-cairo.md).
 
 ## Phase 5 — Platform gaps + structural debt (docs-first, parallelizable)
 

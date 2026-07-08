@@ -366,6 +366,51 @@ def runCosmWasmHostCall (name : String) (args : Array Nat) (state : WasmState) :
   | "log" => .ok state
   | other => .error s!"unsupported CosmWasm host call `{other}`"
 
+/-- Soroban host-call arity table for the minimal first-spike surface.
+
+The first Soroban spike mirrors the CosmWasm storage-keyed model: `_get`
+reads a byte-keyed host map entry and pushes its little-endian `Nat` onto
+the value stack; `_put` writes a key/value pair; `log_from_slice` is a
+no-op; `require_auth_for_args` is modeled as always-authorised (returns
+`1`). The real Soroban `Env` API (instance/persistent/temporary storage
+with TTL, real `require_auth`, ledger reads, cross-contract calls) lands
+behind the same `.soroban` bridge as later spikes. -/
+def sorobanHostArity (name : String) : Except String Nat :=
+  match name with
+  | "_get" => .ok 2
+  | "_put" => .ok 4
+  | "log_from_slice" => .ok 2
+  | "require_auth_for_args" => .ok 2
+  | "set_return_data" => .ok 2
+  | other => .error s!"unsupported Soroban host call `{other}`"
+
+def runSorobanHostCall (name : String) (args : Array Nat) (state : WasmState) :
+    Except String WasmState :=
+  match name with
+  | "_get" =>
+      if h : args.size = 2 then
+        let key := readBytes state.memory args[0] args[1]
+        let loaded :=
+          match lookupStorage? state.host.storage key with
+          | some value => leBytesToNat value
+          | none => 0
+        .ok { state with valueStack := state.valueStack.push loaded }
+      else .error s!"_get expected 2 arguments, got {args.size}"
+  | "_put" =>
+      if h : args.size = 4 then
+        let key := readBytes state.memory args[0] args[1]
+        let value := readBytes state.memory args[2] args[3]
+        .ok { state with host := { state.host with storage := writeStorage state.host.storage key value } }
+      else .error s!"_put expected 4 arguments, got {args.size}"
+  | "log_from_slice" => .ok state
+  | "require_auth_for_args" => .ok (stackPush state 1)
+  | "set_return_data" =>
+      if h : args.size = 2 then
+        let value := readBytes state.memory args[0] args[1]
+        .ok { state with host := { state.host with returnValue := value } }
+      else .error s!"set_return_data expected 2 arguments, got {args.size}"
+  | other => .error s!"unsupported Soroban host call `{other}`"
+
 def hostArity (bridge : ProofForge.Target.HostBridge) (name : String) :
     Except String Nat :=
   match bridge, name with
@@ -379,6 +424,7 @@ def hostArity (bridge : ProofForge.Target.HostBridge) (name : String) :
   | .near, "signer_account_id" => .ok 1
   | .near, "attached_deposit" => .ok 0
   | .cosmWasm, name => cosmWasmHostArity name
+  | .soroban, name => sorobanHostArity name
   | _, other => .error s!"unsupported host call `{other}`"
 
 def runHostCallWith
@@ -396,6 +442,7 @@ def runHostCall (name : String) (state : WasmState) : Except String WasmState :=
       match bridge with
       | .near => runNearHostCall name args state
       | .cosmWasm => runCosmWasmHostCall name args state
+      | .soroban => runSorobanHostCall name args state
     )
     name state
 

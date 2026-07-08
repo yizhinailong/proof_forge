@@ -5,19 +5,21 @@
 ProofForge is a Lean 4 compiler/CLI (`proof-forge`) that lowers Lean smart-contract
 sources to portable IR and target artifacts. Implemented backends live on `main`:
 `evm`, `solana-sbpf-asm`, `wasm-near`, `wasm-cosmwasm` (Counter spike),
-`move-aptos` (Counter spike), `move-sui` (Counter MVP), `psy-dpn`, plus
-research spikes `aleo-leo` and `wasm-cloudflare-workers`. The formal-verification
-target `quint` is CLI-only (not in `--list-targets`). See README "Backend Status"
-for the full stage table. Default CI runs the EVM, Solana-light, NEAR, and Psy
-static gates; Solana live-network/Pinocchio gates and `just psy-all` need extra
+`wasm-stellar-soroban` (Phase 4 host-family adapter, Counter refinement),
+`move-aptos` (Counter spike), `move-sui` (Counter MVP), `psy-dpn`, `aleo-leo`
+(Phase 4 ZK lane, Road 1 Leo sourcegen), plus research spike
+`wasm-cloudflare-workers`. The formal-verification target `quint` is CLI-only
+(not in `--list-targets`). See README "Backend Status" for the full stage table.
+Default CI runs the EVM, Solana-light, NEAR, Psy static, Soroban host, and Aleo
+codegen gates; Solana live-network/Pinocchio gates and `just psy-all` need extra
 tools (see below).
 
 ### Registry vs CLI-only targets
 
 | Surface | Targets |
 |---------|---------|
-| `proof-forge --list-targets` / `ProofForge.Target.knownIds` | `evm`, `solana-sbpf-asm`, `wasm-near`, `wasm-cosmwasm`, `wasm-cloudflare-workers`, `move-aptos`, `move-sui`, `psy-dpn` |
-| `proof-forge emit --target …` (fixture whitelist) | above plus `aleo-leo`, `quint` (spikes / verification; not deployment registry entries) |
+| `proof-forge --list-targets` / `ProofForge.Target.knownIds` | `evm`, `solana-sbpf-asm`, `wasm-near`, `wasm-cosmwasm`, `wasm-cloudflare-workers`, `move-aptos`, `move-sui`, `psy-dpn`, `aleo-leo` |
+| `proof-forge emit --target …` (fixture whitelist) | above plus `quint` (verification; CLI-only, not a deployment registry entry). `wasm-stellar-soroban` is a host-family adapter on the `wasm-near` EmitWat core, not yet a separate registry id. |
 
 ### `just check` vs GitHub `build-test`
 
