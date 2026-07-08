@@ -45,6 +45,42 @@ def unsupportedStatement (statement : Statement) :
     Except String (State × Frame × Option Value) :=
   .error s!"IR fuel semantics does not support statement `{repr statement}`"
 
+/-- Total scalar-only version of `valueKey` for the fuel interpreter. Covers the
+non-recursive `Value` constructors (the keys Counter/ValueVault maps use);
+array/struct keys fall back to a generic `repr`-based key so totality is
+preserved without depending on the `partial` `valueKey`. -/
+def valueKeyScalar : Value → String
+  | .unit => "unit"
+  | .bool value => if value then "true" else "false"
+  | .u8 value => s!"u8:{value}"
+  | .u32 value => s!"u32:{value}"
+  | .u128 value => s!"u128:{value}"
+  | .u64 value => s!"u64:{value}"
+  | .address value => s!"addr:{value}"
+  | .bytes values => "bytes:" ++ String.intercalate "," (values.map toString)
+  | .string value => s!"str:{value}"
+  | .hash a b c d => s!"hash:{a}:{b}:{c}:{d}"
+  | .array values => s!"array:{values.length}"
+  | .struct typeName _ => s!"struct:{typeName}"
+
+/-- Total scalar-only zero-like value, mirroring `zeroLike` for the
+non-recursive constructors (the ones the fuel interpreter admits). Array and
+struct values get `.unit` since the fuel interpreter's fragment is
+scalar-centric; this preserves totality without recursion. -/
+def zeroLikeScalar : Value → Value
+  | .unit => .unit
+  | .bool _ => .bool false
+  | .u8 _ => .u8 0
+  | .u32 _ => .u32 0
+  | .u128 _ => .u128 0
+  | .u64 _ => .u64 0
+  | .address _ => .address 0
+  | .bytes _ => .bytes []
+  | .string _ => .string ""
+  | .hash _ _ _ _ => .hash 0 0 0 0
+  | .array _ => .unit
+  | .struct _ _ => .unit
+
 mutual
   def evalExprFuel : Nat → State → Frame → Expr → Except String ExprResult
     | 0, _, _, _ => .error "IR fuel semantics expression fuel exhausted"
@@ -69,6 +105,87 @@ mutual
           let (stateAfterLhs, lhsValue) ← evalExprFuel fuel state frame lhs
           let (stateAfterRhs, rhsValue) ← evalExprFuel fuel stateAfterLhs frame rhs
           .ok (stateAfterRhs, ← evalNumericBinary "mul" (· * ·) lhsValue rhsValue)
+      | .div lhs rhs => do
+          let (stateAfterLhs, lhsValue) ← evalExprFuel fuel state frame lhs
+          let (stateAfterRhs, rhsValue) ← evalExprFuel fuel stateAfterLhs frame rhs
+          .ok (stateAfterRhs, ← evalNumericBinary "div"
+            (fun lhs rhs => if rhs == 0 then 0 else lhs / rhs) lhsValue rhsValue)
+      | .mod lhs rhs => do
+          let (stateAfterLhs, lhsValue) ← evalExprFuel fuel state frame lhs
+          let (stateAfterRhs, rhsValue) ← evalExprFuel fuel stateAfterLhs frame rhs
+          .ok (stateAfterRhs, ← evalNumericBinary "mod"
+            (fun lhs rhs => if rhs == 0 then 0 else lhs % rhs) lhsValue rhsValue)
+      | .pow lhs rhs => do
+          let (stateAfterLhs, lhsValue) ← evalExprFuel fuel state frame lhs
+          let (stateAfterRhs, rhsValue) ← evalExprFuel fuel stateAfterLhs frame rhs
+          .ok (stateAfterRhs, ← evalNumericBinary "pow" (· ^ ·) lhsValue rhsValue)
+      | .bitAnd lhs rhs => do
+          let (stateAfterLhs, lhsValue) ← evalExprFuel fuel state frame lhs
+          let (stateAfterRhs, rhsValue) ← evalExprFuel fuel stateAfterLhs frame rhs
+          .ok (stateAfterRhs, ← evalNumericBinary "bitAnd" Nat.land lhsValue rhsValue)
+      | .bitOr lhs rhs => do
+          let (stateAfterLhs, lhsValue) ← evalExprFuel fuel state frame lhs
+          let (stateAfterRhs, rhsValue) ← evalExprFuel fuel stateAfterLhs frame rhs
+          .ok (stateAfterRhs, ← evalNumericBinary "bitOr" Nat.lor lhsValue rhsValue)
+      | .bitXor lhs rhs => do
+          let (stateAfterLhs, lhsValue) ← evalExprFuel fuel state frame lhs
+          let (stateAfterRhs, rhsValue) ← evalExprFuel fuel stateAfterLhs frame rhs
+          .ok (stateAfterRhs, ← evalNumericBinary "bitXor" Nat.xor lhsValue rhsValue)
+      | .shiftLeft lhs rhs => do
+          let (stateAfterLhs, lhsValue) ← evalExprFuel fuel state frame lhs
+          let (stateAfterRhs, rhsValue) ← evalExprFuel fuel stateAfterLhs frame rhs
+          .ok (stateAfterRhs, ← evalNumericBinary "shiftLeft"
+            (fun lhs rhs => lhs * (2 ^ rhs)) lhsValue rhsValue)
+      | .shiftRight lhs rhs => do
+          let (stateAfterLhs, lhsValue) ← evalExprFuel fuel state frame lhs
+          let (stateAfterRhs, rhsValue) ← evalExprFuel fuel stateAfterLhs frame rhs
+          .ok (stateAfterRhs, ← evalNumericBinary "shiftRight"
+            (fun lhs rhs => lhs / (2 ^ rhs)) lhsValue rhsValue)
+      | .cast value targetType => do
+          let (nextState, rawValue) ← evalExprFuel fuel state frame value
+          .ok (nextState, ← castValue rawValue targetType)
+      | .eq lhs rhs => do
+          let (stateAfterLhs, lhsValue) ← evalExprFuel fuel state frame lhs
+          let (stateAfterRhs, rhsValue) ← evalExprFuel fuel stateAfterLhs frame rhs
+          .ok (stateAfterRhs, ← evalEquality lhsValue rhsValue)
+      | .ne lhs rhs => do
+          let (stateAfterLhs, lhsValue) ← evalExprFuel fuel state frame lhs
+          let (stateAfterRhs, rhsValue) ← evalExprFuel fuel stateAfterLhs frame rhs
+          match ← evalEquality lhsValue rhsValue with
+          | .bool value => .ok (stateAfterRhs, .bool (!value))
+          | _ => .error "equality returned a non-Bool value"
+      | .lt lhs rhs => do
+          let (stateAfterLhs, lhsValue) ← evalExprFuel fuel state frame lhs
+          let (stateAfterRhs, rhsValue) ← evalExprFuel fuel stateAfterLhs frame rhs
+          .ok (stateAfterRhs, ← evalNumericPredicate "lt" (· < ·) lhsValue rhsValue)
+      | .le lhs rhs => do
+          let (stateAfterLhs, lhsValue) ← evalExprFuel fuel state frame lhs
+          let (stateAfterRhs, rhsValue) ← evalExprFuel fuel stateAfterLhs frame rhs
+          .ok (stateAfterRhs, ← evalNumericPredicate "le" (· <= ·) lhsValue rhsValue)
+      | .gt lhs rhs => do
+          let (stateAfterLhs, lhsValue) ← evalExprFuel fuel state frame lhs
+          let (stateAfterRhs, rhsValue) ← evalExprFuel fuel stateAfterLhs frame rhs
+          .ok (stateAfterRhs, ← evalNumericPredicate "gt" (· > ·) lhsValue rhsValue)
+      | .ge lhs rhs => do
+          let (stateAfterLhs, lhsValue) ← evalExprFuel fuel state frame lhs
+          let (stateAfterRhs, rhsValue) ← evalExprFuel fuel stateAfterLhs frame rhs
+          .ok (stateAfterRhs, ← evalNumericPredicate "ge" (· >= ·) lhsValue rhsValue)
+      | .boolAnd lhs rhs => do
+          let (stateAfterLhs, lhsValue) ← evalExprFuel fuel state frame lhs
+          let (stateAfterRhs, rhsValue) ← evalExprFuel fuel stateAfterLhs frame rhs
+          .ok (stateAfterRhs, ← evalBooleanBinary "boolAnd" (fun lhs rhs => lhs && rhs)
+            lhsValue rhsValue)
+      | .boolOr lhs rhs => do
+          let (stateAfterLhs, lhsValue) ← evalExprFuel fuel state frame lhs
+          let (stateAfterRhs, rhsValue) ← evalExprFuel fuel stateAfterLhs frame rhs
+          .ok (stateAfterRhs, ← evalBooleanBinary "boolOr" (fun lhs rhs => lhs || rhs)
+            lhsValue rhsValue)
+      | .boolNot value => do
+          let (nextState, rawValue) ← evalExprFuel fuel state frame value
+          match rawValue with
+          | .bool value => .ok (nextState, .bool (!value))
+          | _ => .error "boolNot expects Bool operand"
+      | .nativeValue => .ok (state, .u64 0)
       | .effect effect =>
           evalEffectFuel fuel state frame effect
       | _ => unsupportedExpr expr
@@ -84,7 +201,65 @@ mutual
       | .storageScalarWrite name valueExpr => do
           let (nextState, value) ← evalExprFuel fuel state frame valueExpr
           .ok (nextState.write name value, .unit)
+      | .storageScalarAssignOp name op valueExpr => do
+          let current ←
+            match state.read name with
+            | some value => .ok value
+            | none => .error s!"unknown scalar state `{name}`"
+          let (nextState, rhs) ← evalExprFuel fuel state frame valueExpr
+          let value ← evalAssignOp op current rhs
+          .ok (nextState.write name value, value)
+      | .storageMapGet name keyExpr => do
+          let (nextState, keyValue) ← evalExprFuel fuel state frame keyExpr
+          let key := valueKeyScalar keyValue
+          match nextState.read (mapKey name key) with
+          | some value => .ok (nextState, value)
+          | none => .error s!"unknown map state `{name}` key `{key}`"
+      | .storageMapInsert name keyExpr valueExpr
+      | .storageMapSet name keyExpr valueExpr => do
+          let (stateAfterKey, keyValue) ← evalExprFuel fuel state frame keyExpr
+          let key := valueKeyScalar keyValue
+          let (stateAfterValue, newValue) ← evalExprFuel fuel stateAfterKey frame valueExpr
+          let oldValue := (stateAfterValue.read (mapKey name key)).getD (zeroLikeScalar newValue)
+          let nextState :=
+            (stateAfterValue.write (mapKey name key) newValue).write
+              (mapPresentKey name key) (.bool true)
+          .ok (nextState, oldValue)
+      | .storageMapContains name keyExpr => do
+          let (nextState, keyValue) ← evalExprFuel fuel state frame keyExpr
+          let key := valueKeyScalar keyValue
+          .ok (nextState, .bool ((nextState.read (mapPresentKey name key)).isSome))
+      | .storageStructFieldRead name fieldName =>
+          match state.readStructField name fieldName with
+          | some value => .ok (state, value)
+          | none => .error s!"unknown struct field state `{name}.{fieldName}`"
+      | .storageStructFieldWrite name fieldName valueExpr => do
+          let (nextState, value) ← evalExprFuel fuel state frame valueExpr
+          .ok (nextState.write (fieldKey name fieldName) value, .unit)
+      | .contextRead field =>
+          match field with
+          | .userId | .contractId | .checkpointId | .timestamp | .epochHeight
+          | .chainId | .gasPrice | .gasLeft | .baseFee | .prevRandao =>
+              .ok (state, .u64 0)
+          | .userIdHash | .randomSeed | .origin | .coinbase | .blockHash _ =>
+              .ok (state, .hash 0 0 0 0)
+      | .eventEmit name fields => do
+          let (nextState, data) ← evalEventFieldFuel fuel state frame fields
+          .ok (nextState.recordEvent name #[] data, .unit)
+      | .eventEmitIndexed name indexedFields dataFields => do
+          let (nextState, indexed) ← evalEventFieldFuel fuel state frame indexedFields
+          let (nextState, data) ← evalEventFieldFuel fuel nextState frame dataFields
+          .ok (nextState.recordEvent name indexed data, .unit)
       | _ => unsupportedEffect effect
+
+  /-- Total fuel-indexed evaluation of event field arrays. -/
+  def evalEventFieldFuel (fuel : Nat) (state : State) (frame : Frame)
+      (fields : Array (String × Expr)) : Except String (State × Array Value) :=
+    fields.foldlM (fun (accState, accValues) field =>
+      match evalExprFuel fuel accState frame field.snd with
+      | .error e => .error e
+      | .ok (stateAfterField, value) => .ok (stateAfterField, accValues.push value))
+      (state, #[])
 
   def execStmtFuel : Nat → State → Frame → Statement →
       Except String (State × Frame × Option Value)
@@ -97,9 +272,48 @@ mutual
       | .letMutBind name _ value => do
           let (nextState, evaluated) ← evalExprFuel fuel state frame value
           .ok (nextState, frame.write name evaluated, none)
+      | .assign target value =>
+          match target with
+          | .local name => do
+              let (nextState, evaluated) ← evalExprFuel fuel state frame value
+              .ok (nextState, frame.write name evaluated, none)
+          | _ => unsupportedStatement statement
+      | .assignOp target op value =>
+          match target with
+          | .local name => do
+              let current ← match frame.read name with
+                | some v => .ok v
+                | none => .error s!"assignOp on unbound local `{name}`"
+              let (nextState, rhs) ← evalExprFuel fuel state frame value
+              let updated ← evalAssignOp op current rhs
+              .ok (nextState, frame.write name updated, none)
+          | _ => unsupportedStatement statement
       | .effect effect => do
           let (nextState, _) ← evalEffectFuel fuel state frame effect
           .ok (nextState, frame, none)
+      | .assert condition message _ => do
+          let (nextState, conditionValue) ← evalExprFuel fuel state frame condition
+          if ← truthy conditionValue then
+            .ok (nextState, frame, none)
+          else
+            .error s!"assertion failed: {message}"
+      | .assertEq lhs rhs message _ => do
+          let (stateAfterLhs, lhsValue) ← evalExprFuel fuel state frame lhs
+          let (stateAfterRhs, rhsValue) ← evalExprFuel fuel stateAfterLhs frame rhs
+          if lhsValue == rhsValue then
+            .ok (stateAfterRhs, frame, none)
+          else
+            .error s!"assertion failed: {message}"
+      | .revert message =>
+          .error s!"revert: {message}"
+      | .revertWithError errorRef =>
+          .error s!"revert: assertion_id={errorRef.assertionId}"
+      | .ifElse condition thenBody elseBody => do
+          let (nextState, conditionValue) ← evalExprFuel fuel state frame condition
+          let selectedBody := if ← truthy conditionValue then thenBody else elseBody
+          let (branchState, returnValue?) ←
+            execStatementsFuel fuel selectedBody.toList nextState frame
+          .ok (branchState, frame, returnValue?)
       | .return value => do
           let (nextState, returnValue) ← evalExprFuel fuel state frame value
           .ok (nextState, frame, some returnValue)

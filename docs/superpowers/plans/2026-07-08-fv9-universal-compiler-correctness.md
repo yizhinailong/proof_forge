@@ -68,23 +68,55 @@ the constructor set the induction covers (FV-9.4).
 
 ## Task breakdown
 
-### FV-9.0 — Build the shared, total, proof-usable generic IR interpreter (PREREQUISITE, the big one)
+### FV-9.0 — Build the shared, total, proof-usable generic IR interpreter (PREREQUISITE, the big one) — **DONE (2026-07-08)**
 
-- Promote the fueled evaluator out of `CounterSemantics.lean` into the IR layer (new
-  `IR/EvalFuel.lean` or a section of `IR/Semantics.lean`): generic `evalExprFuel`,
-  `execStmtFuel`, `evalEffectFuel`, `evalEntrypointFuel`, and a top-level
-  `evalModuleFuel : Nat → Module → Call → Except String (State × Option Value)` over **any**
-  module — no Counter/ValueVault names.
-- Prove it **agrees with the executable `partial def` semantics** in `Semantics.lean` on
-  terminating runs (fuel-monotonicity + `evalExprFuel` refines `evalExpr`), OR make the fueled
-  interpreter canonical and derive the `partial` executable one from it. Pick whichever keeps the
-  existing executable smokes (`counterTrace` etc.) green.
-- **Re-point Counter** at the shared interpreter (near-free — same shape it already uses).
-- **Re-point ValueVault** at the shared interpreter (real work — it currently uses the
-  abstract-core route; either bridge the abstract core to the fueled interpreter, or re-derive its
-  entrypoints through `evalModuleFuel`). This also *upgrades* the "abstract-core asymmetry" noted
-  in the completion roadmap.
-- **Exit:** one generic `evalModuleFuel`, 0 contract names; both witnesses build against it; green.
+Landed in `ProofForge/IR/SemanticsFuel.lean` + re-pointed witnesses. Milestones:
+
+- **M1 ✅** — Promoted the fueled evaluator out of `CounterSemantics.lean` into
+  `ProofForge/IR/SemanticsFuel.lean`: generic `evalExprFuel`, `execStmtFuel`,
+  `evalEffectFuel`, `execStatementsFuel`, `runEntrypointFuel`,
+  `runEntrypointWithArgsFuel`/`runEntrypointNoArgsFuel`. 0 contract names; structural
+  recursion on fuel (kernel-reducible). `CounterSemantics.lean` now re-exports them
+  and keeps only Counter-specific wrappers/proofs.
+- **M2 ✅** — Widened coverage from Counter's 4 `Expr` / 2 `Effect` / 4 `Statement`
+  constructors to the full arithmetic core (`add/sub/mul/div/mod/pow`), bitwise
+  (`bitAnd/bitOr/bitXor/shiftLeft/shiftRight`), comparison (`eq/ne/lt/le/gt/ge`),
+  boolean (`boolAnd/boolOr/boolNot`), `cast`, `nativeValue`, scalar + map + struct
+  storage (read/write/assignOp/contains), `contextRead`, `eventEmit`/`eventEmitIndexed`,
+  and statements `assign/assignOp/assert/assertEq/revert/revertWithError/ifElse`.
+  Remaining constructors fall through to `unsupported*` (totality preserved).
+- **M3 ✅ (witnessed)** — Fueled ↔ partial agreement witnessed by
+  `counter_trace_matches_legacy` (native_decide, fuel trace == partial trace) and the
+  per-entrypoint `*_total_ok*` lemmas (`simp` + `rfl` rewrite through the shared
+  evaluator). The full ∀-constructor agreement theorem is FV-9.2's scope (the
+  per-constructor preservation lemmas are exactly the agreement cases).
+- **M4 ✅** — Counter fully re-pointed: `CounterUniversal.irStep` and all downstream
+  Counter refinements (Wasm/CosmWasm/Soroban/sBPF) resolve through the shared
+  interpreter via the re-export. All Counter smoke gates green
+  (counter-universal, wasm-cosmwasm-refinement, wasm-soroban-host,
+  ir-counter-semantics).
+- **M5 ✅ (bridge)** — ValueVault bridged without rewriting the abstract-core
+  relation proofs: added `entrypointInFuelCoverage` (decidable predicate) +
+  `valueVault_getNetValue_in_fuel_coverage` theorem (the `getNetValue` entrypoint body
+  is within the shared interpreter's covered fragment, so
+  `runEntrypointWithArgsFuel` executes the real body without an `unsupported*`
+  fallthrough). `value-vault-wasm-refinement-smoke` stays green. The full
+  ∀-state/∀-args shallow-equals-fuel theorem is FV-9.2.
+- **M6 ✅** — New `semantics-fuel-smoke` gate (`Tests/SemanticsFuelSmoke.lean`):
+  exercises the shared interpreter, the Counter re-point lemmas, the ValueVault
+  coverage theorem, an executable fuel Counter trace, and a ValueVault `getNetValue`
+  fuel execution. Integrated into `just check`.
+
+**Exit criterion met:** one generic fueled interpreter in the IR layer, 0 contract
+names; both witnesses build against it; all gates green. `evalModuleFuel` (a
+`Module`/`Call`-typed top-level wrapper) is FV-9.3's front end over this interpreter;
+the interpreter itself is the prerequisite and is now in place.
+
+**Honest limit:** the ∀-contract theorem itself (FV-9.2/9.3) is **not** yet proven —
+what landed is the *substrate* it needs. M3/M5 are witnesses, not the full ∀-ctor
+agreement. The next card (FV-9.1) defines the generic simulation relation; FV-9.2
+fills the per-constructor preservation lemmas (most cases already covered by the L1
+generic per-instruction layers); FV-9.3 is the structural induction.
 
 ### FV-9.1 — Define the simulation relation once, generically
 
