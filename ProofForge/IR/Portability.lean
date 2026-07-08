@@ -166,9 +166,10 @@ mutual
           (classifyExpr s!"{path}.value" value)
     | .contextRead field =>
         match field with
-        | .gasPrice | .gasLeft | .baseFee | .prevRandao | .coinbase | .origin | .blockHash _ =>
-            #[finding path s!"contextRead.{field.name}" (.targetFamilyOnly .evm)]
-        | _ => #[finding path s!"contextRead.{field.name}" .familyShared]
+        | _ => if field.isPortableEnv then
+                 #[finding path s!"contextRead.{field.name}" .familyShared]
+               else
+                 #[finding path s!"contextRead.{field.name}" (.targetFamilyOnly .evm)]
     | .eventEmit _ fields =>
         fields.foldl (fun acc f => acc ++ classifyExpr s!"{path}.field" f.snd) #[]
     | .eventEmitIndexed _ indexed data =>

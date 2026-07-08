@@ -61,7 +61,16 @@ pick a chain at write time and violated D-028. **Removed.**
       correctly and keep their IR names; unsupported body shapes are rejected.
       Witnessed in `Tests/IRPortability.lean` (renamed-entrypoint lowering +
       unsupported-shape rejection).
-- [ ] Context field split: portable env vs EVM-only (`baseFee`, `prevRandao`, …)
+- [x] Context field split: portable env vs EVM-only (`baseFee`, `prevRandao`, …)
+      — `ContextField.isPortableEnv` is the single source of truth for which
+      context fields (`timestamp`/`chainId`/`epochHeight`/`checkpointId`/
+      `userId`/`userIdHash`/`contractId`) have a native analogue on every
+      primary target vs which are EVM-specific
+      (`gasPrice`/`gasLeft`/`baseFee`/`prevRandao`/`randomSeed`/`origin`/
+      `coinbase`/`blockHash`). The `Portability` classifier consumes it, so
+      the split is machine-checked and witnessed in `Tests/IRPortability.lean`
+      (portable-env read stays portable-core; EVM-only read violates non-EVM
+      families).
 - [ ] Portable identity type vocabulary (`ValueType.address` → documented as
       chain-neutral account/identity handle; target ABI renames in metadata)
 - [ ] Surface `storageBinding` in artifact/deploy JSON for debugging

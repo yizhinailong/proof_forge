@@ -252,6 +252,27 @@ def ContextField.capability : ContextField → ProofForge.Target.Capability
   | .contractId => .accountExplicit
   | .checkpointId | .timestamp | .epochHeight | .chainId | .gasPrice | .gasLeft | .baseFee | .prevRandao | .randomSeed | .coinbase | .blockHash _ => .envBlock
 
+/-! ### Context field portability split (D-050 Slice 2)
+
+Context fields split into two layers:
+
+* `isPortableEnv` — every primary target (EVM, Solana, NEAR, Move) has a
+  native analogue, so a portable module may read them without a family-only
+  finding. `checkpointId`/`timestamp`/`epochHeight`/`chainId` are
+  chain-neutral block/time identity; `userId`/`userIdHash`/`contractId` are
+  chain-neutral caller/self identity.
+
+* EVM-only fields (`gasPrice`/`gasLeft`/`baseFee`/`prevRandao`/`randomSeed`/
+  `coinbase`/`origin`/`blockHash`) carry EVM-specific economics or RANDAO
+  semantics with no portable analogue. They classify as
+  `targetFamilyOnly .evm` and are rejected when lowering for a different family.
+-/
+def ContextField.isPortableEnv : ContextField → Bool
+  | .userId | .userIdHash | .contractId | .checkpointId | .timestamp
+  | .epochHeight | .chainId => true
+  | .gasPrice | .gasLeft | .baseFee | .prevRandao | .randomSeed
+  | .origin | .coinbase | .blockHash _ => false
+
 structure ErrorRef where
   assertionId : UInt32
   userCode? : Option String := none

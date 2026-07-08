@@ -70,6 +70,46 @@ def main : IO Unit := do
   require (!(counterModule.capabilities.any fun c => c.id == "storage.object"))
     "portable IR must not emit storage.object"
 
+  -- Slice 2: Context field portability split. Portable env fields
+  -- (timestamp/chainId/epochHeight/checkpointId/userId/userIdHash/contractId)
+  -- are family-shared; EVM-only fields (baseFee/prevRandao/coinbase/origin/
+  -- gasPrice/gasLeft/randomSeed/blockHash) classify as EVM target-family-only.
+  require ContextField.timestamp.isPortableEnv "timestamp must be portable env"
+  require ContextField.chainId.isPortableEnv "chainId must be portable env"
+  require ContextField.epochHeight.isPortableEnv "epochHeight must be portable env"
+  require ContextField.checkpointId.isPortableEnv "checkpointId must be portable env"
+  require ContextField.userId.isPortableEnv "userId must be portable env"
+  require ContextField.contractId.isPortableEnv "contractId must be portable env"
+  require (!ContextField.baseFee.isPortableEnv) "baseFee must be EVM-only"
+  require (!ContextField.prevRandao.isPortableEnv) "prevRandao must be EVM-only"
+  require (!ContextField.coinbase.isPortableEnv) "coinbase must be EVM-only"
+  require (!ContextField.origin.isPortableEnv) "origin must be EVM-only"
+  require (!ContextField.gasPrice.isPortableEnv) "gasPrice must be EVM-only"
+  require (!ContextField.gasLeft.isPortableEnv) "gasLeft must be EVM-only"
+  require (!ContextField.randomSeed.isPortableEnv) "randomSeed must be EVM-only"
+  require (!(ContextField.isPortableEnv (ContextField.blockHash (Expr.literal (.u64 0))))) "blockHash must be EVM-only"
+
+  -- A module reading a portable env field stays portable-core; reading an
+  -- EVM-only field produces an EVM-family finding and is not portable-core.
+  let envReadEp : Entrypoint := {
+    name := "envRead", returns := .u64,
+    body := #[.return (.effect (.contextRead .timestamp))]
+  }
+  let portableEnvReadModule : Module := { counterModule with entrypoints := #[envReadEp] }
+  require (isPortableCoreModule portableEnvReadModule)
+    "module reading a portable env field must stay portable-core"
+  let evmEnvReadEp : Entrypoint := {
+    name := "evmEnvRead", returns := .u64,
+    body := #[.return (.effect (.contextRead .baseFee))]
+  }
+  let evmOnlyEnvReadModule : Module := { counterModule with entrypoints := #[evmEnvReadEp] }
+  require (!isPortableCoreModule evmOnlyEnvReadModule)
+    "module reading an EVM-only env field must not be portable-core"
+  require ((familyOnlyViolations evmOnlyEnvReadModule .evm).isEmpty)
+    "EVM-only env field must be legal for EVM family"
+  require ((familyOnlyViolations evmOnlyEnvReadModule .solana).size > 0)
+    "EVM-only env field must violate Solana family lowering"
+
   -- Slice 2: Aptos entrypoint lowering is shape-based, not name-based. A
   -- Counter-shape module with renamed entrypoints (`init`/`bump`/`read`)
   -- lowers successfully and the generated source carries the renamed
