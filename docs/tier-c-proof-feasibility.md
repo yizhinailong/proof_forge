@@ -254,7 +254,9 @@ Phase 6c simulation-prerequisite) is left to Phase 6b+.
 
 ### Phase 6b — Integrate `powdr-labs/evm-semantics` as the EVM bytecode semantics
 
-**Status: preferred target selected; opt-in powdr target, wrapper, and Counter storage relation landed; default build still mathlib-free (2026-07-07).**
+**Status: preferred target selected; opt-in powdr target, wrapper, Counter storage relation,
+and native executable Counter refinement lane landed; default build still mathlib-free
+(updated 2026-07-08).**
 The original `EVMYulLean` route was blocked by a Lean toolchain + mathlib
 version mismatch. That blocker is avoided by switching the refinement target to
 `powdr-labs/evm-semantics`, which pins Lean `v4.31.0` and mathlib `v4.31.0`.
@@ -282,7 +284,10 @@ ProofForge's default build still avoids powdr/mathlib imports.
   `runBytecode` executions now lift to powdr's relational `Steps` closure.
   The pinned powdr tree exposes bytecode semantics, not a Yul-level relation,
   so the Yul→bytecode `solc` step remains an explicit trust boundary. The
-  remaining work is the per-entrypoint powdr `Step` proof.
+  selected EVM delivery boundary is now the `native_decide` discharge over
+  powdr's conformance-tested executable `stepF`, lifted through the shared trace
+  machinery; hand-deriving the concrete bytecode path against powdr `Step` is
+  deferred unless a contract-agnostic automation layer exists first.
 - **What was landed:**
   - `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean` (new) — stub
     adapter with the public surface aligned to `Refinement.ObservableStep`,
@@ -309,12 +314,12 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterCompiledPowdrConfig`, and adds the opt-in
     `just evm-powdr-counter-runtime` drift gate. The compiled-runtime path also
     exposes `counterCompiledPowdrTargetSemantics` and
-    `counterCompiledPowdr_trace_simulates_after_initialize_from_obligations`, so
-    the next proof obligation is specialized to the real Counter runtime
+    `counterCompiledPowdr_trace_simulates_after_initialize_from_obligations`,
+    which specialized the obligation surface to the real Counter runtime
     witness. It also defines `counterBaseEvmState` and native executable smokes
-    for `initialize`, `get`, and `initialize; increment; get`; those are
-    C-diff witnesses over powdr's executable driver, not substitutes for the
-    pending relational per-entrypoint proof. The concrete compiled target's
+    for `initialize`, `get`, and `initialize; increment; get`; together with the
+    explicit TCB statement, those are the selected executable witness boundary
+    over powdr's driver. The concrete compiled target's
     `executableTraceOk` now consumes Counter `TraceObligation`s through the
     compiled runtime and proves the initialize-get-increment-get trace with
     `counterCompiledPowdr_executable_trace_ok`. Prepared calls now normalize a
@@ -326,8 +331,9 @@ ProofForge's default build still avoids powdr/mathlib imports.
     module now exposes a
     powdr-backed Counter trace-step surface and proves successful trace steps
     are backed by powdr `Steps` plus the stated observable projection; the
-    compiled-runtime C-diff is green, while the relational per-entrypoint
-    obligations still need to be discharged. It
+    compiled-runtime C-diff is green. The relational per-entrypoint obligation
+    surface is retained as the theorem-machine shape, but no longer drives
+    manual bytecode reduction. It
     also exposes the three per-entrypoint powdr obligations and proves that, if
     they hold, the shared trace induction yields universal Counter trace
     simulation. `initialize` is now the relation-establishing entrypoint:
@@ -353,8 +359,9 @@ ProofForge's default build still avoids powdr/mathlib imports.
     `counterCompiledPowdr_safe_trace_simulates_from_state_safe_obligations`
     expose the boundary as a state/input predicate for the later supported-fragment
     gate. `CounterPowdrEvmPostconditions` plus
-    `counterPowdrSafeEntrypointObligationsOfPostconditions` now reduce the
-    remaining proof to EVM-only storage postconditions for the compiled runtime.
+    `counterPowdrSafeEntrypointObligationsOfPostconditions` historically reduced a
+    deeper powdr route to EVM-only storage postconditions for the compiled runtime;
+    that route is deferred until generic automation exists.
     `CounterPowdrPreparedEvmPostconditions` and
     `counterPowdrEvmPostconditionsOfPrepared` split those postconditions into
     prepared-frame bytecode facts plus the `prepareCounterCall` bridge.
@@ -498,38 +505,48 @@ ProofForge's default build still avoids powdr/mathlib imports.
     boundary is now the target-specific discharge of those prepared storage
     models, not the shared trace induction.
   - `docs/phase-6b-integration-blockers.md` (new) — full blocker record.
-- **Next implementation guardrail:** do not copy the initialize
-  dispatcher/body/return proof shape directly into `increment` and `get`.
-  First extend the reusable segment machinery (`StepFEPath`,
-  `runBytecode_of_stepFEPath`, opcode-family call-stack preservation, and
-  opcode-family lemmas for dispatcher, storage, arithmetic, and return paths),
-  then use that library to discharge the remaining prepared-frame storage
-  models.
-- **Deliverable (revised):** a clean powdr-target seam plus the opt-in
-  dependency path and wrapper. The conformance-tested EVM bytecode semantics is
-  now callable from the `EvmRefinement` target; the implementation agent's next
-  step is the Counter per-entrypoint simulation proof against that powdr
-  `Step`, currently reduced to prepared-frame storage models.
+- **Implementation guardrail (updated 2026-07-08):** stop copying the initialize
+  dispatcher/body/return proof shape into `increment`, `get`, or another
+  contract. The file-size and proof-shape trend shows this is not converging
+  into a thin reusable proof. `PowdrExec` may continue only as a genuinely
+  contract-agnostic automation substrate; a patch that adds more
+  Counter-specific selector/body/return facts is out of scope for this track.
+- **Deliverable (revised):** the EVM lane delivers a clean powdr-target seam,
+  an opt-in dependency path and wrapper, a Counter storage relation, and the
+  universal Counter trace theorem route backed by `native_decide` over powdr
+  `stepF`. The explicit TCB boundary is powdr's conformance-tested executable
+  semantics plus Lean's native evaluator, with ProofForge's Yul→bytecode `solc`
+  hop also called out. Active proof effort should move to the shared
+  theorem-machine shape (`TargetSemantics`, `SupportedFragment`, relation `R`,
+  per-entrypoint obligations, `traceSimulation_lift`) for Solana/WASM, or to a
+  future generic EVM symbolic-execution tactic before revisiting deep bytecode
+  reduction.
 
-### Phase 6c — Prove IR → bytecode refinement for Counter
+### Phase 6c — Bank EVM Counter and stop deep bytecode hand-derivation
 
-- Define the simulation relation `R : IR.State ↔ EVM.State` for the Counter module
-  (single U64 scalar → one storage slot).
-- Prove `R`-simulation for `initialize`, `increment`, `get` individually.
-- Lift to the trace theorem `counter_ir_refines_evm_bytecode` by induction over the
-  call list, reusing `ObservableStep.evmCompatible`.
-- Deliverable: first end-to-end machine-checked refinement for a real example.
+- Preserve the Counter relation, prepared-call boundary, safe-input predicate,
+  and universal trace-lift theorem route already in `EvmRefinement`.
+- Treat the powdr `stepF` obligations discharged by `native_decide` as the EVM
+  delivery boundary for this milestone. This is machine-checked, but its TCB is
+  explicit: powdr's conformance-tested executable semantics, Lean's native
+  evaluator, and ProofForge's Yul→bytecode `solc` hop.
+- Do not extend `CounterRefinement.lean` with new hand-written selector/body/
+  return segment proofs. Revisit deep bytecode reduction only after a generic
+  symbolic-execution tactic or lemma library can discharge a second contract
+  without bespoke per-segment facts.
+- Deliverable: a documented, green EVM reference lane plus the reusable theorem
+  skeleton that Solana/WASM can copy without inheriting the EVM bytecode proof
+  rabbit hole.
 
-### Phase 6d — Extend to ValueVault (storage map + events)
+### Phase 6d — Future EVM broadening only after generic automation
 
-- Extend `R` to map IR map state to EVM storage slot prefixes (using
-  `Evm.Plan.ModulePlan` storage layout).
-- Prove refinement for all seven ValueVault entrypoints, including event emission
-  (`ObservableEventLog` equivalence).
-- Prove `value_vault_accounting_invariant` universally quantified over
-  `ScenarioInputs` (the real invariant theorem that the current
-  `ValueVaultInvariant.lean` only checks for default inputs).
-- Deliverable: a universally-quantified contract invariant carried from IR to bytecode.
+- ValueVault or a two-slot Counter can serve as a genericity smoke only if it
+  reuses the same `TargetSemantics` / obligation / `native_decide` machinery
+  with short proofs.
+- Extending `R` to storage maps and events remains desirable, but it is not a
+  reason to hand-derive ValueVault bytecode paths. If the proof needs fresh
+  selector/body/return segment derivation, stop and move the effort back to
+  automation or to the self-owned Solana/WASM interpreters.
 
 ### Phase 6e — Generalize the simulation framework
 
@@ -546,25 +563,30 @@ ProofForge's default build still avoids powdr/mathlib imports.
   semantics package and its CI baselines, not ProofForge's default build. ProofForge
   only needs the adapter and simulation proofs to be correct.
 - All EVM opcodes — only the subset ProofForge's lowering emits.
-- All backends — Tier C-proof starts with EVM. Solana/NEAR/Psy lack a formal target
-  semantics; they remain in Tier C-diff (Quint MBT) until such semantics exist.
+- All backends at once — EVM is the imported-semantics reference lane, while
+  Solana/WASM need self-owned target semantics before full-fragment C-proof can
+  land. Their existing executable traces remain Tier C-diff until those
+  interpreters and supported-fragment predicates are broadened.
 - ZK proving / powdr the zkVM toolkit — `powdr-labs/powdr` (the zkVM accelerator) is a
   separate Rust project and is *not* the EVM semantics dependency. The Lean 4 EVM
   semantics options are `powdr-labs/evm-semantics` (preferred — toolchain-compatible) and
   `leonardoalt/EVMYulLean` (toolchain-blocked); see §2.
-- Replacing the existing `native_decide` smoke — it stays as a fast regression gate;
-  the inductive proofs layer on top.
+- Removing `native_decide` from the imported EVM lane by hand — the selected EVM
+  boundary trusts powdr `stepF` through Lean's native evaluator. A future
+  contract-agnostic symbolic-execution tactic may reduce that TCB, but
+  per-contract opcode derivations are out of scope.
 
 ## 7. Recommendation
 
-Tier C-proof is feasible but is a multi-phase research effort, not a single sprint.
-The realistic first deliverable is **Phase 6a** (tighten `Evm.Refinement` to an
-inductive, universally-quantified IR-side trace lemma), because it needs no new
-dependency and directly strengthens what already exists. **Phase 6b** (the opt-in
-`powdr-labs/evm-semantics` dependency) is the inflection point: it converts the target
-side from a pseudo-Yul mock into a relational, conformance-gated EVM bytecode semantics,
-after which **6c/6d** become tractable simulation proofs.
+Tier C-proof is feasible, but the EVM experience sets a sharper boundary:
+importing a full external VM semantics is enough to establish a reference lane,
+but hand-removing the executable `native_decide` discharge from real EVM
+bytecode does not scale without automation. The practical next deliverable is
+the reusable theorem machine: `SupportedFragment`, `TargetSemantics`, relation
+`R`, per-entrypoint obligations, and `traceSimulation_lift`, applied to
+self-owned Solana/WASM interpreters that are designed to reduce cleanly.
 
-Until 6a-6b land, Tier C-proof remains aspirational and the operative verification tier
-is **Tier C-diff** (Quint MBT differential replay), which is already being extended to
-NEAR and is the pragmatic verification frontier.
+For EVM, bank the green powdr `stepF`/`native_decide` lane with an explicit TCB
+statement. Future EVM deep bytecode reduction should start with a generic
+symbolic-execution tactic or a second-contract genericity proof; it should not
+resume as more Counter-specific segment facts.

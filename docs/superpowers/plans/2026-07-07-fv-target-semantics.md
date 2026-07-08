@@ -156,60 +156,56 @@ surface. Remaining EVM work is E3.
 
 ## Task E3 — First real IR↔EVM refinement (Counter, against powdr's `Step`)
 
-> ### ⚠️ COURSE CORRECTION (2026-07-08) — STOP hand-deriving `initialize`; build ONE reusable symbolic-execution layer
+> ### COURSE CORRECTION (2026-07-08) — HARD STOP on EVM bytecode hand-derivation
 >
 > **What went wrong.** The universal EVM Counter refinement was already green at ~1,100
 > lines via `native_decide` on powdr's `stepF`. The follow-on path — hand-deriving powdr's
 > `runBytecode` opcode-by-opcode, step-by-step ("first step → first four steps") for
-> `initialize` — has grown to **9,544 lines**, covers **only `initialize`**
-> (`counterRunBytecode_increment*` / `_get*` are both **0**), produced **no reusable
-> machinery** (~3,044 Counter-specific mentions; no contract-agnostic module), and **does not
-> build** (unsolved goal at `CounterRefinement.lean:8170`, the `OutOfGas` branch). This will
-> not scale — increment/get/ValueVault would each need a fresh multi-thousand-line grind.
+> `initialize` and then the dispatcher/selector path — has continued to grow past
+> **13k lines**. It still expands Counter-specific facts faster than reusable machinery, and
+> the genericity signal is missing: no second contract discharges obligations through the
+> same layer. This will not scale — `increment`/`get`/ValueVault would each need a fresh
+> multi-thousand-line grind unless a real automation layer exists first.
 >
-> **Do this instead (replaces the per-step derivation approach):**
+> **Decision.** Stop treating deep powdr bytecode reduction as the EVM delivery blocker.
+> The accepted EVM boundary is the already-green universal Counter refinement route that
+> discharges the concrete powdr `stepF` obligations with `native_decide`, then lifts through
+> the shared trace-induction machinery. The explicit TCB statement is: ProofForge trusts
+> powdr's conformance-tested `stepF` plus Lean's `native_decide` evaluator for the EVM
+> bytecode execution witness; powdr's relational `Step` and the successful-run bridge remain
+> the imported target semantics boundary.
 >
-> **Precise EVM goal:** the deliverable is **not** "a bigger Counter proof"; it is a
-> contract-agnostic symbolic-reduction layer for the powdr EVM. Counter is only the first
-> harness. The intended theorem shape is: for every ProofForge module in the EVM supported
-> fragment and every accepted input, IR execution and powdr execution of the compiled
-> bytecode produce the same observable; modules outside the fragment are rejected at
-> compile time. `PowdrExec` is the reusable reducer that discharges target-side bytecode
-> segments for any emitted contract, while `CounterRefinement.lean` / ValueVault only supply
-> bytecode facts and instantiate the generic reducer.
+> **Do this instead (replaces further EVM opcode grinding):**
 >
-> **1. New contract-agnostic module `EvmRefinement/PowdrExec.lean`** (NOT inside
-> `CounterRefinement.lean`). A small library of GENERIC lemmas over powdr's
-> `stepF`/`runBytecode`, each proven **once**, parameterized by the pre-state, **never by
-> "Counter"**:
-> - a fuel/step driver (`runSteps` + an unfolding lemma);
-> - **per-opcode transition lemmas** — `PUSH`, `DUP`/`SWAP`, `CALLDATALOAD`, `EQ`,
->   `JUMP`/`JUMPI`, `SLOAD`, `SSTORE`, `ADD`, `RETURN`, `STOP` — each stating: "if the next
->   opcode is X, `stepF` yields this post-state (stack/storage/pc)";
-> - **gas handled ONCE** — prove a single `stepF_not_out_of_gas (h : s.gas ≥ bound) : …` (or
->   thread a `GasSufficient` precondition through the driver). **This is how you fix 8170 — do
->   NOT re-derive the `OutOfGas` branch per segment.**
+> **1. Bank the EVM result.** Keep the opt-in powdr/mathlib target, the `PowdrAdapter`
+> seam, the storage relation, the safe supported-input predicate, and the universal trace
+> lift. Treat the `native_decide` powdr `stepF` discharge as the EVM deliverable for this
+> milestone. Document the trust boundary instead of trying to remove it by hand.
 >
-> **2. Each entrypoint becomes a SHORT composition (target < ~100 lines each):**
-> - `initialize` = dispatch ∘ `SSTORE 0` ∘ `STOP`/`RETURN`
-> - `increment` = dispatch ∘ `SLOAD` ∘ `ADD 1` ∘ `SSTORE` ∘ `RETURN`
-> - `get` = dispatch ∘ `SLOAD` ∘ `RETURN`
-> Compose the generic opcode lemmas; do **not** re-derive execution step-by-step.
+> **2. Keep `PowdrExec` as optional automation substrate only.** It may stay as a reusable
+> fuel/path adapter and future symbolic-execution layer, but it is not allowed to pull E3
+> back into Counter-specific selector/body/return proofs. Manual per-entrypoint opcode
+> chains are a non-goal unless a contract-agnostic tactic/library can discharge a second
+> contract without bespoke segment facts.
 >
-> **3. Genericity test (definition of done).** A **second, different contract** (e.g. a
-> two-slot counter, or ValueVault's `get_balance`) must discharge its obligations by
-> **reusing the same `PowdrExec` lemmas** with a short proof. If it needs fresh
-> hand-derivation, the layer isn't generic yet.
+> **3. Move the theorem-machine effort to breadth.** The shared shape is:
+> `SupportedFragment` predicate + `TargetSemantics` instance + relation `R` +
+> per-entrypoint obligation surface + `traceSimulation_lift`. Apply that shape next to
+> self-owned Solana/WASM interpreters, where the step semantics can be designed to reduce
+> cleanly. Do not block Solana/WASM on removing `native_decide` from the imported powdr EVM
+> lane.
 >
-> **Revised acceptance:** `PowdrExec.lean` holds contract-agnostic opcode + gas lemmas;
-> `initialize`/`increment`/`get` each discharged by composing them (short proofs;
-> `counterRunBytecode_increment*` / `_get*` > 0); `lake build EvmRefinement` green; a second
-> contract reuses `PowdrExec`.
+> **4. Genericity smoke is useful but non-blocking.** A second-contract check
+> (ValueVault or a two-slot counter) is only acceptable if it reuses the existing
+> `TargetSemantics` / obligation / `native_decide` machinery with a short proof. If it
+> requires new bytecode segment hand-derivation, stop and record it as future automation
+> work, not E3 completion work.
 >
-> **Fallback.** If generic symbolic execution over powdr is too costly, the
-> `native_decide`-on-`stepF` discharge (already green at ~1,100 lines) is acceptable — bank
-> it, document "we trust powdr's conformance-tested `stepF` via `native_decide`", and move to
-> breadth / Solana / WASM. **Either way, stop hand-deriving `initialize` step-by-step.**
+> **Revised acceptance:** `lake build EvmRefinement` stays green; the EVM status is recorded
+> as "Counter universal refinement via powdr `stepF` + `native_decide`, with Yul→bytecode
+> and powdr/`native_decide` called out as TCB boundaries"; no new manual
+> `CounterRefinement.lean` dispatcher/body/return proof expansion is added; active proof
+> work moves to Solana/WASM or to a genuinely contract-agnostic automation layer.
 
 - **① Read first:** `ProofForge/Backend/Refinement/CounterUniversal.lean` (the proof shape:
   per-entrypoint simulation + generic trace induction, currently against a toy `targetStep`);
@@ -218,15 +214,13 @@ surface. Remaining EVM work is E3.
   — the toy to replace for EVM); the real powdr `Step` (from E2); the EVM storage layout
   (`ProofForge/Backend/Evm/Plan/Storage.lean`, for the `R` relation);
   `ProofForge/Backend/Evm/Refinement.lean`.
-- **③ Do:** instantiate a `TargetSemantics` for EVM whose `Step` is powdr's relational
-  `Step` over the compiled Counter; define `R : IR.State ↔ EvmSemantics.EVM.State` (IR
-  `count` binding ↔ the storage slot from the EVM plan's layout); prove per-entrypoint
-  simulation (`initialize`/`get`/`increment`) against powdr's `Step`; lift to the **universal**
-  trace theorem via the already-landed generic induction. This is Phase 6c — the first
-  universal (`∀` call list) **IR↔EVM-bytecode** refinement. Also confirm whether powdr
-  exposes a **Yul-level** relation; if not, document the Yul→bytecode (`solc`) step as an
-  explicit trust boundary (the §2 granularity caveat).
-- **Progress:** `EvmRefinement/CounterRefinement.lean` now starts the E3 relation layer:
+- **③ Do now:** stop extending the Counter bytecode hand-derivation. Preserve the green
+  opt-in EVM target, record the `native_decide`/powdr `stepF` TCB boundary, and move the
+  active theorem-machine work to the shared `TargetSemantics` / `SupportedFragment` /
+  `traceSimulation_lift` path for Solana and WASM. Only touch `PowdrExec` again if the next
+  patch is contract-agnostic automation, not another Counter segment proof.
+- **Historical progress (evidence, not a continuation recipe):**
+  `EvmRefinement/CounterRefinement.lean` now starts the E3 relation layer:
   it proves the ProofForge EVM layout maps Counter `count` to scalar slot 0, defines the
   IR `count` ↔ powdr `AccountMap`/`Storage` relation over the generated EVM
   packed U64 slot shape: `count` occupies the high 64 bits and the low 192 bits
@@ -240,11 +234,11 @@ surface. Remaining EVM work is E3.
   its size and selector offsets, exposes `counterCompiledPowdrConfig`, and adds the
   opt-in `just evm-powdr-counter-runtime` drift gate. The compiled-runtime path also
   exposes `counterCompiledPowdrTargetSemantics` and
-  `counterCompiledPowdr_trace_simulates_after_initialize_from_obligations`, so the next
-  proof obligation is specialized to the real Counter runtime witness. The module also
+  `counterCompiledPowdr_trace_simulates_after_initialize_from_obligations`, which
+  specialized the obligation surface to the real Counter runtime witness. The module also
   defines `counterBaseEvmState` and native executable smokes for `initialize`, `get`, and
-  `initialize; increment; get`; those are C-diff witnesses over powdr's executable driver,
-  not substitutes for the pending relational per-entrypoint proof. The concrete compiled
+  `initialize; increment; get`; together with the explicit TCB statement, those are the
+  selected executable witness boundary over powdr's driver. The concrete compiled
   target's `executableTraceOk` now consumes Counter `TraceObligation`s through the
   compiled runtime and proves the initialize-get-increment-get trace with
   `counterCompiledPowdr_executable_trace_ok`. Prepared calls now normalize a fresh
@@ -256,8 +250,9 @@ surface. Remaining EVM work is E3.
   `counterPowdrTraceStep` / `counterPowdrTargetSemantics`, which run prepared Counter
   calls through powdr `runBytecode`, project EVM results to Counter observables, and prove
   successful trace steps are backed by powdr `Steps` with the stated observable projection;
-  compiled-runtime C-diff is green, while the relational per-entrypoint obligations still
-  need to be discharged. It also defines explicit
+  compiled-runtime C-diff is green. The relational per-entrypoint obligation surface is
+  retained as the theorem-machine shape, but no longer drives manual bytecode reduction.
+  It also defines explicit
   `CounterPowdrEntrypointObligations` for `initialize`/`increment`/`get` and proves
   `counterPowdr_trace_simulates_from_obligations`: those three powdr bytecode obligations
   are sufficient to obtain the universal Counter trace simulation through the shared
@@ -285,10 +280,10 @@ surface. Remaining EVM work is E3.
   `counterCompiledPowdr_safe_trace_simulates_from_state_safe_obligations` expose
   the same boundary as a state/input predicate, which is the shape needed for a
   later SupportedFragment gate. `CounterPowdrEvmPostconditions` and
-  `counterPowdrSafeEntrypointObligationsOfPostconditions` further isolate the
-  remaining powdr work: prove the compiled runtime's EVM-only storage
-  postconditions for `initialize`/safe `increment`/`get`, and the safe
-  per-entrypoint obligations follow. That surface is now split once more into
+  `counterPowdrSafeEntrypointObligationsOfPostconditions` historically isolated a
+  deeper powdr route through compiled-runtime EVM-only storage postconditions for
+  `initialize`/safe `increment`/`get`. That route is deferred until generic automation
+  exists. The surface is split once more into
   prepared-frame obligations:
   `CounterPowdrPreparedEvmPostconditions` proves the bytecode facts on states
   already produced by `prepareCounterCall`, and
@@ -471,26 +466,25 @@ surface. Remaining EVM work is E3.
   available from the 36-step bridge, so the remaining prefix proof only has to
   carry the prepared empty `callStack` to the body-return-jump frame.
   The shared safe trace layer is green once
-  `CounterCompiledPowdrPreparedStorageModels` is supplied; the hard remaining
-  work is target-specific prepared-storage-model discharge. Do not widen by
-  copying the initialize proof to `increment`/`get` before extending the reusable
-  segment machine (`StepFEPath` plus opcode-family call-stack and segment
-  lemmas). The pinned
+  `CounterCompiledPowdrPreparedStorageModels` is supplied. Do not continue the
+  target-specific prepared-storage-model discharge by hand; the scaling boundary
+  has been reached. The pinned
   powdr tree has no Yul-level semantics module, so ProofForge's Yul→bytecode `solc` hop
-  remains an explicit trust boundary. The remaining E3 work is to discharge those
-  prepared-frame storage models against the concrete runtime by connecting the
-  composed dispatcher/trampoline/body `stepFE` path to the prepared-frame
-  `counterPowdrPreparedTraceStep` result and instantiating the prepared-frame
-  initialize storage model.
-- **Acceptance:** a universally-quantified refinement theorem (IR Counter ⟷ powdr EVM
-  `Step`, by `induction`, **not** `native_decide`) type-checks under the opt-in target;
-  `docs/formal-verification.md` EVM Tier C-proof row updated from aspirational/blocked to
-  "Counter refinement against powdr (opt-in)".
+  remains an explicit trust boundary.
+- **Acceptance:** the opt-in EVM target remains green; the EVM row in
+  `docs/formal-verification.md` states the selected boundary clearly:
+  universal Counter trace refinement is banked through powdr `stepF` obligations discharged
+  by `native_decide`, while deep manual bytecode reduction is deferred until a genuinely
+  contract-agnostic automation layer exists. No new Counter-specific dispatcher/body/return
+  chain is added.
 - **Depends on:** E1, E2, P1 (landed), generic trace induction (landed).
 
-**Then Solana/WASM copy E3.** S6/W6 mirror E3's per-entrypoint-simulation + induction shape,
-swapping powdr's `Step` for the self-built `SbpfInterpreter` / `WasmInterpreter` `Step` — no
-external dependency, but the external differential gate stays (Background "Two-hop trust").
+**Then Solana/WASM copy the theorem-machine shape, not the EVM rabbit hole.** S6/W6 mirror
+the shared `TargetSemantics` + `SupportedFragment` + per-entrypoint obligation +
+`traceSimulation_lift` structure, swapping powdr's imported `stepF` boundary for the
+self-built `SbpfInterpreter` / `WasmInterpreter` step definitions. Because those
+interpreters are in-tree, design them to reduce cleanly instead of accumulating manual
+bytecode segment facts.
 
 ## Task S1 — sBPF interpreter (state + step)
 
