@@ -69,7 +69,13 @@ require_file "$OUT/solana/manifest.toml"
 require_contains "$OUT/solana/RemoteCall.s" "sol_invoke_signed_c" "Solana CPI invoke"
 require_contains "$OUT/solana/RemoteCall.s" "sol_get_return_data" "Solana return-data"
 require_contains "$OUT/solana/RemoteCall.s" "AccountMeta" "Solana account metas"
+require_contains "$OUT/solana/RemoteCall.s" "forward" "Solana forwards full account vector"
 require_contains "$OUT/solana/manifest.toml" "callee_program" "manifest callee_program account"
+GOLDEN_SOL="$ROOT/Examples/Shared/goldens/RemoteCall.solana.s"
+if [[ -f "$GOLDEN_SOL" ]]; then
+  diff -u "$GOLDEN_SOL" "$OUT/solana/RemoteCall.s" \
+    || fail "Solana asm drifted from Examples/Shared/goldens/RemoteCall.solana.s"
+fi
 
 echo "portable-remote-call: NEAR/Wasm"
 "${proof_forge[@]}" build --target wasm-near --root . \
@@ -87,6 +93,11 @@ else
 fi
 [[ -n "$WAT" && -f "$WAT" ]] || fail "NEAR WAT not written under $OUT/near"
 require_contains "$WAT" "promise_create" "NEAR promise_create materialization"
+GOLDEN_NEAR="$ROOT/Examples/Shared/goldens/RemoteCall.near.wat"
+if [[ -f "$GOLDEN_NEAR" ]]; then
+  diff -u "$GOLDEN_NEAR" "$WAT" \
+    || fail "NEAR WAT drifted from Examples/Shared/goldens/RemoteCall.near.wat"
+fi
 require_file "$OUT/near/RemoteCall.near-artifact.json"
 
 echo "portable-remote-call-multi-target: ok"
