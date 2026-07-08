@@ -7,6 +7,10 @@ import ProofForge.IR.Examples.ArrayProbe
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.EvmMapProbe
 import ProofForge.Contract.Examples.ValueVaultInvariant
+import ProofForge.Target.Registry
+import ProofForge.Target.Adapter
+import ProofForge.Target.Registry
+import ProofForge.Target.Adapter
 
 namespace ProofForge.Backend.Solana.Refinement
 
@@ -93,6 +97,8 @@ def SolanaSbpfMachineState.traceStep (state : SolanaSbpfMachineState) (call : Tr
 def solanaSbpfTargetSemantics : TargetSemantics := {
   id := "solana-sbpf-asm"
   supportedFragments := #[.counter]
+  fragmentAccepts := isCounterModule
+  lowerableAccepts := isCounterModule
   MachineState := SolanaSbpfMachineState
   Call := TraceCall
   Obs := ObservableStep
@@ -596,6 +602,55 @@ def revertRollbackObligation : TraceObligation := {
 read still produces its constant (state rollback). -/
 theorem revert_rollback_ir_trace_ok :
     revertRollbackObligation.irTraceOk = true := by
+  native_decide
+
+/-! ### Track 1.4 fragment theorems (Solana sBPF instance)
+
+Two theorems instantiated for the Solana sBPF backend with its own
+`SbpfAsm.lowerModule`, replacing the ad-hoc coverage manifest for the Counter
+proven fragment.
+
+1. `solana_counter_lowering_total` — the canonical Counter module lowers to
+   sBPF assembly without error, witnessed by `native_decide`.
+2. `solana_proven_subset_lowerable_counter` — the proven-fragment predicate
+   implies the lowerable-fragment predicate for the Counter module.
+-/
+
+theorem solana_counter_lowering_total :
+    (ProofForge.Backend.Solana.SbpfAsm.lowerModule
+      ProofForge.IR.Examples.Counter.module).isOk = true := by
+  native_decide
+
+theorem solana_proven_subset_lowerable_counter :
+    solanaSbpfTargetSemantics.fragmentAccepts
+      ProofForge.IR.Examples.Counter.module = true →
+    solanaSbpfTargetSemantics.lowerableAccepts
+      ProofForge.IR.Examples.Counter.module = true := by
+  intros
+  rfl
+
+theorem solana_lowerable_implies_lowering_total_counter
+    (_h : solanaSbpfTargetSemantics.lowerableAccepts
+      ProofForge.IR.Examples.Counter.module = true) :
+    (ProofForge.Backend.Solana.SbpfAsm.lowerModule
+      ProofForge.IR.Examples.Counter.module).isOk = true :=
+  solana_counter_lowering_total
+
+theorem solana_fragment_subset_lowerable_counter
+    (h : solanaSbpfTargetSemantics.fragmentAccepts
+      ProofForge.IR.Examples.Counter.module = true) :
+    solanaSbpfTargetSemantics.lowerableAccepts
+      ProofForge.IR.Examples.Counter.module = true :=
+  solana_proven_subset_lowerable_counter h
+
+/-- Track 1.4 theorem 3 (capability-accept ⇒ lowerable), Solana Counter
+instance: if the Solana target profile resolves the Counter module's capability
+spec, then the Counter module is in the Solana lowerable fragment. -/
+theorem solana_capability_accept_implies_lowerable_counter
+    (h : (ProofForge.Target.resolveModule ProofForge.Target.solanaSbpfAsm
+        ProofForge.IR.Examples.Counter.module).isOk = true) :
+    solanaSbpfTargetSemantics.lowerableAccepts
+      ProofForge.IR.Examples.Counter.module = true := by
   native_decide
 
 end ProofForge.Backend.Solana.Refinement

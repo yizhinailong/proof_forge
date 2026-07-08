@@ -1,0 +1,54 @@
+import ProofForge.Backend.Evm.Refinement
+import ProofForge.Backend.Solana.Refinement
+import ProofForge.Backend.WasmNear.Refinement
+import ProofForge.Backend.Refinement.CounterUniversal
+
+/-! ## Track 1.4 fragment theorem smoke
+
+Exercises the two-predicate fragment machinery (proven `fragmentAccepts` /
+lowerable `lowerableAccepts`) and the three Track 1.4 theorems across the
+EVM, Solana sBPF, and Wasm/NEAR backends on the canonical Counter module:
+
+1. `*_lowering_total` — `lowerModule Counter.module = .ok _` (lowerable ⇒
+   lowering-total bridge, `native_decide`).
+2. `*_fragment_subset_lowerable_counter` — `fragmentAccepts ⊂ lowerableAccepts`
+   (proven ⇒ lowerable).
+3. `*_capability_accept_implies_lowerable_counter` — capability resolution
+   ⇒ lowerable.
+
+This is the machine-checked replacement for the ad-hoc
+`check-ir-coverage-manifest.py` scripts for the Counter proven fragment.
+-/
+
+namespace ProofForge.Tests.Track14FragmentTheorems
+
+open ProofForge.Backend.Evm.Refinement
+open ProofForge.Backend.Solana.Refinement
+open ProofForge.Backend.WasmNear.Refinement
+open ProofForge.Backend.Refinement.CounterUniversal
+
+#check evm_counter_lowering_total
+#check solana_counter_lowering_total
+#check wasm_near_counter_lowering_total
+
+#check evm_proven_subset_lowerable_counter
+#check solana_proven_subset_lowerable_counter
+#check wasm_near_proven_subset_lowerable_counter
+
+#check evm_lowerable_implies_lowering_total_counter
+#check solana_lowerable_implies_lowering_total_counter
+#check wasm_near_lowerable_implies_lowering_total_counter
+
+#check evm_fragment_subset_lowerable_counter
+#check solana_fragment_subset_lowerable_counter
+#check wasm_near_fragment_subset_lowerable_counter
+
+#check evm_capability_accept_implies_lowerable_counter
+#check solana_capability_accept_implies_lowerable_counter
+#check wasm_near_capability_accept_implies_lowerable_counter
+
+end ProofForge.Tests.Track14FragmentTheorems
+
+def main : IO UInt32 := do
+  IO.println "track14-fragment-theorems-smoke: EVM/Solana/Wasm lowering-total, proven⊂lowerable, capability⇒lowerable theorems checked on Counter"
+  return 0

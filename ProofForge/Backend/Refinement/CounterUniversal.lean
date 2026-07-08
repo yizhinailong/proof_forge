@@ -91,6 +91,8 @@ theorem targetRunTraceList_eq_runTraceListGen (calls : List CounterCall) (count 
 def counterModelTargetSemantics : TargetSemantics := {
   id := "counter-model"
   supportedFragments := #[.counter]
+  fragmentAccepts := isCounterModule
+  lowerableAccepts := isCounterModule
   MachineState := Nat
   Call := CounterCall
   Obs := ObservableReturn

@@ -12492,6 +12492,8 @@ def counterPowdrExecutableTraceOk (cfg : PowdrCounterConfig) (state : EvmState)
 def counterPowdrTargetSemantics (cfg : PowdrCounterConfig) : TargetSemantics := {
   id := "evm-powdr-counter"
   supportedFragments := #[.counter]
+  fragmentAccepts := isCounterModule
+  lowerableAccepts := isCounterModule
   MachineState := EvmState
   Call := CounterCall
   Obs := ObservableReturn

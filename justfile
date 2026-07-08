@@ -135,6 +135,11 @@ supported-fragment-smoke:
     lake build ProofForge.Backend.Refinement.Core ProofForge.Backend.Refinement.CounterUniversal
     lake env lean --run Tests/SupportedFragment.lean
 
+# Track 1.4: exercise the proven⊂lowerable + lowerable⇒lowering-total + capability⇒lowerable theorems on the Counter fragment.
+track14-fragment-theorems-smoke:
+    lake build ProofForge.Backend.Evm.Refinement ProofForge.Backend.Solana.Refinement ProofForge.Backend.WasmNear.Refinement
+    lake env lean --run Tests/Track14FragmentTheorems.lean
+
 # Check existing executable trace runners are wired through the shared TargetSemantics interface.
 target-semantics-instances-smoke:
     lake build ProofForge.Backend.Evm.Refinement ProofForge.Backend.Solana.Refinement ProofForge.Backend.WasmNear.Refinement
@@ -663,7 +668,7 @@ testkit-budget-gate:
     CAST="${CAST:-$HOME/.foundry/bin/cast}" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault
 
 # Run the fast local baseline used before broader target smokes.
-check: build target-registry contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke diagnostic-smoke ir-step-semantics-smoke ir-counter-semantics-smoke counter-universal-refinement-smoke supported-fragment-smoke target-semantics-instances-smoke wasm-exec-smoke wasm-near-host-smoke wasm-cosmwasm-host-smoke wasm-cosmwasm-refinement-smoke value-vault-wasm-refinement-smoke evm-bytecode-semantics-smoke ir-exec-result-smoke fv5-overflow-smoke solana-light portable-counter-multi-target cli-target-first contract-source-diagnostics near-target-first wasm-near-plan near-plan-smoke wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli quint-mbt-gate quint-ir-model-gate
+check: build target-registry contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke diagnostic-smoke ir-step-semantics-smoke ir-counter-semantics-smoke counter-universal-refinement-smoke supported-fragment-smoke track14-fragment-theorems-smoke target-semantics-instances-smoke wasm-exec-smoke wasm-near-host-smoke wasm-cosmwasm-host-smoke wasm-cosmwasm-refinement-smoke value-vault-wasm-refinement-smoke evm-bytecode-semantics-smoke ir-exec-result-smoke fv5-overflow-smoke solana-light portable-counter-multi-target cli-target-first contract-source-diagnostics near-target-first wasm-near-plan near-plan-smoke wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli quint-mbt-gate quint-ir-model-gate
 
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:

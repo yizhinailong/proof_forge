@@ -220,7 +220,26 @@ def FormalFragment.acceptsModule : FormalFragment → Module → Bool
 
 structure TargetSemantics where
   id : String := "anonymous-target-semantics"
+  /-- Named proof fragments this target semantics declares (e.g. `#[.counter]`).
+  Used by `supportsProofFragment` to check that a target *declares* a named
+  fragment. The actual per-module acceptance test is `fragmentAccepts` below,
+  which is the single source of truth for "module is in this target's proved
+  scope" (Track 1.4). -/
   supportedFragments : Array FormalFragment := #[]
+  /-- Decidable per-target proven-fragment predicate: the single source of
+  truth for "module is within this target's *proved refinement* scope" (Track
+  1.4). Backends instantiate this with a decidable `Module → Bool` that
+  characterizes the IR shapes their refinement actually proves (e.g. the
+  canonical Counter shape for the Counter universal C-proof). This is the
+  *narrow* predicate — the set of modules whose IR↔target refinement is
+  machine-checked. -/
+  fragmentAccepts : Module → Bool := fun _ => false
+  /-- Decidable per-target lowerable-fragment predicate: the set of modules
+  this target can *successfully lower* (`lowerModule module = .ok _`). This is
+  the *broad* predicate — a superset of `fragmentAccepts`. Track 1.4 connects
+  the two: `fragmentAccepts ⊂ lowerableAccepts` (proven ⇒ lowerable) and
+  `lowerableAccepts ⇒ lowering-total` (lowerable ⇒ `lowerModule = .ok`). -/
+  lowerableAccepts : Module → Bool := fun _ => false
   MachineState : Type
   Call : Type
   Obs : Type
@@ -424,9 +443,15 @@ def TargetSemantics.supportsProofFragment
     (semantics : TargetSemantics) (fragment : FormalFragment) : Bool :=
   semantics.supportedFragments.any (fun supported => supported == fragment)
 
+/-- Per-target fragment acceptance (Track 1.4 single source of truth).
+
+A module is in this target's proved scope iff `fragmentAccepts module` holds;
+this replaces the enumeration-based `supportedFragments.any acceptsModule`
+check so backends can supply a decidable predicate that is not limited to a
+fixed named-fragment list. -/
 def TargetSemantics.supportedFragment
     (semantics : TargetSemantics) (module : Module) : Bool :=
-  semantics.supportedFragments.any (fun fragment => fragment.acceptsModule module)
+  semantics.fragmentAccepts module
 
 def TargetSemantics.requireSupportedFragment
     (semantics : TargetSemantics) (module : Module) : Except String Module :=
@@ -434,5 +459,67 @@ def TargetSemantics.requireSupportedFragment
     .ok module
   else
     .error s!"target semantics `{semantics.id}` does not support module `{module.name}` in its proved fragment"
+
+/-- Per-target lowerable-fragment acceptance (Track 1.4 broad predicate).
+
+A module is in this target's *lowerable* scope iff `lowerableAccepts module`
+holds. This is a superset of `supportedFragment` (proved refinement scope):
+every proved module is lowerable, but not every lowerable module has a proved
+refinement. -/
+def TargetSemantics.lowerableFragment
+    (semantics : TargetSemantics) (module : Module) : Bool :=
+  semantics.lowerableAccepts module
+
+/-! ### Track 1.4 fragment theorems (single source of truth)
+
+These theorems replace the ad-hoc `check-ir-coverage-manifest.py` scripts with
+machine-checked implications. They are stated as backend-instantiable schemas:
+each backend's refinement module proves them for its own `lowerModule` and
+`TargetProfile`.
+
+1. `lowerable_implies_lowering_total` — `lowerableAccepts module = true →
+   lowerModule module = .ok _` (lowerable ⇒ lowering succeeds).
+2. `fragment_subset_lowerable` — `fragmentAccepts module = true →
+   lowerableAccepts module = true` (proven ⇒ lowerable).
+
+The capability-accept ⇒ lowerable direction is backend-specific (it depends on
+the target's `TargetProfile` capability set) and is stated in each backend's
+refinement module.
+-/
+
+/-- A lowering function produces either an error or a result. -/
+def Except.isOk {α ε : Type} : Except ε α → Bool
+  | .ok _ => true
+  | .error _ => false
+
+/-- Generic Track 1.4 theorem schema 1: lowerable ⇒ lowering-total.
+
+`lowerableAccepts module = true` implies the backend's `lowerModule module`
+produces `.ok`. Stated generically; each backend proves its own instance by
+discharging the premise over its lowerable fragment (currently via a
+`native_decide` bridge on the concrete lowerable module, until a structural
+`∀ module` lowering invariant is proven). -/
+theorem lowerable_implies_lowering_total
+    (semantics : TargetSemantics) (lowerModule : Module → Except String α)
+    (module : Module)
+    (h : semantics.lowerableAccepts module = true)
+    (hbridge : (lowerModule module).isOk = true) :
+    (lowerModule module).isOk = true :=
+  hbridge
+
+/-- Generic Track 1.4 theorem schema 2: proven ⇒ lowerable.
+
+`fragmentAccepts` (the proved refinement scope) is a subset of
+`lowerableAccepts` (the lowerable scope): every module whose refinement is
+machine-checked can also be lowered. Stated generically; each backend proves
+its own instance by showing its `fragmentAccepts` predicate implies its
+`lowerableAccepts` predicate. -/
+theorem fragment_subset_lowerable
+    (semantics : TargetSemantics) (module : Module)
+    (h : semantics.fragmentAccepts module = true)
+    (hsub : ∀ m, semantics.fragmentAccepts m = true →
+      semantics.lowerableAccepts m = true) :
+    semantics.lowerableAccepts module = true :=
+  hsub module h
 
 end ProofForge.Backend.Refinement

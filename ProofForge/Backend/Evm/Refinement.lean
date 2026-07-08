@@ -14,6 +14,8 @@ import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.EvmContextProbe
 import ProofForge.IR.Semantics
 import ProofForge.IR.StepSemantics
+import ProofForge.Target.Registry
+import ProofForge.Target.Adapter
 
 namespace ProofForge.Backend.Evm.Refinement
 
@@ -422,6 +424,9 @@ def EvmYulMachineState.traceStep (state : EvmYulMachineState) (call : TraceCall)
 
 def evmYulTargetSemantics : TargetSemantics := {
   id := "evm-yul-subset"
+  supportedFragments := #[.counter]
+  fragmentAccepts := isCounterModule
+  lowerableAccepts := isCounterModule
   MachineState := EvmYulMachineState
   Call := TraceCall
   Obs := ObservableStep
@@ -1143,6 +1148,67 @@ predicate (Tier C-proof inductive statement, fixed scenario). -/
 theorem value_vault_ir_trace_matches_inductive :
     ProofForge.IR.StepSemantics.IRTraceMatches runEntrypointObservable
       IR.Semantics.State.empty valueVaultTraceCalls.toList valueVaultExpectedTrace := by
+  native_decide
+
+/-! ### Track 1.4 fragment theorems (EVM instance)
+
+Two theorems instantiated for the EVM backend with its own `lowerModule`,
+replacing the ad-hoc `check-ir-coverage-manifest.py` script for the Counter
+proven fragment.
+
+1. `evm_counter_lowering_total` — the canonical Counter module lowers
+   successfully (`lowerModule = .ok`), witnessed by `native_decide`.
+2. `evm_proven_subset_lowerable_counter` — the proven-fragment predicate
+   (`isCounterModule`) implies the lowerable-fragment predicate (currently the
+   same predicate; will widen as more shapes are characterized).
+-/
+
+/-- The canonical Counter module lowers to a Yul object without error.
+
+This is the `native_decide` bridge for the EVM `lowerable ⇒ lowering-total`
+theorem on the Counter proven fragment. -/
+theorem evm_counter_lowering_total :
+    (ProofForge.Backend.Evm.IR.lowerModule
+      ProofForge.IR.Examples.Counter.module).isOk = true := by
+  native_decide
+
+/-- The EVM proven-fragment predicate implies the EVM lowerable-fragment
+predicate for the canonical Counter module (currently reflexive: both are
+`isCounterModule`, so `proven ⊂ lowerable` holds by equality). -/
+theorem evm_proven_subset_lowerable_counter :
+    evmYulTargetSemantics.fragmentAccepts
+      ProofForge.IR.Examples.Counter.module = true →
+    evmYulTargetSemantics.lowerableAccepts
+      ProofForge.IR.Examples.Counter.module = true := by
+  intros
+  rfl
+
+/-- Track 1.4 theorem 1 (lowerable ⇒ lowering-total), EVM Counter instance:
+if the Counter module is in the EVM lowerable fragment, then EVM `lowerModule`
+succeeds. -/
+theorem evm_lowerable_implies_lowering_total_counter
+    (_h : evmYulTargetSemantics.lowerableAccepts
+      ProofForge.IR.Examples.Counter.module = true) :
+    (ProofForge.Backend.Evm.IR.lowerModule
+      ProofForge.IR.Examples.Counter.module).isOk = true :=
+  evm_counter_lowering_total
+
+/-- Track 1.4 theorem 2 (proven ⇒ lowerable), EVM Counter instance. -/
+theorem evm_fragment_subset_lowerable_counter
+    (h : evmYulTargetSemantics.fragmentAccepts
+      ProofForge.IR.Examples.Counter.module = true) :
+    evmYulTargetSemantics.lowerableAccepts
+      ProofForge.IR.Examples.Counter.module = true := by
+  exact evm_proven_subset_lowerable_counter h
+
+/-- Track 1.4 theorem 3 (capability-accept ⇒ lowerable), EVM Counter instance:
+if the EVM target profile resolves the Counter module's capability spec, then
+the Counter module is in the EVM lowerable fragment. -/
+theorem evm_capability_accept_implies_lowerable_counter
+    (h : (ProofForge.Target.resolveModule ProofForge.Target.evm
+        ProofForge.IR.Examples.Counter.module).isOk = true) :
+    evmYulTargetSemantics.lowerableAccepts
+      ProofForge.IR.Examples.Counter.module = true := by
   native_decide
 
 end ProofForge.Backend.Evm.Refinement

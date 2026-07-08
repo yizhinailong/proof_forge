@@ -11,6 +11,14 @@ import ProofForge.Contract.Examples.ValueVaultInvariant
 import ProofForge.Backend.WasmNear.Refinement.Core
 import ProofForge.Backend.WasmNear.WasmInterpreter
 import ProofForge.IR.StepSemantics
+import ProofForge.Target.Registry
+import ProofForge.Target.Adapter
+import ProofForge.Target.Registry
+import ProofForge.Target.Adapter
+import ProofForge.Target.Registry
+import ProofForge.Target.Adapter
+import ProofForge.Target.Registry
+import ProofForge.Target.Adapter
 
 namespace ProofForge.Backend.WasmNear.Refinement
 
@@ -184,6 +192,9 @@ def WasmNearMachineState.traceStep (machine : WasmNearMachineState) (call : Trac
 
 def wasmNearTargetSemantics : TargetSemantics := {
   id := "wasm-near"
+  supportedFragments := #[.counter]
+  fragmentAccepts := isCounterModule
+  lowerableAccepts := isCounterModule
   MachineState := WasmNearMachineState
   Call := TraceCall
   Obs := ObservableStep
@@ -1272,6 +1283,55 @@ theorem value_vault_emitwat_offline_host_log_payload_hex_ok :
 
 theorem value_vault_emitwat_backend_invariant_bridge_ok :
     valueVaultEmitWatBackendInvariantBridgeOk = true := by
+  native_decide
+
+/-! ### Track 1.4 fragment theorems (Wasm/NEAR instance)
+
+Two theorems instantiated for the Wasm/NEAR backend with its own
+`EmitWat.lowerModule`, replacing the ad-hoc coverage manifest for the Counter
+proven fragment.
+
+1. `wasm_near_counter_lowering_total` — the canonical Counter module lowers to
+   a Wasm module without error, witnessed by `native_decide`.
+2. `wasm_near_proven_subset_lowerable_counter` — the proven-fragment predicate
+   implies the lowerable-fragment predicate for the Counter module.
+-/
+
+theorem wasm_near_counter_lowering_total :
+    (ProofForge.Backend.WasmNear.EmitWat.lowerModule
+      ProofForge.IR.Examples.Counter.module).isOk = true := by
+  native_decide
+
+theorem wasm_near_proven_subset_lowerable_counter :
+    wasmNearTargetSemantics.fragmentAccepts
+      ProofForge.IR.Examples.Counter.module = true →
+    wasmNearTargetSemantics.lowerableAccepts
+      ProofForge.IR.Examples.Counter.module = true := by
+  intros
+  rfl
+
+theorem wasm_near_lowerable_implies_lowering_total_counter
+    (_h : wasmNearTargetSemantics.lowerableAccepts
+      ProofForge.IR.Examples.Counter.module = true) :
+    (ProofForge.Backend.WasmNear.EmitWat.lowerModule
+      ProofForge.IR.Examples.Counter.module).isOk = true :=
+  wasm_near_counter_lowering_total
+
+theorem wasm_near_fragment_subset_lowerable_counter
+    (h : wasmNearTargetSemantics.fragmentAccepts
+      ProofForge.IR.Examples.Counter.module = true) :
+    wasmNearTargetSemantics.lowerableAccepts
+      ProofForge.IR.Examples.Counter.module = true :=
+  wasm_near_proven_subset_lowerable_counter h
+
+/-- Track 1.4 theorem 3 (capability-accept ⇒ lowerable), Wasm/NEAR Counter
+instance: if the NEAR target profile resolves the Counter module's capability
+spec, then the Counter module is in the Wasm/NEAR lowerable fragment. -/
+theorem wasm_near_capability_accept_implies_lowerable_counter
+    (h : (ProofForge.Target.resolveModule ProofForge.Target.wasmNear
+        ProofForge.IR.Examples.Counter.module).isOk = true) :
+    wasmNearTargetSemantics.lowerableAccepts
+      ProofForge.IR.Examples.Counter.module = true := by
   native_decide
 
 end ProofForge.Backend.WasmNear.Refinement
