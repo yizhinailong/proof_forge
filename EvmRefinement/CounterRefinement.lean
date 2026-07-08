@@ -4728,6 +4728,60 @@ theorem counterPreparedDispatcherIncrementTrampolinePush_reduction
     (value := EvmSemantics.UInt256.ofNat counterIncrementTrampolineOffset)
     (argBytes := 1) (widthPred := 0) hreadyAt (by native_decide)
 
+theorem counterPreparedDispatcherIncrementJumpi_decoded
+    {state : EvmState}
+    (hat : counterCompiledStateAt state 24) :
+    state.decoded =
+      some (.StackMemFlow
+        (.JUMPI : EvmSemantics.Operation.StackMemFlowOps), none) := by
+  rcases hat with ⟨hcode, hpc, _hfork⟩
+  have hpcNat : (EvmSemantics.UInt256.ofNat 24).toNat = 24 := by
+    native_decide
+  have havailable :
+      ((.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps) :
+        EvmSemantics.Operation).availableInFork state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork]
+  exact counterState_decoded_of_code_pc hcode hpc hpcNat
+    counterCompiledRuntimeCode_decodes_dispatcher_increment_jumpi
+    havailable
+
+theorem counterPreparedDispatcherIncrementJumpiTaken_reduction
+    {state : EvmState}
+    {dest cond : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
+    (hat : counterCompiledStateAt state 24)
+    (hready :
+      counterStepFEReady state
+        (.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstack : state.stack = dest :: cond :: rest)
+    (hcond : cond.toNat ≠ 0)
+    (hvalid :
+      EvmSemantics.EVM.Decode.isValidJumpDest
+        counterCompiledRuntimeCode dest.toNat = true) :
+    ProofForge.Backend.Evm.PowdrExec.StepFEReduction state
+      { state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps) :
+              EvmSemantics.Operation))
+          (counterStepFEReady_to_powdr hready).gas with
+        pc := dest
+        stack := rest } := by
+  have hpcNat : (EvmSemantics.UInt256.ofNat 24).toNat = 24 := by
+    native_decide
+  have havailable :
+      ((.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps) :
+        EvmSemantics.Operation).availableInFork state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork]
+  have hreadyAt :
+      ProofForge.Backend.Evm.PowdrExec.ReadyOpcodeAt
+        counterCompiledRuntimeCode 24
+        (.StackMemFlow (.JUMPI : EvmSemantics.Operation.StackMemFlowOps))
+        none state :=
+    counterReadyOpcodeAt_of_compiledStateAt hat hpcNat
+      counterCompiledRuntimeCode_decodes_dispatcher_increment_jumpi
+      hready havailable
+  exact ProofForge.Backend.Evm.PowdrExec.reduction_jumpi_taken_at_ok
+    hreadyAt hstack hcond hvalid
+
 theorem counterState_of_dispatcher_first_push0_stepFE_to_calldataload_ok
     {state nextState : EvmState}
     {rest : List EvmSemantics.UInt256}
@@ -5392,6 +5446,44 @@ theorem counterState_of_dispatcher_increment_eq_stepFE_to_trampoline_push_for_ac
       · simpa [EvmSemantics.EVM.State.consumeGas,
           EvmSemantics.EVM.State.replaceStackAndIncrPC] using hfork
   refine ⟨hnextAt, counterPreparedDispatcherIncrementTrampolinePush_decoded hnextAt, ?_⟩
+  rw [hstate]
+  simp [EvmSemantics.EVM.State.consumeGas,
+    EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack]
+
+theorem counterState_of_dispatcher_increment_trampoline_push_stepFE_to_jumpi_ok
+    {state nextState : EvmState}
+    {cond actualSelector : EvmSemantics.UInt256}
+    {rest : List EvmSemantics.UInt256}
+    (hstack : state.stack = cond :: actualSelector :: rest)
+    (hat : counterCompiledStateAt state 22)
+    (hready : counterStepFEReady state (.Push counterPush1Op))
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    counterCompiledStateAt nextState 24 ∧
+      nextState.decoded =
+        some (.StackMemFlow
+          (.JUMPI : EvmSemantics.Operation.StackMemFlowOps), none) ∧
+      nextState.stack =
+        EvmSemantics.UInt256.ofNat counterIncrementTrampolineOffset ::
+          cond :: actualSelector :: rest := by
+  rcases hready with ⟨hrunning, hprecompile, hstackOk, hgas⟩
+  have hstate :=
+    counterState_of_stepFE_push1_ok hrunning hprecompile
+      (counterPreparedDispatcherIncrementTrampolinePush_decoded hat)
+      hstackOk hgas hstep
+  rcases hat with ⟨hcode, hpc, hfork⟩
+  have hnextAt : counterCompiledStateAt nextState 24 := by
+    unfold counterCompiledStateAt
+    rw [hstate]
+    constructor
+    · simp [EvmSemantics.EVM.State.consumeGas,
+        EvmSemantics.EVM.State.replaceStackAndIncrPC, hcode]
+    · constructor
+      · simp [EvmSemantics.EVM.State.consumeGas,
+          EvmSemantics.EVM.State.replaceStackAndIncrPC, hpc]
+        native_decide
+      · simpa [EvmSemantics.EVM.State.consumeGas,
+          EvmSemantics.EVM.State.replaceStackAndIncrPC] using hfork
+  refine ⟨hnextAt, counterPreparedDispatcherIncrementJumpi_decoded hnextAt, ?_⟩
   rw [hstate]
   simp [EvmSemantics.EVM.State.consumeGas,
     EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack]
