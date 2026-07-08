@@ -5418,13 +5418,12 @@ theorem counterState_of_dispatcher_initialize_eq_stepFE_to_trampoline_push_ok
       (actualSelector := EvmSemantics.UInt256.ofNat counterInitializeSelectorNat)
       hstack hat hready hstep
 
-theorem counterState_of_dispatcher_trampoline_push_stepFE_to_jumpi_ok
+theorem counterState_of_dispatcher_trampoline_push_stepFE_to_jumpi_for_actual_ok
     {state nextState : EvmState}
+    {cond actualSelector : EvmSemantics.UInt256}
     {rest : List EvmSemantics.UInt256}
     (hstack :
-      state.stack =
-        EvmSemantics.UInt256.ofNat 1 ::
-          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest)
+      state.stack = cond :: actualSelector :: rest)
     (hat : counterCompiledStateAt state 12)
     (hready : counterStepFEReady state (.Push counterPush1Op))
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
@@ -5434,8 +5433,7 @@ theorem counterState_of_dispatcher_trampoline_push_stepFE_to_jumpi_ok
           (.JUMPI : EvmSemantics.Operation.StackMemFlowOps), none) ∧
       nextState.stack =
         EvmSemantics.UInt256.ofNat counterInitializeTrampolineOffset ::
-          EvmSemantics.UInt256.ofNat 1 ::
-          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest := by
+          cond :: actualSelector :: rest := by
   rcases hready with ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstate :=
     counterState_of_stepFE_push1_ok hrunning hprecompile
@@ -5458,6 +5456,30 @@ theorem counterState_of_dispatcher_trampoline_push_stepFE_to_jumpi_ok
   rw [hstate]
   simp [EvmSemantics.EVM.State.consumeGas,
     EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack]
+
+theorem counterState_of_dispatcher_trampoline_push_stepFE_to_jumpi_ok
+    {state nextState : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (hstack :
+      state.stack =
+        EvmSemantics.UInt256.ofNat 1 ::
+          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest)
+    (hat : counterCompiledStateAt state 12)
+    (hready : counterStepFEReady state (.Push counterPush1Op))
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    counterCompiledStateAt nextState 14 ∧
+      nextState.decoded =
+        some (.StackMemFlow
+          (.JUMPI : EvmSemantics.Operation.StackMemFlowOps), none) ∧
+      nextState.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeTrampolineOffset ::
+          EvmSemantics.UInt256.ofNat 1 ::
+          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest := by
+  exact
+    counterState_of_dispatcher_trampoline_push_stepFE_to_jumpi_for_actual_ok
+      (cond := EvmSemantics.UInt256.ofNat 1)
+      (actualSelector := EvmSemantics.UInt256.ofNat counterInitializeSelectorNat)
+      hstack hat hready hstep
 
 theorem counterState_of_dispatcher_initialize_jumpi_stepFE_to_trampoline_ok
     {state nextState : EvmState}
