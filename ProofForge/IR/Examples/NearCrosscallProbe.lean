@@ -10,8 +10,10 @@ def stateMarker : StateDecl := {
   type := .u64
 }
 
-/-- Account id and method name are compile-time strings referenced by address-literal
-    indices into `nearCrosscallStrings`. -/
+/-- Portable product path: `crosscall.invoke` only. Account/method names are
+compile-time strings referenced by address-literal indices into
+`nearCrosscallStrings`. Backend materializes as `promise_create` — authors do
+not write Promise constructors. -/
 def callRemote : Entrypoint := {
   name := "call_remote"
   returns := .u64
@@ -30,7 +32,8 @@ def callRemoteWithAmount : Entrypoint := {
   ]
 }
 
-/-- Chains `promise_create` with `promise_then` onto a local callback entrypoint. -/
+/-- NEAR host-extension only (D-050 Slice 3): chains `promise_then` onto a
+local callback. Not portable product authoring — fixture / advanced NEAR path. -/
 def callRemoteWithCallback : Entrypoint := {
   name := "call_remote_with_callback"
   returns := .u64
@@ -43,7 +46,7 @@ def callRemoteWithCallback : Entrypoint := {
   ]
 }
 
-/-- Promise callback entrypoint: decodes the first result payload as U64. -/
+/-- NEAR host-extension only: callback entrypoint that decodes promise results. -/
 def handleRemote : Entrypoint := {
   name := "handle_remote"
   returns := .u64
@@ -54,10 +57,28 @@ def handleRemote : Entrypoint := {
   ]
 }
 
+/-- Full fixture including Promise-chain constructors (host-extension surface). -/
 def module : Module := {
   name := "NearCrosscallProbe"
   state := #[stateMarker]
   entrypoints := #[callRemote, callRemoteWithAmount, callRemoteWithCallback, handleRemote]
+  nearCrosscallStrings := #["callee.testnet", "remote_call", "handle_remote"]
+}
+
+/-- Portable NEAR crosscall subset: only `crosscall.invoke` + string pool.
+No `nearPromiseThen` / result constructors — those stay host-extension fixtures. -/
+def portableModule : Module := {
+  name := "NearCrosscallPortable"
+  state := #[stateMarker]
+  entrypoints := #[callRemote, callRemoteWithAmount]
+  nearCrosscallStrings := #["callee.testnet", "remote_call"]
+}
+
+/-- Host-extension Promise chaining only (then + callback result decode). -/
+def promiseExtensionModule : Module := {
+  name := "NearPromiseExtension"
+  state := #[stateMarker]
+  entrypoints := #[callRemoteWithCallback, handleRemote]
   nearCrosscallStrings := #["callee.testnet", "remote_call", "handle_remote"]
 }
 

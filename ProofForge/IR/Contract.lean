@@ -205,15 +205,18 @@ mutual
     | crosscallInvokeDelegateTyped (targetContractId : Expr) (methodId : Expr) (args : Array Expr) (returnType : ValueType)
     | crosscallCreate (callValue : Expr) (initCodeHex : String)
     | crosscallCreate2 (callValue salt : Expr) (initCodeHex : String)
-    /-- NEAR-only: `promise_create` with runtime index into `module.nearCrosscallStrings`. -/
+    /-- NEAR host-extension only (not portable product path): `promise_create`
+        with runtime index into `module.nearCrosscallStrings`. Prefer portable
+        `crosscallInvoke` for authoring; this is a lower-level host form. -/
     | nearCrosscallInvokePool (accountIndex : Expr) (methodId : Expr) (args : Array Expr) (deposit : Expr)
-    /-- NEAR-only Promise chain: attach a callback method on the current contract. -/
+    /-- NEAR host-extension only: attach a callback method on the current contract
+        (`promise_then`). D-050 Slice 3 — not portable-core. -/
     | nearPromiseThen (parentPromise : Expr) (callbackMethod : Expr) (args : Array Expr) (deposit : Expr)
-    /-- NEAR-only: number of completed promise results visible in a callback entrypoint. -/
+    /-- NEAR host-extension only: number of completed promise results in a callback. -/
     | nearPromiseResultsCount
-    /-- NEAR-only: status of promise result at `index` (1 = success, 2 = failed). -/
+    /-- NEAR host-extension only: status of promise result at `index` (1 = success, 2 = failed). -/
     | nearPromiseResultStatus (index : Expr)
-    /-- NEAR-only: Borsh-decoded U64 payload from promise result at `index` (0 on failure). -/
+    /-- NEAR host-extension only: Borsh-decoded U64 payload from promise result at `index`. -/
     | nearPromiseResultU64 (index : Expr)
     | effect (effect : Effect)
     deriving Repr

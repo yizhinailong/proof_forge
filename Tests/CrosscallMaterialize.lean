@@ -11,6 +11,9 @@ import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.PortableCrosscall
 import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmNear.PortableCrosscall
+import ProofForge.Backend.CosmWasm.EmitWat
+import ProofForge.Backend.Psy.IR
 import ProofForge.Target.CrosscallMaterialize
 import ProofForge.Target.Registry
 
@@ -18,6 +21,7 @@ open ProofForge.Target
 open ProofForge.Target.CrosscallMaterialize
 open ProofForge.Backend.Solana.PortableCrosscall
 open ProofForge.Backend.Solana.Manifest
+open ProofForge.Backend.WasmNear.PortableCrosscall
 
 def require (cond : Bool) (msg : String) : IO Unit :=
   if cond then pure () else throw (IO.userError msg)
@@ -50,12 +54,20 @@ def main : IO Unit := do
       require (src.contains "sol_invoke_signed_c") "asm packs real sol_invoke_signed_c"
       require (src.contains "error_cpi") "asm traps CPI failures"
 
-  -- NEAR: string-pool Promise path for NearCrosscallProbe.
+  -- NEAR: portable invoke → promise_create; full fixture still works.
   require ((forProfile wasmNear).nativeForm == NativeForm.nearPromise) "NEAR form"
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule nearProbe with
-  | .error e => throw (IO.userError s!"NEAR EmitWat NearCrosscallProbe failed: {e.message}")
+  let nearPortable := ProofForge.IR.Examples.NearCrosscallProbe.portableModule
+  require (moduleUsesPortableInvoke nearPortable) "portable NEAR uses crosscall.invoke"
+  require (!moduleUsesPromiseExtension nearPortable) "portable NEAR has no promise constructors"
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule nearPortable with
+  | .error e => throw (IO.userError s!"NEAR EmitWat portableModule failed: {e.message}")
   | .ok wat =>
       require (wat.contains "promise_create") "NEAR materializes promise_create"
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule nearProbe with
+  | .error e => throw (IO.userError s!"NEAR EmitWat full NearCrosscallProbe failed: {e.message}")
+  | .ok wat =>
+      require (wat.contains "promise_create") "full fixture promise_create"
+      require (wat.contains "promise_then") "extension path materializes promise_then"
   -- Honest reject when nearCrosscallStrings is empty (no silent EVM CALL).
   let bareNear : ProofForge.IR.Module := {
     name := "BareNearCrosscall"
@@ -80,10 +92,30 @@ def main : IO Unit := do
       require (e.message.contains "STATICCALL" || e.message.contains "EVM-only")
         s!"expected STATICCALL reject, got: {e.message}"
 
-  -- CosmWasm / Psy / Aleo forms are declared (honest mapping).
+  -- CosmWasm Counter spike: honest capability reject for portable crosscall.
   require ((forProfile wasmCosmWasm).nativeForm == NativeForm.cosmWasmMsg) "CosmWasm form"
+  match ProofForge.Backend.CosmWasm.EmitWat.checkCapabilities solProbe with
+  | .ok _ => throw (IO.userError "CosmWasm spike must reject crosscall.invoke capability")
+  | .error e =>
+      require (e.message.contains "not supported" || e.message.contains "crosscall")
+        s!"expected CosmWasm capability reject, got: {e.message}"
+
+  -- Psy: untyped U64 crosscall accepted; typed/create rejected.
   require ((forProfile psyDpn).nativeForm == NativeForm.zkCircuitCall) "Psy form"
+  let psyMod := ProofForge.IR.Examples.CrosscallProbe.psyModule
+  match ProofForge.Backend.Psy.IR.buildModule psyMod with
+  | .error e => throw (IO.userError s!"Psy should accept untyped crosscall.invoke: {e.message}")
+  | .ok _ => pure ()
+  match ProofForge.Backend.Psy.IR.buildModule staticOnly with
+  | .ok _ => throw (IO.userError "Psy must reject STATICCALL-shaped crosscall")
+  | .error e =>
+      require (e.message.contains "static" || e.message.contains "not supported" ||
+          e.message.contains "U64")
+        s!"expected Psy static reject, got: {e.message}"
+
   require ((forProfile aleoLeo).nativeForm == NativeForm.zkCircuitCall) "Aleo form"
   require ((forProfile solanaSbpfAsm).nativeForm == NativeForm.solanaCpi) "Solana form"
+  require ((forProfile moveAptos).nativeForm == NativeForm.moveCall) "Aptos form"
+  require ((forProfile moveSui).nativeForm == NativeForm.moveCall) "Sui form"
 
-  IO.println "crosscall-materialize: ok (evm plan + solana CPI mat + near promise)"
+  IO.println "crosscall-materialize: ok (evm·solana·near + honest secondary)"

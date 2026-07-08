@@ -663,7 +663,7 @@ primary-materialize:
 
 # Phase B.3: portable crosscall.invoke materialization (EVM CALL · Solana CPI · NEAR Promise).
 crosscall-materialize:
-    lake build ProofForge.Backend.Solana.PortableCrosscall ProofForge.IR.Examples.CrosscallProbe ProofForge.IR.Examples.NearCrosscallProbe ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmNear.EmitWat
+    lake build ProofForge.Backend.Solana.PortableCrosscall ProofForge.Backend.WasmNear.PortableCrosscall ProofForge.IR.Examples.CrosscallProbe ProofForge.IR.Examples.NearCrosscallProbe ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmNear.EmitWat ProofForge.Backend.CosmWasm.EmitWat ProofForge.Backend.Psy.IR
     lake env lean --run Tests/CrosscallMaterialize.lean
 
 

@@ -51,9 +51,16 @@ pick a chain at write time and violated D-028. **Removed.**
       (create2, NEAR Promise ops, fallback/receive) — not storage binding
 - [x] `just ir-portability-smoke`
 
-## Slice 2 (in progress)
+## Slice 2 (mostly landed)
 
-- [ ] Move NEAR Promise `Expr` constructors behind host-extension metadata (D-027)
+- [x] NEAR Promise product split (D-050 Slice 3 partial): portable path is
+      `crosscall.invoke` + `nearCrosscallStrings` → `promise_create`
+      (`Backend.WasmNear.PortableCrosscall`, `NearCrosscallProbe.portableModule`).
+      `nearPromiseThen` / result constructors remain host-extension fixtures
+      (`promiseExtensionModule`) and classify as `targetFamilyOnly .wasmHost`.
+      Full removal of Promise constructors from the `Expr` inductive is deferred
+      (every Expr match site); they are already non-portable-core and rejected
+      off wasmHost.
 - [x] Generalize Move entrypoint lowering beyond hardcoded Counter entrypoint
       names — Aptos `renderEntrypoint` now classifies entrypoints by IR body
       shape (`matchInitShape` / `matchIncrementShape` / `matchGetShape`) against

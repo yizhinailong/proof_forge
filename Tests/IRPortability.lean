@@ -6,6 +6,7 @@ D-050: portable IR stays chain-neutral; `--target` selects storage binding.
 -/
 import ProofForge.IR.Portability
 import ProofForge.IR.Examples.Counter
+import ProofForge.IR.Examples.NearCrosscallProbe
 import ProofForge.Backend.Move.Sui
 import ProofForge.Backend.Move.Aptos
 import ProofForge.Backend.Evm.Validate
@@ -172,5 +173,30 @@ def main : IO Unit := do
   match ProofForge.Backend.Move.Aptos.renderModule badShapeModule with
   | .error _ => pure ()
   | .ok _ => throw (IO.userError "Aptos must reject an unsupported entrypoint body shape")
+
+  -- Slice 3 (NEAR Promise out of portable product path): Promise constructors
+  -- are wasmHost family-only; portable crosscall.invoke is family-shared.
+  let nearPortable := ProofForge.IR.Examples.NearCrosscallProbe.portableModule
+  let nearExt := ProofForge.IR.Examples.NearCrosscallProbe.promiseExtensionModule
+  require ((familyOnlyViolations nearExt .solana).size > 0)
+    "NEAR promise constructors must violate Solana family"
+  require ((familyOnlyViolations nearExt .evm).size > 0)
+    "NEAR promise constructors must violate EVM family"
+  require ((familyOnlyViolations nearExt .wasmHost).isEmpty)
+    "NEAR promise constructors must be legal for wasmHost"
+  require (!isPortableCoreModule nearExt)
+    "promise extension module is not portable-core"
+  -- Portable invoke-only module still carries nearCrosscallStrings metadata
+  -- (wasmHost target metadata), so it is not portable-core, but it has no
+  -- family-only Promise constructors for non-wasm families beyond the string pool.
+  require ((familyOnlyViolations nearPortable .solana).any fun f =>
+      f.path == "module.nearCrosscallStrings")
+    "portable NEAR crosscall still flags nearCrosscallStrings as wasmHost metadata"
+  require (!(classifyModule nearPortable).any fun f =>
+      match f.class_ with
+      | .targetFamilyOnly _ =>
+          f.detail.startsWith "nearPromise" || f.detail.startsWith "nearCrosscallInvokePool"
+      | _ => false)
+    "portable NEAR module must not use nearPromise* constructors"
 
   IO.println "ir-portability: ok"
