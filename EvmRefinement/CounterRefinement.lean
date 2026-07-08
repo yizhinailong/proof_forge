@@ -9627,16 +9627,17 @@ theorem counterCompiledPreparedInitialize_first_two_stepFE_ok
     counterCompiledPreparedCall_first_two_stepFE_ok
       (call := .initialize) hprepared
 
-theorem counterCompiledPreparedInitialize_third_ready
+theorem counterCompiledPreparedCall_third_ready
     {preparedState s1 s2 : EvmState}
+    {call : CounterCall}
     (hprepared :
-      CounterPreparedCall counterCompiledPowdrConfig .initialize preparedState)
+      CounterPreparedCall counterCompiledPowdrConfig call preparedState)
     (hstep0 : EvmSemantics.EVM.stepFE preparedState = .ok s1)
     (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2) :
     counterStepFEReady s2 (.Push counterPush1Op) := by
   obtain ⟨hat0, hstack0, hcalldata0, _haddr0, _hcallStack0⟩ :=
-    counterCompiledPreparedInitialize_entry_facts hprepared
-  have hready0 := counterCompiledPreparedInitialize_first_ready hprepared
+    counterCompiledPreparedCall_entry_facts hprepared
+  have hready0 := counterCompiledPreparedCall_first_ready hprepared
   have hready0ForState := hready0
   rcases hready0 with ⟨hrunning0, hprecompile0, hstackOk0, hgas0⟩
   have hstate1 :=
@@ -9645,7 +9646,7 @@ theorem counterCompiledPreparedInitialize_third_ready
   obtain ⟨hat1, _hdecoded1, hstack1, _hcalldata1⟩ :=
     counterState_of_dispatcher_first_push0_stepFE_to_calldataload_ok
       hstack0 hat0 hready0ForState hstep0
-  have hready1 := counterCompiledPreparedInitialize_second_ready hprepared hstep0
+  have hready1 := counterCompiledPreparedCall_second_ready hprepared hstep0
   rcases hready1 with ⟨hrunning1, hprecompile1, hstackOk1, hgas1⟩
   have hstate2 :=
     counterState_of_stepFE_env_calldataload_ok hrunning1 hprecompile1
@@ -9677,10 +9678,20 @@ theorem counterCompiledPreparedInitialize_third_ready
     · native_decide
     · native_decide
 
-theorem counterCompiledPreparedInitialize_first_three_stepFE_ok
-    {preparedState : EvmState}
+theorem counterCompiledPreparedInitialize_third_ready
+    {preparedState s1 s2 : EvmState}
     (hprepared :
-      CounterPreparedCall counterCompiledPowdrConfig .initialize preparedState) :
+      CounterPreparedCall counterCompiledPowdrConfig .initialize preparedState)
+    (hstep0 : EvmSemantics.EVM.stepFE preparedState = .ok s1)
+    (hstep1 : EvmSemantics.EVM.stepFE s1 = .ok s2) :
+    counterStepFEReady s2 (.Push counterPush1Op) := by
+  exact counterCompiledPreparedCall_third_ready hprepared hstep0 hstep1
+
+theorem counterCompiledPreparedCall_first_three_stepFE_ok
+    {preparedState : EvmState}
+    {call : CounterCall}
+    (hprepared :
+      CounterPreparedCall counterCompiledPowdrConfig call preparedState) :
     ∃ s1 s2 s3,
       EvmSemantics.EVM.stepFE preparedState = .ok s1 ∧
       EvmSemantics.EVM.stepFE s1 = .ok s2 ∧
@@ -9690,11 +9701,11 @@ theorem counterCompiledPreparedInitialize_first_three_stepFE_ok
         some (.CompBit
           (.SHR : EvmSemantics.Operation.CompareBitwiseOps), none) ∧
       s3.stack =
-        EvmSemantics.UInt256.ofNat 224 :: counterInitializeCalldataWord :: [] := by
+        EvmSemantics.UInt256.ofNat 224 :: counterCallCalldataWord call :: [] := by
   obtain ⟨s1, s2, hstep0, hstep1, hat2, hdecoded2, hstack2⟩ :=
-    counterCompiledPreparedInitialize_first_two_stepFE_ok hprepared
+    counterCompiledPreparedCall_first_two_stepFE_ok hprepared
   have hready2 :=
-    counterCompiledPreparedInitialize_third_ready hprepared hstep0 hstep1
+    counterCompiledPreparedCall_third_ready hprepared hstep0 hstep1
   have hreadyForHelper := hready2
   rcases hready2 with ⟨hrunning2, hprecompile2, hstackOk2, hgas2⟩
   let s3 :=
@@ -9734,9 +9745,27 @@ theorem counterCompiledPreparedInitialize_first_three_stepFE_ok
       rw [hrunning2] at hnotRunning
       contradiction
   obtain ⟨hat3, hdecoded3, hstack3⟩ :=
-    counterState_of_dispatcher_selector_shift_push_stepFE_to_shr_ok
-      hstack2 hat2 hreadyForHelper hstep2
+    counterState_of_dispatcher_selector_shift_push_stepFE_to_shr_for_word_ok
+      (word := counterCallCalldataWord call) hstack2 hat2 hreadyForHelper hstep2
   exact ⟨s1, s2, s3, hstep0, hstep1, hstep2, hat3, hdecoded3, by simpa using hstack3⟩
+
+theorem counterCompiledPreparedInitialize_first_three_stepFE_ok
+    {preparedState : EvmState}
+    (hprepared :
+      CounterPreparedCall counterCompiledPowdrConfig .initialize preparedState) :
+    ∃ s1 s2 s3,
+      EvmSemantics.EVM.stepFE preparedState = .ok s1 ∧
+      EvmSemantics.EVM.stepFE s1 = .ok s2 ∧
+      EvmSemantics.EVM.stepFE s2 = .ok s3 ∧
+      counterCompiledStateAt s3 4 ∧
+      s3.decoded =
+        some (.CompBit
+          (.SHR : EvmSemantics.Operation.CompareBitwiseOps), none) ∧
+      s3.stack =
+        EvmSemantics.UInt256.ofNat 224 :: counterInitializeCalldataWord :: [] := by
+  simpa [counterInitializeCalldataWord_eq] using
+    counterCompiledPreparedCall_first_three_stepFE_ok
+      (call := .initialize) hprepared
 
 theorem counterCompiledPreparedInitialize_fourth_ready
     {preparedState s1 s2 s3 : EvmState}
