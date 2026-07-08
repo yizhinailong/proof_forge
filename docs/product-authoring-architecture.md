@@ -7,38 +7,53 @@ Related: [authoring-model](authoring-model.md), [D-028](decisions.md),
 [RFC 0006 Token SDK](rfcs/0006-multichain-token-sdk.md),
 [IR portability remediation](ir-portability-remediation.md).
 
-## 1. Product thesis
+## 1. Product thesis (north star)
 
-**Authors write business logic only.**  
-**`--target` selects the chain and owns all native mapping.**
+**Ideal product path — the only thing the user must choose is `--target`.**
+
+```text
+  User writes:   business logic only
+  User chooses:  --target solana-sbpf-asm | evm | wasm-near | …
+  Platform does: everything chain-native (DSL, accounts, ABI, CPI, host, token standard)
+```
+
+Solana Account / PDA / CPI, NEAR Promise / host imports, EVM slots / selectors /
+CREATE2, Move resource / object — these are **not authoring languages**. They
+are **materialization backends** the compiler drives after target selection.
 
 ```text
   ┌─────────────────────────────────────────────────────────┐
-  │  Author: business intents only                          │
-  │  state · entry · rules · token features · roles · events│
+  │  L1  Author: business intents ONLY                      │
+  │      state · entry · rules · token features · roles     │
+  │      (no account, no pda, no cpi, no promise, no slot)  │
   └───────────────────────────┬─────────────────────────────┘
                               │  contract_source / TokenSpec
                               ▼
   ┌─────────────────────────────────────────────────────────┐
-  │  Compiler-owned: ContractSpec + portable IR + caps      │
-  │  (chain-neutral shapes; no PDA/CPI/slot/object syntax)  │
+  │  L2–L3  Compiler: portable IR + capabilities            │
   └───────────────────────────┬─────────────────────────────┘
                               │  --target <id>
                               ▼
   ┌─────────────────────────────────────────────────────────┐
-  │  Target adapter: automatic materialization              │
-  │  EVM slots · Solana accounts/PDA/CPI · NEAR host/Promise│
-  │  Move resource/object · Token ERC-20 vs SPL/Token-2022  │
+  │  L4  Target materializer (automatic)                    │
+  │      may *internally* emit Solana plan / CPI frames /   │
+  │      EVM Yul / NEAR WAT — authors never write that DSL  │
   └─────────────────────────────────────────────────────────┘
 ```
 
-Solana’s account/PDA/CPI model, NEAR’s host/Promise model, EVM’s
-storage/ABI/proxy model, and Move’s resource/object model are **platform
-problems**, not author problems. The author never picks “I am writing a
-Solana program” inside portable source.
+**What this means for “native DSL”:**  
+Today’s Solana `account` / `pda` / `cpi` syntax and similar chain DSLs are a
+**temporary compiler / fixture surface**, not the product. They may remain as:
 
-This is already the *stated* design (D-028, RFC 0006). The engineering
-job is to make the *default product path* match the statement end-to-end.
+1. **Compiler-internal IR** (preferred end state): only target plans speak them; or  
+2. **Research / pinocchio / live-gate fixtures**: engineers testing the backend; or  
+3. **Advanced escape hatch** (discouraged): power users who accept non-portability.
+
+They must **not** appear in Shared product tutorials. The SDK does not ask
+users to “call the Solana DSL”; the Solana **adapter** calls it (or generates
+equivalent plan data) when `--target solana-sbpf-asm` is set.
+
+This is D-028 / RFC 0006 taken all the way: chain models are platform problems.
 
 ## 2. What authors should see (default surface)
 
@@ -90,11 +105,13 @@ product rule is: **finish and expand that pattern everywhere.**
 | **L2 Portable IR** | Shape + effects + capability ids | `nearPromise*`, CREATE2, fallback/receive as default, object/resource owner |
 | **L3 Capability + StorageBinding** | Support matrix; storage materialization enum | Author-visible chain types |
 | **L4 Target adapter** | ABI, accounts, PDA derivation templates, CPI packing, host imports, Move object/resource emit, token standard choice | Changing portable business semantics |
-| **L5 Target Extension SDK** (opt-in) | Escape hatch when business *requires* chain-native ops | Becoming the default teaching path |
+| **L5 Chain materializer internals** | Solana plan/CPI packing, EVM Yul, NEAR EmitWat — **compiler-owned** | Author-facing “write CPI in Lean” as the default path |
 
-**L5 rule:** Extensions are advanced mode. Portable Counter / Token /
-Vault tutorials must never require importing `ProofForge.Solana` or
-writing CPI statements.
+**L5 rule (updated):** Chain DSL is **not** a second product language.  
+`ProofForge.Contract.Source.Solana` exists today as a bridge for backend
+fixtures; the product goal is that Shared contracts never need it because
+L4 auto-materializes accounts/CPI from portable IR. Tutorials must never
+require writing PDA/CPI.
 
 ## 4. Gap analysis (repo today)
 
@@ -155,41 +172,60 @@ EVM + Solana without extension syntax in shared examples.
 | Solana examples | `ProofForge/Solana/Examples/*` that use account/PDA/CPI import `Source.Solana` |
 | Shared gate | `portable-default` forbids `Source.Solana` and Solana DSL keywords |
 
-Still open for later Phase B: Solana **auto-materialization** of accounts for
-portable contracts (not just TokenSpec plans); stop pulling Solana Surface as a
-compile-time dependency of the portable elaborator module.
+### Phase B — Automatic chain materialization (compiler)  ← **next product focus**
 
-### Phase B — Automatic chain materialization (compiler)
+**Goal:** From **portable IR alone**, each target synthesizes everything that
+today still tempts people to write chain DSL by hand.
 
-**Goal:** Adapters synthesize accounts/PDA/CPI/host layout from portable IR
-for common patterns so authors do not declare them.
-
-| Pattern | EVM | Solana (auto) | NEAR (auto) |
+| Pattern | EVM auto | Solana auto | NEAR auto |
 |---|---|---|---|
-| Scalar / map state | storage slots | program state account (+ optional PDA for vaults) | host storage keys |
-| Token balances | map in contract | ATA + SPL CPI plan | NEP-141 balance map |
-| Auth (ownable) | address storage + guard | authority pubkey account / signer check | predecessor account |
-| Cross-call intent | CALL | CPI frame synthesized from plan | Promise create/then |
-| Events | LOG topics | `sol_log` / event account | `log_utf8` JSON |
+| Scalar / map state | storage slots / layout | **one program data account** (default) + borsh/layout | host KV keys |
+| Token balances | map in contract / ERC-20 | **mint + ATA + SPL/Token-2022 CPI plan** (TokenSpec already partial) | NEP-141 |
+| Auth (ownable) | address + guard | signer/authority account checks synthesized | predecessor |
+| Cross-call intent | CALL | **CPI frame from intent** (no hand-written account metas) | Promise create/then from intent |
+| Events | LOG topics | sol_log / structured log | log_utf8 JSON |
+| PDA (only if needed) | n/a | **derived from business ids** (vault id, mint, …) not author seed tables | n/a |
+
+**User-visible success:**  
+
+```lean
+-- Shared/Counter.lean  (unchanged portable source)
+import ProofForge.Contract.Source
+contract_source Counter do
+  state count : .u64
+  entry initialize do ...
+  entry increment do ...
+  query get returns (.u64) do ...
+```
+
+```sh
+proof-forge build --target solana-sbpf-asm ...   # no Source.Solana import
+  → Solana.Plan synthesizes: data account, discriminators, entrypoint tags
+  → sBPF asm + IDL + client — author never wrote `account` / `pda` / `cpi`
+```
 
 Implementation sketch:
 
-1. **`Target.Materialize`** (new module family)
+1. **`Target.Materialize` / strengthen existing plans**
    - Input: portable `Module` + `CapabilityPlan` + target profile.
-   - Output: target plan already partially present (`Evm.Plan`,
-     `Solana.Plan`, Wasm plan) — unify naming and stage order (RFC 0014).
-2. **Solana auto-layout**
-   - Default: one data account for portable scalar/map state.
-   - TokenSpec: mint + ATA + CPI templates without author account lists.
-   - PDA only when policy requires deterministic address (vault, escrow);
-     seeds derived from business ids, not hand-written account tables.
-3. **NEAR auto-host**
-   - Promise still capability-gated; materialize from portable
-     `crosscall.invoke` + async policy metadata, **not** portable
-     `nearPromise*` Expr constructors (D-050 Slice 3).
+   - Output: `Evm.Plan` / `Solana.Plan` / Wasm plan (RFC 0014 stages).
+2. **Solana auto-layout (B.2 priority)**
+   - Portable scalar/map → single writable state account + payer/system as needed.
+   - TokenSpec path already materializes mint/ATA/CPI — extend pattern to
+     general `contract_source` modules (Counter, ValueVault, StakingVault).
+   - PDA only when the **business** needs a deterministic address; seeds come
+     from intent metadata, not author DSL.
+3. **Retire author-facing chain DSL from the product story**
+   - `Source.Solana` → document as **fixture/backend test only**.
+   - Long term: generate Solana.Plan structures in Lean without expanding
+     user-written `account` syntax at all.
+4. **NEAR auto-host**
+   - Materialize Promise from portable `crosscall.invoke` + async policy;
+     remove author-facing `nearPromise*` from portable Expr (D-050 Slice 3).
 
-**Exit:** Shared RoleGatedToken / StakingVault / TokenSpec examples contain
-zero Solana account declarations yet still pass Solana light gates.
+**Exit:** Shared RoleGatedToken / StakingVault / Counter compile to Solana
+**without** `import Source.Solana` and without any `account`/`cpi` line, and
+pass Solana light gates.
 
 ### Phase C — Clean portable IR (compiler hygiene)
 
@@ -246,14 +282,16 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 
 ## 7. Engineering order (next 4–6 slices)
 
-| Order | Slice | Why |
+| Order | Slice | Status / why |
 |---|---|---|
-| 1 | **Portable-default lint + docs** for `contract_source` | Stops teaching the wrong mental model |
-| 2 | **TokenSpec-only product path** for tokens (no standard pick) | Matches user vision; RFC 0006 already points here |
-| 3 | **Solana auto state/token materialization** for portable IR | Biggest “accounts/PDA/CPI behind the curtain” win |
-| 4 | **NEAR Promise out of portable Expr** + crosscall materialization | IR hygiene + async host story |
-| 5 | **Stdlib rename/route**: portable policies → per-target token/access lowering | One Ownable/Token intent, many ABIs |
-| 6 | **Spec/Builder de-EVM naming** + CLI defaults | Finish product surface cleanup |
+| 1 | Portable-default lint + docs | ✅ Landed |
+| 2 | TokenSpec feature-only; standard from target | ✅ Landed |
+| 3 | Solana Source opt-in (stop default teaching CPI) | ✅ Landed (bridge) |
+| 4 | **Solana auto-materialize portable IR → Plan/accounts** | **NEXT** — makes chain DSL unnecessary for product |
+| 5 | NEAR Promise out of portable Expr; crosscall materialize | IR hygiene + async |
+| 6 | Mark `Source.Solana` fixture-only; demote from product docs | After auto-materialize works for Counter/Vault |
+| 7 | Stdlib portable policies → multi-target lowering | One Ownable/Token intent |
+| 8 | Spec/Builder de-EVM naming | Product surface cleanup |
 
 ## 8. Success metrics
 
