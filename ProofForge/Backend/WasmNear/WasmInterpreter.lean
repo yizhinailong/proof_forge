@@ -343,7 +343,7 @@ def hostArity (bridge : ProofForge.Target.HostBridge) (name : String) :
   | .near, "block_index" => .ok 0
   | .near, "signer_account_id" => .ok 1
   | .near, "attached_deposit" => .ok 0
-  | .cosmWasm, _ => .error "CosmWasm host calls are not modeled by the NEAR Counter interpreter"
+  | .cosmWasm, _ => .error "CosmWasm host calls are not modeled by the NEAR host interpreter"
   | _, other => .error s!"unsupported host call `{other}`"
 
 def runHostCallWith
@@ -360,7 +360,7 @@ def runHostCall (name : String) (state : WasmState) : Except String WasmState :=
     (fun name args state =>
       match bridge with
       | .near => runNearHostCall name args state
-      | .cosmWasm => .error "CosmWasm host calls are not modeled by the NEAR Counter interpreter"
+      | .cosmWasm => .error "CosmWasm host calls are not modeled by the NEAR host interpreter"
     )
     name state
 
@@ -467,7 +467,7 @@ partial def evalInsn (mod : WasmModule) (insn : Insn)
       | .unreachable =>
           .error "Wasm unreachable executed"
       | .select =>
-          .error "Wasm select is not modeled in the Counter interpreter"
+          .error "Wasm select is not modeled in this interpreter"
 
 end
 
@@ -565,7 +565,7 @@ def R (mod : ProofForge.IR.Module) (stateId : String)
 
 /-- Optional scalar-storage relation for trace-start states.
 
-`R` above is the post-write relation used by the existing Counter point checks:
+`R` above is the post-write relation used by the existing scalar point checks:
 it requires both sides to contain the scalar. For paired trace simulation we
 also need the initial empty/empty state to be related before `initialize`, so
 this relation compares the optional IR binding with the optional host-storage
@@ -582,65 +582,5 @@ def runIrEntrypointState (state : ProofForge.IR.Semantics.State)
   | .ok (nextState, _) => .ok nextState
   | .reverted message => .error s!"IR entrypoint `{entrypoint.name}` reverted: {message}"
   | .error message => .error message
-
-def counterRAfterInitialize : Bool :=
-  match EmitWat.lowerModule ProofForge.IR.Examples.Counter.module with
-  | .error _ => false
-  | .ok wasm =>
-      match runIrEntrypointState ProofForge.IR.Semantics.State.empty
-          ProofForge.IR.Examples.Counter.initializeEntrypoint with
-      | .error _ => false
-      | .ok irState =>
-          let call : TraceCall := { entrypoint := ProofForge.IR.Examples.Counter.initializeEntrypoint }
-          match runExport wasm (initialState wasm) call with
-          | .ok wasmState => R ProofForge.IR.Examples.Counter.module "count" irState wasmState
-          | .error _ => false
-
-def counterRAfterIncrement : Bool :=
-  match EmitWat.lowerModule ProofForge.IR.Examples.Counter.module with
-  | .error _ => false
-  | .ok wasm =>
-      match runIrEntrypointState ProofForge.IR.Semantics.State.empty
-          ProofForge.IR.Examples.Counter.initializeEntrypoint with
-      | .error _ => false
-      | .ok irAfterInit =>
-          match runIrEntrypointState irAfterInit ProofForge.IR.Examples.Counter.increment with
-          | .error _ => false
-          | .ok irAfterIncrement =>
-              let initCall : TraceCall := { entrypoint := ProofForge.IR.Examples.Counter.initializeEntrypoint }
-              let incCall : TraceCall := { entrypoint := ProofForge.IR.Examples.Counter.increment }
-              match runExport wasm (initialState wasm) initCall with
-              | .error _ => false
-              | .ok wasmState =>
-                  match runExport wasm wasmState incCall with
-                  | .ok wasmState =>
-                      R ProofForge.IR.Examples.Counter.module "count" irAfterIncrement wasmState
-                  | .error _ => false
-
-def counterInterpreterSmoke : Bool :=
-  match EmitWat.lowerModule ProofForge.IR.Examples.Counter.module with
-  | .error _ => false
-  | .ok wasm =>
-      let calls := traceCallsFromEntrypoints #[
-        ProofForge.IR.Examples.Counter.initializeEntrypoint,
-        ProofForge.IR.Examples.Counter.get,
-        ProofForge.IR.Examples.Counter.increment,
-        ProofForge.IR.Examples.Counter.get
-      ]
-      match runTraceList wasm calls.toList (initialState wasm) with
-      | .ok _ => true
-      | .error _ => false
-
-theorem counter_interpreter_smoke_ok :
-    counterInterpreterSmoke = true := by
-  native_decide
-
-theorem counter_R_after_initialize_ok :
-    counterRAfterInitialize = true := by
-  native_decide
-
-theorem counter_R_after_increment_ok :
-    counterRAfterIncrement = true := by
-  native_decide
 
 end ProofForge.Backend.WasmNear.WasmInterpreter

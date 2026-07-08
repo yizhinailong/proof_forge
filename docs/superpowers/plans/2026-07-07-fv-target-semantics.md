@@ -694,6 +694,26 @@ bytecode segment facts.
 
 ## WASM C-proof lane (WASM-1–WASM-5) — the chain-FAMILY twin of Solana
 
+> ### ✅ PROGRESS + NEXT (2026-07-08) — WASM-1/2 landed; next is `CounterWasmRefinement` (copy Solana)
+>
+> **Landed & green:** `WasmExec.lean` (generic core, ~458 lines / 53 lemmas — WASM-1) +
+> `NearHost.lean` (NEAR host model, ~480 lines — WASM-2), building green. **Not yet done:**
+> `CounterWasmRefinement.lean` (WASM-3/4) — no `counterWasm_*_simulates` exists yet.
+>
+> **Solana is the finished template — copy it file-for-file.** Solana closed cleanly:
+> `SbpfExec.lean` (generic) → `CounterSbpfRefinement.lean` (Counter universal C-proof, closed
+> obligations `counterSbpfCoreSafeObligations`, green) → `ValueVaultSbpfExec.lean` (283
+> theorems, genericity). WASM mirrors it exactly:
+> - **NEXT (WASM-3/4): create `CounterWasmRefinement.lean` by copying `CounterSbpfRefinement.lean`.**
+>   Per-entrypoint `counterWasm_{initialize,increment,get}_simulates` composing `WasmExec` +
+>   `NearHost` lemmas → construct the **closed** `counterWasm…SafeObligations` term → lift to the
+>   universal `counterWasm_safe_trace_simulates_*` via the SHARED `CounterUniversal` induction.
+>   Expect it Solana-light (`simp`/`rfl` over our own interpreter), NOT EVM-heavy.
+> - **Then (WASM-5): `ValueVaultWasmExec.lean`** (copy `ValueVaultSbpfExec.lean` — contract axis)
+>   **+ `CosmWasmHost.lean`** (chain axis — Counter reusing the SAME `WasmExec`, swap host only).
+> - **Discipline:** keep `WasmExec` at **0 "Counter"** (it has 1 now — clean it); no NEAR
+>   specifics in the core. Same rule that kept `SbpfExec` generic.
+>
 > **Strategic point (answers "do I formalize all WASM chains?"): NO — one generic core, thin
 > per-chain hosts.** Do NOT formalize NEAR/CosmWasm/ICP separately (that is N copies of the
 > WASM stack machine — the CosmWasm-forks-EmitWat mistake, on the semantics side). Instead:

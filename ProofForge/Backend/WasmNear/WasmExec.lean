@@ -5,7 +5,7 @@ Chain-agnostic symbolic-execution helpers for the in-Lean Wasm interpreter.
 
 This is the first WASM-1 proof surface: generic state-effect lemmas over the
 Wasm stack machine and host-neutral tables. Contract-specific refinement work
-should compose these helpers rather than inspect Counter/ValueVault programs.
+should compose these helpers rather than inspect concrete contract programs.
 
 `WasmInterpreter.evalInsn` is currently a mutual `partial def`, so per-instruction
 lemmas over that evaluator need a later refactor that factors a total, reducible
