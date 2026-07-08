@@ -44,7 +44,7 @@ def ModuleBuilder.toModule (builder : ModuleBuilder) : Module := {
   state := builder.state
   entrypoints := builder.entrypoints
   nearCrosscallStrings := builder.nearCrosscallStrings
-  evmProxyPattern? := builder.proxyPattern?.map ProofForge.Contract.ProxyPattern.kind
+  proxyPattern? := builder.proxyPattern?.map ProofForge.Contract.ProxyPattern.kind
 }
 
 def ModuleBuilder.toSpec (builder : ModuleBuilder) : ContractSpec :=
@@ -105,11 +105,18 @@ def scopeEntryIntent (entrypointName : String) (intent : Intent) : Intent := {
 def struct (decl : StructDecl) : ModuleM Unit := do
   modify fun builder => { builder with structs := builder.structs.push decl }
 
-def state (id : String) (type : ValueType) (kind : StateKind := .scalar) : ModuleM Unit := do
-  modify fun builder => { builder with state := builder.state.push { id, kind, type } }
+def state (id : String) (type : ValueType) (kind : StateKind := .scalar)
+    (owner : StorageOwner := .contract) : ModuleM Unit := do
+  modify fun builder => { builder with state := builder.state.push { id, kind, type, owner } }
 
-def scalarState (id : String) (type : ValueType) : ModuleM Unit :=
-  state id type .scalar
+def scalarState (id : String) (type : ValueType) (owner : StorageOwner := .contract) : ModuleM Unit :=
+  state id type .scalar owner
+
+def objectState (id : String) (type : ValueType) : ModuleM Unit :=
+  state id type .scalar .object
+
+def resourceState (id : String) (type : ValueType) : ModuleM Unit :=
+  state id type .scalar .resource
 
 def constructorParam (name : String) (abiType : String) : ModuleM Unit := do
   modify fun builder =>
@@ -153,14 +160,14 @@ def pushStmt (statement : Statement) : EntryM Unit := do
   modify fun builder => { builder with body := builder.body.push statement }
 
 def entryFull (name : String) (selector? : Option String) (returns : ValueType)
-    (params : Array (String × ValueType)) (paramEvmAbiWords : Array (Option String))
+    (params : Array (String × ValueType)) (paramAbiWords : Array (Option String))
     (body : EntryM Unit) : ModuleM Unit := do
   let (_, entryBuilder) := body.run {}
   let entrypoint : Entrypoint := {
     name := name
     selector? := selector?
     params := params
-    paramEvmAbiWords := paramEvmAbiWords
+    paramAbiWords := paramAbiWords
     returns := returns
     body := entryBuilder.body
   }

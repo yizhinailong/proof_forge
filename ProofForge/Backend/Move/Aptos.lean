@@ -32,6 +32,7 @@ def err (msg : String) : Except EmitError α := .error { message := msg }
 /-- Capabilities supported by the Aptos Counter spike. -/
 def supportedCapabilities : ProofForge.Target.CapabilitySet := #[
   .storageScalar,
+  .storageResource,
   .assertions
 ]
 
@@ -41,8 +42,9 @@ def checkCapabilities (mod : ProofForge.IR.Module) : Except EmitError Unit :=
     else .error { message := "Aptos Counter spike: capability `" ++ c.id ++ "` is not supported" }) ()
 
 /-- Validate that the module has exactly one scalar U64 state and return its id.
-The POC only supports a single scalar U64 state; the state id becomes the Move
-resource field name so the generated source faithfully reflects the IR. -/
+Preferred owner is `StorageOwner.resource` (Aptos account resource). Portable
+Counter fixtures still use `owner := .contract`; Aptos accepts that as a
+Counter-MVP legacy mapping onto a `has key` resource (D-050). -/
 def requireScalarState (mod : ProofForge.IR.Module) : Except EmitError String := do
   let state := mod.state
   if state.size != 1 then
@@ -54,7 +56,12 @@ def requireScalarState (mod : ProofForge.IR.Module) : Except EmitError String :=
         err ("Aptos Counter spike: state `" ++ s.id ++ "` must be scalar")
       else if s.type != .u64 then
         err ("Aptos Counter spike: state `" ++ s.id ++ "` must be u64")
-      else pure s.id
+      else
+        match s.owner with
+        | .resource | .contract => pure s.id
+        | .object =>
+            err ("Aptos Counter spike: state `" ++ s.id ++
+              "` has StorageOwner.object; use StorageOwner.resource (or portable contract for MVP)")
 
 /-- Render a scalar storage resource declaration. The field name is the IR state
 id, so the generated Move reflects the portable IR rather than a hardcoded name. -/

@@ -47,7 +47,7 @@ def testResolverMatrix : IO Unit := do
   let uupsAuthority : ContractSpec := {
     baseAuthority with
     proxyPattern? := some .uups
-    module := { baseAuthority.module with evmProxyPattern? := some "uups" }
+    module := { baseAuthority.module with proxyPattern? := some "uups" }
   }
   let uupsPlan ← requireResolves evm uupsAuthority
   require (metadataValue? uupsPlan "upgrade.proxy.pattern" == some "uups")

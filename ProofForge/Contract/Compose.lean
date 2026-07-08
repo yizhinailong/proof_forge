@@ -18,7 +18,7 @@ def mergeModules (name : String) (left right : Module) : Module :=
     structs := left.structs ++ right.structs
     state := left.state ++ right.state
     entrypoints := left.entrypoints ++ right.entrypoints
-    evmProxyPattern? := left.evmProxyPattern? <|> right.evmProxyPattern? }
+    proxyPattern? := left.proxyPattern? <|> right.proxyPattern? }
 
 def mergeSpecs (name : String) (left right : ContractSpec) : ContractSpec :=
   { name := name

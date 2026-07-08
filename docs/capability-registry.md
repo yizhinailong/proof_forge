@@ -56,6 +56,8 @@ remain uniform.
 | `assertions.check` | Runtime or circuit assertions emitted from portable IR statements | Y | Y | N | Y | N | N | Y | Y |
 | `account.explicit` | Named account/object/resource binding | P | Y | N | Y | Y | Y | P | N |
 | `storage.pda` | Program-derived address state | N | N | N | Y | N | N | N | N |
+| `storage.resource` | Aptos-style account-owned resource (`StorageOwner.resource`, D-050) | N | N | N | N | Y | N | N | N |
+| `storage.object` | Sui-style object-owned state with UID (`StorageOwner.object`, D-050) | N | N | N | N | N | Y | N | N |
 | `runtime.allocator` | Target runtime heap allocator contract | N | N | N | Y | N | N | N | N |
 | `runtime.memory` | Target runtime memory operations | N | N | N | Y | N | N | N | N |
 | `runtime.return_data` | Target runtime return-data buffer operations | N | N | N | Y | N | N | N | N |

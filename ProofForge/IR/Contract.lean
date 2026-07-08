@@ -88,10 +88,40 @@ inductive StateKind where
   | dynamicArray
   deriving BEq, DecidableEq, Repr
 
+/-- Ownership / binding model for persistent state. Orthogonal to `StateKind`
+(shape: scalar/map/array). The portable default is `contract` (global contract
+storage used by EVM/NEAR/Solana account-layout backends).
+
+Move-family targets prefer explicit owners:
+* `resource` — Aptos account-owned resource (`has key`)
+* `object` — Sui object with UID (`has key`)
+
+Portable Counter/ValueVault modules keep `owner := .contract` so the same IR
+fixture resolves on EVM/Solana/NEAR. Move adapters may still accept that legacy
+scalar shape for the Counter MVP, but new Move authoring should set the owner
+explicitly (see D-050 / `ProofForge.IR.Portability`). -/
+inductive StorageOwner where
+  | contract
+  | resource
+  | object
+  deriving BEq, DecidableEq, Repr
+
+def StorageOwner.id : StorageOwner → String
+  | .contract => "contract"
+  | .resource => "resource"
+  | .object => "object"
+
+def StorageOwner.capability? : StorageOwner → Option ProofForge.Target.Capability
+  | .contract => none
+  | .resource => some .storageResource
+  | .object => some .storageObject
+
 structure StateDecl where
   id : String
   kind : StateKind
   type : ValueType
+  /-- Binding model for this state slot. Defaults to portable contract-global. -/
+  owner : StorageOwner := .contract
   deriving Repr
 
 inductive Literal where
@@ -287,13 +317,21 @@ inductive EntrypointKind where
 structure Entrypoint where
   name : String
   kind : EntrypointKind := .function
+  /-- Optional target dispatch tag. On EVM this is the 4-byte selector hex;
+  other targets may use it as an instruction discriminator or ignore it. -/
   selector? : Option String := none
   params : Array (String × ValueType) := #[]
-  /-- Parallel ABI word overrides for EVM selector/signature metadata (`some "address"`, etc.). -/
-  paramEvmAbiWords : Array (Option String) := #[]
+  /-- Parallel ABI surface overrides for selector/signature metadata
+  (`some "address"`, etc.). Historically EVM-only (`paramEvmAbiWords`); kept
+  chain-neutral so other ABI-bearing targets can reuse the same field (D-050). -/
+  paramAbiWords : Array (Option String) := #[]
   returns : ValueType := .unit
   body : Array Statement
   deriving Repr
+
+/-- Compatibility alias for the pre-D-050 EVM-specific field name. -/
+abbrev Entrypoint.paramEvmAbiWords (ep : Entrypoint) : Array (Option String) :=
+  ep.paramAbiWords
 
 structure Module where
   name : String
@@ -301,10 +339,13 @@ structure Module where
   state : Array StateDecl
   entrypoints : Array Entrypoint
   allocator : AllocatorConfig := defaultAllocator
-  /-- When set to `uups`, EVM lowering adds a delegatecall fallback for proxy shells. -/
-  evmProxyPattern? : Option String := none
+  /-- When set to `uups`, the EVM adapter adds a delegatecall fallback for
+  proxy shells. Stored on the module as target-resolved metadata rather than a
+  portable effect (D-050); non-EVM backends must ignore or reject it. -/
+  proxyPattern? : Option String := none
   /-- NEAR EmitWat host strings indexed by `.literal (.address i)` (remote account/method
-      names and local promise callback method names). -/
+      names and local promise callback method names). Target-family metadata, not a
+      portable IR constructor (see `IR.Portability`). -/
   nearCrosscallStrings : Array String := #[]
   /-- Integer-overflow mode for this module's `Expr.add/.sub/.mul` nodes.
 
@@ -319,6 +360,10 @@ structure Module where
       `docs/formal-verification.md`. -/
   overflowChecked : Bool := false
   deriving Repr
+
+/-- Compatibility alias for the pre-D-050 EVM-specific field name. -/
+abbrev Module.evmProxyPattern? (module : Module) : Option String :=
+  module.proxyPattern?
 
 def Effect.capability : Effect → ProofForge.Target.Capability
   | .storageScalarRead _ => .storageScalar
@@ -469,11 +514,17 @@ def StructDecl.capabilities (decl : StructDecl) : Array ProofForge.Target.Capabi
   #[.dataStruct] ++ decl.fields.foldl (fun acc field => acc ++ field.capabilities) #[]
 
 def StateDecl.capabilities (state : StateDecl) : Array ProofForge.Target.Capability :=
-  match state.kind with
-  | .scalar => state.type.capabilities
-  | .map keyType _ => #[.storageMap] ++ keyType.capabilities ++ state.type.capabilities
-  | .array _ => #[.storageArray, .dataFixedArray] ++ state.type.capabilities
-  | .dynamicArray => #[.storageArray, .dataDynamicArray] ++ state.type.capabilities
+  let shapeCaps :=
+    match state.kind with
+    | .scalar => state.type.capabilities
+    | .map keyType _ => #[.storageMap] ++ keyType.capabilities ++ state.type.capabilities
+    | .array _ => #[.storageArray, .dataFixedArray] ++ state.type.capabilities
+    | .dynamicArray => #[.storageArray, .dataDynamicArray] ++ state.type.capabilities
+  let ownerCaps :=
+    match state.owner.capability? with
+    | some cap => #[cap]
+    | none => #[]
+  ownerCaps ++ shapeCaps
 
 def Statement.capabilities : Statement → Array ProofForge.Target.Capability
   | .letBind _ type value => type.capabilities ++ value.capabilities

@@ -131,8 +131,8 @@ def entrypointParamJson
   .ok (abiType, wordTypes.size, entrypointAbiValueJson (some param.fst) param.snd abiType wordTypes)
 
 def entrypointParamEvmAbiWord (entrypoint : ProofForge.IR.Entrypoint) (index : Nat) : Option String :=
-  if h : index < entrypoint.paramEvmAbiWords.size then
-    entrypoint.paramEvmAbiWords[index]
+  if h : index < entrypoint.paramAbiWords.size then
+    entrypoint.paramAbiWords[index]
   else
     none
 

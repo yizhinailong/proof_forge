@@ -87,7 +87,8 @@ def stateJson (state : StateDecl) : String :=
       | .map _ _ => "map"
       | .array _ => "array"
       | .dynamicArray => "dynamic_array")),
-    ("type", valueTypeJson state.type)
+    ("type", valueTypeJson state.type),
+    ("owner", jsonString state.owner.id)
   ]
 
 def intentKindJson : ProofForge.Contract.IntentKind → String

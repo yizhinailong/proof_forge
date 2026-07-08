@@ -2895,7 +2895,7 @@ def testEntrypointDispatchPlanToYul : IO Unit := do
           require (cases.size == dynamicPlan.entrypoints.size + 1) "dynamic ABI dispatch switch case count"
       | _ => throw <| IO.userError "dynamic ABI dispatch block must contain selector switch"
   | _ => throw <| IO.userError "dynamic ABI dispatch must initialize memory and wrap selector switch"
-  let uupsModule := { ProofForge.IR.Examples.Counter.module with evmProxyPattern? := some "uups" }
+  let uupsModule := { ProofForge.IR.Examples.Counter.module with proxyPattern? := some "uups" }
   let uupsPlan ← requireOk (buildSemanticPlan uupsModule) "UUPS counter plan"
   require (uupsPlan.dispatch.default == .uupsProxy) "UUPS plan dispatch default"
   let uupsDefault := ProofForge.Backend.Evm.ToYul.dispatchDefaultCase uupsPlan.dispatch.default

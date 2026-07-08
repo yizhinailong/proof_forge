@@ -78,6 +78,7 @@ def stateJson (state : StateDecl) : String :=
     ("name", jsonString state.id),
     ("type", jsonString state.type.name),
     ("kind", jsonString (stateKindName state.kind)),
+    ("owner", jsonString state.owner.id),
     ("layout", stateKindJson state.kind)
   ]
 

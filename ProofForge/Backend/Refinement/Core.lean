@@ -204,7 +204,7 @@ def isCounterGetEntrypoint (entrypoint : Entrypoint) : Bool :=
 def isCounterModule (module : Module) : Bool :=
   module.name == "Counter" &&
     module.structs.size == 0 &&
-    module.evmProxyPattern?.isNone &&
+    module.proxyPattern?.isNone &&
     module.nearCrosscallStrings.size == 0 &&
     !module.overflowChecked &&
     match module.state.toList, module.entrypoints.toList with

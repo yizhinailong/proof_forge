@@ -71,8 +71,16 @@ constructors to the portable IR.
 ### State
 
 - `id`: stable state variable name
-- `kind`: `scalar` | `map` | `account_owned` | `object` (target lowering hints)
+- `kind`: `scalar` | `map` | `array` | `dynamicArray` (shape)
 - `type`: portable type reference
+- `owner`: `contract` | `resource` | `object` (binding model, default `contract`)
+
+`owner` is orthogonal to `kind` (D-050). Portable Counter/ValueVault use
+`owner := contract` so the same IR resolves on EVM, Solana, and NEAR. Move
+targets prefer `resource` (Aptos) or `object` (Sui); those owners declare
+`storage.resource` / `storage.object` and are rejected on EVM. See
+`ProofForge.IR.Portability` for the machine-checked portable vs family-only
+inventory.
 
 ### Effect (target-resolved capability call)
 

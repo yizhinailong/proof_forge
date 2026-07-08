@@ -761,8 +761,21 @@ def validateStorageStructState (context typeName : String) (module : Module) : E
   for field in decl.fields do
     ensureStructLocalFieldType decl.name field.id field.type
 
+def validateStateOwner (state : StateDecl) : Except LowerError Unit :=
+  match state.owner with
+  | .contract => .ok ()
+  | .resource =>
+      .error {
+        message := s!"state `{state.id}` uses StorageOwner.resource; EVM IR v0 only supports contract-global storage (use Move Aptos for resources, D-050)"
+      }
+  | .object =>
+      .error {
+        message := s!"state `{state.id}` uses StorageOwner.object; EVM IR v0 only supports contract-global storage (use Move Sui for objects, D-050)"
+      }
+
 def validateState (module : Module) : Except LowerError Unit := do
   for state in module.state do
+    validateStateOwner state
     match state.kind, state.type with
     | .scalar, .u8 => pure ()
     | .scalar, .u32 => pure ()

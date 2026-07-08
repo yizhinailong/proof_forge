@@ -528,7 +528,7 @@ def moduleDispatchDefaultPlan (module : Module) : DispatchDefaultPlan :=
   -- Check for user-defined fallback/receive entrypoints first
   let hasFallback := module.entrypoints.any (fun ep => ep.kind == .fallback)
   let hasReceive := module.entrypoints.any (fun ep => ep.kind == .receive)
-  match module.evmProxyPattern? with
+  match module.proxyPattern? with
   | some "uups" => .uupsProxy
   | _ =>
     if hasReceive then .receive

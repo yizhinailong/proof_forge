@@ -250,6 +250,7 @@ def moveAptos : TargetProfile := {
   capabilities := #[
     .storageScalar,
     .storageMap,
+    .storageResource,
     .callerSender,
     .valueNative,
     .eventsEmit,
@@ -267,6 +268,7 @@ def moveSui : TargetProfile := {
   artifactKind := .movePackage
   capabilities := #[
     .storageScalar,
+    .storageObject,
     .assertions,
     .accountExplicit
   ]
