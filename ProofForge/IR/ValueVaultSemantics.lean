@@ -9,6 +9,7 @@ open ProofForge.IR
 open ProofForge.IR.Semantics
 open ProofForge.IR.StepSemantics
 open ProofForge.Backend.Refinement
+open ProofForge.Backend.Refinement.CounterUniversal (lookup_insert_same)
 open Except
 
 /-! ## Shallow total ValueVault IR semantics
@@ -258,6 +259,20 @@ theorem valueVault_initialize_simulates
         initial)
       0)
     1
+
+/-- IR state with all six ValueVault slots explicitly zero (pre-initialize shape). -/
+def valueVaultPreInitIr : State :=
+  State.empty
+    |>.write "balance" (.u64 0)
+    |>.write "released" (.u64 0)
+    |>.write "fees" (.u64 0)
+    |>.write "last_value" (.u64 0)
+    |>.write "last_checkpoint" (.u64 0)
+    |>.write "operations" (.u64 0)
+
+theorem valueVaultStateRel_preInit : ValueVaultStateRel valueVaultPreInitIr 0 0 0 0 0 0 := by
+  constructor <;> simp [valueVaultPreInitIr, ValueVaultStateRel, State.read, State.write,
+    lookup_insert_other, lookup_insert_same, State.empty]
 
 theorem valueVault_deposit_simulates
     {state : State} {balance released fees lastValue lastCheckpoint operations amount : Nat}

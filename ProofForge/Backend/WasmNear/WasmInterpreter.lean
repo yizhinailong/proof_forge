@@ -331,6 +331,41 @@ def runNearHostCall (name : String) (args : Array Nat) (state : WasmState) :
   | other =>
       .error s!"unsupported NEAR host call `{other}`"
 
+def cosmWasmHostArity (name : String) : Except String Nat :=
+  match name with
+  | "db_read" => .ok 2
+  | "db_write" => .ok 4
+  | "db_remove" => .ok 2
+  | "set_return_data" => .ok 2
+  | "log" => .ok 2
+  | other => .error s!"unsupported CosmWasm host call `{other}`"
+
+def runCosmWasmHostCall (name : String) (args : Array Nat) (state : WasmState) : Except String WasmState :=
+  match name with
+  | "db_read" =>
+      if h : args.size = 2 then
+        let key := readBytes state.memory args[0] args[1]
+        let loaded :=
+          match lookupStorage? state.host.storage key with
+          | some value => leBytesToNat value
+          | none => 0
+        .ok { state with valueStack := state.valueStack.push loaded }
+      else .error s!"db_read expected 2 arguments, got {args.size}"
+  | "db_write" =>
+      if h : args.size = 4 then
+        let key := readBytes state.memory args[0] args[1]
+        let value := readBytes state.memory args[2] args[3]
+        .ok { state with host := { state.host with storage := writeStorage state.host.storage key value } }
+      else .error s!"db_write expected 4 arguments, got {args.size}"
+  | "db_remove" => .ok state
+  | "set_return_data" =>
+      if h : args.size = 2 then
+        let value := readBytes state.memory args[0] args[1]
+        .ok { state with host := { state.host with returnValue := value } }
+      else .error s!"set_return_data expected 2 arguments, got {args.size}"
+  | "log" => .ok state
+  | other => .error s!"unsupported CosmWasm host call `{other}`"
+
 def hostArity (bridge : ProofForge.Target.HostBridge) (name : String) :
     Except String Nat :=
   match bridge, name with
@@ -343,7 +378,7 @@ def hostArity (bridge : ProofForge.Target.HostBridge) (name : String) :
   | .near, "block_index" => .ok 0
   | .near, "signer_account_id" => .ok 1
   | .near, "attached_deposit" => .ok 0
-  | .cosmWasm, _ => .error "CosmWasm host calls are not modeled by the NEAR host interpreter"
+  | .cosmWasm, name => cosmWasmHostArity name
   | _, other => .error s!"unsupported host call `{other}`"
 
 def runHostCallWith
@@ -360,7 +395,7 @@ def runHostCall (name : String) (state : WasmState) : Except String WasmState :=
     (fun name args state =>
       match bridge with
       | .near => runNearHostCall name args state
-      | .cosmWasm => .error "CosmWasm host calls are not modeled by the NEAR host interpreter"
+      | .cosmWasm => runCosmWasmHostCall name args state
     )
     name state
 

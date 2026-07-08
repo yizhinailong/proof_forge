@@ -23,10 +23,10 @@ open ProofForge.Backend.WasmNear.ValueVaultWasmExec
 abbrev IRState := State
 abbrev CoreState := ValueVaultWasmCoreState
 abbrev Call := ProofForge.IR.ValueVaultSemantics.ValueVaultCall
-open ProofForge.IR.ValueVaultSemantics (ValueVaultStateRel valueVaultIrStep lookup_insert_other
-  valueVault_initialize_simulates valueVault_deposit_simulates valueVault_chargeFee_simulates
-  valueVault_release_simulates valueVault_snapshot_simulates valueVault_getBalance_simulates
-  valueVault_getNetValue_simulates)
+open ProofForge.IR.ValueVaultSemantics (ValueVaultStateRel valueVaultIrStep valueVaultPreInitIr
+  lookup_insert_other valueVaultStateRel_preInit valueVault_initialize_simulates
+  valueVault_deposit_simulates valueVault_chargeFee_simulates valueVault_release_simulates
+  valueVault_snapshot_simulates valueVault_getBalance_simulates valueVault_getNetValue_simulates)
 
 def coreObservable (call : Call) (retNat : Nat) : ObservableReturn :=
   match call with
@@ -148,7 +148,53 @@ def postInitIr : IRState :=
 def postInitCore : CoreState :=
   { storage := canonicalCoreStorage 10 0 0 10 0 1, returnValue := #[], checkpoint := 0 }
 
+def zeroedCore : CoreState :=
+  { storage := canonicalCoreStorage 0 0 0 0 0 0, returnValue := #[], checkpoint := 0 }
+
+theorem valueVaultWasmRel_preInit :
+    ValueVaultWasmRel valueVaultPreInitIr zeroedCore :=
+  ⟨0, 0, 0, 0, 0, 0, valueVaultStateRel_preInit, rfl, rfl⟩
+
+/-- From pre-init-shaped state: `initialize initial` then any tail `calls`. -/
+theorem valueVaultWasm_trace_simulates_after_initialize
+    (initial : Nat) (calls : List Call) :
+    ∃ finalIr finalCore observables,
+      runTraceListGen valueVaultIrStep (.initialize initial :: calls) valueVaultPreInitIr =
+        .ok (finalIr, observables) ∧
+      runTraceListGen valueVaultWasmTargetStep (.initialize initial :: calls) zeroedCore =
+        .ok (finalCore, observables) ∧
+      ValueVaultWasmRel finalIr finalCore ∧
+      IRTraceMatches valueVaultIrStep valueVaultPreInitIr (.initialize initial :: calls) observables ∧
+      IRTraceMatches valueVaultWasmTargetStep zeroedCore (.initialize initial :: calls) observables := by
+  obtain ⟨nextIr', nextCore', obsInit, hirStep, hcoreStep, hrelNext⟩ :=
+    valueVaultWasm_step_simulates (.initialize initial) valueVaultWasmRel_preInit
+  obtain ⟨finalIr, finalCore, restObservables, hirRest, hcoreRest,
+      hrelFinal, hirTraceRest, hcoreTraceRest⟩ :=
+    valueVaultWasm_trace_simulates calls hrelNext
+  refine ⟨finalIr, finalCore, #[obsInit] ++ restObservables, ?_, ?_,
+    hrelFinal,
+    IRTraceMatches.cons hirStep hirTraceRest,
+    IRTraceMatches.cons hcoreStep hcoreTraceRest⟩
+  · exact runTraceListGen_cons_ok valueVaultIrStep (.initialize initial) calls valueVaultPreInitIr nextIr' obsInit
+      finalIr restObservables hirStep hirRest
+  · exact runTraceListGen_cons_ok valueVaultWasmTargetStep (.initialize initial) calls zeroedCore nextCore' obsInit
+      finalCore restObservables hcoreStep hcoreRest
+
 def canonicalTailCalls : List Call := [.deposit 5, .getNetValue]
+
+def canonicalFullCalls : List Call := [.initialize 10, .deposit 5, .getNetValue]
+
+/-- Portable anchor: `initialize 10` → `deposit 5` → `getNetValue` from pre-init IR + zeroed core. -/
+theorem valueVaultWasm_canonical_full_trace_simulates :
+    ∃ finalIr finalCore observables,
+      runTraceListGen valueVaultIrStep canonicalFullCalls valueVaultPreInitIr =
+        .ok (finalIr, observables) ∧
+      runTraceListGen valueVaultWasmTargetStep canonicalFullCalls zeroedCore =
+        .ok (finalCore, observables) ∧
+      ValueVaultWasmRel finalIr finalCore := by
+  obtain ⟨finalIr, finalCore, observables, hir, hcore, hrel, _, _⟩ :=
+    valueVaultWasm_trace_simulates_after_initialize 10 [.deposit 5, .getNetValue]
+  exact ⟨finalIr, finalCore, observables, hir, hcore, hrel⟩
 
 /-- After init-shaped state: `deposit 5` then `getNetValue`. -/
 theorem valueVaultWasm_canonical_tail_trace_simulates :
