@@ -3913,6 +3913,28 @@ def counterCompiledStateAt (state : EvmState) (pc : Nat) : Prop :=
     state.pc = EvmSemantics.UInt256.ofNat pc ∧
     EvmSemantics.Fork.Shanghai ≤ state.executionEnv.fork
 
+theorem counterReadyOpcodeAt_of_compiledStateAt
+    {state : EvmState}
+    {pc : Nat} {op : EvmSemantics.Operation}
+    {argOpt : Option (EvmSemantics.UInt256 × Nat)}
+    (hat : counterCompiledStateAt state pc)
+    (hpcNat : (EvmSemantics.UInt256.ofNat pc).toNat = pc)
+    (hdecode :
+      EvmSemantics.EVM.Decode.decodeAt counterCompiledRuntimeCode pc =
+        some (op, argOpt))
+    (hready : counterStepFEReady state op)
+    (havailable : op.availableInFork state.executionEnv.fork = true) :
+    ProofForge.Backend.Evm.PowdrExec.ReadyOpcodeAt
+      counterCompiledRuntimeCode pc op argOpt state := by
+  rcases hat with ⟨hcode, hpc, _hfork⟩
+  exact
+    { decoded :=
+        { codePc := ⟨hcode, hpc⟩
+          pcNat := hpcNat
+          decodedAt := hdecode
+          available := havailable }
+      ready := counterStepFEReady_to_powdr hready }
+
 theorem counterState_decoded_of_code_pc
     {state : EvmState}
     {pc : Nat} {op : EvmSemantics.Operation}
@@ -3947,6 +3969,37 @@ theorem counterPreparedDispatcherFirstPush0_decoded
     simp [EvmSemantics.Operation.availableInFork, counterPush0Op, hfork]
   exact counterState_decoded_of_code_pc hcode hpc hpcNat
     counterCompiledRuntimeCode_decodes_dispatcher_first_push0 havailable
+
+theorem counterPreparedDispatcherFirstPush0_reduction
+    {state : EvmState}
+    (hat : counterCompiledStateAt state 0)
+    (hready : counterStepFEReady state (.Push counterPush0Op)) :
+    ProofForge.Backend.Evm.PowdrExec.StepFEReduction state
+      ((state.consumeGas
+        (EvmSemantics.EVM.Gas.baseCost state.fork
+          (.Push counterPush0Op : EvmSemantics.Operation))
+        (counterStepFEReady_to_powdr hready).gas
+       ).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.ofNat 0 :: state.stack)) := by
+  have hpcNat : (EvmSemantics.UInt256.ofNat 0).toNat = 0 := by
+    native_decide
+  have havailable :
+      ((.Push counterPush0Op : EvmSemantics.Operation).availableInFork
+        state.executionEnv.fork) = true := by
+    rcases hat with ⟨_hcode, _hpc, hfork⟩
+    simp [EvmSemantics.Operation.availableInFork, counterPush0Op, hfork]
+  have hreadyAt :
+      ProofForge.Backend.Evm.PowdrExec.ReadyOpcodeAt
+        counterCompiledRuntimeCode 0 (.Push counterPush0Op)
+        (some (EvmSemantics.UInt256.ofNat 0, 0)) state :=
+    counterReadyOpcodeAt_of_compiledStateAt hat hpcNat
+      counterCompiledRuntimeCode_decodes_dispatcher_first_push0
+      hready havailable
+  simpa using
+    (ProofForge.Backend.Evm.PowdrExec.reduction_push0_at_ok
+      (op := counterPush0Op)
+      (argOpt := some (EvmSemantics.UInt256.ofNat 0, 0))
+      hreadyAt (by native_decide))
 
 theorem counterPreparedDispatcherCalldataload_decoded
     {state : EvmState}
