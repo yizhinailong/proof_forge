@@ -82,6 +82,25 @@ def copyProgramIdFromAccountIndex : Array AstNode :=
     storeReg .stxdw .r8 24 .r3
   ]
 
+/-- Default portable CPI account roles synthesized without Source.Solana:
+* slot 0 = **state** (input account index 0, writable) — portable IR state account
+* slot 1 = **callee** (runtime `target` index, readonly) — program being invoked
+
+`program_id` still comes from the callee key. Authors never list metas by hand. -/
+def portableCpiAccountCount : Nat := 2
+def portableStateAccountIndex : Nat := 0
+
+/-- Load input account pointer at a **compile-time** account index into r7. -/
+def loadAccountPtrFixed (accountIndex : Nat) : Array AstNode :=
+  stackPtr .r6 accountPtrTableOffset ++ #[
+    .instruction {
+      opcode := .ldxdw
+      dst := some .r7
+      src := some .r6
+      off := some (.num (accountIndex * 8))
+    }
+  ]
+
 /-- Resolve input account pointer for runtime index (saved target) into r7. -/
 def loadTargetAccountPtr : Array AstNode :=
   stackPtr .r6 accountPtrTableOffset ++ #[
@@ -96,24 +115,24 @@ def loadTargetAccountPtr : Array AstNode :=
     .instruction { opcode := .ldxdw, dst := some .r7, src := some .r6, off := some (.num 0) }
   ]
 
-/-- Pack one AccountMeta for the target program account (readonly, non-signer).
-Key pointer is the account's pubkey in input serialization. -/
-def packTargetAccountMeta : Array AstNode :=
+/-- After r7 holds the account start pointer, write AccountMeta at CPI slot. -/
+def storeAccountMetaFromR7 (slotIdx : Nat) (writable signer : Nat) (role : String) :
+    Array AstNode :=
+  let metaOffset := slotIdx * 16
   #[
-    .comment "portable CPI: AccountMeta[0] = account[target] (readonly, non-signer)"
-  ] ++
-  loadTargetAccountPtr ++ #[
+    .comment s!"portable CPI: AccountMeta[{slotIdx}] = {role} (writable={writable}, signer={signer})",
     .instruction { opcode := .add64, dst := some .r7, imm := some (.num ACCOUNT_HEADER_SIZE) }
   ] ++
   stackPtr .r6 cpiAccountMetaOffset ++ #[
+    .instruction { opcode := .add64, dst := some .r6, imm := some (.num metaOffset) },
     storeReg .stxdw .r6 0 .r7,
-    storeImm .stb .r6 8 0,  -- is_writable
-    storeImm .stb .r6 9 0   -- is_signer
+    storeImm .stb .r6 8 writable,
+    storeImm .stb .r6 9 signer
   ]
 
-/-- Pack one SolAccountInfo for the target account from input layout fields
-(header offsets are fixed relative to the account start pointer). -/
-def packTargetAccountInfo : Array AstNode :=
+/-- After r7 holds the account start pointer, write SolAccountInfo at CPI slot. -/
+def storeAccountInfoFromR7 (slotIdx : Nat) (role : String) : Array AstNode :=
+  let infoOffset := slotIdx * 56
   let signerOff := 1
   let writableOff := 2
   let executableOff := 3
@@ -123,35 +142,28 @@ def packTargetAccountInfo : Array AstNode :=
   let dataLenRel := lamportsRel + U64_SIZE
   let dataStartRel := dataLenRel + U64_SIZE
   #[
-    .comment "portable CPI: AccountInfo[0] from input account[target]"
+    .comment s!"portable CPI: AccountInfo[{slotIdx}] = {role}"
   ] ++
-  loadTargetAccountPtr ++
   stackPtr .r6 cpiAccountInfoOffset ++ #[
-    -- key_ptr
+    .instruction { opcode := .add64, dst := some .r6, imm := some (.num infoOffset) },
     .instruction { opcode := .mov64, dst := some .r8, src := some .r7 },
     .instruction { opcode := .add64, dst := some .r8, imm := some (.num keyRel) },
     storeReg .stxdw .r6 0 .r8,
-    -- lamports_ptr
     .instruction { opcode := .mov64, dst := some .r8, src := some .r7 },
     .instruction { opcode := .add64, dst := some .r8, imm := some (.num lamportsRel) },
     storeReg .stxdw .r6 8 .r8,
-    -- data_len
     .instruction { opcode := .mov64, dst := some .r8, src := some .r7 },
     .instruction { opcode := .add64, dst := some .r8, imm := some (.num dataLenRel) },
     .instruction { opcode := .ldxdw, dst := some .r3, src := some .r8, off := some (.num 0) },
     storeReg .stxdw .r6 16 .r3,
-    -- data_ptr
     .instruction { opcode := .mov64, dst := some .r8, src := some .r7 },
     .instruction { opcode := .add64, dst := some .r8, imm := some (.num dataStartRel) },
     storeReg .stxdw .r6 24 .r8,
-    -- owner_ptr
     .instruction { opcode := .mov64, dst := some .r8, src := some .r7 },
     .instruction { opcode := .add64, dst := some .r8, imm := some (.num ownerRel) },
     storeReg .stxdw .r6 32 .r8,
-    -- rent_epoch (placeholder 0; full layout needs data-size-dependent offset)
     loadImm .r3 0,
     storeReg .stxdw .r6 40 .r3,
-    -- is_signer / is_writable / executable flags from account header
     .instruction { opcode := .ldxb, dst := some .r3, src := some .r7, off := some (.num signerOff) },
     storeReg .stxb .r6 48 .r3,
     .instruction { opcode := .ldxb, dst := some .r3, src := some .r7, off := some (.num writableOff) },
@@ -160,10 +172,22 @@ def packTargetAccountInfo : Array AstNode :=
     storeReg .stxb .r6 50 .r3
   ]
 
-/-- Build SolInstruction C record: program_id, 1 account meta, ix data. -/
-def packSolInstruction (dataLen : Nat) : Array AstNode :=
+/-- Pack synthesized metas/infos: state@0 + callee@target. -/
+def packPortableAccountRoles : Array AstNode :=
+  #[.comment "portable CPI roles: [0]=state writable, [1]=callee readonly"] ++
+  loadAccountPtrFixed portableStateAccountIndex ++
+  storeAccountMetaFromR7 0 1 0 "state" ++
+  loadAccountPtrFixed portableStateAccountIndex ++
+  storeAccountInfoFromR7 0 "state" ++
+  loadTargetAccountPtr ++
+  storeAccountMetaFromR7 1 0 0 "callee" ++
+  loadTargetAccountPtr ++
+  storeAccountInfoFromR7 1 "callee"
+
+/-- Build SolInstruction C record: program_id, N account metas, ix data. -/
+def packSolInstruction (dataLen accountCount : Nat) : Array AstNode :=
   #[
-    .comment "portable CPI: SolInstruction (program_id, 1 meta, ix data)"
+    .comment s!"portable CPI: SolInstruction (program_id, {accountCount} metas, ix data)"
   ] ++
   stackPtr .r5 cpiInstructionOffset ++
   stackPtr .r8 cpiProgramIdOffset ++ #[
@@ -171,7 +195,7 @@ def packSolInstruction (dataLen : Nat) : Array AstNode :=
   ] ++
   stackPtr .r7 cpiAccountMetaOffset ++ #[
     storeReg .stxdw .r5 8 .r7,
-    loadImm .r3 1,
+    loadImm .r3 accountCount,
     storeReg .stxdw .r5 16 .r3
   ] ++
   stackPtr .r8 cpiInstructionDataOffset ++ #[
@@ -211,11 +235,11 @@ def decodeReturnDataU64 (retNoneLabel retEndLabel : String) : Array AstNode :=
     .label retEndLabel
   ]
 
-/-- Emit `sol_invoke_signed_c` with one account info (target) and zero signers.
-Preserves r1 (entry input). Result in r2: first return-data u64 or 0. -/
+/-- Emit `sol_invoke_signed_c` with synthesized state+callee account infos and
+zero signers. Preserves r1 (entry input). Result in r2: first return-data u64 or 0. -/
 def invokeSignedC (dataLen : Nat) (retNoneLabel retEndLabel : String) : Array AstNode :=
   #[
-    .comment s!"portable crosscall → sol_invoke_signed_c (data_len={dataLen}, accounts=1, signers=0)",
+    .comment s!"portable crosscall → sol_invoke_signed_c (data_len={dataLen}, accounts={portableCpiAccountCount}, signers=0)",
     .instruction {
       opcode := .stxdw
       dst := some .r10
@@ -224,15 +248,14 @@ def invokeSignedC (dataLen : Nat) (retNoneLabel retEndLabel : String) : Array As
     }
   ] ++
   copyProgramIdFromAccountIndex ++
-  packTargetAccountMeta ++
-  packTargetAccountInfo ++
-  packSolInstruction dataLen ++
+  packPortableAccountRoles ++
+  packSolInstruction dataLen portableCpiAccountCount ++
   stackPtr .r1 cpiInstructionOffset ++
   stackPtr .r2 cpiAccountInfoOffset ++ #[
-    loadImm .r3 1,
+    loadImm .r3 portableCpiAccountCount,
     loadImm .r4 0,
     loadImm .r5 0,
-    .comment "r1=instruction_ptr r2=account_infos_ptr r3=1 r4=0 r5=0",
+    .comment s!"r1=instruction_ptr r2=account_infos_ptr r3={portableCpiAccountCount} r4=0 r5=0",
     callSyscall sol_invoke_signed_c,
     .instruction {
       opcode := .jne
@@ -355,6 +378,6 @@ def materializationNote (module : Module) : String :=
   if sites.isEmpty then
     "no portable crosscall sites"
   else
-    s!"portable crosscall.invoke ×{sites.size} → Solana CPI via sol_invoke_signed_c (method u64 + args as ix data; program id from account[target])"
+    s!"portable crosscall.invoke ×{sites.size} → Solana CPI via sol_invoke_signed_c (ix data; metas=[state@0,callee@target]; return-data u64)"
 
 end ProofForge.Backend.Solana.PortableCrosscall

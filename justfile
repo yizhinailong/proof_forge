@@ -127,7 +127,7 @@ ir-counter-semantics-smoke:
 
 # D-050: portable IR + target-resolved StorageBinding smoke.
 ir-portability-smoke:
-    lake build ProofForge.IR.Portability ProofForge.Target.StorageBinding ProofForge.IR.Examples.Counter ProofForge.Backend.Evm.Validate ProofForge.Backend.Move.Sui ProofForge.Backend.Move.Aptos
+    lake build ProofForge.IR.Portability ProofForge.IR.NearHost ProofForge.Target.StorageBinding ProofForge.IR.Examples.Counter ProofForge.IR.Examples.NearCrosscallProbe ProofForge.Backend.Evm.Validate ProofForge.Backend.Move.Sui ProofForge.Backend.Move.Aptos
     lake env lean --run Tests/IRPortability.lean
 
 # FV-9.0 M6: exercise the shared total fueled IR interpreter (the ∀-module theorem's quantification target).
@@ -363,6 +363,10 @@ wasm-near-ft-transfer-call-e2e:
 # Build the shared portable Counter to EVM, Solana sBPF, and NEAR/Wasm from one source file.
 portable-counter-multi-target:
     scripts/portable/counter-multi-target.sh
+
+# Shared RemoteCall → EVM CALL · Solana CPI · NEAR promise_create (CLI multi-target).
+portable-remote-call-multi-target:
+    scripts/portable/remote-call-multi-target.sh
 
 # Build the shared ArrayExample to EVM, Solana sBPF, and NEAR/Wasm from one source file.
 portable-array-example-multi-target:
@@ -665,6 +669,7 @@ primary-materialize:
 crosscall-materialize:
     lake build ProofForge.Backend.Solana.PortableCrosscall ProofForge.Backend.WasmNear.PortableCrosscall ProofForge.IR.Examples.CrosscallProbe ProofForge.IR.Examples.NearCrosscallProbe Examples.Shared.RemoteCall ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmNear.EmitWat ProofForge.Backend.CosmWasm.EmitWat ProofForge.Backend.Psy.IR
     lake env lean --run Tests/CrosscallMaterialize.lean
+    just portable-remote-call-multi-target
 
 
 # Check translated documentation freshness and example topology.

@@ -9,8 +9,7 @@ STATICCALL. Backends materialize:
 
   --target evm              → CALL
   --target solana-sbpf-asm  → sol_invoke_signed_c CPI packing
-  --target wasm-near        → promise_create (needs nearCrosscallStrings for
-                              account/method names when using address indices)
+  --target wasm-near        → promise_create (string pool via registerNearCrosscallString)
 
   lake env proof-forge build --target evm --root . \
     -o build/portable-remote-call/RemoteCall.bin \
@@ -20,8 +19,11 @@ STATICCALL. Backends materialize:
     -o build/portable-remote-call/RemoteCall.s \
     Examples/Shared/RemoteCall.lean
 
-See `just crosscall-materialize` for the IR multi-target gate (includes NEAR
-string-pool portable path via NearCrosscallProbe.portableModule).
+  lake env proof-forge build --target wasm-near --root . \
+    -o build/portable-remote-call/near \
+    Examples/Shared/RemoteCall.lean
+
+See `just portable-remote-call-multi-target` / `just crosscall-materialize`.
 -/
 import ProofForge.Contract.Source
 
@@ -30,19 +32,29 @@ namespace Examples.Shared.RemoteCall
 open ProofForge.Contract.Source
 
 contract_source RemoteCall do
+  -- NEAR host string pool (target metadata). Harmless on EVM/Solana; required
+  -- for wasm-near promise_create account/method name resolution.
+  do ProofForge.Contract.Surface.registerNearCrosscallString "callee.example.near";
+  do ProofForge.Contract.Surface.registerNearCrosscallString "remote_call";
+
   state marker : .u64
 
   entry «initialize» do
     marker := u64 0;
 
-  -- Portable remote invoke: target + method as u64 handles, no args.
-  entry call_remote (target : .u64, method : .u64) returns(.u64) do
-    return ProofForge.Contract.Surface.remoteCall (expr target) (expr method) #[];
+  -- Portable remote invoke: address-literal indices into nearCrosscallStrings
+  -- (also fine as numeric handles on EVM/Solana).
+  entry call_remote returns(.u64) do
+    return ProofForge.Contract.Surface.remoteCall
+      (ProofForge.Contract.Surface.nearAddressLit 0)
+      (ProofForge.Contract.Surface.nearAddressLit 1)
+      #[];
 
-  -- Portable remote invoke with two u64 args packed by the target backend.
-  entry call_with_args (target : .u64, method : .u64, amount : .u64, fee : .u64)
-      returns(.u64) do
-    return ProofForge.Contract.Surface.remoteCall (expr target) (expr method)
-      #[expr amount, expr fee];
+  -- Portable remote invoke with two constant u64 args.
+  entry call_with_args returns(.u64) do
+    return ProofForge.Contract.Surface.remoteCall
+      (ProofForge.Contract.Surface.nearAddressLit 0)
+      (ProofForge.Contract.Surface.nearAddressLit 1)
+      #[u64 42, u64 7];
 
 end Examples.Shared.RemoteCall

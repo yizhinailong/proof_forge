@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 D-050: portable IR stays chain-neutral; `--target` selects storage binding.
 -/
 import ProofForge.IR.Portability
+import ProofForge.IR.NearHost
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.NearCrosscallProbe
 import ProofForge.Backend.Move.Sui
@@ -15,6 +16,7 @@ import ProofForge.Target.StorageBinding
 
 open ProofForge.IR
 open ProofForge.IR.Portability
+open ProofForge.IR.NearHost
 open ProofForge.Target
 
 def require (cond : Bool) (msg : String) : IO Unit :=
@@ -198,5 +200,9 @@ def main : IO Unit := do
           f.detail.startsWith "nearPromise" || f.detail.startsWith "nearCrosscallInvokePool"
       | _ => false)
     "portable NEAR module must not use nearPromise* constructors"
+  require (usesPromiseExtension nearExt) "NearHost.usesPromiseExtension on extension fixture"
+  require (!usesPromiseExtension nearPortable) "NearHost: portable probe has no promise extension"
+  require (isPortableNearCrosscall nearPortable) "NearHost: portable probe is portable NEAR crosscall"
+  require (!isPortableNearCrosscall nearExt) "NearHost: extension module is not portable-only"
 
   IO.println "ir-portability: ok"

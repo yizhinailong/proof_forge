@@ -508,6 +508,16 @@ def ensureType (context : String) (expected actual : ValueType) : Except LowerEr
   | .ok _ => .ok ()
   | .error diag => .error { message := diag.message }
 
+/-- Portable contract / method handles: `U64` words or portable identity `Address`. -/
+def ensureCrosscallHandleType (context : String) (actual : ValueType) : Except LowerError Unit :=
+  match actual with
+  | .u64 | .address => .ok ()
+  | _ =>
+      .error {
+        message :=
+          s!"{context} expected `U64` or `Address` (portable handle), got `{actual.name}`"
+      }
+
 def ensureNumericType (context : String) (lhs rhs : ValueType) : Except LowerError ValueType :=
   match lhs, rhs with
   | .u8, .u8 => .ok .u8

@@ -103,6 +103,13 @@ partial def lowerExpr (ctx : LowerCtx) (expr : IR.Expr) : Except LowerError (Arr
     .ok (#[ .instruction (res .mov64 (imm := some (.num 1))) ], ctx)
   | .literal (.bool false) =>
     .ok (#[ .instruction (res .mov64 (imm := some (.num 0))) ], ctx)
+  -- Portable identity/account handles (NEAR string-pool indices, Solana account
+  -- indices, EVM address words) lower as u64 immediates on Solana.
+  | .literal (.address n) =>
+    .ok (#[
+      .comment s!"portable address handle → u64 account index {n}",
+      .instruction (res .mov64 (imm := some (.num n)))
+    ], ctx)
   | .literal _ => .error { message := "unsupported literal type in Phase 1" }
   | .local name =>
     match ctx.localInfo? name with

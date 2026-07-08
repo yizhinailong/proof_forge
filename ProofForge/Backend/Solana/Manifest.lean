@@ -435,22 +435,42 @@ def buildEntrypointAccounts (module : Module) (extensions : ProgramExtensions)
   alignInstructionAccountsWithModuleOrder moduleAccounts
     (buildInstructionAccounts module extensions entrypoint)
 
-/-- Phase B.3: when portable IR uses `crosscall.invoke`, materialize a
-`callee_program` executable account so CPI can resolve program id by index. -/
+/-- Phase B.3: when portable IR uses `crosscall.invoke`, synthesize the default
+CPI account roles on the transaction account list:
+
+* `state` / default state account (index 0, already from `buildDefaultAccounts`)
+* `payer` — fee-payer signer (optional helper; not required in CPI metas)
+* `callee_program` — executable account for program-id lookup by index
+
+Authors still do not write CPI account metas; the lowerer packs state@0 +
+callee@target into `sol_invoke_signed_c`. -/
 def ensurePortableCrosscallAccounts (module : Module) (accounts : Array AccountEntry) :
     Array AccountEntry :=
   if !(module.capabilities.any (fun c => c == .crosscallInvoke)) then
     accounts
-  else if accounts.any (fun a => a.name == "callee_program") then
-    accounts
   else
-    pushAccount accounts {
-      name := "callee_program"
-      index := 0
-      signer := false
-      writable := false
-      owner := "executable"
-    }
+    let accounts :=
+      if accounts.any (fun a => a.name == "payer") ||
+          accounts.any (fun a => a.signer) then
+        accounts
+      else
+        pushAccount accounts {
+          name := "payer"
+          index := 0
+          signer := true
+          writable := true
+          owner := "any"
+        }
+    if accounts.any (fun a => a.name == "callee_program") then
+      accounts
+    else
+      pushAccount accounts {
+        name := "callee_program"
+        index := 0
+        signer := false
+        writable := false
+        owner := "executable"
+      }
 
 def buildModuleAccounts (module : Module) (extensions : ProgramExtensions) : Array AccountEntry :=
   let accounts := buildDefaultAccounts module

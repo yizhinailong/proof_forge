@@ -146,36 +146,45 @@ mutual
         .ok .hash
     | .nativeValue => .ok .u64
     | .crosscallInvoke target methodId args => do
-        ensureType "crosscall target contract id" .u64 (← inferExprType module env target)
-        ensureType "crosscall method id" .u64 (← inferExprType module env methodId)
+        ensureCrosscallHandleType "crosscall target contract id"
+          (← inferExprType module env target)
+        ensureCrosscallHandleType "crosscall method id" (← inferExprType module env methodId)
         for arg in args do
           ensureType "crosscall argument" .u64 (← inferExprType module env arg)
         .ok .u64
     | .crosscallInvokeTyped target methodId args returnType => do
-        ensureType "typed crosscall target contract id" .u64 (← inferExprType module env target)
-        ensureType "typed crosscall method id" .u64 (← inferExprType module env methodId)
+        ensureCrosscallHandleType "typed crosscall target contract id"
+          (← inferExprType module env target)
+        ensureCrosscallHandleType "typed crosscall method id"
+          (← inferExprType module env methodId)
         discard <| crosscallReturnWordTypes module "typed crosscall return" returnType
         for arg in args do
           discard <| crosscallArgWordTypes module "typed crosscall argument" (← inferExprType module env arg)
         .ok returnType
     | .crosscallInvokeValueTyped target methodId callValue args returnType => do
-        ensureType "value crosscall target contract id" .u64 (← inferExprType module env target)
-        ensureType "value crosscall method id" .u64 (← inferExprType module env methodId)
+        ensureCrosscallHandleType "value crosscall target contract id"
+          (← inferExprType module env target)
+        ensureCrosscallHandleType "value crosscall method id"
+          (← inferExprType module env methodId)
         ensureType "value crosscall call value" .u64 (← inferExprType module env callValue)
         discard <| crosscallReturnWordTypes module "value crosscall return" returnType
         for arg in args do
           discard <| crosscallArgWordTypes module "value crosscall argument" (← inferExprType module env arg)
         .ok returnType
     | .crosscallInvokeStaticTyped target methodId args returnType => do
-        ensureType "static crosscall target contract id" .u64 (← inferExprType module env target)
-        ensureType "static crosscall method id" .u64 (← inferExprType module env methodId)
+        ensureCrosscallHandleType "static crosscall target contract id"
+          (← inferExprType module env target)
+        ensureCrosscallHandleType "static crosscall method id"
+          (← inferExprType module env methodId)
         discard <| crosscallReturnWordTypes module "static crosscall return" returnType
         for arg in args do
           discard <| crosscallArgWordTypes module "static crosscall argument" (← inferExprType module env arg)
         .ok returnType
     | .crosscallInvokeDelegateTyped target methodId args returnType => do
-        ensureType "delegate crosscall target contract id" .u64 (← inferExprType module env target)
-        ensureType "delegate crosscall method id" .u64 (← inferExprType module env methodId)
+        ensureCrosscallHandleType "delegate crosscall target contract id"
+          (← inferExprType module env target)
+        ensureCrosscallHandleType "delegate crosscall method id"
+          (← inferExprType module env methodId)
         discard <| crosscallReturnWordTypes module "delegate crosscall return" returnType
         for arg in args do
           discard <| crosscallArgWordTypes module "delegate crosscall argument" (← inferExprType module env arg)

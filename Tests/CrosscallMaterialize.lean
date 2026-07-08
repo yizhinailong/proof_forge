@@ -48,6 +48,8 @@ def main : IO Unit := do
   let modAccounts := buildModuleAccounts solProbe {}
   require (modAccounts.any (fun a => a.name == "callee_program"))
     "Solana materialization should add callee_program for portable crosscall"
+  require (modAccounts.any (fun a => a.name == "payer" || a.signer))
+    "Solana materialization should synthesize a payer/signer role for portable crosscall"
   match ProofForge.Backend.Solana.SbpfAsm.renderModule solProbe with
   | .error e => throw (IO.userError s!"Solana lower solanaPortableModule failed: {e.message}")
   | .ok src =>
@@ -55,6 +57,8 @@ def main : IO Unit := do
       require (src.contains "sol_invoke_signed_c") "asm packs real sol_invoke_signed_c"
       require (src.contains "AccountMeta") "asm packs account metas"
       require (src.contains "AccountInfo") "asm packs account infos"
+      require (src.contains "state") "asm packs state account role"
+      require (src.contains "callee") "asm packs callee account role"
       require (src.contains "sol_get_return_data") "asm decodes return data"
       require (src.contains "error_cpi") "asm traps CPI failures"
 

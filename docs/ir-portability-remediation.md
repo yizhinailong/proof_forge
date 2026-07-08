@@ -55,12 +55,12 @@ pick a chain at write time and violated D-028. **Removed.**
 
 - [x] NEAR Promise product split (D-050 Slice 3 partial): portable path is
       `crosscall.invoke` + `nearCrosscallStrings` → `promise_create`
-      (`Backend.WasmNear.PortableCrosscall`, `NearCrosscallProbe.portableModule`).
-      `nearPromiseThen` / result constructors remain host-extension fixtures
-      (`promiseExtensionModule`) and classify as `targetFamilyOnly .wasmHost`.
-      Full removal of Promise constructors from the `Expr` inductive is deferred
-      (every Expr match site); they are already non-portable-core and rejected
-      off wasmHost.
+      (`Backend.WasmNear.PortableCrosscall`, `NearCrosscallProbe.portableModule`,
+      `Shared.RemoteCall`, `just portable-remote-call-multi-target`).
+      Host-extension vocabulary: `ProofForge.IR.NearHost` + `Source.Near`.
+      `nearPromiseThen` / result constructors remain on `Expr` for EmitWat
+      coverage but are non-portable-core (`targetFamilyOnly .wasmHost`);
+      full inductive removal is deferred (every Expr match site).
 - [x] Generalize Move entrypoint lowering beyond hardcoded Counter entrypoint
       names — Aptos `renderEntrypoint` now classifies entrypoints by IR body
       shape (`matchInitShape` / `matchIncrementShape` / `matchGetShape`) against

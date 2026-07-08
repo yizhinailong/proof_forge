@@ -28,7 +28,7 @@ NEAR/Wasm:
 | Example | Source | Checked demo |
 |---|---|---|
 | Counter | [Counter.lean](Counter.lean) | `just portable-counter-multi-target` |
-| RemoteCall | [RemoteCall.lean](RemoteCall.lean) | `just crosscall-materialize` (EVM CALL · Solana CPI · NEAR promise path) |
+| RemoteCall | [RemoteCall.lean](RemoteCall.lean) | `just portable-remote-call-multi-target` / `just crosscall-materialize` |
 | ArrayExample | [ArrayExample.lean](ArrayExample.lean) | `just portable-array-example-multi-target` |
 | Ownable | [Ownable.lean](Ownable.lean) | `just portable-stdlib-core-multi-target`; shared facade over the canonical stdlib mixin |
 | Pausable | [Pausable.lean](Pausable.lean) | `just portable-stdlib-core-multi-target`; shared facade over the canonical stdlib mixin |
