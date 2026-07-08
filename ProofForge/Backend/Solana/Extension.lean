@@ -79,14 +79,13 @@ def lowerEntrypointActions (extensions : ProgramExtensions) (entrypoint : String
     transferHookExtraAccountMetaListActions.foldl
       (fun acc action => acc ++ lowerTransferHookExtraAccountMetaListAction action) #[]
 
+/-- Extension-only trap labels. `error_cpi` lives in `SbpfAsm.lowerModuleCoreWithSeed`
+so portable crosscall materialization can jump to it without Source.Solana
+extensions present (and so plan-driven modules do not emit the label twice). -/
 def lowerExtensionErrors : Array AstNode := #[
   .blankLine,
   .label "error_pda",
   .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 7) },
-  .instruction { opcode := .exit },
-  .blankLine,
-  .label "error_cpi",
-  .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 8) },
   .instruction { opcode := .exit },
   .blankLine,
   .label "error_crypto",

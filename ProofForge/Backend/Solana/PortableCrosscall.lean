@@ -19,14 +19,127 @@ account is available for CPI program-id lookup by index (authors still do not
 write `cpi` DSL — the runtime passes the callee as an extra account).
 -/
 import ProofForge.IR.Contract
+import ProofForge.Backend.Solana.Asm
 import ProofForge.Backend.Solana.Manifest
+import ProofForge.Backend.Solana.Extension.Common
 import ProofForge.Backend.Solana.Extension.Types
+import ProofForge.Backend.Solana.StateLayout
+import ProofForge.Backend.Solana.Syscalls
 
 namespace ProofForge.Backend.Solana.PortableCrosscall
 
 open ProofForge.IR
+open ProofForge.Backend.Solana.Asm
 open ProofForge.Backend.Solana.Manifest
 open ProofForge.Backend.Solana.Extension
+open ProofForge.Backend.Solana.StateLayout
+open ProofForge.Backend.Solana.Syscalls
+
+/-- Stack word for runtime account-index (`target`) of a portable crosscall.
+Sits just below the account pointer table so it never collides with the fixed
+CPI packing frame (`cpiInstructionOffset` … `cpiSignerSeedDataOffset`). -/
+def portableTargetIndexSaveOffset : Nat := 3264
+
+/-- Store r2 (u64) into portable instruction data at word index `wordIdx`. -/
+def storeIxDataWord (wordIdx : Nat) : Array AstNode :=
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    .instruction {
+      opcode := .stxdw
+      dst := some .r8
+      off := some (.num (wordIdx * 8))
+      src := some .r2
+    }
+  ]
+
+/-- Copy 32-byte pubkey from the input account at runtime index (stack word at
+`portableTargetIndexSaveOffset`) into `cpiProgramIdOffset`. Account keys sit
+`ACCOUNT_HEADER_SIZE` bytes into each serialized input account; the pointer
+table is built by the entrypoint prologue. -/
+def copyProgramIdFromAccountIndex : Array AstNode :=
+  #[
+    .comment "portable CPI: program_id ← input account[target].key (32 bytes)"
+  ] ++
+  stackPtr .r6 accountPtrTableOffset ++ #[
+    .instruction {
+      opcode := .ldxdw
+      dst := some .r2
+      src := some .r10
+      off := some (.num portableTargetIndexSaveOffset)
+    },
+    .instruction { opcode := .mul64, dst := some .r2, imm := some (.num 8) },
+    .instruction { opcode := .add64, dst := some .r6, src := some .r2 },
+    .instruction { opcode := .ldxdw, dst := some .r7, src := some .r6, off := some (.num 0) },
+    .instruction { opcode := .add64, dst := some .r7, imm := some (.num ACCOUNT_HEADER_SIZE) }
+  ] ++
+  stackPtr .r8 cpiProgramIdOffset ++ #[
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 0) },
+    storeReg .stxdw .r8 0 .r3,
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 8) },
+    storeReg .stxdw .r8 8 .r3,
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 16) },
+    storeReg .stxdw .r8 16 .r3,
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 24) },
+    storeReg .stxdw .r8 24 .r3
+  ]
+
+/-- Build SolInstruction C record with zero account metas and `dataLen` bytes
+of instruction data at `cpiInstructionDataOffset`. -/
+def packSolInstruction (dataLen : Nat) : Array AstNode :=
+  #[
+    .comment "portable CPI: SolInstruction (program_id, empty metas, ix data)"
+  ] ++
+  stackPtr .r5 cpiInstructionOffset ++
+  stackPtr .r8 cpiProgramIdOffset ++ #[
+    storeReg .stxdw .r5 0 .r8
+  ] ++
+  stackPtr .r7 cpiAccountMetaOffset ++ #[
+    storeReg .stxdw .r5 8 .r7,
+    loadImm .r3 0,
+    storeReg .stxdw .r5 16 .r3
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    storeReg .stxdw .r5 24 .r8,
+    loadImm .r3 dataLen,
+    storeReg .stxdw .r5 32 .r3
+  ]
+
+/-- Emit `sol_invoke_signed_c` with zero account infos and zero signers.
+Preserves the entry input pointer in r1 across the syscall. Result: r2 = 0
+(return-data path is a follow-on stub when callee writes return data). -/
+def invokeSignedC (dataLen : Nat) : Array AstNode :=
+  #[
+    .comment s!"portable crosscall → sol_invoke_signed_c (data_len={dataLen}, accounts=0, signers=0)",
+    .instruction {
+      opcode := .stxdw
+      dst := some .r10
+      off := some (.num entryInputSaveOffset)
+      src := some .r1
+    }
+  ] ++
+  copyProgramIdFromAccountIndex ++
+  packSolInstruction dataLen ++
+  stackPtr .r1 cpiInstructionOffset ++
+  stackPtr .r2 cpiAccountInfoOffset ++ #[
+    loadImm .r3 0,
+    loadImm .r4 0,
+    loadImm .r5 0,
+    .comment "r1=instruction_ptr r2=account_infos_ptr r3=0 r4=0 r5=0",
+    callSyscall sol_invoke_signed_c,
+    .instruction {
+      opcode := .jne
+      dst := some .r0
+      imm := some (.num 0)
+      off := some (.sym "error_cpi")
+    },
+    .instruction {
+      opcode := .ldxdw
+      dst := some .r1
+      src := some .r10
+      off := some (.num entryInputSaveOffset)
+    },
+    .comment "portable CPI result: u64 0 (callee return-data not yet decoded)",
+    .instruction { opcode := .mov64, dst := some .r2, imm := some (.num 0) }
+  ]
 
 structure PortableCrosscallSite where
   entrypoint : String
@@ -134,6 +247,6 @@ def materializationNote (module : Module) : String :=
   if sites.isEmpty then
     "no portable crosscall sites"
   else
-    s!"portable crosscall.invoke ×{sites.size} → Solana CPI materialization (method u64 + args as ix data; program account by index)"
+    s!"portable crosscall.invoke ×{sites.size} → Solana CPI via sol_invoke_signed_c (method u64 + args as ix data; program id from account[target])"
 
 end ProofForge.Backend.Solana.PortableCrosscall

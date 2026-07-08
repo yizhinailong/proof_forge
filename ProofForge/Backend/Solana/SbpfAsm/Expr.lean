@@ -8,12 +8,14 @@ Lowering from portable IR expressions to Solana sBPF assembly AST nodes.
 -/
 
 import ProofForge.Backend.Solana.SbpfAsm.Common
+import ProofForge.Backend.Solana.PortableCrosscall
 
 namespace ProofForge.Backend.Solana.SbpfAsm
 
 open ProofForge.IR
 open ProofForge.Backend.Solana.Asm
 open ProofForge.Backend.Solana.Extension
+open ProofForge.Backend.Solana.PortableCrosscall
 open ProofForge.Backend.Solana.StateLayout
 open ProofForge.Backend.Solana.Manifest
 open ProofForge.Backend.Solana.Register
@@ -541,55 +543,32 @@ partial def lowerExpr (ctx : LowerCtx) (expr : IR.Expr) : Except LowerError (Arr
 where
   lowerPortableCrosscallInvoke (ctx0 : LowerCtx) (target method : IR.Expr) (args : Array IR.Expr) :
       Except LowerError (Array AstNode × LowerCtx) := do
+    -- Evaluate operands into r2, then write into the fixed CPI frame so stack
+    -- locals never collide with cpiInstructionOffset…cpiProgramIdOffset.
     let (tNodes, ctx1) ← lowerExpr ctx0 target
-    let (tScratch, ctx2) := ctx1.allocScratch
-    let (mNodes, ctx3) ← lowerExpr ctx2 method
-    let (mScratch, ctx4) := ctx3.allocScratch
-    let mut workCtx := ctx4
-    let mut argNodes : Array AstNode := #[]
-    let mut argScratches : Array Nat := #[]
-    for arg in args do
-      let (n, c1) ← lowerExpr workCtx arg
-      let (s, c2) := c1.allocScratch
-      argNodes := argNodes ++ n ++ #[
-        .instruction { opcode := .stxdw, dst := some .r10, off := some (.num s), src := some .r2 }
-      ]
-      argScratches := argScratches.push s
-      workCtx := c2
-    let dataWords := 1 + args.size
-    let dataBytes := dataWords * 8
-    let (dataBase, workCtx') := workCtx.allocScratchBytes dataBytes
-    workCtx := workCtx'
-    let mut pack : Array AstNode :=
-      tNodes ++ #[
-        .instruction { opcode := .stxdw, dst := some .r10, off := some (.num tScratch), src := some .r2 }
-      ] ++ mNodes ++ #[
-        .instruction { opcode := .stxdw, dst := some .r10, off := some (.num mScratch), src := some .r2 },
-        .comment "portable crosscall → Solana CPI materialization",
-        .comment s!"ix data: method u64 + {args.size} arg u64(s) at stack off {dataBase}",
-        .instruction { opcode := .ldxdw, dst := some .r2, src := some .r10, off := some (.num mScratch) },
-        .instruction { opcode := .stxdw, dst := some .r10, off := some (.num dataBase), src := some .r2 }
-      ]
-    for i in [:args.size] do
-      let s := argScratches[i]!
-      let off := dataBase + 8 * (i + 1)
-      pack := pack ++ #[
-        .instruction { opcode := .ldxdw, dst := some .r2, src := some .r10, off := some (.num s) },
-        .instruction { opcode := .stxdw, dst := some .r10, off := some (.num off), src := some .r2 }
-      ]
-    let logNodes : Array AstNode := #[
-      .instruction { opcode := .ldxdw, dst := some .r1, src := some .r10, off := some (.num tScratch) },
-      .instruction { opcode := .ldxdw, dst := some .r2, src := some .r10, off := some (.num mScratch) },
-      .instruction { opcode := .mov64, dst := some .r3, imm := some (.num args.size) },
-      .instruction { opcode := .mov64, dst := some .r4, imm := some (.num dataBytes) },
-      .instruction { opcode := .mov64, dst := some .r5, imm := some (.num 0) },
-      .instruction { opcode := .call, imm := some (.sym sol_log_64_) },
-      .comment "callee_program account index in target; return-data u64 default 0",
-      .instruction { opcode := .mov64, dst := some .r2, imm := some (.num 0) },
-      .instruction { opcode := .call, imm := some (.sym sol_get_return_data) },
-      .instruction { opcode := .mov64, dst := some .r2, imm := some (.num 0) }
+    let saveTarget : Array AstNode := tNodes ++ #[
+      .instruction {
+        opcode := .stxdw
+        dst := some .r10
+        off := some (.num portableTargetIndexSaveOffset)
+        src := some .r2
+      }
     ]
-    .ok (argNodes ++ pack ++ logNodes, workCtx)
+    let (mNodes, ctx2) ← lowerExpr ctx1 method
+    let mut nodes : Array AstNode :=
+      saveTarget ++ mNodes ++
+        #[.comment "portable crosscall → Solana CPI (method + args as ix data)"] ++
+        storeIxDataWord 0
+    let mut workCtx := ctx2
+    let mut argIdx : Nat := 0
+    for arg in args do
+      let (n, c) ← lowerExpr workCtx arg
+      nodes := nodes ++ n ++ storeIxDataWord (argIdx + 1)
+      workCtx := c
+      argIdx := argIdx + 1
+    let dataBytes := (1 + args.size) * 8
+    nodes := nodes ++ invokeSignedC dataBytes
+    .ok (nodes, workCtx)
 
   lowerCmp (ctx : LowerCtx) (lhs rhs : IR.Expr) (condJmp : Opcode) : Except LowerError (Array AstNode × LowerCtx) := do
     let (ln, ctx) ← lowerExpr ctx lhs

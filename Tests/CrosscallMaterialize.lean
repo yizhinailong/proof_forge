@@ -47,8 +47,8 @@ def main : IO Unit := do
   | .error e => throw (IO.userError s!"Solana lower solanaPortableModule failed: {e.message}")
   | .ok src =>
       require (src.contains "portable crosscall") "asm should mark CPI materialization"
-      require (src.contains "sol_log_64_") "asm logs crosscall observability"
-      require (src.contains "sol_get_return_data") "asm reads return data after CPI shape"
+      require (src.contains "sol_invoke_signed_c") "asm packs real sol_invoke_signed_c"
+      require (src.contains "error_cpi") "asm traps CPI failures"
 
   -- NEAR: string-pool Promise path for NearCrosscallProbe.
   require ((forProfile wasmNear).nativeForm == NativeForm.nearPromise) "NEAR form"

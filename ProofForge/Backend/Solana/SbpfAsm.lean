@@ -439,6 +439,11 @@ partial def lowerModuleCoreWithSeed (module : IR.Module)
     .blankLine,
     .label "error_array_bounds",
     .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 12) },
+    .instruction { opcode := .exit },
+    .blankLine,
+    -- Portable crosscall materialization and Source.Solana CPI share this trap.
+    .label "error_cpi",
+    .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 8) },
     .instruction { opcode := .exit }
   ]
   if moduleNeedsSyscallError module then
