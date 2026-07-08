@@ -504,6 +504,68 @@ theorem stepFEPath_twelve
     stepFEPath_six hr6 h6 hr7 h7 hr8 h8 hr9 h9 hr10 h10 hr11 h11
   simpa using stepFEPath_append hfirst hsecond
 
+theorem stepFEReductionChain_two {s0 s1 s2 : State}
+    (r0 : StepFEReduction s0 s1)
+    (r1 : StepFEReduction s1 s2) :
+    StepFEReductionChain s0 2 s2 := by
+  exact .cons r0 (.cons r1 (.nil s2))
+
+theorem stepFEReductionChain_three {s0 s1 s2 s3 : State}
+    (r0 : StepFEReduction s0 s1)
+    (r1 : StepFEReduction s1 s2)
+    (r2 : StepFEReduction s2 s3) :
+    StepFEReductionChain s0 3 s3 := by
+  exact .cons r0 (.cons r1 (.cons r2 (.nil s3)))
+
+theorem stepFEReductionChain_four {s0 s1 s2 s3 s4 : State}
+    (r0 : StepFEReduction s0 s1)
+    (r1 : StepFEReduction s1 s2)
+    (r2 : StepFEReduction s2 s3)
+    (r3 : StepFEReduction s3 s4) :
+    StepFEReductionChain s0 4 s4 := by
+  exact .cons r0 (.cons r1 (.cons r2 (.cons r3 (.nil s4))))
+
+theorem stepFEReductionChain_five {s0 s1 s2 s3 s4 s5 : State}
+    (r0 : StepFEReduction s0 s1)
+    (r1 : StepFEReduction s1 s2)
+    (r2 : StepFEReduction s2 s3)
+    (r3 : StepFEReduction s3 s4)
+    (r4 : StepFEReduction s4 s5) :
+    StepFEReductionChain s0 5 s5 := by
+  exact .cons r0 (.cons r1 (.cons r2 (.cons r3 (.cons r4 (.nil s5)))))
+
+theorem stepFEReductionChain_six {s0 s1 s2 s3 s4 s5 s6 : State}
+    (r0 : StepFEReduction s0 s1)
+    (r1 : StepFEReduction s1 s2)
+    (r2 : StepFEReduction s2 s3)
+    (r3 : StepFEReduction s3 s4)
+    (r4 : StepFEReduction s4 s5)
+    (r5 : StepFEReduction s5 s6) :
+    StepFEReductionChain s0 6 s6 := by
+  exact .cons r0
+    (.cons r1 (.cons r2 (.cons r3 (.cons r4 (.cons r5 (.nil s6))))))
+
+theorem stepFEReductionChain_twelve
+    {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 : State}
+    (r0 : StepFEReduction s0 s1)
+    (r1 : StepFEReduction s1 s2)
+    (r2 : StepFEReduction s2 s3)
+    (r3 : StepFEReduction s3 s4)
+    (r4 : StepFEReduction s4 s5)
+    (r5 : StepFEReduction s5 s6)
+    (r6 : StepFEReduction s6 s7)
+    (r7 : StepFEReduction s7 s8)
+    (r8 : StepFEReduction s8 s9)
+    (r9 : StepFEReduction s9 s10)
+    (r10 : StepFEReduction s10 s11)
+    (r11 : StepFEReduction s11 s12) :
+    StepFEReductionChain s0 12 s12 := by
+  have hfirst : StepFEReductionChain s0 6 s6 :=
+    stepFEReductionChain_six r0 r1 r2 r3 r4 r5
+  have hsecond : StepFEReductionChain s6 6 s12 :=
+    stepFEReductionChain_six r6 r7 r8 r9 r10 r11
+  simpa using StepFEReductionChain.append hfirst hsecond
+
 theorem executionSegment_two_reductions
     {post : State → State → Prop} {s0 s1 s2 : State}
     (r0 : StepFEReduction s0 s1)
