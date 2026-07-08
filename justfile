@@ -145,6 +145,11 @@ wasm-exec-smoke:
     lake build ProofForge.Backend.WasmNear.WasmExec
     lake env lean --run Tests/WasmExec.lean
 
+# NEAR host-model lemmas over the generic Wasm host-call hook.
+wasm-near-host-smoke:
+    lake build ProofForge.Backend.WasmNear.NearHost
+    lake env lean --run Tests/WasmNearHost.lean
+
 # Check the Phase 6b EVM bytecode-semantics seam for the preferred powdr target.
 evm-bytecode-semantics-smoke:
     lake build ProofForge.Backend.Evm.EvmBytecodeSemantics
@@ -644,7 +649,7 @@ testkit-budget-gate:
     CAST="${CAST:-$HOME/.foundry/bin/cast}" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault
 
 # Run the fast local baseline used before broader target smokes.
-check: build target-registry contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke diagnostic-smoke ir-step-semantics-smoke ir-counter-semantics-smoke counter-universal-refinement-smoke supported-fragment-smoke target-semantics-instances-smoke wasm-exec-smoke evm-bytecode-semantics-smoke ir-exec-result-smoke fv5-overflow-smoke solana-light portable-counter-multi-target cli-target-first contract-source-diagnostics near-target-first wasm-near-plan near-plan-smoke wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli quint-mbt-gate quint-ir-model-gate
+check: build target-registry contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke diagnostic-smoke ir-step-semantics-smoke ir-counter-semantics-smoke counter-universal-refinement-smoke supported-fragment-smoke target-semantics-instances-smoke wasm-exec-smoke wasm-near-host-smoke evm-bytecode-semantics-smoke ir-exec-result-smoke fv5-overflow-smoke solana-light portable-counter-multi-target cli-target-first contract-source-diagnostics near-target-first wasm-near-plan near-plan-smoke wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli quint-mbt-gate quint-ir-model-gate
 
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:
