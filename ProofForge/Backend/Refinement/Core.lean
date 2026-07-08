@@ -340,6 +340,46 @@ theorem traceSimulation_lift {IRState TargetState Call Obs : Type}
       · exact runTraceListGen_cons_ok targetStep call rest targetState nextTarget observable
           finalTarget restObservables htargetStep htargetRest
 
+/-! ### FV-9.3: `traceSimulation_lift` specialized to `TargetSemantics.irStateRel`
+
+This is the shared induction wrapper that consumes the FV-9.1 `irStateRel`
+field. A `<target>_fragment_refines` theorem instantiates it with the
+target's `TargetSemantics`, its IR-step runner, and a per-call
+`step_simulates` proof dischargeable from FV-9.2 preservation lemmas. The
+IR side (FV-9.0/9.1) is shared; only the per-call discharge is per-target.
+-/
+
+/-- `traceSimulation_lift` specialized to a `TargetSemantics`'s `irStateRel`.
+
+Given a `TargetSemantics sem` with an IR-step runner `irStep` and a per-call
+preservation proof `step_simulates` (the FV-9.2 deliverable, dischargeable
+via the constructor preservation lemmas), this lifts per-call simulation
+into whole-trace observable equality + final-relation preservation, with the
+relation fixed to `sem.irStateRel` (the FV-9.1 field). This is the shape
+`<target>_fragment_refines` (FV-9.3) instantiates. -/
+theorem traceSimulation_lift_via_irStateRel
+    (sem : TargetSemantics)
+    (irStep : IR.Semantics.State → sem.Call → Except String (IR.Semantics.State × sem.Obs))
+    (step_simulates :
+      ∀ (call : sem.Call) (irState : IR.Semantics.State) (ms : sem.MachineState),
+        sem.irStateRel irState ms →
+        ∃ nextIr nextMs observable,
+          irStep irState call = .ok (nextIr, observable) ∧
+          sem.traceStep ms call = .ok (nextMs, observable) ∧
+          sem.irStateRel nextIr nextMs)
+    (calls : List sem.Call) {irState : IR.Semantics.State} {ms : sem.MachineState}
+    (hrel : sem.irStateRel irState ms) :
+    ∃ finalIr finalMs observables,
+      runTraceListGen irStep calls irState = .ok (finalIr, observables) ∧
+      runTraceListGen sem.traceStep calls ms = .ok (finalMs, observables) ∧
+      sem.irStateRel finalIr finalMs ∧
+      IRTraceMatches irStep irState calls observables ∧
+      IRTraceMatches sem.traceStep ms calls observables :=
+  traceSimulation_lift irStep sem.traceStep sem.irStateRel
+    (fun call {irState} {ms} hrel =>
+      step_simulates call irState ms hrel)
+    calls hrel
+
 /-- Executable paired-step simulation check for one call.
 
 This is the smallest target-specific S6/W6 obligation: from related concrete

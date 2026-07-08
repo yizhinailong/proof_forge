@@ -199,11 +199,42 @@ preservation lemma before FV-9.4's fragment predicate can admit them. Per the
 scope discipline, the fragment starts narrow (arithmetic + scalar storage core
 Counter+ValueVault exercise) and widens one constructor at a time.
 
-### FV-9.3 — The structural induction
+### FV-9.3 — The structural induction — **PARTIAL (2026-07-09): wrapper + counter-model ∀-calls witness landed**
 
-- Prove `<target>_fragment_refines` by induction over IR program structure, discharging each case
-  with its FV-9.2 lemma and lifting to traces via the existing `traceSimulation_lift`.
-- Keep the IR side (FV-9.0/9.1) shared; only the per-constructor discharge is per-target.
+Landed:
+
+- **`traceSimulation_lift_via_irStateRel`** in `Core.lean`: the shared
+  induction wrapper that consumes the FV-9.1 `irStateRel` field. Given a
+  `TargetSemantics sem`, an IR-step runner `irStep`, and a per-call
+  `step_simulates` proof (the FV-9.2 deliverable), it lifts per-call
+  simulation into whole-trace observable equality + final-relation
+  preservation, with `Rel` fixed to `sem.irStateRel`. This is the shape
+  `<target>_fragment_refines` instantiates.
+- **`counterModel_fragment_refines`** in `CounterUniversal.lean`: the
+  counter-model target's ∀-call-list fragment-refines theorem, proved by
+  specializing the wrapper to `counterModelTargetSemantics` and discharging
+  per-call `step_simulates` with FV-9.2c's
+  `counter_step_simulates_via_irStateRel`. This is the **end-to-end witness**
+  that the FV-9.0 substrate + FV-9.1 field + FV-9.2 preservation +
+  `traceSimulation_lift` chain composes; the counter-model is the first
+  target where it's closed.
+
+Smoke: `counter-universal-refinement-smoke` extended with the FV-9.3 pin
+(`counterModel_fragment_refines` reachable; sample trace discharge via the
+field). Green; all FV-9.0/9.1/9.2 gates still green.
+
+**Honest scope / what remains:** this is ∀-calls-list (the
+universal-over-inputs half) for the **fixed counter-model target**, with the
+relation fixed to the FV-9.1 field. The full ∀-module theorem (quantifying
+over every fragment module, not just the counter shape) is the broader
+FV-9.3/FV-9.4 work: it needs the per-constructor preservation lemmas for
+every constructor the fragment admits (FV-9.2 widening) so the structural
+induction over IR program structure can discharge each case. Per scope
+discipline, the counter-model is the first end-to-end template; replicating
+to Solana/Wasm/EVM (IR side shared) + widening the fragment is the next
+slice. The FV-9.2 gap constructors (`div`/`mod`/`bitAnd`/`shiftLeft`/
+`arrayLit`/`structLit`/`crosscallInvoke*`/env) block widening until they
+have preservation lemmas.
 
 ### FV-9.4 — Fragment scoping + honesty
 

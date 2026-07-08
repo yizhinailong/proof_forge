@@ -202,6 +202,40 @@ theorem counter_step_simulates_via_irStateRel (call : CounterCall)
   rw [show counterModelTargetSemantics.irStateRel = CounterStateRel from rfl] at *
   exact counter_step_simulates_traceStep call h
 
+/-! ### FV-9.3: the ∀-call-list fragment-refines theorem for the counter-model
+
+This is the FV-9.3 deliverable for the counter-model target: the
+`<target>_fragment_refines` theorem, stated and proved by specializing
+`traceSimulation_lift_via_irStateRel` (the FV-9.1-field-consuming wrapper) to
+`counterModelTargetSemantics` and discharging the per-call `step_simulates`
+premise with FV-9.2c's `counter_step_simulates_via_irStateRel`.
+
+**Honest scope:** this is ∀-calls-list (the universal-over-inputs half) for
+the fixed counter-model target, with the relation fixed to the FV-9.1 field.
+The full ∀-module theorem (quantifying over every fragment module, not just
+the counter shape) is the broader FV-9.3/FV-9.4 work: it needs the
+per-constructor preservation lemmas for every constructor the fragment admits
+(FV-9.2 widening) so the structural induction over IR program structure can
+discharge each case. This theorem is the end-to-end witness that the
+FV-9.0 substrate + FV-9.1 field + FV-9.2 preservation + traceSimulation_lift
+chain composes; the counter-model is the first target where it's closed.
+-/
+
+theorem counterModel_fragment_refines (calls : List CounterCall)
+    {state : State} {count : Nat}
+    (hrel : counterModelTargetSemantics.irStateRel state count) :
+    ∃ finalIr finalMs observables,
+      runTraceListGen irStep calls state = .ok (finalIr, observables) ∧
+      runTraceListGen counterModelTargetSemantics.traceStep calls count =
+        .ok (finalMs, observables) ∧
+      counterModelTargetSemantics.irStateRel finalIr finalMs ∧
+      IRTraceMatches irStep state calls observables ∧
+      IRTraceMatches counterModelTargetSemantics.traceStep count calls observables := by
+  exact traceSimulation_lift_via_irStateRel counterModelTargetSemantics irStep
+    (fun call irState ms h =>
+      counter_step_simulates_via_irStateRel call h)
+    calls hrel
+
 theorem counter_trace_simulates_all_related_via_framework (calls : List CounterCall)
     {state : State} {count : Nat} (h : CounterStateRel state count) :
     ∃ finalState finalCount observables,
