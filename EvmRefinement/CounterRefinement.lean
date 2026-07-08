@@ -9111,6 +9111,23 @@ theorem counterRunBytecode_extend_to_compiled_fuel
     (extra := counterCompiledRuntimeFuel - 36)
     hrun hHalted (by native_decide)
 
+theorem counterRunBytecode_extend_to_compiled_fuel_from
+    {fuel : Nat} {state finalState : EvmState}
+    {observations : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep}
+    (hrun :
+      ProofForge.Backend.Evm.PowdrAdapter.runBytecode state fuel =
+        .ok (finalState, observations))
+    (hHalted : ProofForge.Backend.Evm.PowdrAdapter.isHalted finalState = true)
+    (hle : fuel ≤ counterCompiledRuntimeFuel) :
+    ProofForge.Backend.Evm.PowdrAdapter.runBytecode state counterCompiledRuntimeFuel =
+      .ok (finalState, observations) := by
+  exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_extend_to_fuel
+    (fuel := fuel)
+    (targetFuel := counterCompiledRuntimeFuel)
+    (extra := counterCompiledRuntimeFuel - fuel)
+    hrun hHalted (by
+      exact (Nat.sub_add_cancel hle).symm)
+
 theorem counterPowdrPreparedTraceStep_initialize_of_run36_ok
     {preparedState finalState : EvmState}
     (hrun :
@@ -9159,6 +9176,33 @@ theorem counterPreparedCall_callStack
   rcases hprepared with ⟨sourceState, rfl⟩
   exact prepareCounterCall_callStack cfg.runtimeCode call sourceState
 
+theorem counterPowdrPreparedTraceStep_of_run_returned_prepared_ok
+    {preparedState finalState : EvmState} {call : CounterCall}
+    {fuel : Nat} {observable : ObservableReturn}
+    (hprepared :
+      CounterPreparedCall counterCompiledPowdrConfig call preparedState)
+    (hrun :
+      ProofForge.Backend.Evm.PowdrAdapter.runBytecode preparedState fuel =
+        .ok (finalState, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)))
+    (hhalt : finalState.halt = .Returned)
+    (hcallStackPrepared : finalState.callStack = preparedState.callStack)
+    (hobs : counterObservableFromResult call finalState.toResult = .ok observable)
+    (hle : fuel ≤ counterCompiledRuntimeFuel) :
+    counterPowdrPreparedTraceStep counterCompiledPowdrConfig preparedState call =
+      .ok (finalState, observable) := by
+  have hrunCompiled :=
+    counterRunBytecode_extend_to_compiled_fuel_from hrun
+      (ProofForge.Backend.Evm.PowdrAdapter.isHalted_of_returned_top_level hhalt
+        (hcallStackPrepared.trans (counterPreparedCall_callStack hprepared)))
+      hle
+  unfold counterPowdrPreparedTraceStep
+  simp [counterCompiledPowdrConfig, hrunCompiled]
+  change Except.bind (counterObservableFromResult call finalState.toResult)
+      (fun observable : ObservableReturn => Except.ok (finalState, observable)) =
+    Except.ok (finalState, observable)
+  rw [hobs]
+  rfl
+
 theorem counterPowdrPreparedTraceStep_initialize_of_run36_returned_prepared_ok
     {preparedState finalState : EvmState}
     (hprepared :
@@ -9171,8 +9215,8 @@ theorem counterPowdrPreparedTraceStep_initialize_of_run36_returned_prepared_ok
     (hobs : counterObservableFromResult .initialize finalState.toResult = .ok .none) :
     counterPowdrPreparedTraceStep counterCompiledPowdrConfig preparedState .initialize =
       .ok (finalState, .none) := by
-  exact counterPowdrPreparedTraceStep_initialize_of_run36_returned_top_level_ok
-    hrun hhalt (hcallStackPrepared.trans (counterPreparedCall_callStack hprepared)) hobs
+  exact counterPowdrPreparedTraceStep_of_run_returned_prepared_ok
+    hprepared hrun hhalt hcallStackPrepared hobs (by native_decide)
 
 theorem counterCompiledPreparedInitialize_storage_model_of_run36_returned_sload_ok
     {preparedState sloadState finalState : EvmState}
@@ -10653,6 +10697,109 @@ theorem counterCompiledPreparedInitialize_storage_model_of_reduction_chain_provi
        postcondition := hpost } :
       CounterPreparedInitializeReductionChainModel preparedState finalState)
 
+def counterPreparedIncrementSegmentPre (count : Nat) (state : EvmState) : Prop :=
+  CounterPreparedCall counterCompiledPowdrConfig .increment state ∧
+    count + 1 < counterU64Modulus ∧
+    CounterStorageWordRel
+      (counterStorageValue counterContractAddress counterCountSlot state) count
+
+def counterPreparedIncrementSegmentPost
+    (count : Nat) (state finalState : EvmState) : Prop :=
+  finalState.halt = .Returned ∧
+    finalState.callStack = state.callStack ∧
+    CounterStorageWordRel
+      (counterStorageValue counterContractAddress counterCountSlot finalState)
+      (count + 1) ∧
+    counterObservableFromResult .increment finalState.toResult = .ok .none
+
+def counterPreparedGetSegmentPre (count : Nat) (state : EvmState) : Prop :=
+  CounterPreparedCall counterCompiledPowdrConfig .get state ∧
+    count < counterU64Modulus ∧
+    CounterStorageWordRel
+      (counterStorageValue counterContractAddress counterCountSlot state) count
+
+def counterPreparedGetSegmentPost
+    (count : Nat) (state finalState : EvmState) : Prop :=
+  finalState.halt = .Returned ∧
+    finalState.callStack = state.callStack ∧
+    CounterStorageWordRel
+      (counterStorageValue counterContractAddress counterCountSlot finalState)
+      count ∧
+    counterObservableFromResult .get finalState.toResult = .ok (.u64 count)
+
+abbrev CounterPreparedIncrementReductionChainProvider (fuel : Nat) :=
+  ∀ count,
+    ProofForge.Backend.Evm.PowdrExec.ReductionChainProvider
+      (counterPreparedIncrementSegmentPre count) fuel
+      (counterPreparedIncrementSegmentPost count)
+
+abbrev CounterPreparedGetReductionChainProvider (fuel : Nat) :=
+  ∀ count,
+    ProofForge.Backend.Evm.PowdrExec.ReductionChainProvider
+      (counterPreparedGetSegmentPre count) fuel
+      (counterPreparedGetSegmentPost count)
+
+theorem counterCompiledPreparedIncrement_storage_model_of_reduction_chain_provider_ok
+    {fuel : Nat}
+    (provider : CounterPreparedIncrementReductionChainProvider fuel)
+    (hle : fuel ≤ counterCompiledRuntimeFuel) :
+    ∀ {preparedState count},
+      CounterPreparedCall counterCompiledPowdrConfig .increment preparedState →
+      count + 1 < counterU64Modulus →
+      CounterStorageWordRel
+        (counterStorageValue counterContractAddress counterCountSlot preparedState)
+        count →
+      ∃ nextEvm,
+        counterPowdrPreparedTraceStep counterCompiledPowdrConfig preparedState
+            .increment =
+          .ok (nextEvm, .none) ∧
+        CounterStorageWordRel
+          (counterStorageValue counterContractAddress counterCountSlot nextEvm)
+          (count + 1) := by
+  intro preparedState count hprepared hbound hstorage
+  obtain ⟨finalState, chain, hpost⟩ :=
+    (provider count).chain ⟨hprepared, hbound, hstorage⟩
+  rcases hpost with ⟨hhalt, hcallStack, hstorageNext, hobs⟩
+  have hrun :
+      ProofForge.Backend.Evm.PowdrAdapter.runBytecode preparedState fuel =
+        .ok (finalState,
+          (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) :=
+    ProofForge.Backend.Evm.PowdrExec.runSteps_of_reductionChain chain
+  have hstep :=
+    counterPowdrPreparedTraceStep_of_run_returned_prepared_ok
+      hprepared hrun hhalt hcallStack hobs hle
+  exact ⟨finalState, hstep, hstorageNext⟩
+
+theorem counterCompiledPreparedGet_storage_model_of_reduction_chain_provider_ok
+    {fuel : Nat}
+    (provider : CounterPreparedGetReductionChainProvider fuel)
+    (hle : fuel ≤ counterCompiledRuntimeFuel) :
+    ∀ {preparedState count},
+      CounterPreparedCall counterCompiledPowdrConfig .get preparedState →
+      count < counterU64Modulus →
+      CounterStorageWordRel
+        (counterStorageValue counterContractAddress counterCountSlot preparedState)
+        count →
+      ∃ nextEvm,
+        counterPowdrPreparedTraceStep counterCompiledPowdrConfig preparedState .get =
+          .ok (nextEvm, .u64 count) ∧
+        CounterStorageWordRel
+          (counterStorageValue counterContractAddress counterCountSlot nextEvm)
+          count := by
+  intro preparedState count hprepared hbound hstorage
+  obtain ⟨finalState, chain, hpost⟩ :=
+    (provider count).chain ⟨hprepared, hbound, hstorage⟩
+  rcases hpost with ⟨hhalt, hcallStack, hstorageNext, hobs⟩
+  have hrun :
+      ProofForge.Backend.Evm.PowdrAdapter.runBytecode preparedState fuel =
+        .ok (finalState,
+          (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) :=
+    ProofForge.Backend.Evm.PowdrExec.runSteps_of_reductionChain chain
+  have hstep :=
+    counterPowdrPreparedTraceStep_of_run_returned_prepared_ok
+      hprepared hrun hhalt hcallStack hobs hle
+  exact ⟨finalState, hstep, hstorageNext⟩
+
 theorem counterPreparedCall_isDone
     {cfg : PowdrCounterConfig} {call : CounterCall} {state : EvmState}
     (hprepared : CounterPreparedCall cfg call state) :
@@ -11554,6 +11701,25 @@ def counterCompiledPowdrPreparedStorageModelsOfInitializeReductionChainProvider
       provider
   increment_writes_succ := increment_writes_succ
   get_returns_count := get_returns_count
+
+def counterCompiledPowdrPreparedStorageModelsOfReductionChainProviders
+    {incrementFuel getFuel : Nat}
+    (initializeProvider : CounterPreparedInitializeReductionChainProvider)
+    (incrementProvider :
+      CounterPreparedIncrementReductionChainProvider incrementFuel)
+    (getProvider : CounterPreparedGetReductionChainProvider getFuel)
+    (hincrementFuel : incrementFuel ≤ counterCompiledRuntimeFuel)
+    (hgetFuel : getFuel ≤ counterCompiledRuntimeFuel) :
+    CounterCompiledPowdrPreparedStorageModels where
+  initialize_writes_storage_model :=
+    counterCompiledPreparedInitialize_storage_model_of_reduction_chain_provider_ok
+      initializeProvider
+  increment_writes_succ :=
+    counterCompiledPreparedIncrement_storage_model_of_reduction_chain_provider_ok
+      incrementProvider hincrementFuel
+  get_returns_count :=
+    counterCompiledPreparedGet_storage_model_of_reduction_chain_provider_ok
+      getProvider hgetFuel
 
 def counterCompiledPowdrEvmPostconditionsOfPrepared
     (post : CounterCompiledPowdrPreparedEvmPostconditions) :
