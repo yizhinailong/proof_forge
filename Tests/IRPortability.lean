@@ -70,4 +70,43 @@ def main : IO Unit := do
   require (!(counterModule.capabilities.any fun c => c.id == "storage.object"))
     "portable IR must not emit storage.object"
 
+  -- Slice 2: Aptos entrypoint lowering is shape-based, not name-based. A
+  -- Counter-shape module with renamed entrypoints (`init`/`bump`/`read`)
+  -- lowers successfully and the generated source carries the renamed
+  -- function names.
+  let renamedCounterModule : Module := {
+    counterModule with
+    entrypoints := #[
+      { name := "init",  selector? := none, returns := .unit,
+        body := #[.effect (.storageScalarWrite "count" (.literal (.u64 0)))] },
+      { name := "bump", selector? := none, returns := .unit,
+        body := #[.letBind "n" .u64 (.effect (.storageScalarRead "count")),
+                  .effect (.storageScalarWrite "count" (.add (.local "n") (.literal (.u64 1))))] },
+      { name := "read", selector? := none, returns := .u64,
+        body := #[.return (.effect (.storageScalarRead "count"))] }
+    ]
+  }
+  match ProofForge.Backend.Move.Aptos.renderModule renamedCounterModule with
+  | .ok src =>
+      require (src.contains "public entry fun init(")
+        "Aptos lowering must emit the renamed init entrypoint `init`"
+      require (src.contains "public entry fun bump(")
+        "Aptos lowering must emit the renamed increment entrypoint `bump`"
+      require (src.contains "public fun read(")
+        "Aptos lowering must emit the renamed get entrypoint `read`"
+      require (!src.contains "public entry fun initialize(")
+        "Aptos lowering must not fall back to the hardcoded `initialize` name"
+  | .error e =>
+      throw (IO.userError s!"Aptos should lower renamed-entrypoint Counter by shape: {e.message}")
+
+  -- An entrypoint with an unsupported body shape is rejected.
+  let badEp : Entrypoint := {
+    name := "weird", returns := .unit,
+    body := #[.assert (.literal (.u64 0)) "bad" none]
+  }
+  let badShapeModule : Module := { counterModule with entrypoints := #[badEp] }
+  match ProofForge.Backend.Move.Aptos.renderModule badShapeModule with
+  | .error _ => pure ()
+  | .ok _ => throw (IO.userError "Aptos must reject an unsupported entrypoint body shape")
+
   IO.println "ir-portability: ok"

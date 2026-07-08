@@ -51,10 +51,16 @@ pick a chain at write time and violated D-028. **Removed.**
       (create2, NEAR Promise ops, fallback/receive) — not storage binding
 - [x] `just ir-portability-smoke`
 
-## Slice 2 (next)
+## Slice 2 (in progress)
 
 - [ ] Move NEAR Promise `Expr` constructors behind host-extension metadata (D-027)
-- [ ] Generalize Move entrypoint lowering beyond Counter body shapes
+- [x] Generalize Move entrypoint lowering beyond hardcoded Counter entrypoint
+      names — Aptos `renderEntrypoint` now classifies entrypoints by IR body
+      shape (`matchInitShape` / `matchIncrementShape` / `matchGetShape`) against
+      the scalar state id, so renamed entrypoints (`init`/`bump`/`read`) lower
+      correctly and keep their IR names; unsupported body shapes are rejected.
+      Witnessed in `Tests/IRPortability.lean` (renamed-entrypoint lowering +
+      unsupported-shape rejection).
 - [ ] Context field split: portable env vs EVM-only (`baseFee`, `prevRandao`, …)
 - [ ] Portable identity type vocabulary (`ValueType.address` → documented as
       chain-neutral account/identity handle; target ABI renames in metadata)
