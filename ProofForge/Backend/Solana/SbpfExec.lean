@@ -1663,6 +1663,37 @@ theorem reduction_syscall_set_return_data_at_ok
   StepReduction.of_readyOpcodeAt hat
     (step_syscall_set_return_data_at_ok hat hptr hvalue)
 
+theorem step_syscall_get_clock_sysvar_at_ok
+    {program : Program} {pc : Nat} {state : State} {ptr : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .call none none none (some (.sym sol_get_clock_sysvar))) state)
+    (hptr : regGet state.regs .r1 = ptr) :
+    step program state = .ok (execGetClockSysvar state ptr) :=
+  step_syscall_get_clock_sysvar_ok hat.stepReady hat.currentInst? hptr
+
+theorem reduction_syscall_get_clock_sysvar_at_ok
+    {program : Program} {pc : Nat} {state : State} {ptr : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .call none none none (some (.sym sol_get_clock_sysvar))) state)
+    (hptr : regGet state.regs .r1 = ptr) :
+    StepReduction program state (execGetClockSysvar state ptr) :=
+  StepReduction.of_readyOpcodeAt hat
+    (step_syscall_get_clock_sysvar_at_ok hat hptr)
+
+theorem step_syscall_log64_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    (hat : ReadyOpcodeAt program pc
+      (inst .call none none none (some (.sym sol_log_64_))) state) :
+    step program state = .ok (execLog64 state) :=
+  step_syscall_log64_ok hat.stepReady hat.currentInst?
+
+theorem reduction_syscall_log64_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    (hat : ReadyOpcodeAt program pc
+      (inst .call none none none (some (.sym sol_log_64_))) state) :
+    StepReduction program state (execLog64 state) :=
+  StepReduction.of_readyOpcodeAt hat (step_syscall_log64_at_ok hat)
+
 theorem step_exit_at_ok
     {program : Program} {pc : Nat} {state : State} {r0 : Nat}
     (hat : ReadyOpcodeAt program pc (inst .exit none none none none) state)

@@ -354,6 +354,14 @@ theorem regs_size_execMov64 (state : SbpfState) (dst : Reg) (value : Nat) :
     (execMov64 state dst value).regs.size = state.regs.size := by
   simp [execMov64, regs_size_nextPc, regs_size_setReg]
 
+theorem regs_size_execGetClockSysvar (state : SbpfState) (ptr : Nat) :
+    (execGetClockSysvar state ptr).regs.size = state.regs.size := by
+  simp [execGetClockSysvar, regs_size_nextPc, regs_size_setReg]
+
+theorem regs_size_execLog64 (state : SbpfState) :
+    (execLog64 state).regs.size = state.regs.size := by
+  simp [execLog64, regs_size_nextPc, regs_size_setReg]
+
 theorem regGet_setReg_same_of_lt (state : SbpfState) (reg : Reg) (value : Nat)
     (hidx : reg.idx < state.regs.size) :
     regGet (setReg state reg value).regs reg = value :=
@@ -389,6 +397,16 @@ theorem regGet_execMov64_same_of_lt (state : SbpfState) (dst : Reg) (value : Nat
     regGet (execMov64 state dst value).regs dst = value := by
   simp [execMov64, regGet_nextPc, regGet_setReg_same_of_lt, hidx]
 
+theorem regGet_execGetClockSysvar_r0_of_lt (state : SbpfState) (ptr : Nat)
+    (hidx : Reg.r0.idx < state.regs.size) :
+    regGet (execGetClockSysvar state ptr).regs .r0 = 0 := by
+  simp [execGetClockSysvar, regGet_nextPc, regGet_setReg_same_of_lt, hidx]
+
+theorem regGet_execLog64_r0_of_lt (state : SbpfState)
+    (hidx : Reg.r0.idx < state.regs.size) :
+    regGet (execLog64 state).regs .r0 = 0 := by
+  simp [execLog64, regGet_nextPc, regGet_setReg_same_of_lt, hidx]
+
 theorem regGet_execStore (state : SbpfState) (addr value : Nat) (reg : Reg) :
     regGet (execStore state addr value).regs reg = regGet state.regs reg := rfl
 
@@ -406,6 +424,16 @@ theorem regGet_execMov64_of_ne (state : SbpfState) {src dst : Reg} (value : Nat)
     (hne : dst ≠ src) :
     regGet (execMov64 state src value).regs dst = regGet state.regs dst := by
   simp [execMov64, regGet_nextPc, regGet_setReg_of_ne, hne]
+
+theorem regGet_execGetClockSysvar_of_ne (state : SbpfState) (ptr : Nat)
+    {dst : Reg} (hne : dst ≠ .r0) :
+    regGet (execGetClockSysvar state ptr).regs dst = regGet state.regs dst := by
+  simp [execGetClockSysvar, regGet_nextPc, regGet_setReg_of_ne, hne]
+
+theorem regGet_execLog64_of_ne (state : SbpfState) {dst : Reg}
+    (hne : dst ≠ .r0) :
+    regGet (execLog64 state).regs dst = regGet state.regs dst := by
+  simp [execLog64, regGet_nextPc, regGet_setReg_of_ne, hne]
 
 theorem memory_nextPc (state : SbpfState) :
     (nextPc state).memory = state.memory := rfl
@@ -447,6 +475,26 @@ theorem memory_read_execMov64
     (state : SbpfState) (dst : Reg) (value readAddr : Nat) :
     (execMov64 state dst value).memory.read readAddr =
       state.memory.read readAddr := rfl
+
+theorem memory_read_execGetClockSysvar (state : SbpfState) (ptr : Nat) :
+    (execGetClockSysvar state ptr).memory.read ptr = 0 := by
+  unfold execGetClockSysvar
+  simp [nextPc, setReg, Memory.read_write]
+
+theorem memory_read_execGetClockSysvar_of_ne
+    (state : SbpfState) {readAddr ptr : Nat} (hne : readAddr ≠ ptr) :
+    (execGetClockSysvar state ptr).memory.read readAddr =
+      state.memory.read readAddr := by
+  unfold execGetClockSysvar
+  simpa [nextPc, setReg] using
+    (Memory.read_write_of_ne state.memory
+      (readAddr := readAddr) (writeAddr := ptr) (value := 0) hne)
+
+theorem memory_execLog64 (state : SbpfState) :
+    (execLog64 state).memory = state.memory := rfl
+
+theorem memory_read_execLog64 (state : SbpfState) (addr : Nat) :
+    (execLog64 state).memory.read addr = state.memory.read addr := rfl
 
 theorem memory_execSetReturnData (state : SbpfState) (value : Nat) :
     (execSetReturnData state value).memory = state.memory := rfl
@@ -490,6 +538,12 @@ theorem returnData_execLddw (state : SbpfState) (dst : Reg) (value : Nat) :
 
 theorem returnData_execMov64 (state : SbpfState) (dst : Reg) (value : Nat) :
     (execMov64 state dst value).returnData = state.returnData := rfl
+
+theorem returnData_execGetClockSysvar (state : SbpfState) (ptr : Nat) :
+    (execGetClockSysvar state ptr).returnData = state.returnData := rfl
+
+theorem returnData_execLog64 (state : SbpfState) :
+    (execLog64 state).returnData = state.returnData := rfl
 
 theorem returnData_execStore (state : SbpfState) (addr value : Nat) :
     (execStore state addr value).returnData = state.returnData := rfl
