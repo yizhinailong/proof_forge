@@ -26,6 +26,16 @@ def Memory.read? (memory : Memory) (addr : Nat) : Option Nat :=
 def Memory.write (memory : Memory) (addr value : Nat) : Memory :=
   (memory.filter (fun entry => entry.fst != addr)).push (addr, value)
 
+theorem Memory.find?_write (memory : Memory) (addr value : Nat) :
+    ((memory.filter (fun entry => entry.fst != addr)).push (addr, value)).find?
+        (fun entry => entry.fst == addr) = some (addr, value) := by
+  simp
+
+theorem Memory.read_write (memory : Memory) (addr value : Nat) :
+    (memory.write addr value).read addr = value := by
+  unfold Memory.read Memory.write
+  simp [Memory.find?_write memory addr value]
+
 def registerCount : Nat := 11
 def stackBase : Nat := 1000000
 def inputBase : Nat := 0
@@ -161,7 +171,7 @@ def alu64 (opcode : Opcode) (lhs rhs : Nat) : Except String Nat :=
 def jumpCondition (opcode : Opcode) (lhs rhs : Nat) : Except String Bool :=
   match opcode with
   | .jeq => .ok (lhs == rhs)
-  | .jne => .ok (lhs != rhs)
+  | .jne => .ok ((lhs == rhs) == false)
   | .jgt => .ok (lhs > rhs)
   | .jge => .ok (lhs >= rhs)
   | .jlt => .ok (lhs < rhs)
@@ -169,22 +179,134 @@ def jumpCondition (opcode : Opcode) (lhs rhs : Nat) : Except String Bool :=
   | .jset => .ok (Nat.land lhs rhs != 0)
   | _ => .error s!"unsupported sBPF conditional jump `{opcode.render}`"
 
+theorem jumpCondition_jeq_true {lhs : Nat} :
+    jumpCondition .jeq lhs lhs = .ok true := by
+  unfold jumpCondition
+  simp [Nat.beq_refl]
+
+theorem jumpCondition_jeq_false {lhs rhs : Nat} (h : lhs ≠ rhs) :
+    jumpCondition .jeq lhs rhs = .ok false := by
+  unfold jumpCondition
+  simp [beq_false_of_ne h]
+
+theorem jumpCondition_jne_true {lhs rhs : Nat} (h : lhs ≠ rhs) :
+    jumpCondition .jne lhs rhs = .ok true := by
+  unfold jumpCondition
+  simp [beq_false_of_ne h]
+
+theorem jumpCondition_jne_false {lhs : Nat} :
+    jumpCondition .jne lhs lhs = .ok false := by
+  unfold jumpCondition
+  simp [Nat.beq_refl]
+
+theorem jumpCondition_jeq_reg_eq
+    {state : SbpfState} {dst : Reg} {lhs rhs : Nat}
+    (hlhs : regGet state.regs dst = lhs) (h : lhs = rhs) :
+    jumpCondition .jeq (regGet state.regs dst) rhs = .ok true := by
+  rw [hlhs, h, jumpCondition_jeq_true]
+
+theorem jumpCondition_jeq_reg_ne
+    {state : SbpfState} {dst : Reg} {lhs rhs : Nat}
+    (hlhs : regGet state.regs dst = lhs) (h : lhs ≠ rhs) :
+    jumpCondition .jeq (regGet state.regs dst) rhs = .ok false := by
+  rw [hlhs, jumpCondition_jeq_false h]
+
+theorem jumpCondition_jne_reg_ne
+    {state : SbpfState} {dst : Reg} {lhs rhs : Nat}
+    (hlhs : regGet state.regs dst = lhs) (h : lhs ≠ rhs) :
+    jumpCondition .jne (regGet state.regs dst) rhs = .ok true := by
+  rw [hlhs, jumpCondition_jne_true h]
+
+theorem jumpCondition_jne_reg_eq
+    {state : SbpfState} {dst : Reg} {lhs rhs : Nat}
+    (hlhs : regGet state.regs dst = lhs) (h : lhs = rhs) :
+    jumpCondition .jne (regGet state.regs dst) rhs = .ok false := by
+  rw [hlhs, h, jumpCondition_jne_false]
+
+theorem jumpCondition_jeq_regs_eq
+    {state : SbpfState} {dst src : Reg} {lhs rhs : Nat}
+    (hlhs : regGet state.regs dst = lhs) (hrhs : regGet state.regs src = rhs) (h : lhs = rhs) :
+    jumpCondition .jeq (regGet state.regs dst) (regGet state.regs src) = .ok true := by
+  rw [hlhs, hrhs, h, jumpCondition_jeq_true]
+
+theorem jumpCondition_jeq_regs_ne
+    {state : SbpfState} {dst src : Reg} {lhs rhs : Nat}
+    (hlhs : regGet state.regs dst = lhs) (hrhs : regGet state.regs src = rhs) (h : lhs ≠ rhs) :
+    jumpCondition .jeq (regGet state.regs dst) (regGet state.regs src) = .ok false := by
+  rw [hlhs, hrhs, jumpCondition_jeq_false h]
+
+theorem jumpCondition_jne_regs_ne
+    {state : SbpfState} {dst src : Reg} {lhs rhs : Nat}
+    (hlhs : regGet state.regs dst = lhs) (hrhs : regGet state.regs src = rhs) (h : lhs ≠ rhs) :
+    jumpCondition .jne (regGet state.regs dst) (regGet state.regs src) = .ok true := by
+  rw [hlhs, hrhs, jumpCondition_jne_true h]
+
+theorem jumpCondition_jne_regs_eq
+    {state : SbpfState} {dst src : Reg} {lhs rhs : Nat}
+    (hlhs : regGet state.regs dst = lhs) (hrhs : regGet state.regs src = rhs) (h : lhs = rhs) :
+    jumpCondition .jne (regGet state.regs dst) (regGet state.regs src) = .ok false := by
+  rw [hlhs, hrhs, h, jumpCondition_jne_false]
+
+def execMov64 (state : SbpfState) (dst : Reg) (value : Nat) : SbpfState :=
+  nextPc (setReg state dst value)
+
+def execAlu64 (state : SbpfState) (dst : Reg) (opcode : Opcode) (lhs rhs : Nat) :
+    Except String SbpfState :=
+  match alu64 opcode lhs rhs with
+  | .error msg => .error msg
+  | .ok value => .ok (nextPc (setReg state dst value))
+
+def execLddw (state : SbpfState) (dst : Reg) (value : Nat) : SbpfState :=
+  nextPc (setReg state dst value)
+
+def execLoad (state : SbpfState) (dst : Reg) (addr value : Nat) : SbpfState :=
+  nextPc (setReg state dst value)
+
+def execStore (state : SbpfState) (addr value : Nat) : SbpfState :=
+  nextPc { state with memory := state.memory.write addr value }
+
+def execJump (state : SbpfState) (target : Nat) : SbpfState :=
+  { state with pc := target }
+
+def execExit (state : SbpfState) (r0 : Nat) : SbpfState :=
+  { state with entryR0 := r0, halted := true, pc := state.pc + 1 }
+
+def execSetReturnData (state : SbpfState) (value : Nat) : SbpfState :=
+  nextPc (setReg { state with returnData := some value } .r0 0)
+
+def execGetClockSysvar (state : SbpfState) (ptr : Nat) : SbpfState :=
+  nextPc (setReg { state with memory := state.memory.write ptr 0 } .r0 0)
+
+def execLog64 (state : SbpfState) : SbpfState :=
+  nextPc (setReg state .r0 0)
+
 def readLoad (program : SbpfProgram) (state : SbpfState) (inst : Inst) :
-    Except String SbpfState := do
-  let dst ← dstReg inst
-  let base ← srcReg inst
-  let off ← memOffset program inst
-  let value := state.memory.read (memoryAddress state base off)
-  .ok (nextPc (setReg state dst value))
+    Except String SbpfState :=
+  match dstReg inst with
+  | .error msg => .error msg
+  | .ok dst =>
+      match srcReg inst with
+      | .error msg => .error msg
+      | .ok base =>
+          match memOffset program inst with
+          | .error msg => .error msg
+          | .ok off =>
+              let addr := memoryAddress state base off
+              .ok (execLoad state dst addr (state.memory.read addr))
 
 def writeStoreReg (program : SbpfProgram) (state : SbpfState) (inst : Inst) :
-    Except String SbpfState := do
-  let base ← dstReg inst
-  let src ← srcReg inst
-  let off ← memOffset program inst
-  let addr := memoryAddress state base off
-  let value := regGet state.regs src
-  .ok (nextPc { state with memory := state.memory.write addr value })
+    Except String SbpfState :=
+  match dstReg inst with
+  | .error msg => .error msg
+  | .ok base =>
+      match srcReg inst with
+      | .error msg => .error msg
+      | .ok src =>
+          match memOffset program inst with
+          | .error msg => .error msg
+          | .ok off =>
+              let addr := memoryAddress state base off
+              .ok (execStore state addr (regGet state.regs src))
 
 def writeStoreImm (program : SbpfProgram) (state : SbpfState) (inst : Inst) :
     Except String SbpfState := do
@@ -212,63 +334,235 @@ def runSyscall (state : SbpfState) (name : String) : Except String SbpfState :=
   else
     .error s!"unsupported sBPF syscall `{name}`"
 
+def stepInstExit (state : SbpfState) : Except String SbpfState :=
+  .ok (execExit state (regGet state.regs .r0))
+
+def stepInstCall (state : SbpfState) (inst : Inst) : Except String SbpfState :=
+  match inst.imm with
+  | some (.sym name) =>
+      if name == sol_set_return_data then
+        let ptr := regGet state.regs .r1
+        .ok (execSetReturnData state (state.memory.read ptr))
+      else if name == sol_get_clock_sysvar then
+        .ok (execGetClockSysvar state (regGet state.regs .r1))
+      else if name == sol_log_64_ then
+        .ok (execLog64 state)
+      else
+        .error s!"unsupported sBPF syscall `{name}`"
+  | _ => .error "sBPF call missing syscall symbol"
+
+def stepInstLddw (program : SbpfProgram) (state : SbpfState) (inst : Inst) :
+    Except String SbpfState :=
+  match inst.imm with
+  | none => .error "sBPF lddw missing immediate"
+  | some imm =>
+      match dstReg inst with
+      | .error msg => .error msg
+      | .ok dst =>
+          match resolveImm program imm with
+          | .error msg => .error msg
+          | .ok value => .ok (execLddw state dst value)
+
+def stepInstJa (program : SbpfProgram) (state : SbpfState) (inst : Inst) :
+    Except String SbpfState :=
+  match resolveJumpTarget program inst.off with
+  | .error msg => .error msg
+  | .ok target => .ok (execJump state target)
+
+def stepInstCondJumpCore (program : SbpfProgram) (state : SbpfState) (inst : Inst)
+    (cond : Bool) : Except String SbpfState :=
+  if cond then
+    match resolveJumpTarget program inst.off with
+    | .error msg => .error msg
+    | .ok target => .ok (execJump state target)
+  else
+    .ok (nextPc state)
+
+theorem stepInstCondJumpCore_taken
+    (program : SbpfProgram) (state : SbpfState) (inst : Inst) (target : Nat)
+    (htarget : resolveJumpTarget program inst.off = .ok target) :
+    stepInstCondJumpCore program state inst true = .ok (execJump state target) := by
+  simp [stepInstCondJumpCore, htarget, ↓reduceIte]
+
+theorem stepInstCondJumpCore_fallthrough
+    (program : SbpfProgram) (state : SbpfState) (inst : Inst) :
+    stepInstCondJumpCore program state inst false = .ok (nextPc state) := by
+  simp [stepInstCondJumpCore, ↓reduceIte]
+
+theorem inst_opcode (opcode : Opcode) (dst src : Option Reg) (off : Option MemOff) (imm : Option Imm) :
+    (inst opcode dst src off imm).opcode = opcode := rfl
+
+theorem inst_off (opcode : Opcode) (dst src : Option Reg) (off : Option MemOff) (imm : Option Imm) :
+    (inst opcode dst src off imm).off = off := rfl
+
+theorem dstReg_inst_some (opcode : Opcode) (dst : Reg) (src : Option Reg)
+    (off : Option MemOff) (imm : Option Imm) :
+    dstReg (inst opcode (some dst) src off imm) = .ok dst := by
+  simp [dstReg, inst]
+
+theorem operandValue_inst_imm (program : SbpfProgram) (state : SbpfState) (opcode : Opcode)
+    (dst src : Option Reg) (off : Option MemOff) (imm : Imm) :
+    operandValue program state (inst opcode dst src off (some imm)) = resolveImm program imm := by
+  simp [operandValue, inst]
+
+theorem operandValue_inst_reg (program : SbpfProgram) (state : SbpfState) (opcode : Opcode)
+    (dst : Option Reg) (src : Reg) (off : Option MemOff) :
+    operandValue program state (inst opcode dst (some src) off none) = .ok (regGet state.regs src) := by
+  simp [operandValue, inst, regGet]
+
+def stepInstCondJump (program : SbpfProgram) (state : SbpfState) (inst : Inst) :
+    Except String SbpfState :=
+  match dstReg inst with
+  | .error msg => .error msg
+  | .ok dst =>
+      match operandValue program state inst with
+      | .error msg => .error msg
+      | .ok rhs =>
+          match jumpCondition inst.opcode (regGet state.regs dst) rhs with
+          | .error msg => .error msg
+          | .ok cond => stepInstCondJumpCore program state inst cond
+
+theorem stepInstCondJump_jeq_imm_taken
+    (program : SbpfProgram) (state : SbpfState) (dst : Reg) (lhs rhs target : Nat)
+    (hlhs : regGet state.regs dst = lhs)
+    (hcond : lhs = rhs) :
+    stepInstCondJump program state
+      (inst .jeq (some dst) none (some (.num target)) (some (.num rhs))) =
+      .ok (execJump state target) := by
+  subst hcond
+  simp only [stepInstCondJump, dstReg_inst_some, operandValue_inst_imm, resolveImm, inst_opcode]
+  rw [jumpCondition_jeq_reg_eq hlhs (Eq.refl lhs)]
+  simp [resolveJumpTarget, inst_off, stepInstCondJumpCore, ↓reduceIte]
+
+theorem stepInstCondJump_jeq_imm_fallthrough
+    (program : SbpfProgram) (state : SbpfState) (dst : Reg) (lhs rhs target : Nat)
+    (hlhs : regGet state.regs dst = lhs)
+    (hcond : lhs ≠ rhs) :
+    stepInstCondJump program state
+      (inst .jeq (some dst) none (some (.num target)) (some (.num rhs))) =
+      .ok (nextPc state) := by
+  simp only [stepInstCondJump, dstReg_inst_some, operandValue_inst_imm, resolveImm, inst_opcode]
+  rw [jumpCondition_jeq_reg_ne hlhs hcond]
+  simp [stepInstCondJumpCore, ↓reduceIte]
+
+theorem stepInstCondJump_jeq_reg_taken
+    (program : SbpfProgram) (state : SbpfState) (dst src : Reg) (lhs rhs target : Nat)
+    (hlhs : regGet state.regs dst = lhs)
+    (hrhs : regGet state.regs src = rhs)
+    (hcond : lhs = rhs) :
+    stepInstCondJump program state
+      (inst .jeq (some dst) (some src) (some (.num target)) none) =
+      .ok (execJump state target) := by
+  subst hcond
+  simp only [stepInstCondJump, dstReg_inst_some, operandValue_inst_reg, inst_opcode]
+  rw [jumpCondition_jeq_regs_eq hlhs hrhs (Eq.refl lhs)]
+  simp [resolveJumpTarget, inst_off, stepInstCondJumpCore, ↓reduceIte]
+
+theorem stepInstCondJump_jeq_reg_fallthrough
+    (program : SbpfProgram) (state : SbpfState) (dst src : Reg) (lhs rhs target : Nat)
+    (hlhs : regGet state.regs dst = lhs)
+    (hrhs : regGet state.regs src = rhs)
+    (hcond : lhs ≠ rhs) :
+    stepInstCondJump program state
+      (inst .jeq (some dst) (some src) (some (.num target)) none) =
+      .ok (nextPc state) := by
+  simp only [stepInstCondJump, dstReg_inst_some, operandValue_inst_reg, inst_opcode]
+  rw [jumpCondition_jeq_regs_ne hlhs hrhs hcond]
+  simp [stepInstCondJumpCore, ↓reduceIte]
+
+theorem stepInstCondJump_jne_imm_taken
+    (program : SbpfProgram) (state : SbpfState) (dst : Reg) (lhs rhs target : Nat)
+    (hlhs : regGet state.regs dst = lhs)
+    (hcond : lhs ≠ rhs) :
+    stepInstCondJump program state
+      (inst .jne (some dst) none (some (.num target)) (some (.num rhs))) =
+      .ok (execJump state target) := by
+  simp only [stepInstCondJump, dstReg_inst_some, operandValue_inst_imm, resolveImm, inst_opcode]
+  rw [jumpCondition_jne_reg_ne hlhs hcond]
+  simp [resolveJumpTarget, inst_off, stepInstCondJumpCore, ↓reduceIte]
+
+theorem stepInstCondJump_jne_imm_fallthrough
+    (program : SbpfProgram) (state : SbpfState) (dst : Reg) (lhs rhs target : Nat)
+    (hlhs : regGet state.regs dst = lhs)
+    (hcond : lhs = rhs) :
+    stepInstCondJump program state
+      (inst .jne (some dst) none (some (.num target)) (some (.num rhs))) =
+      .ok (nextPc state) := by
+  subst hcond
+  simp only [stepInstCondJump, dstReg_inst_some, operandValue_inst_imm, resolveImm, inst_opcode]
+  rw [jumpCondition_jne_reg_eq hlhs (Eq.refl lhs)]
+  simp [stepInstCondJumpCore, ↓reduceIte]
+
+theorem stepInstCondJump_jne_reg_taken
+    (program : SbpfProgram) (state : SbpfState) (dst src : Reg) (lhs rhs target : Nat)
+    (hlhs : regGet state.regs dst = lhs)
+    (hrhs : regGet state.regs src = rhs)
+    (hcond : lhs ≠ rhs) :
+    stepInstCondJump program state
+      (inst .jne (some dst) (some src) (some (.num target)) none) =
+      .ok (execJump state target) := by
+  simp only [stepInstCondJump, dstReg_inst_some, operandValue_inst_reg, inst_opcode]
+  rw [jumpCondition_jne_regs_ne hlhs hrhs hcond]
+  simp [resolveJumpTarget, inst_off, stepInstCondJumpCore, ↓reduceIte]
+
+theorem stepInstCondJump_jne_reg_fallthrough
+    (program : SbpfProgram) (state : SbpfState) (dst src : Reg) (lhs rhs target : Nat)
+    (hlhs : regGet state.regs dst = lhs)
+    (hrhs : regGet state.regs src = rhs)
+    (hcond : lhs = rhs) :
+    stepInstCondJump program state
+      (inst .jne (some dst) (some src) (some (.num target)) none) =
+      .ok (nextPc state) := by
+  subst hcond
+  simp only [stepInstCondJump, dstReg_inst_some, operandValue_inst_reg, inst_opcode]
+  rw [jumpCondition_jne_regs_eq hlhs hrhs (Eq.refl lhs)]
+  simp [stepInstCondJumpCore, ↓reduceIte]
+
+def stepInstMov (program : SbpfProgram) (state : SbpfState) (inst : Inst) :
+    Except String SbpfState :=
+  match dstReg inst with
+  | .error msg => .error msg
+  | .ok dst =>
+      match operandValue program state inst with
+      | .error msg => .error msg
+      | .ok value => .ok (execMov64 state dst value)
+
+def stepInstAlu64 (program : SbpfProgram) (state : SbpfState) (inst : Inst) :
+    Except String SbpfState :=
+  match dstReg inst with
+  | .error msg => .error msg
+  | .ok dst =>
+      let lhs := regGet state.regs dst
+      match operandValue program state inst with
+      | .error msg => .error msg
+      | .ok rhs => execAlu64 state dst inst.opcode lhs rhs
+
+/-- Execute one decoded instruction. Exposed for contract-agnostic step lemmas in
+`SbpfExec.lean`. -/
+def stepInst (program : SbpfProgram) (state : SbpfState) (inst : Inst) :
+    Except String SbpfState :=
+  match inst.opcode with
+  | .exit => stepInstExit state
+  | .call => stepInstCall state inst
+  | .lddw => stepInstLddw program state inst
+  | .ldxb | .ldxh | .ldxw | .ldxdw => readLoad program state inst
+  | .stb | .sth | .stw | .stdw => writeStoreImm program state inst
+  | .stxb | .stxh | .stxw | .stxdw => writeStoreReg program state inst
+  | .ja => stepInstJa program state inst
+  | .jeq | .jne | .jgt | .jge | .jlt | .jle | .jset =>
+      stepInstCondJump program state inst
+  | .mov64 | .mov32 => stepInstMov program state inst
+  | .add64 | .sub64 | .mul64 | .div64 | .mod64 | .or64 | .and64
+  | .lsh64 | .rsh64 | .xor64 => stepInstAlu64 program state inst
+  | opcode => .error s!"unsupported sBPF opcode `{opcode.render}`"
+
 def step (program : SbpfProgram) (state : SbpfState) : Except String SbpfState := do
   if state.halted then
     .ok state
   else
     match program.instructions[state.pc]? with
     | none => .error s!"sBPF pc {state.pc} out of bounds"
-    | some inst =>
-        match inst.opcode with
-        | .exit =>
-            .ok { state with
-              entryR0 := regGet state.regs .r0
-              halted := true
-              pc := state.pc + 1
-            }
-        | .call =>
-            match inst.imm with
-            | some (.sym name) => runSyscall state name
-            | _ => .error "sBPF call missing syscall symbol"
-        | .lddw =>
-            let dst ← dstReg inst
-            let value ←
-              match inst.imm with
-              | some imm => resolveImm program imm
-              | none => .error "sBPF lddw missing immediate"
-            .ok (nextPc (setReg state dst value))
-        | .ldxb | .ldxh | .ldxw | .ldxdw =>
-            readLoad program state inst
-        | .stb | .sth | .stw | .stdw =>
-            writeStoreImm program state inst
-        | .stxb | .stxh | .stxw | .stxdw =>
-            writeStoreReg program state inst
-        | .ja =>
-            let target ← resolveJumpTarget program inst.off
-            .ok { state with pc := target }
-        | .jeq | .jne | .jgt | .jge | .jlt | .jle | .jset =>
-            let dst ← dstReg inst
-            let lhs := regGet state.regs dst
-            let rhs ← operandValue program state inst
-            let shouldJump ← jumpCondition inst.opcode lhs rhs
-            if shouldJump then
-              let target ← resolveJumpTarget program inst.off
-              .ok { state with pc := target }
-            else
-              .ok (nextPc state)
-        | .mov64 | .mov32 =>
-            let dst ← dstReg inst
-            let value ← operandValue program state inst
-            .ok (nextPc (setReg state dst value))
-        | .add64 | .sub64 | .mul64 | .div64 | .mod64 | .or64 | .and64
-        | .lsh64 | .rsh64 | .xor64 =>
-            let dst ← dstReg inst
-            let lhs := regGet state.regs dst
-            let rhs ← operandValue program state inst
-            let value ← alu64 inst.opcode lhs rhs
-            .ok (nextPc (setReg state dst value))
-        | opcode =>
-            .error s!"unsupported sBPF opcode `{opcode.render}`"
+    | some inst => stepInst program state inst
 
 def run (program : SbpfProgram) : Nat → SbpfState → Except String SbpfState
   | 0, state =>
@@ -279,6 +573,17 @@ def run (program : SbpfProgram) : Nat → SbpfState → Except String SbpfState
       else
         let next ← step program state
         run program fuel next
+
+theorem halted_false_of_not {state : SbpfState} (h : ¬ state.halted) : state.halted = false := by
+  cases hhalt : state.halted <;> simp_all
+
+theorem run_succ {program : SbpfProgram} {state next final : SbpfState} {fuel : Nat}
+    (hhalted : state.halted = false)
+    (hstep : step program state = .ok next)
+    (hrun : run program fuel next = .ok final) :
+    run program (fuel + 1) state = .ok final := by
+  simp only [run, hhalted, hstep]
+  exact hrun
 
 def entrypointIndex? (module : Module) (entrypointName : String) : Option Nat := Id.run do
   let mut idx := 0
