@@ -89,6 +89,9 @@ def writeEmitWatDeployManifest
     ("kind", jsonString (emitWatDeployManifestKind targetId)),
     ("target", jsonString targetId),
     ("targetFamily", jsonString "wasmHost"),
+    ("storageBinding", jsonString (match ProofForge.Target.storageBindingForTargetId? targetId with
+      | some binding => binding.id
+      | none => "unknown")),
     ("artifactKind", jsonString "wasm-deploy"),
     ("fixture", jsonString fixture),
     ("sourceKind", jsonString sourceKind),
@@ -144,6 +147,9 @@ def writeEmitWatArtifactMetadata
     ("schemaVersion", "1"),
     ("target", jsonString targetId),
     ("targetFamily", jsonString "wasmHost"),
+    ("storageBinding", jsonString (match ProofForge.Target.storageBindingForTargetId? targetId with
+      | some binding => binding.id
+      | none => "unknown")),
     ("artifactKind", jsonString "wasm"),
     ("fixture", jsonString fixture),
     ("sourceKind", jsonString sourceKind),

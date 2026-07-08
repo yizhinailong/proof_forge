@@ -85,6 +85,7 @@ unsafe def compileContractSourceSbpf (opts : CliOptions) : IO UInt32 := do
         ("schemaVersion", "1"),
         ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
         ("targetFamily", jsonString "solana"),
+        ("storageBinding", jsonString ProofForge.Target.solanaSbpfAsm.storageBinding.id),
         ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
         ("fixture", jsonString (leanBaseName input)),
         ("sourceKind", jsonString "contract-sdk"),

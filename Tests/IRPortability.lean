@@ -120,6 +120,20 @@ def main : IO Unit := do
   require (familyOnlyViolations counterModule .solana).isEmpty
     "Counter (uses no .address) stays portable across families"
 
+  -- Slice 2: storageBinding is surfaced in artifact/deploy JSON. The binding
+  -- id is a pure function of the selected target, so manifests can carry it
+  -- for debugging without re-deriving the lowering.
+  require (evm.storageBinding.id == "contract-global")
+    "evm storageBinding id must be contract-global"
+  require (solanaSbpfAsm.storageBinding.id == "account-data")
+    "solana-sbpf-asm storageBinding id must be account-data"
+  require (wasmNear.storageBinding.id == "host-key-value")
+    "wasm-near storageBinding id must be host-key-value"
+  require (moveAptos.storageBinding.id == "move-resource")
+    "move-aptos storageBinding id must be move-resource"
+  require (moveSui.storageBinding.id == "move-object")
+    "move-sui storageBinding id must be move-object"
+
   -- Slice 2: Aptos entrypoint lowering is shape-based, not name-based. A
   -- Counter-shape module with renamed entrypoints (`init`/`bump`/`read`)
   -- lowers successfully and the generated source carries the renamed

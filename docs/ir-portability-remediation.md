@@ -76,7 +76,12 @@ pick a chain at write time and violated D-028. **Removed.**
       target adapters rename it to native form (EVM `address`, Solana
       `Pubkey`, NEAR `AccountId`, Move `signer`/`address`) via `paramAbiWords`
       metadata, not in `ValueType` itself. Witnessed in `Tests/IRPortability.lean`.
-- [ ] Surface `storageBinding` in artifact/deploy JSON for debugging
+- [x] Surface `storageBinding` in artifact/deploy JSON for debugging — the
+      EVM, Solana, and Wasm-NEAR artifact/deploy manifests and metadata now
+      carry a `storageBinding` field (`contract-global` / `account-data` /
+      `host-key-value` / `move-resource` / `move-object`) resolved from the
+      selected target via `TargetProfile.storageBinding`, so operators can see
+      how the portable state was materialized without re-deriving it.
 
 ## Author guidance
 
