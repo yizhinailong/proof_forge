@@ -110,6 +110,16 @@ def main : IO Unit := do
   require ((familyOnlyViolations evmOnlyEnvReadModule .solana).size > 0)
     "EVM-only env field must violate Solana family lowering"
 
+  -- Slice 2: Portable identity type vocabulary. `.address` is the chain-neutral
+  -- account/identity handle; it is a portable identity and carries no
+  -- family-only finding.
+  require (ValueType.isPortableIdentity ValueType.address)
+    "ValueType.address must be a portable identity handle"
+  require (!ValueType.isPortableIdentity ValueType.u64)
+    "ValueType.u64 must not be a portable identity handle"
+  require (familyOnlyViolations counterModule .solana).isEmpty
+    "Counter (uses no .address) stays portable across families"
+
   -- Slice 2: Aptos entrypoint lowering is shape-based, not name-based. A
   -- Counter-shape module with renamed entrypoints (`init`/`bump`/`read`)
   -- lowers successfully and the generated source carries the renamed

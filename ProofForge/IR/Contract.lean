@@ -5,6 +5,17 @@ import ProofForge.IR.Allocator
 
 namespace ProofForge.IR
 
+/--! ### ValueType portability vocabulary (D-050 Slice 2)
+
+`ValueType` constructors are chain-neutral. In particular `.address` is a
+**portable account/identity handle**, not an EVM 20-byte address: each target
+adapter renames it to its native identity encoding (EVM `address`, Solana
+`Pubkey`, NEAR `AccountId`, Move `signer`/`address`) via the target ABI
+metadata bag (`paramAbiWords`). `ValueType.byteWidth` is the EVM storage width
+and only consulted by the EVM adapter; it is not part of the portable
+contract.
+-/
+
 inductive ValueType where
   | unit
   | bool
@@ -66,6 +77,15 @@ def ValueType.byteWidth : ValueType → Nat
 def ValueType.isPackedScalar : ValueType → Bool
   | .bool | .u8 | .u32 | .u64 | .u128 | .address => true
   | .unit | .hash | .bytes | .string | .fixedArray _ _ | .structType _ | .array _ => false
+
+/-- Portable identity `ValueType` constructors — every primary target has a
+native account/identity encoding for these, so a module may use them without a
+family-only finding. `.address` is the chain-neutral account/identity handle;
+target adapters rename it to native form (EVM `address`, Solana `Pubkey`, NEAR
+`AccountId`, Move `signer`/`address`) via `paramAbiWords` metadata. -/
+def ValueType.isPortableIdentity : ValueType → Bool
+  | .address => true
+  | _ => false
 
 structure StructField where
   id : String
