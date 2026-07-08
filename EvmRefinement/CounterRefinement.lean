@@ -4866,6 +4866,178 @@ theorem counterPreparedInitializeBodyJumpdest_decoded
   exact counterState_decoded_of_code_pc hcode hpc hpcNat
     counterCompiledRuntimeCode_decodes_initialize_body_jumpdest havailable
 
+theorem counterPreparedInitializeTrampolineJumpdest_reduction
+    {state : EvmState}
+    (hat : counterCompiledStateAt state counterInitializeTrampolineOffset)
+    (hready :
+      counterStepFEReady state
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps))) :
+    ProofForge.Backend.Evm.PowdrExec.StepFEReduction state
+      ((state.consumeGas
+        (EvmSemantics.EVM.Gas.baseCost state.fork
+          (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps) :
+            EvmSemantics.Operation))
+        (counterStepFEReady_to_powdr hready).gas
+       ).incrPC) := by
+  have hpcNat :
+      (EvmSemantics.UInt256.ofNat counterInitializeTrampolineOffset).toNat =
+        counterInitializeTrampolineOffset := by
+    native_decide
+  have havailable :
+      ((.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps) :
+        EvmSemantics.Operation).availableInFork state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork]
+  have hreadyAt :
+      ProofForge.Backend.Evm.PowdrExec.ReadyOpcodeAt
+        counterCompiledRuntimeCode counterInitializeTrampolineOffset
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps))
+        none state :=
+    counterReadyOpcodeAt_of_compiledStateAt hat hpcNat
+      counterCompiledRuntimeCode_decodes_initialize_trampoline_jumpdest
+      hready havailable
+  exact ProofForge.Backend.Evm.PowdrExec.reduction_jumpdest_at_ok hreadyAt
+
+theorem counterPreparedInitializeTrampolineReturnPush_reduction
+    {state : EvmState}
+    (hat : counterCompiledStateAt state (counterInitializeTrampolineOffset + 1))
+    (hready : counterStepFEReady state (.Push counterPush1Op)) :
+    ProofForge.Backend.Evm.PowdrExec.StepFEReduction state
+      ((state.consumeGas
+        (EvmSemantics.EVM.Gas.baseCost state.fork
+          (.Push counterPush1Op : EvmSemantics.Operation))
+        (counterStepFEReady_to_powdr hready).gas
+       ).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.ofNat counterInitializeReturnOffset ::
+          state.stack)
+        (pcΔ := 2)) := by
+  have hpcNat :
+      (EvmSemantics.UInt256.ofNat
+        (counterInitializeTrampolineOffset + 1)).toNat =
+        counterInitializeTrampolineOffset + 1 := by
+    native_decide
+  have havailable :
+      ((.Push counterPush1Op : EvmSemantics.Operation).availableInFork
+        state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork, counterPush1Op]
+  have hreadyAt :
+      ProofForge.Backend.Evm.PowdrExec.ReadyOpcodeAt
+        counterCompiledRuntimeCode (counterInitializeTrampolineOffset + 1)
+        (.Push counterPush1Op)
+        (some (EvmSemantics.UInt256.ofNat counterInitializeReturnOffset, 1))
+        state :=
+    counterReadyOpcodeAt_of_compiledStateAt hat hpcNat
+      counterCompiledRuntimeCode_decodes_initialize_trampoline_return_push
+      hready havailable
+  exact ProofForge.Backend.Evm.PowdrExec.reduction_push_data_at_ok
+    (op := counterPush1Op)
+    (value := EvmSemantics.UInt256.ofNat counterInitializeReturnOffset)
+    (argBytes := 1) (widthPred := 0) hreadyAt (by native_decide)
+
+theorem counterPreparedInitializeTrampolineBodyPush_reduction
+    {state : EvmState}
+    (hat : counterCompiledStateAt state (counterInitializeTrampolineOffset + 3))
+    (hready : counterStepFEReady state (.Push counterPush1Op)) :
+    ProofForge.Backend.Evm.PowdrExec.StepFEReduction state
+      ((state.consumeGas
+        (EvmSemantics.EVM.Gas.baseCost state.fork
+          (.Push counterPush1Op : EvmSemantics.Operation))
+        (counterStepFEReady_to_powdr hready).gas
+       ).replaceStackAndIncrPC
+        (EvmSemantics.UInt256.ofNat counterInitializeBodyOffset :: state.stack)
+        (pcΔ := 2)) := by
+  have hpcNat :
+      (EvmSemantics.UInt256.ofNat
+        (counterInitializeTrampolineOffset + 3)).toNat =
+        counterInitializeTrampolineOffset + 3 := by
+    native_decide
+  have havailable :
+      ((.Push counterPush1Op : EvmSemantics.Operation).availableInFork
+        state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork, counterPush1Op]
+  have hreadyAt :
+      ProofForge.Backend.Evm.PowdrExec.ReadyOpcodeAt
+        counterCompiledRuntimeCode (counterInitializeTrampolineOffset + 3)
+        (.Push counterPush1Op)
+        (some (EvmSemantics.UInt256.ofNat counterInitializeBodyOffset, 1))
+        state :=
+    counterReadyOpcodeAt_of_compiledStateAt hat hpcNat
+      counterCompiledRuntimeCode_decodes_initialize_trampoline_body_push
+      hready havailable
+  exact ProofForge.Backend.Evm.PowdrExec.reduction_push_data_at_ok
+    (op := counterPush1Op)
+    (value := EvmSemantics.UInt256.ofNat counterInitializeBodyOffset)
+    (argBytes := 1) (widthPred := 0) hreadyAt (by native_decide)
+
+theorem counterPreparedInitializeTrampolineJump_reduction
+    {state : EvmState}
+    {dest : EvmSemantics.UInt256} {rest : List EvmSemantics.UInt256}
+    (hat : counterCompiledStateAt state (counterInitializeTrampolineOffset + 5))
+    (hready :
+      counterStepFEReady state
+        (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps)))
+    (hstack : state.stack = dest :: rest)
+    (hvalid :
+      EvmSemantics.EVM.Decode.isValidJumpDest
+        counterCompiledRuntimeCode dest.toNat = true) :
+    ProofForge.Backend.Evm.PowdrExec.StepFEReduction state
+      { state.consumeGas
+          (EvmSemantics.EVM.Gas.baseCost state.fork
+            (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps) :
+              EvmSemantics.Operation))
+          (counterStepFEReady_to_powdr hready).gas with
+        pc := dest
+        stack := rest } := by
+  have hpcNat :
+      (EvmSemantics.UInt256.ofNat
+        (counterInitializeTrampolineOffset + 5)).toNat =
+        counterInitializeTrampolineOffset + 5 := by
+    native_decide
+  have havailable :
+      ((.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps) :
+        EvmSemantics.Operation).availableInFork state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork]
+  have hreadyAt :
+      ProofForge.Backend.Evm.PowdrExec.ReadyOpcodeAt
+        counterCompiledRuntimeCode (counterInitializeTrampolineOffset + 5)
+        (.StackMemFlow (.JUMP : EvmSemantics.Operation.StackMemFlowOps))
+        none state :=
+    counterReadyOpcodeAt_of_compiledStateAt hat hpcNat
+      counterCompiledRuntimeCode_decodes_initialize_trampoline_jump
+      hready havailable
+  exact ProofForge.Backend.Evm.PowdrExec.reduction_jump_at_ok
+    hreadyAt hstack hvalid
+
+theorem counterPreparedInitializeBodyJumpdest_reduction
+    {state : EvmState}
+    (hat : counterCompiledStateAt state counterInitializeBodyOffset)
+    (hready :
+      counterStepFEReady state
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps))) :
+    ProofForge.Backend.Evm.PowdrExec.StepFEReduction state
+      ((state.consumeGas
+        (EvmSemantics.EVM.Gas.baseCost state.fork
+          (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps) :
+            EvmSemantics.Operation))
+        (counterStepFEReady_to_powdr hready).gas
+       ).incrPC) := by
+  have hpcNat :
+      (EvmSemantics.UInt256.ofNat counterInitializeBodyOffset).toNat =
+        counterInitializeBodyOffset := by
+    native_decide
+  have havailable :
+      ((.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps) :
+        EvmSemantics.Operation).availableInFork state.executionEnv.fork) = true := by
+    simp [EvmSemantics.Operation.availableInFork]
+  have hreadyAt :
+      ProofForge.Backend.Evm.PowdrExec.ReadyOpcodeAt
+        counterCompiledRuntimeCode counterInitializeBodyOffset
+        (.StackMemFlow (.JUMPDEST : EvmSemantics.Operation.StackMemFlowOps))
+        none state :=
+    counterReadyOpcodeAt_of_compiledStateAt hat hpcNat
+      counterCompiledRuntimeCode_decodes_initialize_body_jumpdest
+      hready havailable
+  exact ProofForge.Backend.Evm.PowdrExec.reduction_jumpdest_at_ok hreadyAt
+
 theorem counterState_of_initialize_trampoline_stepFE_to_body_ok
     {s0 s1 s2 s3 s4 : EvmState}
     {rest : List EvmSemantics.UInt256}
