@@ -29,6 +29,11 @@ theorem solana_counter_target_semantics_trace_ok :
       ProofForge.Backend.Solana.Refinement.counterTraceObligation = true := by
   native_decide
 
+theorem solana_counter_target_semantics_fragment_ok :
+    ProofForge.Backend.Solana.Refinement.solanaSbpfTargetSemantics.supportedFragment
+      ProofForge.IR.Examples.Counter.module = true := by
+  native_decide
+
 theorem wasm_counter_target_semantics_trace_ok :
     ProofForge.Backend.WasmNear.Refinement.wasmNearTargetSemantics.executableTraceOk
       ProofForge.Backend.WasmNear.Refinement.counterTraceObligation = true := by

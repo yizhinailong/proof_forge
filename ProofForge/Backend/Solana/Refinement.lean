@@ -92,6 +92,7 @@ def SolanaSbpfMachineState.traceStep (state : SolanaSbpfMachineState) (call : Tr
 
 def solanaSbpfTargetSemantics : TargetSemantics := {
   id := "solana-sbpf-asm"
+  supportedFragments := #[.counter]
   MachineState := SolanaSbpfMachineState
   Call := TraceCall
   Obs := ObservableStep
