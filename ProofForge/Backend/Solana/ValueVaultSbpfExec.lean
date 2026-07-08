@@ -15,6 +15,7 @@ namespace ProofForge.Backend.Solana.ValueVaultSbpfExec
 open ProofForge.Backend.Solana.Asm
 open ProofForge.Backend.Solana.SbpfInterpreter
 open ProofForge.Backend.Solana.SbpfExec
+open ProofForge.Backend.Solana.Syscalls
 
 abbrev Program := SbpfProgram
 abbrev State := SbpfState
@@ -32,6 +33,11 @@ def depositNextScratch : Nat := stackBase - 24
 def depositLhsScratch : Nat := stackBase - 32
 def depositNextOpsScratch : Nat := stackBase - 40
 def depositOpsScratch : Nat := stackBase - 48
+
+def getNetBalanceScratch : Nat := stackBase - 8
+def getNetFeesScratch : Nat := stackBase - 16
+def getNetLhsScratch : Nat := stackBase - 24
+def getNetReturnScratch : Nat := stackBase - 8
 
 /-! ### deposit storage core
 
@@ -1316,8 +1322,577 @@ theorem depositFinal_operations (b a o : Nat) :
   unfold depositFinalState
   simpa [memory_execExit] using deposit_state23_operations b a o
 
+/-! ### get_net_value storage core
+
+This models the return path after account validation:
+
+`return balance - fees`.
+-/
+
+def getNetValueStorageProgram : Program := {
+  instructions := #[
+    inst .ldxdw (some .r2) (some .r1) (some (.num balanceOff)) none,
+    inst .stxdw (some .r10) (some .r2) (some (.num 8)) none,
+    inst .ldxdw (some .r2) (some .r1) (some (.num feesOff)) none,
+    inst .stxdw (some .r10) (some .r2) (some (.num 16)) none,
+    inst .ldxdw (some .r2) (some .r10) (some (.num 8)) none,
+    inst .stxdw (some .r10) (some .r2) (some (.num 24)) none,
+    inst .ldxdw (some .r2) (some .r10) (some (.num 16)) none,
+    inst .mov64 (some .r3) (some .r2) none none,
+    inst .ldxdw (some .r2) (some .r10) (some (.num 24)) none,
+    inst .sub64 (some .r2) (some .r3) none none,
+    inst .mov64 (some .r3) (some .r10) none none,
+    inst .sub64 (some .r3) none none (some (.num 8)),
+    inst .stxdw (some .r3) (some .r2) (some (.num 0)) none,
+    inst .mov64 (some .r1) (some .r3) none none,
+    inst .mov64 (some .r2) none none (some (.num 8)),
+    inst .call none none none (some (.sym sol_set_return_data)),
+    inst .mov64 (some .r0) none none (some (.num 0)),
+    inst .exit
+  ]
+  labels := #[]
+  symbols := #[]
+}
+
+def getNetValueInitialState (balance fees : Nat) : State :=
+  { regs := regSet (regSet emptyRegs .r1 inputBase) .r10 stackBase
+    memory := #[
+      (balanceOff, balance),
+      (feesOff, fees)
+    ]
+    pc := 0 }
+
+def getNetState1 (balance fees : Nat) : State :=
+  execLoad (getNetValueInitialState balance fees) .r2 balanceOff balance
+
+def getNetState2 (balance fees : Nat) : State :=
+  execStore (getNetState1 balance fees) getNetBalanceScratch balance
+
+def getNetState3 (balance fees : Nat) : State :=
+  execLoad (getNetState2 balance fees) .r2 feesOff fees
+
+def getNetState4 (balance fees : Nat) : State :=
+  execStore (getNetState3 balance fees) getNetFeesScratch fees
+
+def getNetState5 (balance fees : Nat) : State :=
+  execLoad (getNetState4 balance fees) .r2 getNetBalanceScratch balance
+
+def getNetState6 (balance fees : Nat) : State :=
+  execStore (getNetState5 balance fees) getNetLhsScratch balance
+
+def getNetState7 (balance fees : Nat) : State :=
+  execLoad (getNetState6 balance fees) .r2 getNetFeesScratch fees
+
+def getNetState8 (balance fees : Nat) : State :=
+  execMov64 (getNetState7 balance fees) .r3 fees
+
+def getNetState9 (balance fees : Nat) : State :=
+  execLoad (getNetState8 balance fees) .r2 getNetLhsScratch balance
+
+def getNetState10 (balance fees : Nat) : State :=
+  nextPc (setReg (getNetState9 balance fees) .r2 (balance - fees))
+
+def getNetState11 (balance fees : Nat) : State :=
+  execMov64 (getNetState10 balance fees) .r3 stackBase
+
+def getNetState12 (balance fees : Nat) : State :=
+  nextPc (setReg (getNetState11 balance fees) .r3 getNetReturnScratch)
+
+def getNetState13 (balance fees : Nat) : State :=
+  execStore (getNetState12 balance fees) getNetReturnScratch (balance - fees)
+
+def getNetState14 (balance fees : Nat) : State :=
+  execMov64 (getNetState13 balance fees) .r1 getNetReturnScratch
+
+def getNetState15 (balance fees : Nat) : State :=
+  execMov64 (getNetState14 balance fees) .r2 8
+
+def getNetState16 (balance fees : Nat) : State :=
+  execSetReturnData (getNetState15 balance fees) (balance - fees)
+
+def getNetState17 (balance fees : Nat) : State :=
+  execMov64 (getNetState16 balance fees) .r0 0
+
+def getNetFinalState (balance fees : Nat) : State :=
+  execExit (getNetState17 balance fees) 0
+
+theorem getNet_not_halted0 (b f : Nat) :
+    ¬ (getNetValueInitialState b f).halted := by intro h; cases h
+theorem getNet_not_halted1 (b f : Nat) : ¬ (getNetState1 b f).halted := by intro h; cases h
+theorem getNet_not_halted2 (b f : Nat) : ¬ (getNetState2 b f).halted := by intro h; cases h
+theorem getNet_not_halted3 (b f : Nat) : ¬ (getNetState3 b f).halted := by intro h; cases h
+theorem getNet_not_halted4 (b f : Nat) : ¬ (getNetState4 b f).halted := by intro h; cases h
+theorem getNet_not_halted5 (b f : Nat) : ¬ (getNetState5 b f).halted := by intro h; cases h
+theorem getNet_not_halted6 (b f : Nat) : ¬ (getNetState6 b f).halted := by intro h; cases h
+theorem getNet_not_halted7 (b f : Nat) : ¬ (getNetState7 b f).halted := by intro h; cases h
+theorem getNet_not_halted8 (b f : Nat) : ¬ (getNetState8 b f).halted := by intro h; cases h
+theorem getNet_not_halted9 (b f : Nat) : ¬ (getNetState9 b f).halted := by intro h; cases h
+theorem getNet_not_halted10 (b f : Nat) : ¬ (getNetState10 b f).halted := by intro h; cases h
+theorem getNet_not_halted11 (b f : Nat) : ¬ (getNetState11 b f).halted := by intro h; cases h
+theorem getNet_not_halted12 (b f : Nat) : ¬ (getNetState12 b f).halted := by intro h; cases h
+theorem getNet_not_halted13 (b f : Nat) : ¬ (getNetState13 b f).halted := by intro h; cases h
+theorem getNet_not_halted14 (b f : Nat) : ¬ (getNetState14 b f).halted := by intro h; cases h
+theorem getNet_not_halted15 (b f : Nat) : ¬ (getNetState15 b f).halted := by intro h; cases h
+theorem getNet_not_halted16 (b f : Nat) : ¬ (getNetState16 b f).halted := by intro h; cases h
+theorem getNet_not_halted17 (b f : Nat) : ¬ (getNetState17 b f).halted := by intro h; cases h
+theorem getNetFinal_halted (b f : Nat) : (getNetFinalState b f).halted := rfl
+
+def getNetReady0 (b f : Nat) : StepReady getNetValueStorageProgram (getNetValueInitialState b f) :=
+  ⟨getNet_not_halted0 b f, ⟨getNetValueStorageProgram.instructions[0], rfl⟩⟩
+def getNetReady1 (b f : Nat) : StepReady getNetValueStorageProgram (getNetState1 b f) :=
+  ⟨getNet_not_halted1 b f, ⟨getNetValueStorageProgram.instructions[1], rfl⟩⟩
+def getNetReady2 (b f : Nat) : StepReady getNetValueStorageProgram (getNetState2 b f) :=
+  ⟨getNet_not_halted2 b f, ⟨getNetValueStorageProgram.instructions[2], rfl⟩⟩
+def getNetReady3 (b f : Nat) : StepReady getNetValueStorageProgram (getNetState3 b f) :=
+  ⟨getNet_not_halted3 b f, ⟨getNetValueStorageProgram.instructions[3], rfl⟩⟩
+def getNetReady4 (b f : Nat) : StepReady getNetValueStorageProgram (getNetState4 b f) :=
+  ⟨getNet_not_halted4 b f, ⟨getNetValueStorageProgram.instructions[4], rfl⟩⟩
+def getNetReady5 (b f : Nat) : StepReady getNetValueStorageProgram (getNetState5 b f) :=
+  ⟨getNet_not_halted5 b f, ⟨getNetValueStorageProgram.instructions[5], rfl⟩⟩
+def getNetReady6 (b f : Nat) : StepReady getNetValueStorageProgram (getNetState6 b f) :=
+  ⟨getNet_not_halted6 b f, ⟨getNetValueStorageProgram.instructions[6], rfl⟩⟩
+def getNetReady7 (b f : Nat) : StepReady getNetValueStorageProgram (getNetState7 b f) :=
+  ⟨getNet_not_halted7 b f, ⟨getNetValueStorageProgram.instructions[7], rfl⟩⟩
+def getNetReady8 (b f : Nat) : StepReady getNetValueStorageProgram (getNetState8 b f) :=
+  ⟨getNet_not_halted8 b f, ⟨getNetValueStorageProgram.instructions[8], rfl⟩⟩
+def getNetReady9 (b f : Nat) : StepReady getNetValueStorageProgram (getNetState9 b f) :=
+  ⟨getNet_not_halted9 b f, ⟨getNetValueStorageProgram.instructions[9], rfl⟩⟩
+def getNetReady10 (b f : Nat) : StepReady getNetValueStorageProgram (getNetState10 b f) :=
+  ⟨getNet_not_halted10 b f, ⟨getNetValueStorageProgram.instructions[10], rfl⟩⟩
+def getNetReady11 (b f : Nat) : StepReady getNetValueStorageProgram (getNetState11 b f) :=
+  ⟨getNet_not_halted11 b f, ⟨getNetValueStorageProgram.instructions[11], rfl⟩⟩
+def getNetReady12 (b f : Nat) : StepReady getNetValueStorageProgram (getNetState12 b f) :=
+  ⟨getNet_not_halted12 b f, ⟨getNetValueStorageProgram.instructions[12], rfl⟩⟩
+def getNetReady13 (b f : Nat) : StepReady getNetValueStorageProgram (getNetState13 b f) :=
+  ⟨getNet_not_halted13 b f, ⟨getNetValueStorageProgram.instructions[13], rfl⟩⟩
+def getNetReady14 (b f : Nat) : StepReady getNetValueStorageProgram (getNetState14 b f) :=
+  ⟨getNet_not_halted14 b f, ⟨getNetValueStorageProgram.instructions[14], rfl⟩⟩
+def getNetReady15 (b f : Nat) : StepReady getNetValueStorageProgram (getNetState15 b f) :=
+  ⟨getNet_not_halted15 b f, ⟨getNetValueStorageProgram.instructions[15], rfl⟩⟩
+def getNetReady16 (b f : Nat) : StepReady getNetValueStorageProgram (getNetState16 b f) :=
+  ⟨getNet_not_halted16 b f, ⟨getNetValueStorageProgram.instructions[16], rfl⟩⟩
+def getNetReady17 (b f : Nat) : StepReady getNetValueStorageProgram (getNetState17 b f) :=
+  ⟨getNet_not_halted17 b f, ⟨getNetValueStorageProgram.instructions[17], rfl⟩⟩
+
+theorem getNet_r1_base (b f : Nat) :
+    regGet (getNetValueInitialState b f).regs .r1 = inputBase := by
+  unfold getNetValueInitialState regGet regSet emptyRegs inputBase registerCount
+  rfl
+
+theorem getNet_r10_stack (b f : Nat) :
+    regGet (getNetValueInitialState b f).regs .r10 = stackBase := by
+  unfold getNetValueInitialState regGet regSet emptyRegs stackBase registerCount
+  rfl
+
+theorem getNet_read_balance0 (b f : Nat) :
+    (getNetValueInitialState b f).memory.read balanceOff = b := by
+  unfold getNetValueInitialState balanceOff feesOff
+  simp [Memory.read]
+
+theorem getNet_addr_r1_balance0 (b f : Nat) :
+    memoryAddress (getNetValueInitialState b f) .r1 balanceOff = balanceOff := by
+  simp [memoryAddress, getNet_r1_base b f, inputBase, balanceOff]
+  native_decide
+
+theorem getNet_step0 (b f : Nat) :
+    step getNetValueStorageProgram (getNetValueInitialState b f) =
+      .ok (getNetState1 b f) :=
+  step_ldxdw_ok (getNetReady0 b f) (by rfl)
+    (getNet_addr_r1_balance0 b f) (getNet_read_balance0 b f)
+
+theorem getNet_state1_r10 (b f : Nat) :
+    regGet (getNetState1 b f).regs .r10 = stackBase := by
+  unfold getNetState1 getNetValueInitialState execLoad setReg nextPc regGet regSet stackBase
+  rfl
+
+theorem getNet_state1_r2 (b f : Nat) :
+    regGet (getNetState1 b f).regs .r2 = b := by
+  unfold getNetState1 getNetValueInitialState execLoad setReg nextPc regGet regSet
+  rfl
+
+theorem getNet_addr_r10_balance1 (b f : Nat) :
+    memoryAddress (getNetState1 b f) .r10 8 = getNetBalanceScratch := by
+  simp [memoryAddress, getNet_state1_r10 b f, getNetBalanceScratch]
+  native_decide
+
+theorem getNet_step1 (b f : Nat) :
+    step getNetValueStorageProgram (getNetState1 b f) =
+      .ok (getNetState2 b f) :=
+  step_stxdw_ok (getNetReady1 b f) (by rfl)
+    (getNet_addr_r10_balance1 b f) (getNet_state1_r2 b f)
+
+theorem getNet_state2_r1 (b f : Nat) :
+    regGet (getNetState2 b f).regs .r1 = inputBase := by
+  unfold getNetState2
+  rw [regGet_execStore]
+  unfold getNetState1
+  rw [regGet_execLoad_of_ne]
+  exact getNet_r1_base b f
+  decide
+
+theorem getNet_read_fees2 (b f : Nat) :
+    (getNetState2 b f).memory.read feesOff = f := by
+  unfold getNetState2 getNetState1 getNetValueInitialState execStore execLoad
+    setReg nextPc getNetBalanceScratch balanceOff feesOff
+  simp [Memory.read, Memory.write, stackBase]
+
+theorem getNet_addr_r1_fees2 (b f : Nat) :
+    memoryAddress (getNetState2 b f) .r1 feesOff = feesOff := by
+  simp [memoryAddress, getNet_state2_r1 b f, inputBase, feesOff]
+  native_decide
+
+theorem getNet_step2 (b f : Nat) :
+    step getNetValueStorageProgram (getNetState2 b f) =
+      .ok (getNetState3 b f) :=
+  step_ldxdw_ok (getNetReady2 b f) (by rfl)
+    (getNet_addr_r1_fees2 b f) (getNet_read_fees2 b f)
+
+theorem getNet_state3_r10 (b f : Nat) :
+    regGet (getNetState3 b f).regs .r10 = stackBase := by
+  unfold getNetState3
+  rw [regGet_execLoad_of_ne]
+  unfold getNetState2
+  rw [regGet_execStore]
+  exact getNet_state1_r10 b f
+  decide
+
+theorem getNet_state3_r2 (b f : Nat) :
+    regGet (getNetState3 b f).regs .r2 = f := by
+  unfold getNetState3 getNetState2 getNetState1 getNetValueInitialState
+    execLoad execStore setReg nextPc regGet regSet
+  rfl
+
+theorem getNet_addr_r10_fees3 (b f : Nat) :
+    memoryAddress (getNetState3 b f) .r10 16 = getNetFeesScratch := by
+  simp [memoryAddress, getNet_state3_r10 b f, getNetFeesScratch]
+  native_decide
+
+theorem getNet_step3 (b f : Nat) :
+    step getNetValueStorageProgram (getNetState3 b f) =
+      .ok (getNetState4 b f) :=
+  step_stxdw_ok (getNetReady3 b f) (by rfl)
+    (getNet_addr_r10_fees3 b f) (getNet_state3_r2 b f)
+
+theorem getNet_state4_r10 (b f : Nat) :
+    regGet (getNetState4 b f).regs .r10 = stackBase := by
+  unfold getNetState4
+  rw [regGet_execStore]
+  exact getNet_state3_r10 b f
+
+theorem getNet_read_balance_scratch4 (b f : Nat) :
+    (getNetState4 b f).memory.read getNetBalanceScratch = b := by
+  unfold getNetState4
+  exact (memory_read_execStore_of_ne (getNetState3 b f)
+    (readAddr := getNetBalanceScratch) (writeAddr := getNetFeesScratch)
+    (value := f) (by native_decide)).trans (by
+      unfold getNetState3 getNetState2
+      simpa [memory_execLoad] using
+        (memory_read_execStore (getNetState1 b f) getNetBalanceScratch b))
+
+theorem getNet_addr_r10_balance4 (b f : Nat) :
+    memoryAddress (getNetState4 b f) .r10 8 = getNetBalanceScratch := by
+  simp [memoryAddress, getNet_state4_r10 b f, getNetBalanceScratch]
+  native_decide
+
+theorem getNet_step4 (b f : Nat) :
+    step getNetValueStorageProgram (getNetState4 b f) =
+      .ok (getNetState5 b f) :=
+  step_ldxdw_ok (getNetReady4 b f) (by rfl)
+    (getNet_addr_r10_balance4 b f) (getNet_read_balance_scratch4 b f)
+
+theorem getNet_state5_r10 (b f : Nat) :
+    regGet (getNetState5 b f).regs .r10 = stackBase := by
+  unfold getNetState5
+  rw [regGet_execLoad_of_ne]
+  exact getNet_state4_r10 b f
+  decide
+
+theorem getNet_state5_r2 (b f : Nat) :
+    regGet (getNetState5 b f).regs .r2 = b := by
+  unfold getNetState5 getNetState4 getNetState3 getNetState2 getNetState1
+    getNetValueInitialState execLoad execStore setReg nextPc regGet regSet
+  rfl
+
+theorem getNet_addr_r10_lhs5 (b f : Nat) :
+    memoryAddress (getNetState5 b f) .r10 24 = getNetLhsScratch := by
+  simp [memoryAddress, getNet_state5_r10 b f, getNetLhsScratch]
+  native_decide
+
+theorem getNet_step5 (b f : Nat) :
+    step getNetValueStorageProgram (getNetState5 b f) =
+      .ok (getNetState6 b f) :=
+  step_stxdw_ok (getNetReady5 b f) (by rfl)
+    (getNet_addr_r10_lhs5 b f) (getNet_state5_r2 b f)
+
+theorem getNet_state6_r10 (b f : Nat) :
+    regGet (getNetState6 b f).regs .r10 = stackBase := by
+  unfold getNetState6
+  rw [regGet_execStore]
+  exact getNet_state5_r10 b f
+
+theorem getNet_read_fees_scratch6 (b f : Nat) :
+    (getNetState6 b f).memory.read getNetFeesScratch = f := by
+  unfold getNetState6
+  exact (memory_read_execStore_of_ne (getNetState5 b f)
+    (readAddr := getNetFeesScratch) (writeAddr := getNetLhsScratch)
+    (value := b) (by native_decide)).trans (by
+      unfold getNetState5 getNetState4
+      simpa [memory_execLoad] using
+        (memory_read_execStore (getNetState3 b f) getNetFeesScratch f))
+
+theorem getNet_addr_r10_fees6 (b f : Nat) :
+    memoryAddress (getNetState6 b f) .r10 16 = getNetFeesScratch := by
+  simp [memoryAddress, getNet_state6_r10 b f, getNetFeesScratch]
+  native_decide
+
+theorem getNet_step6 (b f : Nat) :
+    step getNetValueStorageProgram (getNetState6 b f) =
+      .ok (getNetState7 b f) :=
+  step_ldxdw_ok (getNetReady6 b f) (by rfl)
+    (getNet_addr_r10_fees6 b f) (getNet_read_fees_scratch6 b f)
+
+theorem getNet_state7_r2 (b f : Nat) :
+    regGet (getNetState7 b f).regs .r2 = f := by
+  unfold getNetState7
+  apply regGet_execLoad_same_of_lt
+  unfold getNetState6 getNetState5 getNetState4 getNetState3 getNetState2
+    getNetState1 getNetValueInitialState execStore execLoad setReg nextPc
+    emptyRegs registerCount regSet
+  simp [Reg.idx]
+
+theorem getNet_step7 (b f : Nat) :
+    step getNetValueStorageProgram (getNetState7 b f) =
+      .ok (getNetState8 b f) :=
+  step_mov64_reg_ok (getNetReady7 b f) (by rfl) (getNet_state7_r2 b f)
+
+theorem getNet_state8_r10 (b f : Nat) :
+    regGet (getNetState8 b f).regs .r10 = stackBase := by
+  unfold getNetState8
+  rw [regGet_execMov64_of_ne]
+  unfold getNetState7
+  rw [regGet_execLoad_of_ne]
+  exact getNet_state6_r10 b f
+  decide
+  decide
+
+theorem getNet_read_lhs8 (b f : Nat) :
+    (getNetState8 b f).memory.read getNetLhsScratch = b := by
+  unfold getNetState8
+  simpa [memory_execMov64] using
+    (by
+      unfold getNetState7 getNetState6
+      simpa [memory_execLoad] using
+        (memory_read_execStore (getNetState5 b f) getNetLhsScratch b))
+
+theorem getNet_addr_r10_lhs8 (b f : Nat) :
+    memoryAddress (getNetState8 b f) .r10 24 = getNetLhsScratch := by
+  simp [memoryAddress, getNet_state8_r10 b f, getNetLhsScratch]
+  native_decide
+
+theorem getNet_step8 (b f : Nat) :
+    step getNetValueStorageProgram (getNetState8 b f) =
+      .ok (getNetState9 b f) :=
+  step_ldxdw_ok (getNetReady8 b f) (by rfl)
+    (getNet_addr_r10_lhs8 b f) (getNet_read_lhs8 b f)
+
+theorem getNet_state9_r2 (b f : Nat) :
+    regGet (getNetState9 b f).regs .r2 = b := by
+  unfold getNetState9
+  apply regGet_execLoad_same_of_lt
+  unfold getNetState8 getNetState7 getNetState6 getNetState5 getNetState4
+    getNetState3 getNetState2 getNetState1 getNetValueInitialState execMov64
+    execLoad execStore setReg nextPc emptyRegs registerCount regSet
+  simp [Reg.idx]
+
+theorem getNet_state9_r3 (b f : Nat) :
+    regGet (getNetState9 b f).regs .r3 = f := by
+  unfold getNetState9
+  rw [regGet_execLoad_of_ne]
+  unfold getNetState8
+  apply regGet_execMov64_same_of_lt
+  unfold getNetState7 getNetState6 getNetState5 getNetState4 getNetState3
+    getNetState2 getNetState1 getNetValueInitialState execLoad execStore
+    setReg nextPc emptyRegs registerCount regSet
+  simp [Reg.idx]
+  decide
+
+theorem getNet_state9_r10 (b f : Nat) :
+    regGet (getNetState9 b f).regs .r10 = stackBase := by
+  unfold getNetState9
+  rw [regGet_execLoad_of_ne]
+  exact getNet_state8_r10 b f
+  decide
+
+theorem getNet_step9 (b f : Nat) :
+    step getNetValueStorageProgram (getNetState9 b f) =
+      .ok (getNetState10 b f) :=
+  step_sub64_reg_ok (getNetReady9 b f) (by rfl)
+    (getNet_state9_r2 b f) (getNet_state9_r3 b f)
+
+theorem getNet_state10_r10 (b f : Nat) :
+    regGet (getNetState10 b f).regs .r10 = stackBase := by
+  unfold getNetState10
+  rw [regGet_nextPc, regGet_setReg_of_ne]
+  exact getNet_state9_r10 b f
+  decide
+
+theorem getNet_step10 (b f : Nat) :
+    step getNetValueStorageProgram (getNetState10 b f) =
+      .ok (getNetState11 b f) :=
+  step_mov64_reg_ok (getNetReady10 b f) (by rfl) (getNet_state10_r10 b f)
+
+theorem getNet_state11_r3 (b f : Nat) :
+    regGet (getNetState11 b f).regs .r3 = stackBase := by
+  unfold getNetState11
+  apply regGet_execMov64_same_of_lt
+  unfold getNetState10 getNetState9 getNetState8 getNetState7 getNetState6
+    getNetState5 getNetState4 getNetState3 getNetState2 getNetState1
+    getNetValueInitialState execMov64 execLoad execStore setReg nextPc
+    emptyRegs registerCount regSet
+  simp [Reg.idx]
+
+theorem getNet_step11 (b f : Nat) :
+    step getNetValueStorageProgram (getNetState11 b f) =
+      .ok (getNetState12 b f) :=
+  step_sub64_imm_ok (getNetReady11 b f) (by rfl) (getNet_state11_r3 b f)
+
+theorem getNet_state12_r2 (b f : Nat) :
+    regGet (getNetState12 b f).regs .r2 = b - f := by
+  unfold getNetState12
+  rw [regGet_nextPc, regGet_setReg_of_ne]
+  unfold getNetState11
+  rw [regGet_execMov64_of_ne]
+  unfold getNetState10
+  rw [regGet_nextPc]
+  apply regGet_setReg_same_of_lt
+  unfold getNetState9 getNetState8 getNetState7 getNetState6 getNetState5
+    getNetState4 getNetState3 getNetState2 getNetState1 getNetValueInitialState
+    execMov64 execLoad execStore setReg nextPc emptyRegs registerCount regSet
+  simp [Reg.idx]
+  decide
+  decide
+
+theorem getNet_state12_r3 (b f : Nat) :
+    regGet (getNetState12 b f).regs .r3 = getNetReturnScratch := by
+  unfold getNetState12
+  rw [regGet_nextPc]
+  apply regGet_setReg_same_of_lt
+  unfold getNetState11 getNetState10 getNetState9 getNetState8 getNetState7
+    getNetState6 getNetState5 getNetState4 getNetState3 getNetState2
+    getNetState1 getNetValueInitialState execMov64 execLoad execStore setReg
+    nextPc emptyRegs registerCount regSet
+  simp [Reg.idx]
+
+theorem getNet_addr_r3_return12 (b f : Nat) :
+    memoryAddress (getNetState12 b f) .r3 0 = getNetReturnScratch := by
+  simp [memoryAddress, getNet_state12_r3 b f, getNetReturnScratch]
+
+theorem getNet_step12 (b f : Nat) :
+    step getNetValueStorageProgram (getNetState12 b f) =
+      .ok (getNetState13 b f) :=
+  step_stxdw_ok (getNetReady12 b f) (by rfl)
+    (getNet_addr_r3_return12 b f) (getNet_state12_r2 b f)
+
+theorem getNet_state13_r3 (b f : Nat) :
+    regGet (getNetState13 b f).regs .r3 = getNetReturnScratch := by
+  unfold getNetState13
+  rw [regGet_execStore]
+  exact getNet_state12_r3 b f
+
+theorem getNet_step13 (b f : Nat) :
+    step getNetValueStorageProgram (getNetState13 b f) =
+      .ok (getNetState14 b f) :=
+  step_mov64_reg_ok (getNetReady13 b f) (by rfl) (getNet_state13_r3 b f)
+
+theorem getNet_step14 (b f : Nat) :
+    step getNetValueStorageProgram (getNetState14 b f) =
+      .ok (getNetState15 b f) :=
+  step_mov64_imm_ok (getNetReady14 b f) (by rfl)
+
+theorem getNet_state15_r1 (b f : Nat) :
+    regGet (getNetState15 b f).regs .r1 = getNetReturnScratch := by
+  unfold getNetState15
+  rw [regGet_execMov64_of_ne]
+  unfold getNetState14
+  apply regGet_execMov64_same_of_lt
+  unfold getNetState13 getNetState12 getNetState11 getNetState10 getNetState9
+    getNetState8 getNetState7 getNetState6 getNetState5 getNetState4
+    getNetState3 getNetState2 getNetState1 getNetValueInitialState execStore
+    execMov64 execLoad setReg nextPc emptyRegs registerCount regSet
+  simp [Reg.idx]
+  decide
+
+theorem getNet_state15_return_scratch (b f : Nat) :
+    (getNetState15 b f).memory.read getNetReturnScratch = b - f := by
+  unfold getNetState15 getNetState14
+  simpa [getNetState13, memory_execMov64] using
+    (memory_read_execStore (getNetState12 b f) getNetReturnScratch (b - f))
+
+theorem getNet_step15 (b f : Nat) :
+    step getNetValueStorageProgram (getNetState15 b f) =
+      .ok (getNetState16 b f) :=
+  step_syscall_set_return_data_ok (getNetReady15 b f) (by rfl)
+    (getNet_state15_r1 b f) (getNet_state15_return_scratch b f)
+
+theorem getNet_step16 (b f : Nat) :
+    step getNetValueStorageProgram (getNetState16 b f) =
+      .ok (getNetState17 b f) :=
+  step_mov64_imm_ok (getNetReady16 b f) (by rfl)
+
+theorem getNet_state17_r0 (b f : Nat) :
+    regGet (getNetState17 b f).regs .r0 = 0 := by
+  unfold getNetState17
+  apply regGet_execMov64_same_of_lt
+  unfold getNetState16 getNetState15 getNetState14 getNetState13 getNetState12
+    getNetState11 getNetState10 getNetState9 getNetState8 getNetState7
+    getNetState6 getNetState5 getNetState4 getNetState3 getNetState2
+    getNetState1 getNetValueInitialState execSetReturnData execStore execMov64
+    execLoad setReg nextPc emptyRegs registerCount regSet
+  simp [Reg.idx]
+
+theorem getNet_step17 (b f : Nat) :
+    step getNetValueStorageProgram (getNetState17 b f) =
+      .ok (getNetFinalState b f) :=
+  step_exit_ok (getNetReady17 b f) (by rfl) (getNet_state17_r0 b f)
+
+theorem getNetValue_runSteps (b f : Nat) :
+    runSteps getNetValueStorageProgram 18 (getNetValueInitialState b f) =
+      .ok (getNetFinalState b f) := by
+  apply runSteps_of_stepPath_done
+  exact StepPath.cons (getNetReady0 b f) (getNet_step0 b f)
+    (StepPath.cons (getNetReady1 b f) (getNet_step1 b f)
+      (StepPath.cons (getNetReady2 b f) (getNet_step2 b f)
+        (StepPath.cons (getNetReady3 b f) (getNet_step3 b f)
+          (StepPath.cons (getNetReady4 b f) (getNet_step4 b f)
+            (StepPath.cons (getNetReady5 b f) (getNet_step5 b f)
+              (StepPath.cons (getNetReady6 b f) (getNet_step6 b f)
+                (StepPath.cons (getNetReady7 b f) (getNet_step7 b f)
+                  (StepPath.cons (getNetReady8 b f) (getNet_step8 b f)
+                    (StepPath.cons (getNetReady9 b f) (getNet_step9 b f)
+                      (StepPath.cons (getNetReady10 b f) (getNet_step10 b f)
+                        (StepPath.cons (getNetReady11 b f) (getNet_step11 b f)
+                          (StepPath.cons (getNetReady12 b f) (getNet_step12 b f)
+                            (StepPath.cons (getNetReady13 b f) (getNet_step13 b f)
+                              (StepPath.cons (getNetReady14 b f) (getNet_step14 b f)
+                                (StepPath.cons (getNetReady15 b f) (getNet_step15 b f)
+                                  (StepPath.cons (getNetReady16 b f) (getNet_step16 b f)
+                                    (StepPath.cons (getNetReady17 b f)
+                                      (getNet_step17 b f)
+                                      (StepPath.nil _
+                                        (getNetFinal_halted b f)))))))))))))))))))
+
+theorem getNetValue_return_data (b f : Nat) :
+    (getNetFinalState b f).returnData = some (b - f) := by
+  unfold getNetFinalState getNetState17 getNetState16 execExit execMov64
+    execSetReturnData setReg nextPc
+  rfl
+
 theorem balanceOff_matches_layout :
     stateFieldOffset? ProofForge.IR.Examples.ValueVault.module "balance" = some balanceOff := by
+  native_decide
+
+theorem feesOff_matches_layout :
+    stateFieldOffset? ProofForge.IR.Examples.ValueVault.module "fees" = some feesOff := by
   native_decide
 
 theorem operationsOff_matches_layout :

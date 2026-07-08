@@ -54,9 +54,23 @@ example :
   depositFinal_operations 10 4 3
 
 example :
+    runSteps getNetValueStorageProgram 18 (getNetValueInitialState 20 7) =
+      .ok (getNetFinalState 20 7) :=
+  getNetValue_runSteps 20 7
+
+example :
+    (getNetFinalState 20 7).returnData = some 13 :=
+  getNetValue_return_data 20 7
+
+example :
     stateFieldOffset? ProofForge.IR.Examples.ValueVault.module "balance" =
       some balanceOff :=
   balanceOff_matches_layout
+
+example :
+    stateFieldOffset? ProofForge.IR.Examples.ValueVault.module "fees" =
+      some feesOff :=
+  feesOff_matches_layout
 
 example :
     stateFieldOffset? ProofForge.IR.Examples.ValueVault.module "last_value" =
