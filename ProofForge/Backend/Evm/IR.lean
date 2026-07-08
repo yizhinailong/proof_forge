@@ -332,7 +332,7 @@ def plannedMapHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
       helpers.push ProofForge.Backend.Evm.ToYul.mapSetReturnHelperFunction
     else
       helpers
-  helpers ++ plan.mapAssignOps.map ProofForge.Backend.Evm.ToYul.mapAssignHelperFunction
+  helpers ++ plan.mapAssignOps.map (ProofForge.Backend.Evm.ToYul.mapAssignHelperFunction plan.overflowChecked)
 
 def plannedArrayHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
     Array Lean.Compiler.Yul.Statement :=
@@ -397,7 +397,7 @@ mutual
     | .contextRead _ | .eventEmit _ _ | .eventEmitIndexed _ _ _ => false
 
   partial def exprUsesCheckedArithmetic : Expr → Bool
-    | .add _ _ | .sub _ _ | .mul _ _ => true
+    | .add _ _ _ | .sub _ _ _ | .mul _ _ _ => true
     | .literal _ | .local _ | .nativeValue => false
     | .arrayLit _ xs => xs.any exprUsesCheckedArithmetic
     | .arrayGet a i => exprUsesCheckedArithmetic a || exprUsesCheckedArithmetic i
