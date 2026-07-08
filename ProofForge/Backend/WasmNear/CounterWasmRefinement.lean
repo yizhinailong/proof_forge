@@ -45,7 +45,9 @@ The Counter Wasm core state deliberately does NOT use `WasmInterpreter.Storage`
 (which stores bytes) so that the core trace step can stay a pure `Nat` state
 machine. The bytes encoding is only introduced when composing with concrete Wasm
 memory. -/
-abbrev CounterWasmCoreStorage := Array (WasmInterpreter.Bytes × Nat)structure CounterWasmCoreState where
+abbrev CounterWasmCoreStorage := Array (WasmInterpreter.Bytes × Nat)
+
+structure CounterWasmCoreState where
   storage : CounterWasmCoreStorage := #[]
   returnValue : WasmInterpreter.Bytes := #[]
   deriving Inhabited

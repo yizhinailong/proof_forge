@@ -1,6 +1,7 @@
 import ProofForge.Backend.WasmNear.WasmExec
 import ProofForge.Backend.WasmNear.NearHost
 import ProofForge.IR.Examples.ValueVault
+import ProofForge.IR.ValueVaultSemantics
 
 /-! ## ValueVault reuse slice over generic `WasmExec` step lemmas.
 
@@ -20,6 +21,7 @@ namespace ProofForge.Backend.WasmNear.ValueVaultWasmExec
 open ProofForge.Backend.WasmNear.WasmInterpreter
 open ProofForge.Backend.WasmNear.WasmExec
 open ProofForge.Backend.WasmNear.NearHost
+open ProofForge.IR.ValueVaultSemantics
 
 /-- Scalar state identifiers for ValueVault. -/
 def balanceKey : WasmInterpreter.Bytes := WasmInterpreter.stringBytes "balance"
@@ -33,6 +35,11 @@ def operationsKey : WasmInterpreter.Bytes := WasmInterpreter.stringBytes "operat
 value. This deliberately avoids the byte-level `WasmInterpreter.Storage` so the
 core trace step stays a pure `Nat` state machine. -/
 abbrev ValueVaultWasmCoreStorage := Array (WasmInterpreter.Bytes × Nat)
+
+def canonicalCoreStorage (balance released fees lastValue lastCheckpoint operations : Nat) :
+    ValueVaultWasmCoreStorage :=
+  #[(balanceKey, balance), (releasedKey, released), (feesKey, fees),
+    (lastValueKey, lastValue), (lastCheckpointKey, lastCheckpoint), (operationsKey, operations)]
 
 structure ValueVaultWasmCoreState where
   storage : ValueVaultWasmCoreStorage := #[]
@@ -55,16 +62,7 @@ def valueVaultCoreWrite (core : ValueVaultWasmCoreState) (key : WasmInterpreter.
 
 
 
-/-- ValueVault calls mirror the IR entrypoint surface. -/
-inductive ValueVaultCall where
-  | initialize (initial : Nat)
-  | deposit (amount : Nat)
-  | charge_fee (gross : Nat) (fee_bps : Nat)
-  | release (amount : Nat)
-  | snapshot
-  | get_balance
-  | get_net_value
-  deriving Repr, BEq
+abbrev ValueVaultCall := ProofForge.IR.ValueVaultSemantics.ValueVaultCall
 
 /-- Overflow-safe trace predicate for ValueVault (FV-5 boundary).
 
@@ -94,7 +92,7 @@ def valueVaultTraceSafeFromState
           decide (next < valueVaultU64Modulus) &&
           decide (nextOps < valueVaultU64Modulus) &&
           valueVaultTraceSafeFromState next released fees amount lastCheckpoint nextOps rest
-      | .charge_fee gross fee_bps =>
+      | .chargeFee gross fee_bps =>
           let fee := (gross * fee_bps) / 10000
           let net := gross - fee
           let next := balance + net
@@ -119,9 +117,9 @@ def valueVaultTraceSafeFromState
           valueVaultTraceSafeFromState next releasedNext fees amount lastCheckpoint nextOps rest
       | .snapshot =>
           valueVaultTraceSafeFromState balance released fees lastValue lastCheckpoint operations rest
-      | .get_balance =>
+      | .getBalance =>
           valueVaultTraceSafeFromState balance released fees lastValue lastCheckpoint operations rest
-      | .get_net_value =>
+      | .getNetValue =>
           let net := balance - fees
           decide (net < valueVaultU64Modulus) &&
           valueVaultTraceSafeFromState balance released fees lastValue lastCheckpoint operations rest
@@ -139,14 +137,9 @@ def valueVaultWasmCoreTraceStep
     Except String (ValueVaultWasmCoreState × Nat) :=
   match call with
   | .initialize initial =>
-      .ok ({ storage := (#[
-          (balanceKey, initial),
-          (releasedKey, 0),
-          (feesKey, 0),
-          (lastValueKey, initial),
-          (lastCheckpointKey, core.checkpoint),
-          (operationsKey, 1)
-        ] : ValueVaultWasmCoreStorage), returnValue := (#[] : WasmInterpreter.Bytes) }, 0)
+      let st : ValueVaultWasmCoreState :=
+        { storage := canonicalCoreStorage initial 0 0 initial 0 1, returnValue := #[] }
+      .ok (st, 0)
   | .deposit amount =>
       let balance := valueVaultCoreScalar core balanceKey
       let released := valueVaultCoreScalar core releasedKey
@@ -155,10 +148,11 @@ def valueVaultWasmCoreTraceStep
       let operations := valueVaultCoreScalar core operationsKey
       let next := balance + amount
       let nextOps := operations + 1
-      .ok ({ storage := (#[(balanceKey, next), (releasedKey, released), (feesKey, fees),
-          (lastValueKey, amount), (lastCheckpointKey, lastCheckpoint),
-          (operationsKey, nextOps)] : ValueVaultWasmCoreStorage), returnValue := #[], checkpoint := core.checkpoint }, 0)
-  | .charge_fee gross fee_bps =>
+      let st : ValueVaultWasmCoreState :=
+        { storage := canonicalCoreStorage next released fees amount lastCheckpoint nextOps,
+          returnValue := #[], checkpoint := core.checkpoint }
+      .ok (st, 0)
+  | .chargeFee gross fee_bps =>
       let balance := valueVaultCoreScalar core balanceKey
       let released := valueVaultCoreScalar core releasedKey
       let fees := valueVaultCoreScalar core feesKey
@@ -169,9 +163,10 @@ def valueVaultWasmCoreTraceStep
       let next := balance + net
       let nextFees := fees + fee
       let nextOps := operations + 1
-      .ok ({ storage := (#[(balanceKey, next), (releasedKey, released), (feesKey, nextFees),
-          (lastValueKey, net), (lastCheckpointKey, lastCheckpoint),
-          (operationsKey, nextOps)] : ValueVaultWasmCoreStorage), returnValue := #[], checkpoint := core.checkpoint }, 0)
+      let st : ValueVaultWasmCoreState :=
+        { storage := canonicalCoreStorage next released nextFees net lastCheckpoint nextOps,
+          returnValue := #[], checkpoint := core.checkpoint }
+      .ok (st, 0)
   | .release amount =>
       let balance := valueVaultCoreScalar core balanceKey
       let released := valueVaultCoreScalar core releasedKey
@@ -181,22 +176,24 @@ def valueVaultWasmCoreTraceStep
       let next := balance - amount
       let releasedNext := released + amount
       let nextOps := operations + 1
-      .ok ({ storage := (#[(balanceKey, next), (releasedKey, releasedNext), (feesKey, fees),
-          (lastValueKey, amount), (lastCheckpointKey, lastCheckpoint),
-          (operationsKey, nextOps)] : ValueVaultWasmCoreStorage), returnValue := #[], checkpoint := core.checkpoint }, 0)
+      let st : ValueVaultWasmCoreState :=
+        { storage := canonicalCoreStorage next releasedNext fees amount lastCheckpoint nextOps,
+          returnValue := #[], checkpoint := core.checkpoint }
+      .ok (st, 0)
   | .snapshot =>
       let balance := valueVaultCoreScalar core balanceKey
       let released := valueVaultCoreScalar core releasedKey
       let fees := valueVaultCoreScalar core feesKey
       let lastValue := valueVaultCoreScalar core lastValueKey
       let operations := valueVaultCoreScalar core operationsKey
-      .ok ({ storage := (#[(balanceKey, balance), (releasedKey, released), (feesKey, fees),
-          (lastValueKey, lastValue), (lastCheckpointKey, core.checkpoint),
-          (operationsKey, operations)] : ValueVaultWasmCoreStorage), returnValue := #[], checkpoint := core.checkpoint }, balance)
-  | .get_balance =>
+      let st : ValueVaultWasmCoreState :=
+        { storage := canonicalCoreStorage balance released fees lastValue 0 operations,
+          returnValue := #[], checkpoint := core.checkpoint }
+      .ok (st, balance)
+  | .getBalance =>
       let balance := valueVaultCoreScalar core balanceKey
       .ok (core, balance)
-  | .get_net_value =>
+  | .getNetValue =>
       let balance := valueVaultCoreScalar core balanceKey
       let fees := valueVaultCoreScalar core feesKey
       .ok (core, balance - fees)
@@ -210,18 +207,77 @@ theorem valueVaultCoreScalar_of_storage
   rw [h]
   simp
 
+theorem valueVaultCoreScalar_balance_canonical (b r f lv lc op : Nat) :
+    valueVaultCoreScalar { storage := canonicalCoreStorage b r f lv lc op } balanceKey = b := by
+  unfold valueVaultCoreScalar canonicalCoreStorage balanceKey
+  simp [WasmInterpreter.stringBytes, balanceKey, releasedKey, feesKey, lastValueKey, lastCheckpointKey, operationsKey]
+
+theorem valueVaultCoreScalar_released_canonical (b r f lv lc op : Nat) :
+    valueVaultCoreScalar { storage := canonicalCoreStorage b r f lv lc op } releasedKey = r := by
+  unfold valueVaultCoreScalar canonicalCoreStorage releasedKey
+  simp [WasmInterpreter.stringBytes, balanceKey, releasedKey, feesKey, lastValueKey, lastCheckpointKey, operationsKey]
+
+theorem valueVaultCoreScalar_fees_canonical (b r f lv lc op : Nat) :
+    valueVaultCoreScalar { storage := canonicalCoreStorage b r f lv lc op } feesKey = f := by
+  unfold valueVaultCoreScalar canonicalCoreStorage feesKey
+  simp [WasmInterpreter.stringBytes, balanceKey, releasedKey, feesKey, lastValueKey, lastCheckpointKey, operationsKey]
+
+theorem valueVaultCoreScalar_lastValue_canonical (b r f lv lc op : Nat) :
+    valueVaultCoreScalar { storage := canonicalCoreStorage b r f lv lc op } lastValueKey = lv := by
+  unfold valueVaultCoreScalar canonicalCoreStorage lastValueKey
+  simp [WasmInterpreter.stringBytes, balanceKey, releasedKey, feesKey, lastValueKey, lastCheckpointKey, operationsKey]
+
+theorem valueVaultCoreScalar_lastCheckpoint_canonical (b r f lv lc op : Nat) :
+    valueVaultCoreScalar { storage := canonicalCoreStorage b r f lv lc op } lastCheckpointKey = lc := by
+  unfold valueVaultCoreScalar canonicalCoreStorage lastCheckpointKey
+  simp [WasmInterpreter.stringBytes, balanceKey, releasedKey, feesKey, lastValueKey, lastCheckpointKey, operationsKey]
+
+theorem valueVaultCoreScalar_operations_canonical (b r f lv lc op : Nat) :
+    valueVaultCoreScalar { storage := canonicalCoreStorage b r f lv lc op } operationsKey = op := by
+  unfold valueVaultCoreScalar canonicalCoreStorage operationsKey
+  simp [WasmInterpreter.stringBytes, balanceKey, releasedKey, feesKey, lastValueKey, lastCheckpointKey, operationsKey]
+
+theorem valueVaultCoreScalar_balance_of_storage (core : ValueVaultWasmCoreState) (b r f lv lc op : Nat)
+    (hstorage : core.storage = canonicalCoreStorage b r f lv lc op) :
+    valueVaultCoreScalar core balanceKey = b := by
+  simp only [valueVaultCoreScalar, hstorage]
+  exact valueVaultCoreScalar_balance_canonical b r f lv lc op
+
+theorem valueVaultCoreScalar_released_of_storage (core : ValueVaultWasmCoreState) (b r f lv lc op : Nat)
+    (hstorage : core.storage = canonicalCoreStorage b r f lv lc op) :
+    valueVaultCoreScalar core releasedKey = r := by
+  simp only [valueVaultCoreScalar, hstorage]
+  exact valueVaultCoreScalar_released_canonical b r f lv lc op
+
+theorem valueVaultCoreScalar_fees_of_storage (core : ValueVaultWasmCoreState) (b r f lv lc op : Nat)
+    (hstorage : core.storage = canonicalCoreStorage b r f lv lc op) :
+    valueVaultCoreScalar core feesKey = f := by
+  simp only [valueVaultCoreScalar, hstorage]
+  exact valueVaultCoreScalar_fees_canonical b r f lv lc op
+
+theorem valueVaultCoreScalar_lastValue_of_storage (core : ValueVaultWasmCoreState) (b r f lv lc op : Nat)
+    (hstorage : core.storage = canonicalCoreStorage b r f lv lc op) :
+    valueVaultCoreScalar core lastValueKey = lv := by
+  simp only [valueVaultCoreScalar, hstorage]
+  exact valueVaultCoreScalar_lastValue_canonical b r f lv lc op
+
+theorem valueVaultCoreScalar_lastCheckpoint_of_storage (core : ValueVaultWasmCoreState) (b r f lv lc op : Nat)
+    (hstorage : core.storage = canonicalCoreStorage b r f lv lc op) :
+    valueVaultCoreScalar core lastCheckpointKey = lc := by
+  simp only [valueVaultCoreScalar, hstorage]
+  exact valueVaultCoreScalar_lastCheckpoint_canonical b r f lv lc op
+
+theorem valueVaultCoreScalar_operations_of_storage (core : ValueVaultWasmCoreState) (b r f lv lc op : Nat)
+    (hstorage : core.storage = canonicalCoreStorage b r f lv lc op) :
+    valueVaultCoreScalar core operationsKey = op := by
+  simp only [valueVaultCoreScalar, hstorage]
+  exact valueVaultCoreScalar_operations_canonical b r f lv lc op
+
 /-- A small closed-shape invariant for the post-initialize storage. -/
 theorem valueVaultCoreTraceStep_initialize
     (core : ValueVaultWasmCoreState) (initial : Nat) :
     valueVaultWasmCoreTraceStep core (.initialize initial) =
-      .ok ({ storage := (#[
-          (balanceKey, initial),
-          (releasedKey, 0),
-          (feesKey, 0),
-          (lastValueKey, initial),
-          (lastCheckpointKey, core.checkpoint),
-          (operationsKey, 1)
-        ] : ValueVaultWasmCoreStorage), returnValue := (#[] : WasmInterpreter.Bytes) }, 0) := by
+      .ok ({ storage := canonicalCoreStorage initial 0 0 initial 0 1, returnValue := #[] }, 0) := by
   simp [valueVaultWasmCoreTraceStep]
 
 end ProofForge.Backend.WasmNear.ValueVaultWasmExec
