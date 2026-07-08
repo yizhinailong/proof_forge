@@ -638,7 +638,7 @@ solana-web3-compat:
     python3 scripts/solana/check-web3-compat-wrappers.py
 
 # Run all Solana gates that are safe for default CI.
-solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke portable-value-vault solana-emit-asm solana-plan-smoke solana-web3-compat solana-pinocchio-reference-equivalence solana-sbpf-exec-smoke solana-sbpf-genericity-smoke solana-counter-sbpf-regression solana-refinement-smoke
+solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke portable-value-vault solana-emit-asm solana-plan-smoke solana-auto-materialize solana-web3-compat solana-pinocchio-reference-equivalence solana-sbpf-exec-smoke solana-sbpf-genericity-smoke solana-counter-sbpf-regression solana-refinement-smoke
 
 # Check shared-vs-target example topology.
 examples-topology:
@@ -650,6 +650,11 @@ portable-default:
     python3 scripts/examples/check-topology.py
     lake build Examples.Shared.FungibleToken Examples.Shared.FeeToken Examples.Shared.SoulboundToken
     lake env lean --run Tests/SharedTokenIntent.lean
+
+# Phase B.2: portable IR → Solana accounts without Source.Solana authoring.
+solana-auto-materialize:
+    lake build ProofForge.Backend.Solana.Materialize Examples.Shared.Counter Examples.Shared.ValueVault ProofForge.Solana.Examples.Vault
+    lake env lean --run Tests/SolanaAutoMaterialize.lean
 
 # Check translated documentation freshness and example topology.
 docs-check: examples-topology portable-default

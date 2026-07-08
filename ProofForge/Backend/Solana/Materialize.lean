@@ -1,0 +1,110 @@
+/-
+Copyright (c) 2026 DaviRain. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+
+# Solana auto-materialization (Phase B.2)
+
+Product rule: authors write portable IR / `contract_source` business logic only.
+`--target solana-sbpf-asm` synthesizes the Solana account schema without
+requiring `import ProofForge.Contract.Source.Solana`.
+
+Modes:
+
+* `autoPortable` — no Solana extension metadata; state lives in a default
+  program-owned writable account derived from portable `Module.state`.
+* `extensionDeclared` — capability plan / Source.Solana declared accounts,
+  PDAs, or CPIs; those merge on top of the portable default state account.
+
+TokenSpec has its own plan materializer (`planForTarget`); this module covers
+general portable `contract_source` modules (Counter, ValueVault, …).
+-/
+import ProofForge.IR.Contract
+import ProofForge.Backend.Solana.Extension.Types
+import ProofForge.Backend.Solana.Manifest
+import ProofForge.Target.StorageBinding
+
+namespace ProofForge.Backend.Solana.Materialize
+
+open ProofForge.IR
+open ProofForge.Backend.Solana.Extension
+open ProofForge.Backend.Solana.Manifest
+open ProofForge.Target
+
+inductive MaterializationMode where
+  | autoPortable
+  | extensionDeclared
+  deriving BEq, DecidableEq, Repr
+
+def MaterializationMode.id : MaterializationMode → String
+  | .autoPortable => "auto-portable"
+  | .extensionDeclared => "extension-declared"
+
+def MaterializationMode.describe : MaterializationMode → String
+  | .autoPortable =>
+      "accounts synthesized from portable IR state (no Source.Solana authoring)"
+  | .extensionDeclared =>
+      "accounts include Solana extension declarations (PDA/CPI/declared accounts)"
+
+private def jsonStr (s : String) : String :=
+  "\"" ++ s ++ "\""
+
+private def jsonBool (b : Bool) : String :=
+  if b then "true" else "false"
+
+/-- True when the extension plan carries Solana-native surface beyond portable IR. -/
+def hasDeclaredSurface (ext : ProgramExtensions) : Bool :=
+  !(ext.accounts.isEmpty && ext.pdas.isEmpty && ext.cpis.isEmpty &&
+    ext.pdaActions.isEmpty && ext.cpiActions.isEmpty &&
+    ext.accountReallocActions.isEmpty && ext.pubkeyLogActions.isEmpty &&
+    ext.transferHookExtraAccountMetaListActions.isEmpty)
+
+def materializationMode (ext : ProgramExtensions) : MaterializationMode :=
+  if hasDeclaredSurface ext then .extensionDeclared else .autoPortable
+
+def materializePortableStateAccounts (module : Module) : Array AccountEntry :=
+  buildDefaultAccounts module
+
+def materializeModuleAccounts (module : Module) (ext : ProgramExtensions) : Array AccountEntry :=
+  buildModuleAccounts module ext
+
+structure MaterializationReport where
+  mode : MaterializationMode
+  storageBinding : String
+  stateAccountCount : Nat
+  accounts : Array AccountEntry
+  note : String
+  deriving Repr
+
+def report (module : Module) (ext : ProgramExtensions := {}) : MaterializationReport :=
+  let mode := materializationMode ext
+  let accounts := materializeModuleAccounts module ext
+  { mode := mode
+    storageBinding := StorageBinding.accountData.id
+    stateAccountCount := if module.state.isEmpty then 0 else 1
+    accounts := accounts
+    note := mode.describe }
+
+def accountEntryJson (a : AccountEntry) : String :=
+  "{" ++
+  "\"name\":" ++ jsonStr a.name ++ "," ++
+  "\"index\":" ++ toString a.index ++ "," ++
+  "\"signer\":" ++ jsonBool a.signer ++ "," ++
+  "\"writable\":" ++ jsonBool a.writable ++ "," ++
+  "\"owner\":" ++ jsonStr a.owner ++
+  "}"
+
+def reportJson (r : MaterializationReport) : String :=
+  "{" ++
+  "\"mode\":" ++ jsonStr r.mode.id ++ "," ++
+  "\"storageBinding\":" ++ jsonStr r.storageBinding ++ "," ++
+  "\"stateAccountCount\":" ++ toString r.stateAccountCount ++ "," ++
+  "\"note\":" ++ jsonStr r.note ++ "," ++
+  "\"accounts\":[" ++
+    String.intercalate "," (r.accounts.toList.map accountEntryJson) ++
+  "]}"
+
+/-- Portable modules with state (or entrypoints) use the auto-portable path. -/
+def supportsAutoPortable (module : Module) : Bool :=
+  !module.state.isEmpty || !module.entrypoints.isEmpty
+
+end ProofForge.Backend.Solana.Materialize

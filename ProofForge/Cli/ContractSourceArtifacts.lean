@@ -1,5 +1,7 @@
 import Lean.Util.Path
+import ProofForge.Backend.Solana.Extension
 import ProofForge.Backend.Solana.Idl
+import ProofForge.Backend.Solana.Materialize
 import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Cli.Artifact
 import ProofForge.Cli.ArrayUtil
@@ -86,6 +88,10 @@ unsafe def compileContractSourceSbpf (opts : CliOptions) : IO UInt32 := do
         ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
         ("targetFamily", jsonString "solana"),
         ("storageBinding", jsonString ProofForge.Target.solanaSbpfAsm.storageBinding.id),
+        ("solanaMaterialization",
+          ProofForge.Backend.Solana.Materialize.reportJson
+            (ProofForge.Backend.Solana.Materialize.report spec.module
+              (ProofForge.Backend.Solana.Extension.ProgramExtensions.fromPlan plan))),
         ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
         ("fixture", jsonString (leanBaseName input)),
         ("sourceKind", jsonString "contract-sdk"),

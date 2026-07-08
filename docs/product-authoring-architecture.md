@@ -287,7 +287,7 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 | 1 | Portable-default lint + docs | ✅ Landed |
 | 2 | TokenSpec feature-only; standard from target | ✅ Landed |
 | 3 | Solana Source opt-in (stop default teaching CPI) | ✅ Landed (bridge) |
-| 4 | **Solana auto-materialize portable IR → Plan/accounts** | **NEXT** — makes chain DSL unnecessary for product |
+| 4 | **Solana auto-materialize portable IR → Plan/accounts** | ✅ B.2 landed for portable state → default account (`Materialize.lean`, `solanaMaterialization` artifact field, `just solana-auto-materialize`) |
 | 5 | NEAR Promise out of portable Expr; crosscall materialize | IR hygiene + async |
 | 6 | Mark `Source.Solana` fixture-only; demote from product docs | After auto-materialize works for Counter/Vault |
 | 7 | Stdlib portable policies → multi-target lowering | One Ownable/Token intent |
