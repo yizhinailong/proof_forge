@@ -181,6 +181,27 @@ theorem counter_step_simulates_traceStep (call : CounterCall)
   refine ⟨nextState, nextCount, observable, hirStep, ?_, hrelNext⟩
   rw [targetTraceStep, htargetStep]
 
+/-! ### FV-9.2c: per-entrypoint preservation consumes `TargetSemantics.irStateRel`
+
+These restate the counter-model preservation theorems through the generic
+`TargetSemantics.irStateRel` field (FV-9.1), demonstrating that the
+simulation-relation premise of `traceSimulation_lift` is dischargeable via
+the field. FV-9.3's ∀-contract induction will use exactly this shape:
+`step_simulates` quantified over `irStateRel`.
+-/
+
+theorem counter_step_simulates_via_irStateRel (call : CounterCall)
+    {state : State} {count : Nat}
+    (h : counterModelTargetSemantics.irStateRel state count) :
+    ∃ nextState nextCount observable,
+      irStep state call = .ok (nextState, observable) ∧
+      targetTraceStep count call = .ok (nextCount, observable) ∧
+      counterModelTargetSemantics.irStateRel nextState nextCount := by
+  -- `irStateRel` is `CounterStateRel` (FV-9.1), so this is exactly
+  -- `counter_step_simulates_traceStep`.
+  rw [show counterModelTargetSemantics.irStateRel = CounterStateRel from rfl] at *
+  exact counter_step_simulates_traceStep call h
+
 theorem counter_trace_simulates_all_related_via_framework (calls : List CounterCall)
     {state : State} {count : Nat} (h : CounterStateRel state count) :
     ∃ finalState finalCount observables,

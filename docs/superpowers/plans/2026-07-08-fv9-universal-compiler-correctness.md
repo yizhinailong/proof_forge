@@ -154,22 +154,50 @@ FV-9.3 will specialize it to `TargetSemantics.irStateRel` when stating
 `<target>_fragment_refines`. The field exists and is reachable; the
 ∀-contract theorem that consumes it is FV-9.2/9.3.
 
-### FV-9.2 — Per-constructor preservation lemmas (reuse L1; fill the gaps)
+### FV-9.2 — Per-constructor preservation lemmas (reuse L1; fill the gaps) — **PARTIAL (2026-07-09): substrate + arithmetic core landed**
 
-For each `Expr` and statement constructor, prove: if `R` holds before, executing it under
-`evalModuleFuel` and running the lowered target instructions re-establishes `R`. **The L1 layers
-are these cases** — most arithmetic/storage/local cases are already proven generically. Inventory
-the constructor set (from `IR/Contract.lean`) and mark coverage:
+Landed in `ProofForge/Backend/Refinement/ConstructorCoverage.lean`:
 
-- **Likely already covered by L1 + the two witnesses:** `literal`, `local`, `add/sub/mul` (incl.
-  the `overflowChecked` node flag), storage `scalar`/`map` read+write, `get`/`increment`/`deposit`
-  entrypoint shapes, event emit.
-- **Likely gaps (no witness exercises them → induction stalls → new L1 lemmas needed):**
-  `div`, `mod`, `bitAnd/bitOr/bitXor`, `shiftLeft/shiftRight`, `memoryArrayNew/Get/Length`,
-  `arrayLit/arrayGet`, dynamic arrays, `structLit`/`field`, the env expressions
-  (`timestamp`, `blockHash`, `chainId`, `gasLeft`, …), and the `crosscallInvoke*` family.
-- Deliverable: a coverage table (constructor × {covered | gap}) checked in next to the proof, and
-  an L1 lemma for every constructor the fragment (FV-9.4) admits.
+- **Coverage predicates** (`fuelCoveredExpr`/`fuelCoveredEffect`/`fuelCoveredStatement`):
+  the single source of truth for "the shared fueled interpreter handles this
+  constructor". Canonicalized from M5's per-file copies into one refinement-layer
+  module. Decidable, so the fragment predicate (FV-9.4) and the coverage smoke gate
+  can `decide` them.
+- **`ConstructorStatus` enum** (`covered`/`fuelOnly`/`gap`) + `exprStatus`/
+  `effectStatus`/`statementStatus` — the FV-9.2 coverage table, Lean-encoded and
+  machine-checked. The arithmetic/comparison/boolean/cast/scalar+map+struct
+  storage/context/event/control-flow core is `covered`; the
+  array/struct/crosscall/env-extension family is `gap` (no witness exercises them →
+  induction stalls → FV-9.2 widening adds them one at a time).
+- **IR-side preservation lemmas** (`evalExprFuel_add_eq`/`_sub_eq`/`_mul_eq`):
+  prove the IR-side half of the preservation obligation for the arithmetic core —
+  under `evalExprFuel`, `add`/`sub`/`mul` compute exactly
+  `evalNumericBinary op f lhsVal rhsVal`. Target-agnostic; FV-9.3's structural
+  induction discharges the target-side half via the L1 generic per-instruction
+  layers (`SbpfExec` 260 thms, `WasmExec` 54, etc.).
+- **Counter-model per-entrypoint preservation via `irStateRel`** (FV-9.2c, in
+  `CounterUniversal.lean`): `counter_step_simulates_via_irStateRel` restates the
+  existing `counter_step_simulates_traceStep` through the generic
+  `TargetSemantics.irStateRel` field (FV-9.1), demonstrating the
+  `traceSimulation_lift` `step_simulates` premise is dischargeable via the field.
+
+Smoke: new `constructor-coverage-smoke` gate
+(`Tests/ConstructorCoverageSmoke.lean`): coverage predicates + status table +
+preservation lemmas reachable; concrete Counter `increment` constructors
+`covered` (`decide`); `add` preservation lemma fires on a concrete operand pair;
+`crosscallInvoke` correctly marked `gap`. Integrated into `just check`. All
+FV-9.0/9.1 gates still green.
+
+**Honest limit / what remains:** the arithmetic core preservation lemmas are
+landed; the comparison/boolean/cast/storage/context/event constructors have
+coverage predicates + `covered` status but **their IR-side preservation lemmas
+are not yet written** (they are the next widening slice). The target-side
+per-target discharge (reusing L1) is FV-9.3's job. The gap constructors
+(`div`/`mod`/`bitAnd`/`shiftLeft`/`arrayLit`/`structLit`/`crosscallInvoke*`/env)
+need both a fueled-interpreter arm (some already exist from M2) and a
+preservation lemma before FV-9.4's fragment predicate can admit them. Per the
+scope discipline, the fragment starts narrow (arithmetic + scalar storage core
+Counter+ValueVault exercise) and widens one constructor at a time.
 
 ### FV-9.3 — The structural induction
 
