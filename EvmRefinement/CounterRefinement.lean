@@ -4483,11 +4483,12 @@ theorem counterState_of_dispatcher_first_push0_stepFE_to_calldataload_ok
     simp [EvmSemantics.EVM.State.consumeGas,
       EvmSemantics.EVM.State.replaceStackAndIncrPC]
 
-theorem counterState_of_dispatcher_calldataload_stepFE_to_shift_push_ok
+theorem counterState_of_dispatcher_calldataload_stepFE_to_shift_push_for_call_ok
     {state nextState : EvmState}
+    {call : CounterCall}
     {rest : List EvmSemantics.UInt256}
     (hstack : state.stack = EvmSemantics.UInt256.ofNat 0 :: rest)
-    (hcalldata : state.executionEnv.calldata = counterCallCalldata .initialize)
+    (hcalldata : state.executionEnv.calldata = counterCallCalldata call)
     (hat : counterCompiledStateAt state 1)
     (hready :
       counterStepFEReady state
@@ -4497,7 +4498,7 @@ theorem counterState_of_dispatcher_calldataload_stepFE_to_shift_push_ok
       nextState.decoded =
         some (.Push counterPush1Op,
           some (EvmSemantics.UInt256.ofNat 224, 1)) ∧
-      nextState.stack = counterInitializeCalldataWord :: rest := by
+      nextState.stack = counterCallCalldataWord call :: rest := by
   rcases hready with ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstate :=
     counterState_of_stepFE_env_calldataload_ok hrunning hprecompile
@@ -4519,12 +4520,32 @@ theorem counterState_of_dispatcher_calldataload_stepFE_to_shift_push_ok
   rw [hstate]
   simp [EvmSemantics.EVM.State.consumeGas,
     EvmSemantics.EVM.State.replaceStackAndIncrPC, hcalldata,
-    counterUInt256_ofNat_zero_toNat, counterInitialize_calldataload_zero_eq]
+    counterUInt256_ofNat_zero_toNat, counterCall_calldataload_zero_eq]
 
-theorem counterState_of_dispatcher_selector_shift_push_stepFE_to_shr_ok
+theorem counterState_of_dispatcher_calldataload_stepFE_to_shift_push_ok
     {state nextState : EvmState}
     {rest : List EvmSemantics.UInt256}
-    (hstack : state.stack = counterInitializeCalldataWord :: rest)
+    (hstack : state.stack = EvmSemantics.UInt256.ofNat 0 :: rest)
+    (hcalldata : state.executionEnv.calldata = counterCallCalldata .initialize)
+    (hat : counterCompiledStateAt state 1)
+    (hready :
+      counterStepFEReady state
+        (.Env (.CALLDATALOAD : EvmSemantics.Operation.EnvOps)))
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    counterCompiledStateAt nextState 2 ∧
+      nextState.decoded =
+        some (.Push counterPush1Op,
+          some (EvmSemantics.UInt256.ofNat 224, 1)) ∧
+      nextState.stack = counterInitializeCalldataWord :: rest := by
+  simpa [counterInitializeCalldataWord_eq] using
+    counterState_of_dispatcher_calldataload_stepFE_to_shift_push_for_call_ok
+      (call := .initialize) hstack hcalldata hat hready hstep
+
+theorem counterState_of_dispatcher_selector_shift_push_stepFE_to_shr_for_word_ok
+    {state nextState : EvmState}
+    {word : EvmSemantics.UInt256}
+    {rest : List EvmSemantics.UInt256}
+    (hstack : state.stack = word :: rest)
     (hat : counterCompiledStateAt state 2)
     (hready : counterStepFEReady state (.Push counterPush1Op))
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
@@ -4533,8 +4554,7 @@ theorem counterState_of_dispatcher_selector_shift_push_stepFE_to_shr_ok
         some (.CompBit
           (.SHR : EvmSemantics.Operation.CompareBitwiseOps), none) ∧
       nextState.stack =
-        EvmSemantics.UInt256.ofNat 224 :: counterInitializeCalldataWord ::
-          rest := by
+        EvmSemantics.UInt256.ofNat 224 :: word :: rest := by
   rcases hready with ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstate :=
     counterState_of_stepFE_push1_ok hrunning hprecompile
@@ -4557,12 +4577,31 @@ theorem counterState_of_dispatcher_selector_shift_push_stepFE_to_shr_ok
   simp [EvmSemantics.EVM.State.consumeGas,
     EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack]
 
-theorem counterState_of_dispatcher_selector_shr_stepFE_to_dup_ok
+theorem counterState_of_dispatcher_selector_shift_push_stepFE_to_shr_ok
     {state nextState : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (hstack : state.stack = counterInitializeCalldataWord :: rest)
+    (hat : counterCompiledStateAt state 2)
+    (hready : counterStepFEReady state (.Push counterPush1Op))
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    counterCompiledStateAt nextState 4 ∧
+      nextState.decoded =
+        some (.CompBit
+          (.SHR : EvmSemantics.Operation.CompareBitwiseOps), none) ∧
+      nextState.stack =
+        EvmSemantics.UInt256.ofNat 224 :: counterInitializeCalldataWord ::
+          rest := by
+  exact
+    counterState_of_dispatcher_selector_shift_push_stepFE_to_shr_for_word_ok
+      (word := counterInitializeCalldataWord) hstack hat hready hstep
+
+theorem counterState_of_dispatcher_selector_shr_stepFE_to_dup_for_call_ok
+    {state nextState : EvmState}
+    {call : CounterCall}
     {rest : List EvmSemantics.UInt256}
     (hstack :
       state.stack =
-        EvmSemantics.UInt256.ofNat 224 :: counterInitializeCalldataWord :: rest)
+        EvmSemantics.UInt256.ofNat 224 :: counterCallCalldataWord call :: rest)
     (hat : counterCompiledStateAt state 4)
     (hready :
       counterStepFEReady state
@@ -4571,7 +4610,7 @@ theorem counterState_of_dispatcher_selector_shr_stepFE_to_dup_ok
     counterCompiledStateAt nextState 5 ∧
       nextState.decoded = some (.Dup counterDup1Op, none) ∧
       nextState.stack =
-        EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest := by
+        EvmSemantics.UInt256.ofNat (counterCallSelectorNat call) :: rest := by
   rcases hready with ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstate :=
     counterState_of_stepFE_compBit_shr_ok hrunning hprecompile
@@ -4593,14 +4632,37 @@ theorem counterState_of_dispatcher_selector_shr_stepFE_to_dup_ok
   rw [hstate]
   simp [EvmSemantics.EVM.State.consumeGas,
     EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack,
-    counterInitialize_selector_shr224_eq]
+    counterCall_selector_shr224_eq]
 
-theorem counterState_of_dispatcher_selector_dup_stepFE_to_selector_push_ok
+theorem counterState_of_dispatcher_selector_shr_stepFE_to_dup_ok
     {state nextState : EvmState}
     {rest : List EvmSemantics.UInt256}
     (hstack :
       state.stack =
-        EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest)
+        EvmSemantics.UInt256.ofNat 224 :: counterInitializeCalldataWord :: rest)
+    (hat : counterCompiledStateAt state 4)
+    (hready :
+      counterStepFEReady state
+        (.CompBit (.SHR : EvmSemantics.Operation.CompareBitwiseOps)))
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    counterCompiledStateAt nextState 5 ∧
+      nextState.decoded = some (.Dup counterDup1Op, none) ∧
+      nextState.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest := by
+  simpa [counterInitializeCalldataWord_eq, counterInitializeSelectorNat_eq] using
+    counterState_of_dispatcher_selector_shr_stepFE_to_dup_for_call_ok
+      (call := .initialize)
+      (hstack := by
+        simpa [counterInitializeCalldataWord_eq] using hstack)
+      hat hready hstep
+
+theorem counterState_of_dispatcher_selector_dup_stepFE_to_selector_push_for_call_ok
+    {state nextState : EvmState}
+    {call : CounterCall}
+    {rest : List EvmSemantics.UInt256}
+    (hstack :
+      state.stack =
+        EvmSemantics.UInt256.ofNat (counterCallSelectorNat call) :: rest)
     (hat : counterCompiledStateAt state 5)
     (hready : counterStepFEReady state (.Dup counterDup1Op))
     (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
@@ -4609,8 +4671,8 @@ theorem counterState_of_dispatcher_selector_dup_stepFE_to_selector_push_ok
         some (.Push counterPush4Op,
           some (EvmSemantics.UInt256.ofNat counterInitializeSelectorNat, 4)) ∧
       nextState.stack =
-        EvmSemantics.UInt256.ofNat counterInitializeSelectorNat ::
-          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest := by
+        EvmSemantics.UInt256.ofNat (counterCallSelectorNat call) ::
+          EvmSemantics.UInt256.ofNat (counterCallSelectorNat call) :: rest := by
   rcases hready with ⟨hrunning, hprecompile, hstackOk, hgas⟩
   have hstate :=
     counterState_of_stepFE_dup1_ok hrunning hprecompile
@@ -4632,6 +4694,29 @@ theorem counterState_of_dispatcher_selector_dup_stepFE_to_selector_push_ok
   rw [hstate]
   simp [EvmSemantics.EVM.State.consumeGas,
     EvmSemantics.EVM.State.replaceStackAndIncrPC, hstack]
+
+theorem counterState_of_dispatcher_selector_dup_stepFE_to_selector_push_ok
+    {state nextState : EvmState}
+    {rest : List EvmSemantics.UInt256}
+    (hstack :
+      state.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest)
+    (hat : counterCompiledStateAt state 5)
+    (hready : counterStepFEReady state (.Dup counterDup1Op))
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    counterCompiledStateAt nextState 6 ∧
+      nextState.decoded =
+        some (.Push counterPush4Op,
+          some (EvmSemantics.UInt256.ofNat counterInitializeSelectorNat, 4)) ∧
+      nextState.stack =
+        EvmSemantics.UInt256.ofNat counterInitializeSelectorNat ::
+          EvmSemantics.UInt256.ofNat counterInitializeSelectorNat :: rest := by
+  simpa [counterInitializeSelectorNat_eq] using
+    counterState_of_dispatcher_selector_dup_stepFE_to_selector_push_for_call_ok
+      (call := .initialize)
+      (hstack := by
+        simpa [counterInitializeSelectorNat_eq] using hstack)
+      hat hready hstep
 
 theorem counterState_of_dispatcher_initialize_selector_push_stepFE_to_eq_ok
     {state nextState : EvmState}
