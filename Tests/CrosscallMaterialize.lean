@@ -61,6 +61,12 @@ def main : IO Unit := do
       require (src.contains "forward") "asm forwards full tx account vector"
       require (src.contains "sol_get_return_data") "asm decodes return data"
       require (src.contains "error_cpi") "asm traps CPI failures"
+      -- Anchor/Pinocchio-style checks live in entrypoint prologue (materialize → lower).
+      require (src.contains "account.validation") "entrypoint emits account.validation prologue"
+      require (src.contains "error_signer") "signer trap present"
+      require (src.contains "error_owner") "owner trap present"
+      require (src.contains "signer=true") "payer role gets signer check"
+      require (src.contains "owner=executable") "callee_program gets executable check"
       -- Schema with state + payer + callee_program should pack ≥ 3 accounts.
       require (src.contains "accounts=3" || src.contains "accounts=2" ||
           src.contains "AccountMeta[0]" || src.contains "input account[0]")

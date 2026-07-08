@@ -235,6 +235,51 @@ Implementation sketch:
      indices; typed/STATIC/DELEGATE/create reject with honest diagnostics.
    - Map + gate: `Target.CrosscallMaterialize` + `just crosscall-materialize`.
 
+#### Cross-contract form is target-native (not one “CPI” for all chains)
+
+Portable intent is one: **call method on peer**. Each backend owns the native
+frame — authors never write these frames:
+
+| Family | Native call form | “Accounts / identities” surface |
+|---|---|---|
+| **EVM** | `CALL` / optional STATIC/DELEGATE/create | address + calldata + value (no account metas) |
+| **Solana** | `sol_invoke_signed_c` **CPI** | explicit `AccountMeta` / `AccountInfo` vector (max locks 64; portable pack cap 16 today) |
+| **NEAR** | `promise_create` (+ optional `promise_then`) | account **id strings** + method name + gas/deposit (async) |
+| **CosmWasm** | WasmMsg / submessage | contract addr + msg JSON (spike) |
+| **Move** | entry/object call (sourcegen) | address / object handles (spike) |
+
+So “CPI 传参 / account metas” is **Solana-only materialization**, not portable
+IR. NEAR string pool and EVM ABI words are the parallel artifacts for those
+families.
+
+#### Where Solana account checks live (Anchor / Pinocchio analogue)
+
+Anchor `#[account(signer, mut, owner = …)]` and Pinocchio-style manual checks
+are **not** author-facing portable IR. They are **Solana backend
+materialization** of the account schema:
+
+```text
+portable Module + --target solana-sbpf-asm
+  → Manifest.materialize accounts (state / payer / callee_program / …)
+  → each entrypoint prologue: SbpfAsm.lowerAccountValidations
+       signer / writable / owner=program|executable|named
+  → body lowering (storage, portable CPI pack, …)
+```
+
+| Concern | Layer | Module |
+|---|---|---|
+| Business logic | Portable IR / `contract_source` | Shared sources |
+| Account **roles** (state, payer, callee) | Solana materialize / manifest | `Manifest.ensurePortableCrosscallAccounts`, `Materialize` |
+| Account **checks** (signer, mut, owner, executable) | Entrypoint **prologue** (codegen) | `SbpfAsm.lowerAccountValidationFor` → `error_signer` / `error_owner` / … |
+| CPI **packing** (metas, infos, invoke) | Expression lower for portable invoke / Source.Solana CPI helpers | `PortableCrosscall`, `Extension/Cpi` |
+| Hand-tuned constraints | Opt-in extension | `Source.Solana` account/PDA/CPI DSL |
+
+**Answer:** yes — checks belong in **Solana materialization + entrypoint
+lowering**, already emitted as `account.validation[…]` comments and trap
+labels in generated sBPF (same place Anchor would inject constraint code).
+They must **not** become portable IR constructors (that would re-EVM/Solana-bias
+the authoring surface).
+
 **Exit:** Shared RoleGatedToken / StakingVault / Counter compile to Solana
 **without** `import Source.Solana` and without any `account`/`cpi` line, and
 pass Solana light gates.

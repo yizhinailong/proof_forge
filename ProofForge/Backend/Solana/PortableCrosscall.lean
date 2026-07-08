@@ -11,12 +11,18 @@ CPI-shaped execution:
 * Instruction data: little-endian method tag (u64) followed by packed u64 args
 * Program account: runtime account index = `target` (must be an executable
   program account in the transaction account list)
+* Account vector: **full instruction account list** forwarded as
+  `AccountMeta`/`AccountInfo` (capped at `MAX_PORTABLE_CPI_ACCOUNTS`)
 * Result: first 8 bytes of `sol_get_return_data` if present, else 0
 
 Account list auto-extension (module-level schema): when portable crosscall is
-detected, the materializer ensures a placeholder `callee_program` executable
-account is available for CPI program-id lookup by index (authors still do not
-write `cpi` DSL — the runtime passes the callee as an extra account).
+detected, the materializer ensures `payer` + `callee_program` roles exist.
+
+**Account checks (Anchor/Pinocchio analogue)** are **not** in this packer.
+They are emitted once per entrypoint by `SbpfAsm.lowerAccountValidations` from
+the materialized `AccountEntry` flags (`signer` / `writable` / `owner`). This
+module only packs CPI frames; prologue validation is the Solana backend's
+constraint layer.
 -/
 import ProofForge.IR.Contract
 import ProofForge.Backend.Solana.Asm

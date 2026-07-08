@@ -11,13 +11,17 @@ materializes that intent into its native call model:
 
 | Target family | Native form of portable `crosscall.invoke` |
 |---|---|
-| EVM | CALL (typed variants may map to STATICCALL/DELEGATECALL only via extension) |
-| Solana | CPI frame (`crosscall.cpi` + account metas synthesized by plan) |
-| Wasm-NEAR | host cross-contract call / Promise (async) |
+| EVM | CALL (typed variants may map to STATICCALL/DELEGATECALL only via extension) — **no account metas** |
+| Solana | CPI frame (`sol_invoke_signed_c` + account metas/infos + entrypoint account validation prologue) |
+| Wasm-NEAR | host `promise_create` (async; string pool for account/method names) |
 | Wasm-CosmWasm | WasmMsg / submessage |
 | Wasm-Cloudflare | HTTP/service binding call (off-chain reinterpretation) |
 | Move Aptos/Sui | entry function call / object call (spike-level) |
 | Psy / Aleo | circuit / transition call (restricted; often reject full async) |
+
+Solana-only: account **checks** (signer/writable/owner) live in entrypoint
+prologue materialization (`lowerAccountValidations`), not in portable IR —
+same layer as Anchor constraints / Pinocchio manual checks.
 
 This module is the product vocabulary for that mapping. Full async Promise /
 CPI packing remains in backends; here we expose an auditable, target-keyed
