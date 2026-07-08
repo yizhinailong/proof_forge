@@ -118,13 +118,41 @@ agreement. The next card (FV-9.1) defines the generic simulation relation; FV-9.
 fills the per-constructor preservation lemmas (most cases already covered by the L1
 generic per-instruction layers); FV-9.3 is the structural induction.
 
-### FV-9.1 — Define the simulation relation once, generically
+### FV-9.1 — Define the simulation relation once, generically — **DONE (2026-07-09)**
 
-- Extract the IR-state ↔ target-state relation `R` that the per-contract proofs currently inline
-  (`counterWasmCore…`, `counterSbpfCore…`, powdr storage-model) into a single generic
-  `IRTargetRel (target) (irState : IR.State) (ts : <target>State) : Prop` in
-  `Backend/Refinement/Core.lean` (or per-target where the state types force it).
-- Prove the trivial base: `R` holds at the initial state for any module.
+Landed as three new fields on `TargetSemantics` in
+`ProofForge/Backend/Refinement/Core.lean`:
+
+- `irStateRel : IR.Semantics.State → MachineState → Prop` — the generic
+  IR-state↔target-machine-state simulation relation `R`. Promoted from a
+  per-call theorem parameter of `traceSimulation_lift` to a first-class field.
+  Default `fun _ _ => True` so existing instantiations keep compiling.
+- `initialMachineState : Module → Option MachineState` — the target's initial
+  machine state for a module, when constructible without the full lowerer.
+  `none` = not yet wired (FV-9.2/9.3 fill it). Default `fun _ => none`.
+- `initialRelHolds : ∀ m ms, initialMachineState m = some ms →
+  irStateRel IR.Semantics.State.empty ms` — the base case of the ∀-contract
+  induction. Backends prove it once they fill the two fields above.
+
+Instantiations updated:
+- `counterModelTargetSemantics` (`CounterUniversal.lean`): filled with the real
+  `CounterStateRel`-based `irStateRel` + `initialMachineState := fun _ => none`
+  (no count pre-initialize) + proved base case.
+- EVM/Yul, Solana sBPF, Wasm/NEAR, and the powdr counter instance: keep the
+  trivial default `irStateRel` + `initialRelHolds := by intros; trivial` (their
+  real relations are still inlined in their per-contract proofs; FV-9.2 will
+  lift them into the field).
+
+Smoke: `Tests/TargetSemanticsInstances.lean` extended with FV-9.1 pins
+(`irStateRel`/`initialMachineState`/`initialRelHolds` reachable on every
+target; counter-model `irStateRel` is `CounterStateRel`; base case theorem
+sound). `target-semantics-instances-smoke` green; all FV-9.0 gates still green.
+
+**Honest limit:** the `traceSimulation_lift` theorem still takes `Rel` as a
+parameter (it is polymorphic over any `Rel : IRState → TargetState → Prop`);
+FV-9.3 will specialize it to `TargetSemantics.irStateRel` when stating
+`<target>_fragment_refines`. The field exists and is reachable; the
+∀-contract theorem that consumes it is FV-9.2/9.3.
 
 ### FV-9.2 — Per-constructor preservation lemmas (reuse L1; fill the gaps)
 

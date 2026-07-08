@@ -1,6 +1,7 @@
 import ProofForge.Backend.Evm.Refinement
 import ProofForge.Backend.Solana.Refinement
 import ProofForge.Backend.WasmNear.Refinement
+import ProofForge.Backend.Refinement.CounterUniversal
 import ProofForge.IR.StepSemantics
 
 /-! ## Shared TargetSemantics instance smoke
@@ -56,8 +57,45 @@ theorem wasm_counter_target_semantics_trace_ok :
     ProofForge.Backend.WasmNear.Refinement.wasmNearTargetSemantics calls
     ({ wasm, state } : ProofForge.Backend.WasmNear.Refinement.WasmNearMachineState))
 
+/-! ## FV-9.1: generic simulation relation is a first-class TargetSemantics field
+
+The `irStateRel` / `initialMachineState` / `initialRelHolds` fields added in
+FV-9.1 are reachable on every existing target instance, and the counter-model
+target carries the real `CounterStateRel`-based relation with a proved base
+case (no related initial state pre-initialize — the trace proofs establish
+the relation post-initialize). This is the substrate FV-9.3's ∀-contract
+induction will consume. -/
+
+open ProofForge.Backend.Refinement.CounterUniversal
+
+-- Every target carries the FV-9.1 fields.
+#check (TargetSemantics.irStateRel :
+    (sem : TargetSemantics) → ProofForge.IR.Semantics.State → sem.MachineState → Prop)
+#check (TargetSemantics.initialMachineState :
+    (sem : TargetSemantics) → ProofForge.IR.Module → Option sem.MachineState)
+#check (TargetSemantics.initialRelHolds :
+    (sem : TargetSemantics) → ∀ (m : ProofForge.IR.Module) (ms : sem.MachineState),
+      sem.initialMachineState m = some ms → sem.irStateRel ProofForge.IR.Semantics.State.empty ms)
+
+-- The counter-model target's relation is the real `CounterStateRel`, not the
+-- trivial default.
+theorem counterModel_irStateRel_is_CounterStateRel
+    (irState : ProofForge.IR.Semantics.State) (count : Nat) :
+    counterModelTargetSemantics.irStateRel irState count ↔ CounterStateRel irState count := by
+  rfl
+
+-- The counter-model base case: no related initial state pre-initialize.
+theorem counterModel_initialMachineState_none (m : ProofForge.IR.Module) :
+    counterModelTargetSemantics.initialMachineState m = none := by
+  rfl
+
+theorem counterModel_initialRelHolds_sound (m : ProofForge.IR.Module) (ms : Nat)
+    (h : counterModelTargetSemantics.initialMachineState m = some ms) :
+    counterModelTargetSemantics.irStateRel ProofForge.IR.Semantics.State.empty ms :=
+  counterModelTargetSemantics.initialRelHolds m ms h
+
 end ProofForge.Tests.TargetSemanticsInstances
 
 def main : IO UInt32 := do
-  IO.println "target-semantics-instances-smoke: EVM/Yul, Solana sBPF, and Wasm/NEAR executable trace runners are wired through TargetSemantics"
+  IO.println "target-semantics-instances-smoke: EVM/Yul, Solana sBPF, and Wasm/NEAR executable trace runners are wired through TargetSemantics (incl. FV-9.1 irStateRel/initialRelHolds fields)"
   return 0

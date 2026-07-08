@@ -205,6 +205,7 @@ def wasmNearTargetSemantics : TargetSemantics := {
     intro calls state
     rfl
   executableTraceOk := wasmExecutableTraceOk
+  initialRelHolds := by intros; trivial
 }
 
 def counterWasmSimulationRel

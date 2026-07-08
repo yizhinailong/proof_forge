@@ -12501,6 +12501,7 @@ def counterPowdrTargetSemantics (cfg : PowdrCounterConfig) : TargetSemantics := 
   runTrace := counterPowdrRunTrace cfg
   runTrace_eq_traceStep := counterPowdrRunTrace_eq_traceStep cfg
   executableTraceOk := fun _ => false
+  initialRelHolds := by intros; trivial
 }
 
 def counterCompiledPowdrExecutableTraceOk (obligation : TraceObligation) : Bool :=

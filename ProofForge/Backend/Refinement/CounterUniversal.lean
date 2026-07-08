@@ -88,6 +88,9 @@ theorem targetRunTraceList_eq_runTraceListGen (calls : List CounterCall) (count 
         hstep hrest
       simpa [targetRunTraceList, next] using hrun.symm
 
+def CounterStateRel (state : State) (count : Nat) : Prop :=
+  state.read "count" = some (.u64 count)
+
 def counterModelTargetSemantics : TargetSemantics := {
   id := "counter-model"
   supportedFragments := #[.counter]
@@ -100,10 +103,15 @@ def counterModelTargetSemantics : TargetSemantics := {
   runTrace := fun calls count => .ok (targetRunTraceList calls count)
   runTrace_eq_traceStep := targetRunTraceList_eq_runTraceListGen
   executableTraceOk := fun obligation => FormalFragment.counter.acceptsModule obligation.module
+  -- FV-9.1: the real generic simulation relation for the counter-model target.
+  irStateRel := fun irState count => CounterStateRel irState count
+  -- The counter-model has no count before `initialize` runs (IR `State.empty`
+  -- has no `count` key), so there is no related initial machine state; the
+  -- relation base-case applies only post-initialize, which the trace proofs
+  -- establish.
+  initialMachineState := fun _ => none
+  initialRelHolds := by intros m ms h; cases h
 }
-
-def CounterStateRel (state : State) (count : Nat) : Prop :=
-  state.read "count" = some (.u64 count)
 
 theorem lookup_insert_same (name : String) (value : Value) (bindings : Bindings) :
     lookup name (ProofForge.IR.Semantics.insert name value bindings) = some value := by

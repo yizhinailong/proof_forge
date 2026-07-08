@@ -437,6 +437,7 @@ def evmYulTargetSemantics : TargetSemantics := {
     intro calls state
     rfl
   executableTraceOk := evmYulTraceOk
+  initialRelHolds := by intros; trivial
 }
 
 def counterTraceCalls : Array TraceCall := #[

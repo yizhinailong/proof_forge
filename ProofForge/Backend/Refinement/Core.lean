@@ -249,6 +249,31 @@ structure TargetSemantics where
     ∀ calls state, runTrace calls state =
       ProofForge.IR.StepSemantics.runTraceListGen traceStep calls state
   executableTraceOk : TraceObligation → Bool
+  /-- FV-9.1: the generic IR-state ↔ target-machine-state simulation relation.
+
+  This is the `R` that `traceSimulation_lift` quantifies over, promoted from a
+  per-call theorem parameter to a first-class `TargetSemantics` field. Each
+  backend fills it with the relation its per-contract proofs currently inline
+  (e.g. `CounterWasmRel` / `CounterSbpfRel`). The default is the trivial
+  relation so existing instantiations keep compiling; real backends override
+  it. The ∀-contract theorem (FV-9.3) discharges `step_simulates` for this
+  `R` by structural induction over IR program structure. -/
+  irStateRel : IR.Semantics.State → MachineState → Prop := fun _ _ => True
+  /-- FV-9.1: the target's initial machine state for a module (e.g. an empty
+  account / empty WASM store), when the target can construct one without
+  running the full lowerer. `none` means the target has not yet wired a
+  proof-usable initial state (FV-9.2/9.3 will fill it). Used by
+  `initialRelHolds` as the base case. -/
+  initialMachineState : Module → Option MachineState := fun _ => none
+  /-- FV-9.1: the simulation relation holds at the initial state for any
+  fragment module whose initial machine state the target can construct — the
+  base case of the ∀-contract induction. Backends provide a proof once they
+  fill `irStateRel`/`initialMachineState` with a `some`; targets that keep
+  the trivial default `irStateRel` use `by intros; trivial`. -/
+  initialRelHolds :
+    ∀ (m : Module) (ms : MachineState),
+      initialMachineState m = some ms →
+      irStateRel IR.Semantics.State.empty ms
 
 def TargetSemantics.TraceMatches (semantics : TargetSemantics)
     (state : semantics.MachineState) (calls : List semantics.Call)

@@ -109,6 +109,7 @@ def solanaSbpfTargetSemantics : TargetSemantics := {
     intro calls state
     rfl
   executableTraceOk := sbpfExecutableTraceOk
+  initialRelHolds := by intros; trivial
 }
 
 /-! ### Counter scenario obligation
