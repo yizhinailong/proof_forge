@@ -586,6 +586,20 @@ theorem stepInst_ldxb_ok
           (state.memory.read (memoryAddress state base off))) := rfl
   rw [hstep, haddr, hvalue]
 
+theorem stepInst_ldxh_ok
+    (program : Program) (state : State) (dst base : Reg) (off addr value : Nat)
+    (instr : Inst)
+    (hinst : instr = inst .ldxh (some dst) (some base) (some (.num off)) none)
+    (haddr : memoryAddress state base off = addr)
+    (hvalue : state.memory.read addr = value) :
+    stepInst program state instr = .ok (execLoad state dst addr value) := by
+  subst hinst
+  have hstep :
+      stepInst program state (inst .ldxh (some dst) (some base) (some (.num off)) none) =
+        .ok (execLoad state dst (memoryAddress state base off)
+          (state.memory.read (memoryAddress state base off))) := rfl
+  rw [hstep, haddr, hvalue]
+
 theorem stepInst_ldxw_ok
     (program : Program) (state : State) (dst base : Reg) (off addr value : Nat)
     (instr : Inst)
@@ -613,6 +627,42 @@ theorem stepInst_stxdw_ok
         .ok (execStore state (memoryAddress state base off) (regGet state.regs src)) := rfl
   rw [hstep, haddr, hvalue]
 
+theorem stepInst_stb_ok
+    (program : Program) (state : State) (base : Reg) (off addr value : Nat)
+    (instr : Inst)
+    (hinst : instr = inst .stb (some base) none (some (.num off)) (some (.num value)))
+    (haddr : memoryAddress state base off = addr) :
+    stepInst program state instr = .ok (execStore state addr value) := by
+  subst hinst
+  have hstep :
+      stepInst program state (inst .stb (some base) none (some (.num off)) (some (.num value))) =
+        .ok (execStore state (memoryAddress state base off) value) := rfl
+  rw [hstep, haddr]
+
+theorem stepInst_sth_ok
+    (program : Program) (state : State) (base : Reg) (off addr value : Nat)
+    (instr : Inst)
+    (hinst : instr = inst .sth (some base) none (some (.num off)) (some (.num value)))
+    (haddr : memoryAddress state base off = addr) :
+    stepInst program state instr = .ok (execStore state addr value) := by
+  subst hinst
+  have hstep :
+      stepInst program state (inst .sth (some base) none (some (.num off)) (some (.num value))) =
+        .ok (execStore state (memoryAddress state base off) value) := rfl
+  rw [hstep, haddr]
+
+theorem stepInst_stw_ok
+    (program : Program) (state : State) (base : Reg) (off addr value : Nat)
+    (instr : Inst)
+    (hinst : instr = inst .stw (some base) none (some (.num off)) (some (.num value)))
+    (haddr : memoryAddress state base off = addr) :
+    stepInst program state instr = .ok (execStore state addr value) := by
+  subst hinst
+  have hstep :
+      stepInst program state (inst .stw (some base) none (some (.num off)) (some (.num value))) =
+        .ok (execStore state (memoryAddress state base off) value) := rfl
+  rw [hstep, haddr]
+
 theorem stepInst_stdw_ok
     (program : Program) (state : State) (base : Reg) (off addr value : Nat)
     (instr : Inst)
@@ -624,6 +674,32 @@ theorem stepInst_stdw_ok
       stepInst program state (inst .stdw (some base) none (some (.num off)) (some (.num value))) =
         .ok (execStore state (memoryAddress state base off) value) := rfl
   rw [hstep, haddr]
+
+theorem stepInst_stxb_ok
+    (program : Program) (state : State) (base src : Reg) (off addr value : Nat)
+    (instr : Inst)
+    (hinst : instr = inst .stxb (some base) (some src) (some (.num off)) none)
+    (haddr : memoryAddress state base off = addr)
+    (hvalue : regGet state.regs src = value) :
+    stepInst program state instr = .ok (execStore state addr value) := by
+  subst hinst
+  have hstep :
+      stepInst program state (inst .stxb (some base) (some src) (some (.num off)) none) =
+        .ok (execStore state (memoryAddress state base off) (regGet state.regs src)) := rfl
+  rw [hstep, haddr, hvalue]
+
+theorem stepInst_stxh_ok
+    (program : Program) (state : State) (base src : Reg) (off addr value : Nat)
+    (instr : Inst)
+    (hinst : instr = inst .stxh (some base) (some src) (some (.num off)) none)
+    (haddr : memoryAddress state base off = addr)
+    (hvalue : regGet state.regs src = value) :
+    stepInst program state instr = .ok (execStore state addr value) := by
+  subst hinst
+  have hstep :
+      stepInst program state (inst .stxh (some base) (some src) (some (.num off)) none) =
+        .ok (execStore state (memoryAddress state base off) (regGet state.regs src)) := rfl
+  rw [hstep, haddr, hvalue]
 
 theorem stepInst_stxw_ok
     (program : Program) (state : State) (base src : Reg) (off addr value : Nat)
@@ -934,6 +1010,54 @@ theorem stepInst_jle_reg_fallthrough_ok
   exact stepInstCondJump_reg_fallthrough_of_cond program state .jle dst src off lhs rhs
     hlhs hrhs hcond
 
+theorem stepInst_jset_imm_taken_ok
+    (program : Program) (state : State) (dst : Reg) (off : MemOff)
+    (lhs rhs target : Nat) (instr : Inst)
+    (hinst : instr = inst .jset (some dst) none (some off) (some (.num rhs)))
+    (hlhs : regGet state.regs dst = lhs)
+    (htarget : resolveJumpTarget program (some off) = .ok target)
+    (hcond : jumpCondition .jset lhs rhs = .ok true) :
+    stepInst program state instr = .ok (execJump state target) := by
+  subst hinst
+  exact stepInstCondJump_imm_taken_of_cond program state .jset dst off lhs rhs target
+    hlhs htarget hcond
+
+theorem stepInst_jset_imm_fallthrough_ok
+    (program : Program) (state : State) (dst : Reg) (off : MemOff)
+    (lhs rhs : Nat) (instr : Inst)
+    (hinst : instr = inst .jset (some dst) none (some off) (some (.num rhs)))
+    (hlhs : regGet state.regs dst = lhs)
+    (hcond : jumpCondition .jset lhs rhs = .ok false) :
+    stepInst program state instr = .ok (nextPc state) := by
+  subst hinst
+  exact stepInstCondJump_imm_fallthrough_of_cond program state .jset dst off lhs rhs
+    hlhs hcond
+
+theorem stepInst_jset_reg_taken_ok
+    (program : Program) (state : State) (dst src : Reg) (off : MemOff)
+    (lhs rhs target : Nat) (instr : Inst)
+    (hinst : instr = inst .jset (some dst) (some src) (some off) none)
+    (hlhs : regGet state.regs dst = lhs)
+    (hrhs : regGet state.regs src = rhs)
+    (htarget : resolveJumpTarget program (some off) = .ok target)
+    (hcond : jumpCondition .jset lhs rhs = .ok true) :
+    stepInst program state instr = .ok (execJump state target) := by
+  subst hinst
+  exact stepInstCondJump_reg_taken_of_cond program state .jset dst src off lhs rhs target
+    hlhs hrhs htarget hcond
+
+theorem stepInst_jset_reg_fallthrough_ok
+    (program : Program) (state : State) (dst src : Reg) (off : MemOff)
+    (lhs rhs : Nat) (instr : Inst)
+    (hinst : instr = inst .jset (some dst) (some src) (some off) none)
+    (hlhs : regGet state.regs dst = lhs)
+    (hrhs : regGet state.regs src = rhs)
+    (hcond : jumpCondition .jset lhs rhs = .ok false) :
+    stepInst program state instr = .ok (nextPc state) := by
+  subst hinst
+  exact stepInstCondJump_reg_fallthrough_of_cond program state .jset dst src off lhs rhs
+    hlhs hrhs hcond
+
 theorem stepInst_exit_ok
     (program : Program) (state : State) (r0 : Nat)
     (instr : Inst) (hinst : instr = inst .exit none none none none)
@@ -1215,6 +1339,18 @@ theorem step_ldxb_ok
   step_of_stepInst_ok hready hdecoded
     (stepInst_ldxb_ok program state dst base off addr value _ rfl haddr hvalue)
 
+theorem step_ldxh_ok
+    {program : Program} {state : State} {dst base : Reg} {off addr value : Nat}
+    (hready : StepReady program state)
+    (hdecoded :
+      currentInst? program state =
+        some (inst .ldxh (some dst) (some base) (some (.num off)) none))
+    (haddr : memoryAddress state base off = addr)
+    (hvalue : state.memory.read addr = value) :
+    step program state = .ok (execLoad state dst addr value) :=
+  step_of_stepInst_ok hready hdecoded
+    (stepInst_ldxh_ok program state dst base off addr value _ rfl haddr hvalue)
+
 theorem step_ldxw_ok
     {program : Program} {state : State} {dst base : Reg} {off addr value : Nat}
     (hready : StepReady program state)
@@ -1239,6 +1375,39 @@ theorem step_stxdw_ok
   step_of_stepInst_ok hready hdecoded
     (stepInst_stxdw_ok program state base src off addr value _ rfl haddr hvalue)
 
+theorem step_stb_ok
+    {program : Program} {state : State} {base : Reg} {off addr value : Nat}
+    (hready : StepReady program state)
+    (hdecoded :
+      currentInst? program state =
+        some (inst .stb (some base) none (some (.num off)) (some (.num value))))
+    (haddr : memoryAddress state base off = addr) :
+    step program state = .ok (execStore state addr value) :=
+  step_of_stepInst_ok hready hdecoded
+    (stepInst_stb_ok program state base off addr value _ rfl haddr)
+
+theorem step_sth_ok
+    {program : Program} {state : State} {base : Reg} {off addr value : Nat}
+    (hready : StepReady program state)
+    (hdecoded :
+      currentInst? program state =
+        some (inst .sth (some base) none (some (.num off)) (some (.num value))))
+    (haddr : memoryAddress state base off = addr) :
+    step program state = .ok (execStore state addr value) :=
+  step_of_stepInst_ok hready hdecoded
+    (stepInst_sth_ok program state base off addr value _ rfl haddr)
+
+theorem step_stw_ok
+    {program : Program} {state : State} {base : Reg} {off addr value : Nat}
+    (hready : StepReady program state)
+    (hdecoded :
+      currentInst? program state =
+        some (inst .stw (some base) none (some (.num off)) (some (.num value))))
+    (haddr : memoryAddress state base off = addr) :
+    step program state = .ok (execStore state addr value) :=
+  step_of_stepInst_ok hready hdecoded
+    (stepInst_stw_ok program state base off addr value _ rfl haddr)
+
 theorem step_stdw_ok
     {program : Program} {state : State} {base : Reg} {off addr value : Nat}
     (hready : StepReady program state)
@@ -1249,6 +1418,30 @@ theorem step_stdw_ok
     step program state = .ok (execStore state addr value) :=
   step_of_stepInst_ok hready hdecoded
     (stepInst_stdw_ok program state base off addr value _ rfl haddr)
+
+theorem step_stxb_ok
+    {program : Program} {state : State} {base src : Reg} {off addr value : Nat}
+    (hready : StepReady program state)
+    (hdecoded :
+      currentInst? program state =
+        some (inst .stxb (some base) (some src) (some (.num off)) none))
+    (haddr : memoryAddress state base off = addr)
+    (hvalue : regGet state.regs src = value) :
+    step program state = .ok (execStore state addr value) :=
+  step_of_stepInst_ok hready hdecoded
+    (stepInst_stxb_ok program state base src off addr value _ rfl haddr hvalue)
+
+theorem step_stxh_ok
+    {program : Program} {state : State} {base src : Reg} {off addr value : Nat}
+    (hready : StepReady program state)
+    (hdecoded :
+      currentInst? program state =
+        some (inst .stxh (some base) (some src) (some (.num off)) none))
+    (haddr : memoryAddress state base off = addr)
+    (hvalue : regGet state.regs src = value) :
+    step program state = .ok (execStore state addr value) :=
+  step_of_stepInst_ok hready hdecoded
+    (stepInst_stxh_ok program state base src off addr value _ rfl haddr hvalue)
 
 theorem step_stxw_ok
     {program : Program} {state : State} {base src : Reg} {off addr value : Nat}
@@ -1550,6 +1743,66 @@ theorem step_jle_reg_fallthrough_ok
     step program state = .ok (nextPc state) :=
   step_of_stepInst_ok hready hdecoded
     (stepInst_jle_reg_fallthrough_ok program state dst src off lhs rhs _ rfl
+      hlhs hrhs hcond)
+
+theorem step_jset_imm_taken_ok
+    {program : Program} {state : State} {dst : Reg} {off : MemOff}
+    {lhs rhs target : Nat}
+    (hready : StepReady program state)
+    (hdecoded :
+      currentInst? program state =
+        some (inst .jset (some dst) none (some off) (some (.num rhs))))
+    (hlhs : regGet state.regs dst = lhs)
+    (htarget : resolveJumpTarget program (some off) = .ok target)
+    (hcond : jumpCondition .jset lhs rhs = .ok true) :
+    step program state = .ok (execJump state target) :=
+  step_of_stepInst_ok hready hdecoded
+    (stepInst_jset_imm_taken_ok program state dst off lhs rhs target _ rfl
+      hlhs htarget hcond)
+
+theorem step_jset_imm_fallthrough_ok
+    {program : Program} {state : State} {dst : Reg} {off : MemOff}
+    {lhs rhs : Nat}
+    (hready : StepReady program state)
+    (hdecoded :
+      currentInst? program state =
+        some (inst .jset (some dst) none (some off) (some (.num rhs))))
+    (hlhs : regGet state.regs dst = lhs)
+    (hcond : jumpCondition .jset lhs rhs = .ok false) :
+    step program state = .ok (nextPc state) :=
+  step_of_stepInst_ok hready hdecoded
+    (stepInst_jset_imm_fallthrough_ok program state dst off lhs rhs _ rfl
+      hlhs hcond)
+
+theorem step_jset_reg_taken_ok
+    {program : Program} {state : State} {dst src : Reg} {off : MemOff}
+    {lhs rhs target : Nat}
+    (hready : StepReady program state)
+    (hdecoded :
+      currentInst? program state =
+        some (inst .jset (some dst) (some src) (some off) none))
+    (hlhs : regGet state.regs dst = lhs)
+    (hrhs : regGet state.regs src = rhs)
+    (htarget : resolveJumpTarget program (some off) = .ok target)
+    (hcond : jumpCondition .jset lhs rhs = .ok true) :
+    step program state = .ok (execJump state target) :=
+  step_of_stepInst_ok hready hdecoded
+    (stepInst_jset_reg_taken_ok program state dst src off lhs rhs target _ rfl
+      hlhs hrhs htarget hcond)
+
+theorem step_jset_reg_fallthrough_ok
+    {program : Program} {state : State} {dst src : Reg} {off : MemOff}
+    {lhs rhs : Nat}
+    (hready : StepReady program state)
+    (hdecoded :
+      currentInst? program state =
+        some (inst .jset (some dst) (some src) (some off) none))
+    (hlhs : regGet state.regs dst = lhs)
+    (hrhs : regGet state.regs src = rhs)
+    (hcond : jumpCondition .jset lhs rhs = .ok false) :
+    step program state = .ok (nextPc state) :=
+  step_of_stepInst_ok hready hdecoded
+    (stepInst_jset_reg_fallthrough_ok program state dst src off lhs rhs _ rfl
       hlhs hrhs hcond)
 
 theorem step_exit_ok
@@ -2150,6 +2403,26 @@ theorem reduction_ldxb_at_ok
     StepReduction program state (execLoad state dst addr value) :=
   StepReduction.of_readyOpcodeAt hat (step_ldxb_at_ok hat haddr hvalue)
 
+theorem step_ldxh_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {dst base : Reg} {off addr value : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .ldxh (some dst) (some base) (some (.num off)) none) state)
+    (haddr : memoryAddress state base off = addr)
+    (hvalue : state.memory.read addr = value) :
+    step program state = .ok (execLoad state dst addr value) :=
+  step_ldxh_ok hat.stepReady hat.currentInst? haddr hvalue
+
+theorem reduction_ldxh_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {dst base : Reg} {off addr value : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .ldxh (some dst) (some base) (some (.num off)) none) state)
+    (haddr : memoryAddress state base off = addr)
+    (hvalue : state.memory.read addr = value) :
+    StepReduction program state (execLoad state dst addr value) :=
+  StepReduction.of_readyOpcodeAt hat (step_ldxh_at_ok hat haddr hvalue)
+
 theorem step_ldxw_at_ok
     {program : Program} {pc : Nat} {state : State}
     {dst base : Reg} {off addr value : Nat}
@@ -2187,6 +2460,120 @@ theorem reduction_stdw_at_ok
     (haddr : memoryAddress state base off = addr) :
     StepReduction program state (execStore state addr value) :=
   StepReduction.of_readyOpcodeAt hat (step_stdw_at_ok hat haddr)
+
+theorem step_stb_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {base : Reg} {off addr value : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .stb (some base) none (some (.num off)) (some (.num value))) state)
+    (haddr : memoryAddress state base off = addr) :
+    step program state = .ok (execStore state addr value) :=
+  step_stb_ok hat.stepReady hat.currentInst? haddr
+
+theorem reduction_stb_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {base : Reg} {off addr value : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .stb (some base) none (some (.num off)) (some (.num value))) state)
+    (haddr : memoryAddress state base off = addr) :
+    StepReduction program state (execStore state addr value) :=
+  StepReduction.of_readyOpcodeAt hat (step_stb_at_ok hat haddr)
+
+theorem step_sth_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {base : Reg} {off addr value : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .sth (some base) none (some (.num off)) (some (.num value))) state)
+    (haddr : memoryAddress state base off = addr) :
+    step program state = .ok (execStore state addr value) :=
+  step_sth_ok hat.stepReady hat.currentInst? haddr
+
+theorem reduction_sth_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {base : Reg} {off addr value : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .sth (some base) none (some (.num off)) (some (.num value))) state)
+    (haddr : memoryAddress state base off = addr) :
+    StepReduction program state (execStore state addr value) :=
+  StepReduction.of_readyOpcodeAt hat (step_sth_at_ok hat haddr)
+
+theorem step_stw_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {base : Reg} {off addr value : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .stw (some base) none (some (.num off)) (some (.num value))) state)
+    (haddr : memoryAddress state base off = addr) :
+    step program state = .ok (execStore state addr value) :=
+  step_stw_ok hat.stepReady hat.currentInst? haddr
+
+theorem reduction_stw_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {base : Reg} {off addr value : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .stw (some base) none (some (.num off)) (some (.num value))) state)
+    (haddr : memoryAddress state base off = addr) :
+    StepReduction program state (execStore state addr value) :=
+  StepReduction.of_readyOpcodeAt hat (step_stw_at_ok hat haddr)
+
+theorem step_stxb_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {base src : Reg} {off addr value : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .stxb (some base) (some src) (some (.num off)) none) state)
+    (haddr : memoryAddress state base off = addr)
+    (hvalue : regGet state.regs src = value) :
+    step program state = .ok (execStore state addr value) :=
+  step_stxb_ok hat.stepReady hat.currentInst? haddr hvalue
+
+theorem reduction_stxb_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {base src : Reg} {off addr value : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .stxb (some base) (some src) (some (.num off)) none) state)
+    (haddr : memoryAddress state base off = addr)
+    (hvalue : regGet state.regs src = value) :
+    StepReduction program state (execStore state addr value) :=
+  StepReduction.of_readyOpcodeAt hat (step_stxb_at_ok hat haddr hvalue)
+
+theorem step_stxh_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {base src : Reg} {off addr value : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .stxh (some base) (some src) (some (.num off)) none) state)
+    (haddr : memoryAddress state base off = addr)
+    (hvalue : regGet state.regs src = value) :
+    step program state = .ok (execStore state addr value) :=
+  step_stxh_ok hat.stepReady hat.currentInst? haddr hvalue
+
+theorem reduction_stxh_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {base src : Reg} {off addr value : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .stxh (some base) (some src) (some (.num off)) none) state)
+    (haddr : memoryAddress state base off = addr)
+    (hvalue : regGet state.regs src = value) :
+    StepReduction program state (execStore state addr value) :=
+  StepReduction.of_readyOpcodeAt hat (step_stxh_at_ok hat haddr hvalue)
+
+theorem step_stxw_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {base src : Reg} {off addr value : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .stxw (some base) (some src) (some (.num off)) none) state)
+    (haddr : memoryAddress state base off = addr)
+    (hvalue : regGet state.regs src = value) :
+    step program state = .ok (execStore state addr value) :=
+  step_stxw_ok hat.stepReady hat.currentInst? haddr hvalue
+
+theorem reduction_stxw_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {base src : Reg} {off addr value : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .stxw (some base) (some src) (some (.num off)) none) state)
+    (haddr : memoryAddress state base off = addr)
+    (hvalue : regGet state.regs src = value) :
+    StepReduction program state (execStore state addr value) :=
+  StepReduction.of_readyOpcodeAt hat (step_stxw_at_ok hat haddr hvalue)
 
 theorem step_jge_imm_taken_at_ok
     {program : Program} {pc : Nat} {state : State}
@@ -2468,31 +2855,126 @@ theorem reduction_jle_reg_fallthrough_at_ok
   StepReduction.of_readyOpcodeAt hat
     (step_jle_reg_fallthrough_at_ok hat hlhs hrhs hcond)
 
+theorem step_jset_imm_taken_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {dst : Reg} {off : MemOff} {lhs rhs target : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .jset (some dst) none (some off) (some (.num rhs))) state)
+    (hlhs : regGet state.regs dst = lhs)
+    (htarget : resolveJumpTarget program (some off) = .ok target)
+    (hcond : jumpCondition .jset lhs rhs = .ok true) :
+    step program state = .ok (execJump state target) :=
+  step_jset_imm_taken_ok hat.stepReady hat.currentInst? hlhs htarget hcond
+
+theorem reduction_jset_imm_taken_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {dst : Reg} {off : MemOff} {lhs rhs target : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .jset (some dst) none (some off) (some (.num rhs))) state)
+    (hlhs : regGet state.regs dst = lhs)
+    (htarget : resolveJumpTarget program (some off) = .ok target)
+    (hcond : jumpCondition .jset lhs rhs = .ok true) :
+    StepReduction program state (execJump state target) :=
+  StepReduction.of_readyOpcodeAt hat
+    (step_jset_imm_taken_at_ok hat hlhs htarget hcond)
+
+theorem step_jset_imm_fallthrough_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {dst : Reg} {off : MemOff} {lhs rhs : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .jset (some dst) none (some off) (some (.num rhs))) state)
+    (hlhs : regGet state.regs dst = lhs)
+    (hcond : jumpCondition .jset lhs rhs = .ok false) :
+    step program state = .ok (nextPc state) :=
+  step_jset_imm_fallthrough_ok hat.stepReady hat.currentInst? hlhs hcond
+
+theorem reduction_jset_imm_fallthrough_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {dst : Reg} {off : MemOff} {lhs rhs : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .jset (some dst) none (some off) (some (.num rhs))) state)
+    (hlhs : regGet state.regs dst = lhs)
+    (hcond : jumpCondition .jset lhs rhs = .ok false) :
+    StepReduction program state (nextPc state) :=
+  StepReduction.of_readyOpcodeAt hat
+    (step_jset_imm_fallthrough_at_ok hat hlhs hcond)
+
+theorem step_jset_reg_taken_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {dst src : Reg} {off : MemOff} {lhs rhs target : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .jset (some dst) (some src) (some off) none) state)
+    (hlhs : regGet state.regs dst = lhs)
+    (hrhs : regGet state.regs src = rhs)
+    (htarget : resolveJumpTarget program (some off) = .ok target)
+    (hcond : jumpCondition .jset lhs rhs = .ok true) :
+    step program state = .ok (execJump state target) :=
+  step_jset_reg_taken_ok hat.stepReady hat.currentInst? hlhs hrhs htarget hcond
+
+theorem reduction_jset_reg_taken_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {dst src : Reg} {off : MemOff} {lhs rhs target : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .jset (some dst) (some src) (some off) none) state)
+    (hlhs : regGet state.regs dst = lhs)
+    (hrhs : regGet state.regs src = rhs)
+    (htarget : resolveJumpTarget program (some off) = .ok target)
+    (hcond : jumpCondition .jset lhs rhs = .ok true) :
+    StepReduction program state (execJump state target) :=
+  StepReduction.of_readyOpcodeAt hat
+    (step_jset_reg_taken_at_ok hat hlhs hrhs htarget hcond)
+
+theorem step_jset_reg_fallthrough_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {dst src : Reg} {off : MemOff} {lhs rhs : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .jset (some dst) (some src) (some off) none) state)
+    (hlhs : regGet state.regs dst = lhs)
+    (hrhs : regGet state.regs src = rhs)
+    (hcond : jumpCondition .jset lhs rhs = .ok false) :
+    step program state = .ok (nextPc state) :=
+  step_jset_reg_fallthrough_ok hat.stepReady hat.currentInst? hlhs hrhs hcond
+
+theorem reduction_jset_reg_fallthrough_at_ok
+    {program : Program} {pc : Nat} {state : State}
+    {dst src : Reg} {off : MemOff} {lhs rhs : Nat}
+    (hat : ReadyOpcodeAt program pc
+      (inst .jset (some dst) (some src) (some off) none) state)
+    (hlhs : regGet state.regs dst = lhs)
+    (hrhs : regGet state.regs src = rhs)
+    (hcond : jumpCondition .jset lhs rhs = .ok false) :
+    StepReduction program state (nextPc state) :=
+  StepReduction.of_readyOpcodeAt hat
+    (step_jset_reg_fallthrough_at_ok hat hlhs hrhs hcond)
+
 /-! ### Lowerer opcode coverage gate
 
 `loweredOpcodeSet` is the contract-agnostic opcode surface that
-`SbpfAsm.lowerModule` can currently emit through static instructions,
-`assignOpcode`, scalar parameter loads, and comparison lowering. `call` here is
-opcode-level coverage; syscall-name support remains a separate capability gate.
+`SbpfAsm.lowerModule` and Solana extension helpers can currently emit through
+static instructions, `assignOpcode`, scalar parameter loads, comparison
+lowering, and byte/halfword packing. `call` here is opcode-level coverage;
+syscall-name support remains a separate capability gate.
 -/
 
 def loweredOpcodeSet : List Opcode := [
   .mov64, .mov32,
-  .ldxb, .ldxw, .ldxdw,
-  .stdw, .stxdw,
+  .lddw, .ldxb, .ldxh, .ldxw, .ldxdw,
+  .stb, .sth, .stw, .stdw,
+  .stxb, .stxh, .stxw, .stxdw,
   .add64, .sub64, .mul64, .div64, .mod64,
   .or64, .and64, .lsh64, .rsh64, .xor64,
-  .ja, .jeq, .jne, .jgt, .jge, .jlt, .jle,
+  .ja, .jeq, .jne, .jgt, .jge, .jlt, .jle, .jset,
   .call, .exit
 ]
 
 def loweredOpcodeCoveredBySbpfExec : Opcode → Bool
   | .mov64 | .mov32
-  | .ldxb | .ldxw | .ldxdw
-  | .stdw | .stxdw
+  | .lddw | .ldxb | .ldxh | .ldxw | .ldxdw
+  | .stb | .sth | .stw | .stdw
+  | .stxb | .stxh | .stxw | .stxdw
   | .add64 | .sub64 | .mul64 | .div64 | .mod64
   | .or64 | .and64 | .lsh64 | .rsh64 | .xor64
-  | .ja | .jeq | .jne | .jgt | .jge | .jlt | .jle
+  | .ja | .jeq | .jne | .jgt | .jge | .jlt | .jle | .jset
   | .call | .exit => true
   | _ => false
 
