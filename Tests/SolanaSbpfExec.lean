@@ -1,12 +1,104 @@
 import ProofForge.Backend.Solana.SbpfExec
 import ProofForge.Backend.Solana.SbpfExecSmoke
+import ProofForge.Backend.Solana.SbpfAsm
+import ProofForge.IR.Examples.ControlFlowAssertProbe
+import ProofForge.IR.Examples.Counter
+import ProofForge.IR.Examples.EvmAssignOpProbe
+import ProofForge.IR.Examples.EvmMapProbe
+import ProofForge.IR.Examples.EvmStorageArrayProbe
+import ProofForge.IR.Examples.EvmStorageStructProbe
+import ProofForge.IR.Examples.ValueVault
 
 /-! Contract-agnostic sBPF step-lemma smoke (SOL-1 active surface). -/
 
 namespace ProofForge.Tests.SolanaSbpfExec
 
+open ProofForge.IR
+open ProofForge.Backend.Solana.Asm
+open ProofForge.Backend.Solana.SbpfAsm
 open ProofForge.Backend.Solana.SbpfExec
 open ProofForge.Backend.Solana.SbpfExecSmoke
+
+/-- Supported array-state fixture used by the Solana module-plan gate. -/
+def arraySubModule : Module := {
+  name := "EvmStorageArrayProbe"
+  state := #[ProofForge.IR.Examples.EvmStorageArrayProbe.stateBefore,
+             ProofForge.IR.Examples.EvmStorageArrayProbe.stateValues,
+             ProofForge.IR.Examples.EvmStorageArrayProbe.stateAfter]
+  entrypoints := #[ProofForge.IR.Examples.EvmStorageArrayProbe.storageLifecycle,
+                   ProofForge.IR.Examples.EvmStorageArrayProbe.readValue,
+                   ProofForge.IR.Examples.EvmStorageArrayProbe.writeValue]
+}
+
+/-- Supported map-state fixture used by the Solana module-plan gate. -/
+def mapSubModule : Module := {
+  name := "EvmMapProbe"
+  state := #[ProofForge.IR.Examples.EvmMapProbe.stateBefore,
+             ProofForge.IR.Examples.EvmMapProbe.stateBalances,
+             ProofForge.IR.Examples.EvmMapProbe.stateAfter]
+  entrypoints := #[ProofForge.IR.Examples.EvmMapProbe.setBalance,
+                   ProofForge.IR.Examples.EvmMapProbe.readBalance]
+}
+
+/-- Supported struct-state fixture used by the Solana module-plan gate. -/
+def structSubModule : Module := {
+  name := "EvmStorageStructProbe"
+  structs := #[ProofForge.IR.Examples.EvmStorageStructProbe.pointStruct]
+  state := #[ProofForge.IR.Examples.EvmStorageStructProbe.stateBefore,
+             ProofForge.IR.Examples.EvmStorageStructProbe.stateCurrent,
+             ProofForge.IR.Examples.EvmStorageStructProbe.stateAfter]
+  entrypoints := #[ProofForge.IR.Examples.EvmStorageStructProbe.structLifecycle]
+}
+
+def opcodeSamples : List (String × Module) := [
+  ("Counter", ProofForge.IR.Examples.Counter.module),
+  ("ValueVault", ProofForge.IR.Examples.ValueVault.module),
+  ("ControlFlowAssertProbe", ProofForge.IR.Examples.ControlFlowAssertProbe.module),
+  ("EvmAssignOpProbe", ProofForge.IR.Examples.EvmAssignOpProbe.module),
+  ("EvmStorageArrayProbe", arraySubModule),
+  ("EvmMapProbe", mapSubModule),
+  ("EvmStorageStructProbe", structSubModule)
+]
+
+def loweredInstructionOpcodes (nodes : Array AstNode) : Array Opcode :=
+  nodes.foldl
+    (fun acc node =>
+      match node with
+      | .instruction inst => acc.push inst.opcode
+      | _ => acc)
+    #[]
+
+def uncoveredLoweredOpcodes (nodes : Array AstNode) : Array Opcode :=
+  (loweredInstructionOpcodes nodes).filter
+    (fun opcode => loweredOpcodeCoveredBySbpfExec opcode == false)
+
+def loweredOpcodeCoverageOk (module : Module) : Bool :=
+  match lowerModule module with
+  | .error _ => false
+  | .ok nodes => (uncoveredLoweredOpcodes nodes).size == 0
+
+def allSampleLoweredOpcodesCovered : Bool :=
+  opcodeSamples.all (fun sample => loweredOpcodeCoverageOk sample.snd)
+
+theorem sample_lowered_opcodes_covered_by_sbpfExec :
+    allSampleLoweredOpcodesCovered = true := by
+  native_decide
+
+def opcodeListString (opcodes : Array Opcode) : String :=
+  String.intercalate ", " (opcodes.toList.map Opcode.render)
+
+def checkLoweredOpcodeCoverage (name : String) (module : Module) : IO Bool := do
+  match lowerModule module with
+  | .error err =>
+      IO.eprintln s!"solana-sbpf-exec: {name} failed to lower: {err.render}"
+      return false
+  | .ok nodes =>
+      let uncovered := uncoveredLoweredOpcodes nodes
+      if uncovered.size == 0 then
+        return true
+      else
+        IO.eprintln s!"solana-sbpf-exec: {name} uncovered opcode(s): {opcodeListString uncovered}"
+        return false
 
 example : True := by
   have _ := @step_mov64_imm_ok
@@ -70,10 +162,19 @@ example : True := by
   have _ := @smoke_jump_jeq_taken_runSteps
   have _ := @smoke_jump_jne_taken_runSteps_via_provider
   have _ := @smoke_jump_jeq_taken_runSteps_via_provider
+  have _ := @sample_lowered_opcodes_covered_by_sbpfExec
   exact True.intro
 
 end ProofForge.Tests.SolanaSbpfExec
 
 def main : IO UInt32 := do
-  IO.println "solana-sbpf-exec: generic step lemmas checked"
-  return 0
+  let mut ok := true
+  for sample in ProofForge.Tests.SolanaSbpfExec.opcodeSamples do
+    let sampleOk ←
+      ProofForge.Tests.SolanaSbpfExec.checkLoweredOpcodeCoverage sample.fst sample.snd
+    ok := ok && sampleOk
+  if ok then
+    IO.println "solana-sbpf-exec: generic step lemmas and lowered opcode coverage checked"
+    return 0
+  else
+    return 1
