@@ -576,7 +576,9 @@ where
     let dataBytes := (1 + args.size) * 8
     let (retNoneLabel, ctxAfterArgs) := workCtx.freshLabel
     let (retEndLabel, ctxFinal) := ctxAfterArgs.freshLabel
-    nodes := nodes ++ invokeSignedC dataBytes retNoneLabel retEndLabel
+    let accountCount :=
+      if workCtx.txAccountCount == 0 then 1 else workCtx.txAccountCount
+    nodes := nodes ++ invokeSignedC dataBytes accountCount retNoneLabel retEndLabel
     .ok (nodes, ctxFinal)
 
   lowerCmp (ctx : LowerCtx) (lhs rhs : IR.Expr) (condJmp : Opcode) : Except LowerError (Array AstNode × LowerCtx) := do

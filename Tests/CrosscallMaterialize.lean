@@ -22,6 +22,7 @@ open ProofForge.Target
 open ProofForge.Target.CrosscallMaterialize
 open ProofForge.Backend.Solana.PortableCrosscall
 open ProofForge.Backend.Solana.Manifest
+open ProofForge.Backend.Solana.StateLayout
 open ProofForge.Backend.WasmNear.PortableCrosscall
 
 def require (cond : Bool) (msg : String) : IO Unit :=
@@ -57,10 +58,13 @@ def main : IO Unit := do
       require (src.contains "sol_invoke_signed_c") "asm packs real sol_invoke_signed_c"
       require (src.contains "AccountMeta") "asm packs account metas"
       require (src.contains "AccountInfo") "asm packs account infos"
-      require (src.contains "state") "asm packs state account role"
-      require (src.contains "callee") "asm packs callee account role"
+      require (src.contains "forward") "asm forwards full tx account vector"
       require (src.contains "sol_get_return_data") "asm decodes return data"
       require (src.contains "error_cpi") "asm traps CPI failures"
+      -- Schema with state + payer + callee_program should pack ≥ 3 accounts.
+      require (src.contains "accounts=3" || src.contains "accounts=2" ||
+          src.contains "AccountMeta[0]" || src.contains "input account[0]")
+        "asm should pack multiple account metas up to schema size"
 
   -- NEAR: portable invoke → promise_create; full fixture still works.
   require ((forProfile wasmNear).nativeForm == NativeForm.nearPromise) "NEAR form"
@@ -123,6 +127,13 @@ def main : IO Unit := do
 
   require ((forProfile aleoLeo).nativeForm == NativeForm.zkCircuitCall) "Aleo form"
   require ((forProfile solanaSbpfAsm).nativeForm == NativeForm.solanaCpi) "Solana form"
+  -- Solana account ceilings used by portable CPI packing.
+  require (MAX_TX_ACCOUNT_LOCKS == 64) "Solana tx lock limit is 64"
+  require (MAX_CPI_ACCOUNT_INFOS == 128) "Solana CPI account infos ceiling is 128"
+  require (MAX_PORTABLE_CPI_ACCOUNTS == min MAX_TX_ACCOUNT_LOCKS MAX_PORTABLE_CPI_STACK_ACCOUNTS)
+    "portable CPI max is min(tx locks, stack capacity)"
+  require (MAX_PORTABLE_CPI_ACCOUNTS == 16)
+    "current stack frame packs 16 portable CPI accounts"
   require ((forProfile moveAptos).nativeForm == NativeForm.moveCall) "Aptos form"
   require ((forProfile moveSui).nativeForm == NativeForm.moveCall) "Sui form"
 

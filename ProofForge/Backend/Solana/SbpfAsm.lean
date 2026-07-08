@@ -28,6 +28,8 @@ import ProofForge.Backend.Solana.SbpfAsm.Stmt
 
 namespace ProofForge.Backend.Solana.SbpfAsm
 
+open ProofForge.Backend.Solana.StateLayout
+
 open ProofForge.IR
 open ProofForge.Backend.Solana.Asm
 open ProofForge.Backend.Solana.Extension
@@ -466,8 +468,16 @@ partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions
       match schema.inputLayout.accounts[0]? with
       | some accountLayout => .ok accountLayout.dataStart
       | none => .error { message := "Solana account schema must contain at least one state account" }
-  let ctx := buildLowerCtx module stateDataOff
-  lowerModuleCoreWithSeed module schema.accounts schema.inputLayout extensions ctx
+  let ctx := buildLowerCtx module stateDataOff schema.accounts.size
+  if schema.accounts.size > MAX_PORTABLE_CPI_ACCOUNTS then
+    .error {
+      message :=
+        s!"Solana account schema has {schema.accounts.size} accounts; " ++
+        s!"portable CPI packing supports at most {MAX_PORTABLE_CPI_ACCOUNTS} " ++
+        s!"(min of MAX_TX_ACCOUNT_LOCKS={MAX_TX_ACCOUNT_LOCKS} and stack capacity)"
+    }
+  else
+    lowerModuleCoreWithSeed module schema.accounts schema.inputLayout extensions ctx
 
 partial def lowerModule (module : IR.Module) : Except LowerError (Array AstNode) :=
   lowerModuleCore module {}

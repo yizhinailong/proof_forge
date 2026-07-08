@@ -365,7 +365,7 @@ cannot drift. The lowering-local mutable fields (`locals`, `nextLocalOffset`,
 defaults inside `LowerCtx.fromPlanSeed`. -/
 def LowerCtx.fromSeed (seed : SolanaLowerCtxSeed) : SbpfAsm.LowerCtx :=
   SbpfAsm.LowerCtx.fromPlanSeed
-    seed.stateFieldOffsets seed.structs seed.stateDecls
+    seed.stateFieldOffsets seed.structs seed.stateDecls seed.manifestAccounts.size
 
 /-- Lower a module using a pre-built `SolanaModulePlan`. This is the Tier B
 contract entry point: the lowering is a pure function of the plan (plus the IR

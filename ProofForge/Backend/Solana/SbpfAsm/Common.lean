@@ -85,6 +85,10 @@ structure LowerCtx where
   scratchOffset : Nat
   nextLabel : Nat
   allocator : Allocator
+  /-- Instruction account count from the materialized Solana schema. Used by
+  portable CPI to forward the full remaining-account vector (capped at
+  `MAX_PORTABLE_CPI_ACCOUNTS`). -/
+  txAccountCount : Nat := 0
   deriving Inhabited
 
 def LowerCtx.localOffset? (ctx : LowerCtx) (name : String) : Option Nat :=
@@ -246,7 +250,8 @@ entry. -/
 def LowerCtx.fromPlanSeed
     (stateFieldOffsets : Array (String × Nat))
     (structs : Array StructDecl)
-    (stateDecls : Array StateDecl) : LowerCtx :=
+    (stateDecls : Array StateDecl)
+    (txAccountCount : Nat := 0) : LowerCtx :=
   { stateFieldOffsets
     structs
     stateDecls
@@ -254,19 +259,23 @@ def LowerCtx.fromPlanSeed
     nextLocalOffset := 8
     scratchOffset := 8
     nextLabel := 0
-    allocator := Allocator.new }
+    allocator := Allocator.new
+    txAccountCount }
 
 /-- Build the lowering context through the same seed shape recorded in
 `SolanaModulePlan`, so the direct and plan-driven lowering paths cannot drift. -/
-def buildLowerCtx (module : IR.Module) (stateDataOff : Nat) : LowerCtx :=
+def buildLowerCtx (module : IR.Module) (stateDataOff : Nat) (txAccountCount : Nat := 0) :
+    LowerCtx :=
   let offsets := buildStateOffsetsAtBase module stateDataOff
   LowerCtx.fromPlanSeed
     (offsets.map (fun f => (f.id, f.absOff)))
     module.structs
     module.state
+    txAccountCount
 
-def buildCtx (module : Module) (stateDataOff : Nat) : Except LowerError LowerCtx := do
-  .ok (buildLowerCtx module stateDataOff)
+def buildCtx (module : Module) (stateDataOff : Nat) (txAccountCount : Nat := 0) :
+    Except LowerError LowerCtx := do
+  .ok (buildLowerCtx module stateDataOff txAccountCount)
 
 def SPL_TOKEN_ACCOUNT_DATA_SIZE : Nat := 165
 def SPL_TOKEN_MINT_DATA_SIZE : Nat := 82
