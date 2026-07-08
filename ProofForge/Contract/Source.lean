@@ -167,6 +167,7 @@ scoped syntax "constructor_param " ident " : " "cbytes" ";" : contractItem
 scoped syntax "constructor_param " ident " : " "u256array" ";" : contractItem
 scoped syntax "quint_invariant " ident " := " str : contractItem
 scoped syntax "quint_liveness " ident " := " str : contractItem
+scoped syntax "lean_invariant " ident " := " str : contractItem
 scoped syntax "do " term ";" : contractItem
 scoped syntax "entry " ident " do" ppLine entryStmt* : contractItem
 scoped syntax "entry " ident " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
@@ -610,6 +611,12 @@ private def lowerItem (item : TSyntax `contractItem) : MacroM LoweredItem := do
       let exprStr ← strLitValue expr
       let exprLit := Syntax.mkStrLit exprStr
       let action ← `(ProofForge.Contract.Surface.declareQuintLiveness $nameLit $exprLit)
+      return { action? := some action }
+  | `(contractItem| lean_invariant $name:ident := $predFnName:str) =>
+      let nameLit := identNameLit name
+      let predStr ← strLitValue predFnName
+      let predLit := Syntax.mkStrLit predStr
+      let action ← `(ProofForge.Contract.Surface.declareLeanInvariant $nameLit $predLit)
       return { action? := some action }
   | `(contractItem| do $action:term;) =>
       return { action? := some action }

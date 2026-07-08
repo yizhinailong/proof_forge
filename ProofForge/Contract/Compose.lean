@@ -29,7 +29,8 @@ def mergeSpecs (name : String) (left right : ContractSpec) : ContractSpec :=
     evmConstructorParams := left.evmConstructorParams ++ right.evmConstructorParams
     evmConstructorInitBindings := left.evmConstructorInitBindings ++ right.evmConstructorInitBindings
     quintInvariants := left.quintInvariants ++ right.quintInvariants
-    quintLiveness := left.quintLiveness ++ right.quintLiveness }
+    quintLiveness := left.quintLiveness ++ right.quintLiveness
+    leanInvariants := left.leanInvariants ++ right.leanInvariants }
 
 def mergeMany (name : String) (specs : Array ContractSpec) : ContractSpec :=
   match specs.toList with

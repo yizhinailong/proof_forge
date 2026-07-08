@@ -114,6 +114,98 @@ divergences). **All three verified STILL OPEN (2026-07-08):**
 - **1.7 FV-8 user invariants (product differentiator)** — authors state invariants next to
   `contract_source`, proven pre-codegen against the IR semantics; turn `ValueVaultInvariant` from a
   worked example into a reusable authoring surface. **Highest product value in this phase.**
+  - **DONE (Track 1.7).** Added `ProofForge.Contract.LeanInvariant` (reusable machinery:
+    `InvariantSpec`, `ContractInvariants`, `ScenarioStep`, `runScenario`,
+    `verifyInvariantsAfterScenario`, `invariants_hold_after_scenario` soundness witness).
+  - Refactored `ProofForge.Contract.Examples.ValueVaultInvariant` from a one-off scenario
+    test into the canonical authoring example: invariants are now `State → Bool` predicates
+    bundled into a `ContractInvariants`, machine-checked via
+    `verifyInvariantsAfterScenario` (`value_vault_invariants_hold_after_scenario`, proven by
+    `native_decide`). Backward-compatible `runScenario`/`expectedReturns`/`defaultScenario*`
+    shims keep the Wasm/NEAR offline-host refinement consumers unaffected.
+  - Added `ProofForge.Contract.Examples.CounterInvariant` as the second authoring example
+    (`countBounded` + `countNonNegative` Lean invariants, `counter_invariants_sound`).
+  - Added `lean_invariant` `contract_source` annotation (parallel to `quint_invariant`),
+    storing `(name, predicate function qualified name)` in a new `leanInvariants` field on
+    `ContractSpec`/`ModuleBuilder` (documentation link to the predicate `def`; the machine
+    check happens in the gate, not by string parsing).
+  - Wired `Examples/Shared/Counter.lean` with `lean_invariant countBounded`/`countNonNegative`.
+  - New gate `lean-invariants-smoke` (`Tests/LeanInvariantsSmoke.lean`), integrated into
+    `just check`, exercises the ValueVault + Counter invariant theorems.
+  - Scope: pure-Lean, backend-agnostic. The `invariants_hold_after_scenario` witness is
+    currently scenario-bound (`native_decide` on the concrete scenario); a universal
+    `∀ state` form over the IR interpreter remains future work (structural invariant
+    over `runEntrypointWithArgs`).
+
+  **DONE (2026-07-08).** Delivered:
+  - `ProofForge.Contract.LeanInvariant`: reusable authoring machinery — `InvariantSpec`
+    (`State → Bool` predicate + name), `ContractInvariants` bundle, `ScenarioStep`/`runScenario`
+    (generic entrypoint trace), `verifyInvariantsAfterScenario` (Bool check), and the
+    `invariants_hold_after_scenario` soundness theorem (the `verified = true ⟹ ∃ finalState,
+    allInvariantsHold ∧ runScenario = .ok` bridge, discharged structurally — no `native_decide` on
+    the bridge itself; the `verified = true` premise is discharged by `native_decide` per
+    contract/scenario).
+  - `contract_source` macro gains a `lean_invariant <name> := "<predicateFnQualifiedName>"` item
+    (parallel to `quint_invariant`). It stores the predicate's *qualified name* in a new
+    `ContractSpec.leanInvariants : Array (String × String)` field (documentation link; the
+    predicate is a separate top-level `def`, not embedded — functions are not storable in the
+    serialized spec). This is the author-facing declaration surface.
+  - `ProofForge.Contract.Examples.ValueVaultInvariant` refactored from a one-off scenario test
+    into the canonical authoring example: declares three Lean invariants (`accounting`,
+    `net_value`, `final_storage`), runs the canonical `initialize → deposit → charge_fee →
+    release → snapshot` scenario from the empty state, and proves `value_vault_invariants_hold
+    _after_scenario` + `value_vault_invariants_sound`. Backward-compatible scenario API
+    (`runScenario inputs`, `expectedReturns`, `accountingInvariantHolds`, `finalStorageMatches`,
+    `defaultScenarioTraceOk/AccountingOk/NetValueOk`) preserved so the Wasm/NEAR offline-host
+    refinement (`ProofForge.Backend.WasmNear.Refinement.Core`) is unaffected.
+  - `ProofForge.Contract.Examples.CounterInvariant`: Counter authoring example — `countBounded`
+    + `countNonNegative` invariants over an `initialize → increment×n` scenario; the Counter
+    `contract_source` now carries `lean_invariant` annotations linking to these predicates.
+  - `Tests/LeanInvariantsSmoke.lean` + `just lean-invariants-smoke` gate (in `just check`):
+    machine-checks the invariant theorems for both contracts and verifies the Counter
+    `lean_invariant` annotations are registered.
+  - Pure-Lean, backend-agnostic, no Quint-MBT or per-target lowering dependency — the FV-8
+    product surface. Future work: a `∀ state` (scenario-free) form requires a structural
+    invariant over the IR interpreter; the scenario-bound form is the current machine-checked
+    authoring surface.
+  **DONE (2026-07-08):** added `ProofForge.Contract.LeanInvariant` reusable machinery
+  (`InvariantSpec`, `ContractInvariants`, `ScenarioStep`, `runScenario`, `verifyInvariantsAfterScenario`,
+  and the `invariants_hold_after_scenario` soundness theorem). Refactored `ValueVaultInvariant` from a
+  one-off scenario test into the authoring mode (declares `accounting`/`net_value`/`final_storage`
+  Lean invariants, machine-checked via `native_decide`). Added `CounterInvariant` as the Counter
+  instance (`countBounded`/`countNonNegative`). Added a `lean_invariant` contract-source item syntax
+  (parallel to `quint_invariant`) that stores the predicate function qualified name in
+  `ContractSpec.leanInvariants` (documentation link; the predicate is a separate top-level `def`
+  verified by the gate). Added `lean-invariants-smoke` gate (`just check`). Backward-compatible
+  scenario API shims keep the Wasm/NEAR offline-host refinement (`ProofForge.Backend.WasmNear.Refinement.Core`)
+  consuming `ValueVaultInvariant.runScenario`/`expectedReturns`/`defaultScenario*Ok` unchanged. The
+  universal `∀ state` invariant form requires a structural invariant over the IR interpreter; the
+  scenario-bound `native_decide` form is the machine-checked authoring surface today.
+
+  **DONE (Track 1.7 / FV-8).** Delivered a pure-Lean, backend-agnostic authoring surface for
+  user-declared invariants, machine-checked pre-codegen:
+  - New reusable machinery in `ProofForge/Contract/LeanInvariant.lean`:
+    `InvariantSpec` (`name` + `State → Bool` predicate), `ContractInvariants` bundle,
+    `ScenarioStep`/`runScenario`/`verifyInvariantsAfterScenario`, and the soundness theorem
+    `invariants_hold_after_scenario` (scenario-bound witness; a structural `∀ state` form is
+    future work once a structural IR-interpreter invariant is proven).
+  - Refactored `ValueVaultInvariant.lean` from a one-off scenario test into the canonical
+    authoring example: declares `accounting` / `net_value` / `final_storage` Lean invariants,
+    bundles them, defines a canonical `initialize → deposit → charge_fee → release → snapshot`
+    scenario, and machine-checks `value_vault_invariants_hold_after_scenario` (`native_decide`)
+    plus `value_vault_invariants_sound`. Backward-compatible scenario API (`runScenario inputs`,
+    `expectedReturns`, `accountingInvariantHolds`, `finalStorageMatches`,
+    `defaultScenario*Ok`, `value_vault_default_trace_ok`) preserved so the Wasm/NEAR offline-host
+    refinement pipeline is unaffected.
+  - New `CounterInvariant.lean` authoring example: `countBounded` + `countNonNegative` Lean
+    invariants over the canonical Counter, machine-checked after an increment scenario.
+  - New `lean_invariant <name> := "<predicateFnQualifiedName>"` `contract_source` item
+    (parallel to `quint_invariant`), stored on `ContractSpec.leanInvariants` as a documentation
+    link to a top-level `State → Bool` predicate; verified pre-codegen by
+    `LeanInvariant.verifyInvariantsAfterScenario`.
+  - New `lean-invariants-smoke` `just` recipe + `Tests/LeanInvariantsSmoke.lean`, wired into
+    `just check`. The Counter `contract_source` exposes `lean_invariant countBounded` /
+    `countNonNegative` annotations, exercising the full authoring → verify loop.
 
 ## Phase 4 — Breadth (after the primaries are solid) — parallelizable
 

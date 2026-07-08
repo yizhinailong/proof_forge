@@ -57,6 +57,11 @@ def declareQuintInvariant (name expr : String) : ModuleM Unit :=
 def declareQuintLiveness (name expr : String) : ModuleM Unit :=
   ProofForge.Contract.Builder.quintLiveness name expr
 
+/-- Declare a named Lean invariant, linking it to a `State → Bool` predicate
+function by qualified name. FV-8 / Track 1.7 authoring surface. -/
+def declareLeanInvariant (name predicateFnName : String) : ModuleM Unit :=
+  ProofForge.Contract.Builder.leanInvariant name predicateFnName
+
 def slot (id : String) (type : ValueType) : ScalarRef :=
   { id, type }
 

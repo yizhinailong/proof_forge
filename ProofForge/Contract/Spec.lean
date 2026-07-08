@@ -24,6 +24,10 @@ structure ContractSpec where
   /-- User-authored Quint safety invariants (`name`, expression string). -/
   quintInvariants : Array (String × String) := #[]
   quintLiveness : Array (String × String) := #[]
+  /-- User-authored Lean invariants (`name`, predicate function qualified name).
+  FV-8 / Track 1.7 authoring surface; the predicate is a `State → Bool`
+  defined next to `contract_source` and verified pre-codegen. -/
+  leanInvariants : Array (String × String) := #[]
   deriving Repr
 
 def moduleIntent (module : ProofForge.IR.Module) : Intent := {

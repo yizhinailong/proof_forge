@@ -20,6 +20,14 @@ structure ModuleBuilder where
   proxyPattern? : Option ProofForge.Contract.ProxyPattern := none
   quintInvariants : Array (String × String) := #[]
   quintLiveness : Array (String × String) := #[]
+  /-- User-authored Lean invariants: `(name, predicateFnQualifiedName)`. The
+  predicate is a `ProofForge.IR.Semantics.State → Bool` defined as a top-level
+  `def` next to `contract_source`. The name here is a documentation link to
+  that predicate; the actual machine check happens in the pre-codegen gate
+  (`ProofForge.Contract.LeanInvariant.verifyInvariantsAfterScenario`). This is
+  the FV-8 / Track 1.7 authoring surface (parallel to `quintInvariants`, which
+  are string expressions for Quint MBT). -/
+  leanInvariants : Array (String × String) := #[]
   deriving Repr
 
 structure EntryBuilder where
@@ -51,6 +59,7 @@ def ModuleBuilder.toSpec (builder : ModuleBuilder) : ContractSpec :=
     evmConstructorInitBindings := builder.evmConstructorInitBindings
     quintInvariants := builder.quintInvariants
     quintLiveness := builder.quintLiveness
+    leanInvariants := builder.leanInvariants
   }
 
 def buildModule (name : String) (body : ModuleM Unit) : Module :=
@@ -127,6 +136,12 @@ def quintInvariant (name expr : String) : ModuleM Unit := do
 
 def quintLiveness (name expr : String) : ModuleM Unit := do
   modify fun builder => { builder with quintLiveness := builder.quintLiveness.push (name, expr) }
+
+/-- Declare a named Lean invariant, linking it to a `State → Bool` predicate
+function by qualified name. The predicate is verified pre-codegen by
+`ProofForge.Contract.LeanInvariant.verifyInvariantsAfterScenario`. -/
+def leanInvariant (name predicateFnName : String) : ModuleM Unit := do
+  modify fun builder => { builder with leanInvariants := builder.leanInvariants.push (name, predicateFnName) }
 
 def mapState (id : String) (keyType type : ValueType) (capacity : Nat) : ModuleM Unit :=
   state id type (.map keyType capacity)

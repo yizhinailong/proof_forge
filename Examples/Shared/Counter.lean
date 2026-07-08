@@ -39,6 +39,8 @@ contract_source Counter do
 
   quint_invariant countBounded := "count <= MAX_UINT"
   quint_liveness eventuallyPositive := "eventually(count > 0)"
+  lean_invariant countBounded := "ProofForge.Contract.Examples.CounterInvariant.countBounded 3"
+  lean_invariant countNonNegative := "ProofForge.Contract.Examples.CounterInvariant.countNonNegative"
 
   entry «initialize» do
     count := u64 0;
