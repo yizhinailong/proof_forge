@@ -356,6 +356,122 @@ theorem runHostCall_near_attached_deposit_stack_ok
     (splitStackArgs_zero state)
     (nearHost_attached_deposit_ok state)
 
+theorem hostCallStep_near_input_stack_reduction
+    (state : State) (registerId : Nat)
+    (hbridge : state.host.bridge = .near) :
+    StateStepReduction (hostCallStep "input") (stackPush state registerId)
+      { state with
+        host := { state.host with
+          registers := writeRegister state.host.registers registerId state.host.input } } :=
+  hostCallStep_ok "input" (stackPush state registerId) _ <|
+    runHostCall_near_input_stack_ok state registerId hbridge
+
+theorem hostCallStep_near_storage_read_hit_stack_reduction
+    (state : State) (keyLen keyPtr registerId : Nat) (value : Bytes)
+    (hbridge : state.host.bridge = .near)
+    (hlookup :
+      lookupStorage? state.host.storage (readBytes state.memory keyPtr keyLen) = some value) :
+    StateStepReduction (hostCallStep "storage_read")
+        (stackPush (stackPush (stackPush state keyLen) keyPtr) registerId)
+      (stackPush
+        { state with
+          host := { state.host with
+            registers := writeRegister state.host.registers registerId value } }
+        1) :=
+  hostCallStep_ok "storage_read"
+    (stackPush (stackPush (stackPush state keyLen) keyPtr) registerId) _ <|
+    runHostCall_near_storage_read_hit_stack_ok state keyLen keyPtr registerId
+      value hbridge hlookup
+
+theorem hostCallStep_near_storage_read_miss_stack_reduction
+    (state : State) (keyLen keyPtr registerId : Nat)
+    (hbridge : state.host.bridge = .near)
+    (hlookup :
+      lookupStorage? state.host.storage (readBytes state.memory keyPtr keyLen) = none) :
+    StateStepReduction (hostCallStep "storage_read")
+        (stackPush (stackPush (stackPush state keyLen) keyPtr) registerId)
+      (stackPush state 0) :=
+  hostCallStep_ok "storage_read"
+    (stackPush (stackPush (stackPush state keyLen) keyPtr) registerId) _ <|
+    runHostCall_near_storage_read_miss_stack_ok state keyLen keyPtr registerId
+      hbridge hlookup
+
+theorem hostCallStep_near_storage_write_fresh_stack_reduction
+    (state : State) (keyLen keyPtr valueLen valuePtr registerId : Nat)
+    (hbridge : state.host.bridge = .near)
+    (hlookup :
+      lookupStorage? state.host.storage (readBytes state.memory keyPtr keyLen) = none) :
+    StateStepReduction (hostCallStep "storage_write")
+        (stackPush
+          (stackPush
+            (stackPush
+              (stackPush
+                (stackPush state keyLen) keyPtr) valueLen) valuePtr) registerId)
+      (stackPush
+        { state with
+          host := { state.host with
+            storage :=
+              writeStorage state.host.storage
+                (readBytes state.memory keyPtr keyLen)
+                (readBytes state.memory valuePtr valueLen),
+            registers := state.host.registers } }
+        0) :=
+  hostCallStep_ok "storage_write"
+    (stackPush
+      (stackPush
+        (stackPush
+          (stackPush
+            (stackPush state keyLen) keyPtr) valueLen) valuePtr) registerId) _ <|
+    runHostCall_near_storage_write_fresh_stack_ok state keyLen keyPtr valueLen
+      valuePtr registerId hbridge hlookup
+
+theorem hostCallStep_near_storage_write_replace_stack_reduction
+    (state : State) (keyLen keyPtr valueLen valuePtr registerId : Nat)
+    (old : Bytes)
+    (hbridge : state.host.bridge = .near)
+    (hlookup :
+      lookupStorage? state.host.storage (readBytes state.memory keyPtr keyLen) = some old) :
+    StateStepReduction (hostCallStep "storage_write")
+        (stackPush
+          (stackPush
+            (stackPush
+              (stackPush
+                (stackPush state keyLen) keyPtr) valueLen) valuePtr) registerId)
+      (stackPush
+        { state with
+          host := { state.host with
+            storage :=
+              writeStorage state.host.storage
+                (readBytes state.memory keyPtr keyLen)
+                (readBytes state.memory valuePtr valueLen),
+            registers := writeRegister state.host.registers registerId old } }
+        1) :=
+  hostCallStep_ok "storage_write"
+    (stackPush
+      (stackPush
+        (stackPush
+          (stackPush
+            (stackPush state keyLen) keyPtr) valueLen) valuePtr) registerId) _ <|
+    runHostCall_near_storage_write_replace_stack_ok state keyLen keyPtr valueLen
+      valuePtr registerId old hbridge hlookup
+
+theorem hostCallStep_near_value_return_stack_reduction
+    (state : State) (len ptr : Nat)
+    (hbridge : state.host.bridge = .near) :
+    StateStepReduction (hostCallStep "value_return")
+        (stackPush (stackPush state len) ptr)
+      { state with
+        host := { state.host with returnValue := readBytes state.memory ptr len } } :=
+  hostCallStep_ok "value_return" (stackPush (stackPush state len) ptr) _ <|
+    runHostCall_near_value_return_stack_ok state len ptr hbridge
+
+theorem hostCallStep_near_attached_deposit_stack_reduction
+    (state : State) (hbridge : state.host.bridge = .near) :
+    StateStepReduction (hostCallStep "attached_deposit") state
+      (stackPush state state.host.attachedDeposit) :=
+  hostCallStep_ok "attached_deposit" state _ <|
+    runHostCall_near_attached_deposit_stack_ok state hbridge
+
 theorem nearHost_storage_read_after_write_same
     (storage : NearHost.Storage) (key value : Bytes) :
     lookupStorage? (writeStorage storage key value) key = some value :=

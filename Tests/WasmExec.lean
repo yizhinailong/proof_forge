@@ -25,6 +25,19 @@ example : True := by
   have _ := @stateStepProvider_single
   have _ := @stateStepProvider_append
   have _ := @runStateSteps_post_of_provider
+  have _ := @pushStep
+  have _ := @dropStep
+  have _ := @constStep
+  have _ := @plainStep
+  have _ := @localGetStep
+  have _ := @localSetStep
+  have _ := @localTeeStep
+  have _ := @globalGetStep
+  have _ := @globalSetStep
+  have _ := @loadStep
+  have _ := @storeStep
+  have _ := @hostCallStep
+  have _ := @pushStep_ok
   have _ := @valueStack_stackPush
   have _ := @locals_stackPush
   have _ := @globals_stackPush
@@ -38,17 +51,29 @@ example : True := by
   have _ := @splitStackArgs_stackPush3
   have _ := @splitStackArgs_stackPush5
   have _ := @evalPlain_unary_stackPush
+  have _ := @plainStep_unary_stackPush
   have _ := @evalPlain_binary_stackPush
+  have _ := @plainStep_binary_stackPush
   have _ := @execDrop_stackPush
+  have _ := @dropStep_stackPush
   have _ := @execConst_ok
+  have _ := @constStep_ok
   have _ := @execLocalGet_ok
+  have _ := @localGetStep_ok
   have _ := @execLocalSet_stackPush
+  have _ := @localSetStep_stackPush
   have _ := @execLocalTee_stackPush
+  have _ := @localTeeStep_stackPush
   have _ := @execGlobalGet_ok
+  have _ := @globalGetStep_ok
   have _ := @execGlobalSet_stackPush
+  have _ := @globalSetStep_stackPush
   have _ := @execLoad_stackPush
+  have _ := @loadStep_stackPush
   have _ := @execStore_stackPush
+  have _ := @storeStep_stackPush
   have _ := @runHostCallWith_ok
+  have _ := @hostCallStep_ok
   have _ := @lookupLocal_writeLocal_same
   have _ := @lookupGlobal_writeGlobal_same
   have _ := @lookupRegister_writeRegister_same
@@ -70,28 +95,20 @@ theorem local_write_sample :
       "x" = some 9 := by
   exact lookupLocal_writeLocal_same (#[] : Locals) "x" 9
 
-def samplePush7 : StateStep :=
-  fun state => .ok (ProofForge.Backend.WasmNear.WasmInterpreter.stackPush state 7)
-
-def sampleSetX : StateStep :=
-  fun state => ProofForge.Backend.WasmNear.WasmInterpreter.execLocalSet state "x"
-
 theorem state_step_reduction_chain_sample :
-    StateStepReductionChain [samplePush7, sampleSetX] ({} : State)
+    StateStepReductionChain [pushStep 7, localSetStep "x"] ({} : State)
       { ({} : State) with locals :=
           ProofForge.Backend.WasmNear.WasmInterpreter.writeLocal (#[] : Locals) "x" 7 } := by
   apply StateStepReductionChain.cons
-  · exact StateStepReduction.of_step rfl
+  · exact pushStep_ok ({} : State) 7
   · apply StateStepReductionChain.cons
-    · exact StateStepReduction.of_step <| by
-        simpa [sampleSetX] using
-          execLocalSet_stackPush ({} : State) "x" 7
+    · exact localSetStep_stackPush ({} : State) "x" 7
     · exact StateStepReductionChain.nil
         { ({} : State) with locals :=
             ProofForge.Backend.WasmNear.WasmInterpreter.writeLocal (#[] : Locals) "x" 7 }
 
 theorem run_state_steps_chain_sample :
-    runStateSteps [samplePush7, sampleSetX] ({} : State) =
+    runStateSteps [pushStep 7, localSetStep "x"] ({} : State) =
       .ok { ({} : State) with locals :=
           ProofForge.Backend.WasmNear.WasmInterpreter.writeLocal (#[] : Locals) "x" 7 } := by
   exact runStateSteps_of_reductionChain state_step_reduction_chain_sample

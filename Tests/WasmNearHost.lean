@@ -10,6 +10,7 @@ compose through that hook.
 namespace ProofForge.Tests.WasmNearHost
 
 open ProofForge.Backend.WasmNear.WasmInterpreter
+open ProofForge.Backend.WasmNear.WasmExec
 open ProofForge.Backend.WasmNear.NearHost
 
 abbrev Bytes := ProofForge.Backend.WasmNear.NearHost.Bytes
@@ -48,6 +49,13 @@ example : True := by
   have _ := @runHostCall_near_storage_write_replace_stack_ok
   have _ := @runHostCall_near_value_return_stack_ok
   have _ := @runHostCall_near_attached_deposit_stack_ok
+  have _ := @hostCallStep_near_input_stack_reduction
+  have _ := @hostCallStep_near_storage_read_hit_stack_reduction
+  have _ := @hostCallStep_near_storage_read_miss_stack_reduction
+  have _ := @hostCallStep_near_storage_write_fresh_stack_reduction
+  have _ := @hostCallStep_near_storage_write_replace_stack_reduction
+  have _ := @hostCallStep_near_value_return_stack_reduction
+  have _ := @hostCallStep_near_attached_deposit_stack_reduction
   have _ := @nearHost_storage_read_after_write_same
   exact True.intro
 
@@ -82,6 +90,21 @@ theorem run_host_value_return_sample :
       .ok { storedState with host := { storedState.host with returnValue := value } } := by
   rw [storedState_read_value.symm]
   exact runHostCall_near_value_return_stack_ok storedState 3 20 rfl
+
+theorem host_step_reduction_chain_value_return_sample :
+    StateStepReductionChain [pushStep 3, pushStep 20, hostCallStep "value_return"]
+        storedState
+      { storedState with
+        host := { storedState.host with returnValue := readBytes storedState.memory 20 3 } } := by
+  apply StateStepReductionChain.cons
+  · exact pushStep_ok storedState 3
+  · apply StateStepReductionChain.cons
+    · exact pushStep_ok (stackPush storedState 3) 20
+    · apply StateStepReductionChain.cons
+      · exact hostCallStep_near_value_return_stack_reduction storedState 3 20 rfl
+      · exact StateStepReductionChain.nil
+          { storedState with
+            host := { storedState.host with returnValue := readBytes storedState.memory 20 3 } }
 
 theorem attached_deposit_sample :
     runNearHostCall "attached_deposit" #[] storedState =

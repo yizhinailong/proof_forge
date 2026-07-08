@@ -44,6 +44,42 @@ theorem StateStepReduction.of_step
     StateStepReduction step state nextState :=
   { hstep }
 
+def pushStep (value : Nat) : StateStep :=
+  fun state => .ok (stackPush state value)
+
+def dropStep : StateStep :=
+  fun state => execDrop state
+
+def constStep (text : String) : StateStep :=
+  fun state => execConst state text
+
+def plainStep (name : String) : StateStep :=
+  fun state => evalPlain state name
+
+def localGetStep (name : String) : StateStep :=
+  fun state => execLocalGet state name
+
+def localSetStep (name : String) : StateStep :=
+  fun state => execLocalSet state name
+
+def localTeeStep (name : String) : StateStep :=
+  fun state => execLocalTee state name
+
+def globalGetStep (name : String) : StateStep :=
+  fun state => execGlobalGet state name
+
+def globalSetStep (name : String) : StateStep :=
+  fun state => execGlobalSet state name
+
+def loadStep (name : String) (offset : Nat) : StateStep :=
+  fun state => execLoad state name offset
+
+def storeStep (name : String) (offset : Nat) : StateStep :=
+  fun state => execStore state name offset
+
+def hostCallStep (name : String) : StateStep :=
+  fun state => runHostCall name state
+
 inductive StateStepReductionChain : List StateStep → State → State → Prop where
   | nil (state : State) : StateStepReductionChain [] state state
   | cons {step : StateStep} {rest : List StateStep} {state midState finalState : State}
@@ -197,6 +233,10 @@ theorem stackPop_stackPush (state : State) (value : Nat) :
     stackPop (stackPush state value) = .ok (value, state) := by
   simp [stackPop, stackPush]
 
+theorem pushStep_ok (state : State) (value : Nat) :
+    StateStepReduction (pushStep value) state (stackPush state value) :=
+  StateStepReduction.of_step rfl
+
 theorem splitStackArgs_zero (state : State) :
     splitStackArgs state 0 = .ok (#[], state) := by
   simp [splitStackArgs]
@@ -237,6 +277,14 @@ theorem evalPlain_unary_stackPush
   unfold evalPlain
   simp [Bind.bind, Except.bind, stackPeek_stackPush, stackPop_stackPush, happly]
 
+theorem plainStep_unary_stackPush
+    (state : State) (name : String) (value result : Nat)
+    (happly : applyUnaryPlain name value = some result) :
+    StateStepReduction (plainStep name)
+      (stackPush state value) (stackPush state result) :=
+  StateStepReduction.of_step <| by
+    simpa [plainStep] using evalPlain_unary_stackPush state name value result happly
+
 theorem evalPlain_binary_stackPush
     (state : State) (name : String) (lhs rhs result : Nat)
     (hunary : applyUnaryPlain name rhs = none)
@@ -246,24 +294,57 @@ theorem evalPlain_binary_stackPush
   unfold evalPlain
   simp [Bind.bind, Except.bind, stackPeek_stackPush, stackPop_stackPush, hunary, happly]
 
+theorem plainStep_binary_stackPush
+    (state : State) (name : String) (lhs rhs result : Nat)
+    (hunary : applyUnaryPlain name rhs = none)
+    (happly : applyBinaryPlain name lhs rhs = some result) :
+    StateStepReduction (plainStep name)
+      (stackPush (stackPush state lhs) rhs) (stackPush state result) :=
+  StateStepReduction.of_step <| by
+    simpa [plainStep] using
+      evalPlain_binary_stackPush state name lhs rhs result hunary happly
+
 theorem execDrop_stackPush (state : State) (value : Nat) :
     execDrop (stackPush state value) = .ok state := by
   simp [execDrop, stackPop_stackPush, Bind.bind, Except.bind]
+
+theorem dropStep_stackPush (state : State) (value : Nat) :
+    StateStepReduction dropStep (stackPush state value) state :=
+  StateStepReduction.of_step <| by
+    simpa [dropStep] using execDrop_stackPush state value
 
 theorem execConst_ok (state : State) (text : String) (value : Nat)
     (hvalue : natValue? text = .ok value) :
     execConst state text = .ok (stackPush state value) := by
   simp [execConst, hvalue, Bind.bind, Except.bind]
 
+theorem constStep_ok (state : State) (text : String) (value : Nat)
+    (hvalue : natValue? text = .ok value) :
+    StateStepReduction (constStep text) state (stackPush state value) :=
+  StateStepReduction.of_step <| by
+    simpa [constStep] using execConst_ok state text value hvalue
+
 theorem execLocalGet_ok (state : State) (name : String) (value : Nat)
     (hlookup : lookupLocal? state.locals name = some value) :
     execLocalGet state name = .ok (stackPush state value) := by
   simp [execLocalGet, hlookup]
 
+theorem localGetStep_ok (state : State) (name : String) (value : Nat)
+    (hlookup : lookupLocal? state.locals name = some value) :
+    StateStepReduction (localGetStep name) state (stackPush state value) :=
+  StateStepReduction.of_step <| by
+    simpa [localGetStep] using execLocalGet_ok state name value hlookup
+
 theorem execLocalSet_stackPush (state : State) (name : String) (value : Nat) :
     execLocalSet (stackPush state value) name =
       .ok { state with locals := writeLocal state.locals name value } := by
   simp [execLocalSet, stackPop_stackPush, Bind.bind, Except.bind]
+
+theorem localSetStep_stackPush (state : State) (name : String) (value : Nat) :
+    StateStepReduction (localSetStep name) (stackPush state value)
+      { state with locals := writeLocal state.locals name value } :=
+  StateStepReduction.of_step <| by
+    simpa [localSetStep] using execLocalSet_stackPush state name value
 
 theorem execLocalTee_stackPush (state : State) (name : String) (value : Nat) :
     execLocalTee (stackPush state value) name =
@@ -271,15 +352,33 @@ theorem execLocalTee_stackPush (state : State) (name : String) (value : Nat) :
         locals := writeLocal state.locals name value } := by
   simp [execLocalTee, stackPeek_stackPush, locals_stackPush, Bind.bind, Except.bind]
 
+theorem localTeeStep_stackPush (state : State) (name : String) (value : Nat) :
+    StateStepReduction (localTeeStep name) (stackPush state value)
+      { stackPush state value with locals := writeLocal state.locals name value } :=
+  StateStepReduction.of_step <| by
+    simpa [localTeeStep] using execLocalTee_stackPush state name value
+
 theorem execGlobalGet_ok (state : State) (name : String) (value : Nat)
     (hlookup : lookupGlobal? state.globals name = some value) :
     execGlobalGet state name = .ok (stackPush state value) := by
   simp [execGlobalGet, hlookup]
 
+theorem globalGetStep_ok (state : State) (name : String) (value : Nat)
+    (hlookup : lookupGlobal? state.globals name = some value) :
+    StateStepReduction (globalGetStep name) state (stackPush state value) :=
+  StateStepReduction.of_step <| by
+    simpa [globalGetStep] using execGlobalGet_ok state name value hlookup
+
 theorem execGlobalSet_stackPush (state : State) (name : String) (value : Nat) :
     execGlobalSet (stackPush state value) name =
       .ok { state with globals := writeGlobal state.globals name value } := by
   simp [execGlobalSet, stackPop_stackPush, Bind.bind, Except.bind]
+
+theorem globalSetStep_stackPush (state : State) (name : String) (value : Nat) :
+    StateStepReduction (globalSetStep name) (stackPush state value)
+      { state with globals := writeGlobal state.globals name value } :=
+  StateStepReduction.of_step <| by
+    simpa [globalSetStep] using execGlobalSet_stackPush state name value
 
 theorem execLoad_stackPush
     (state : State) (name : String) (offset ptr byteCount : Nat)
@@ -288,12 +387,30 @@ theorem execLoad_stackPush
       .ok (stackPush state (readNatLE state.memory (ptr + offset) byteCount)) := by
   simp [execLoad, stackPop_stackPush, hload, Bind.bind, Except.bind]
 
+theorem loadStep_stackPush
+    (state : State) (name : String) (offset ptr byteCount : Nat)
+    (hload : loadByteCount name = .ok byteCount) :
+    StateStepReduction (loadStep name offset) (stackPush state ptr)
+      (stackPush state (readNatLE state.memory (ptr + offset) byteCount)) :=
+  StateStepReduction.of_step <| by
+    simpa [loadStep] using execLoad_stackPush state name offset ptr byteCount hload
+
 theorem execStore_stackPush
     (state : State) (name : String) (offset ptr value byteCount : Nat)
     (hstore : storeByteCount name = .ok byteCount) :
     execStore (stackPush (stackPush state ptr) value) name offset =
       .ok { state with memory := writeNatLE state.memory (ptr + offset) byteCount value } := by
   simp [execStore, stackPop_stackPush, hstore, Bind.bind, Except.bind]
+
+theorem storeStep_stackPush
+    (state : State) (name : String) (offset ptr value byteCount : Nat)
+    (hstore : storeByteCount name = .ok byteCount) :
+    StateStepReduction (storeStep name offset)
+      (stackPush (stackPush state ptr) value)
+      { state with memory := writeNatLE state.memory (ptr + offset) byteCount value } :=
+  StateStepReduction.of_step <| by
+    simpa [storeStep] using
+      execStore_stackPush state name offset ptr value byteCount hstore
 
 theorem runHostCallWith_ok
     (arity : String → Except String Nat)
@@ -305,6 +422,12 @@ theorem runHostCallWith_ok
     (hrun : run name args argsState = .ok finalState) :
     runHostCallWith arity run name state = .ok finalState := by
   simp [runHostCallWith, harity, hsplit, hrun, Bind.bind, Except.bind]
+
+theorem hostCallStep_ok (name : String) (state finalState : State)
+    (hrun : runHostCall name state = .ok finalState) :
+    StateStepReduction (hostCallStep name) state finalState :=
+  StateStepReduction.of_step <| by
+    simpa [hostCallStep] using hrun
 
 theorem lookupLocal_writeLocal_same (locals : Locals) (name : String) (value : Nat) :
     lookupLocal? (writeLocal locals name value) name = some value := by
