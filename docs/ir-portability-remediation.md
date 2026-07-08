@@ -98,3 +98,8 @@ scalarState "count" .u64
 Target Extension SDKs (Solana PDA/CPI, …) remain the only place for
 *explicit* chain-native authoring — and they still lower through capabilities
 and metadata, not portable IR constructors (D-027).
+
+**Product architecture (broader than IR hygiene):** authors write business
+logic only; Token features, storage binding, accounts/PDA/CPI, and host
+models are all target-materialized. See
+[product-authoring-architecture.md](product-authoring-architecture.md).
