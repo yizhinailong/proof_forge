@@ -828,72 +828,53 @@ theorem deposit_state16_regs_size (b a o : Nat) :
 theorem deposit_state9_next_balance_scratch (b a o : Nat) :
     (depositState9 b a o).memory.read depositNextScratch = a + b := by
   unfold depositState9
-  simpa [memory_execLoad] using deposit_state8_next_balance_scratch b a o
+  rw [memory_read_execLoad]
+  exact deposit_state8_next_balance_scratch b a o
 
 theorem deposit_state10_next_balance_scratch (b a o : Nat) :
     (depositState10 b a o).memory.read depositNextScratch = a + b := by
-  unfold depositState10 execStore
-  calc
-    (nextPc
-          { depositState9 b a o with
-            memory := (depositState9 b a o).memory.write depositLhsScratch o }).memory.read
-        depositNextScratch =
-        (depositState9 b a o).memory.read depositNextScratch := by
-          simpa [nextPc] using
-            (Memory.read_write_of_ne (depositState9 b a o).memory
-              (readAddr := depositNextScratch) (writeAddr := depositLhsScratch)
-              (value := o) (by native_decide))
-    _ = a + b := deposit_state9_next_balance_scratch b a o
+  unfold depositState10
+  rw [memory_read_execStore_of_ne]
+  · exact deposit_state9_next_balance_scratch b a o
+  · native_decide
 
 theorem deposit_state11_next_balance_scratch (b a o : Nat) :
     (depositState11 b a o).memory.read depositNextScratch = a + b := by
   unfold depositState11
-  simpa [memory_execLoad] using deposit_state10_next_balance_scratch b a o
+  rw [memory_read_execLoad]
+  exact deposit_state10_next_balance_scratch b a o
 
 theorem deposit_state12_next_balance_scratch (b a o : Nat) :
     (depositState12 b a o).memory.read depositNextScratch = a + b := by
-  unfold depositState12 execStore
-  calc
-    (nextPc
-          { depositState11 b a o with
-            memory := (depositState11 b a o).memory.write depositOpsScratch o }).memory.read
-        depositNextScratch =
-        (depositState11 b a o).memory.read depositNextScratch := by
-          simpa [nextPc] using
-            (Memory.read_write_of_ne (depositState11 b a o).memory
-              (readAddr := depositNextScratch) (writeAddr := depositOpsScratch)
-              (value := o) (by native_decide))
-    _ = a + b := deposit_state11_next_balance_scratch b a o
+  unfold depositState12
+  rw [memory_read_execStore_of_ne]
+  · exact deposit_state11_next_balance_scratch b a o
+  · native_decide
 
 theorem deposit_state13_next_balance_scratch (b a o : Nat) :
     (depositState13 b a o).memory.read depositNextScratch = a + b := by
   unfold depositState13
-  simpa [memory_execMov64] using deposit_state12_next_balance_scratch b a o
+  rw [memory_read_execMov64]
+  exact deposit_state12_next_balance_scratch b a o
 
 theorem deposit_state14_next_balance_scratch (b a o : Nat) :
     (depositState14 b a o).memory.read depositNextScratch = a + b := by
   unfold depositState14
-  simpa [memory_execLoad] using deposit_state13_next_balance_scratch b a o
+  rw [memory_read_execLoad]
+  exact deposit_state13_next_balance_scratch b a o
 
 theorem deposit_state15_next_balance_scratch (b a o : Nat) :
     (depositState15 b a o).memory.read depositNextScratch = a + b := by
   unfold depositState15
-  simpa [nextPc, setReg] using deposit_state14_next_balance_scratch b a o
+  rw [memory_read_nextPc, memory_read_setReg]
+  exact deposit_state14_next_balance_scratch b a o
 
 theorem deposit_state16_next_balance_scratch (b a o : Nat) :
     (depositState16 b a o).memory.read depositNextScratch = a + b := by
-  unfold depositState16 execStore
-  calc
-    (nextPc
-          { depositState15 b a o with
-            memory := (depositState15 b a o).memory.write depositNextOpsScratch (1 + o) }).memory.read
-        depositNextScratch =
-        (depositState15 b a o).memory.read depositNextScratch := by
-          simpa [nextPc] using
-            (Memory.read_write_of_ne (depositState15 b a o).memory
-              (readAddr := depositNextScratch) (writeAddr := depositNextOpsScratch)
-              (value := 1 + o) (by native_decide))
-    _ = a + b := deposit_state15_next_balance_scratch b a o
+  unfold depositState16
+  rw [memory_read_execStore_of_ne]
+  · exact deposit_state15_next_balance_scratch b a o
+  · native_decide
 
 theorem deposit_state16_next_ops_scratch (b a o : Nat) :
     (depositState16 b a o).memory.read depositNextOpsScratch = 1 + o := by
@@ -903,17 +884,20 @@ theorem deposit_state16_next_ops_scratch (b a o : Nat) :
 theorem deposit_state5_amount_scratch (b a o : Nat) :
     (depositState5 b a o).memory.read depositAmountScratch = a := by
   unfold depositState5
-  simpa [memory_execLoad] using deposit_read_amount4 b a o
+  rw [memory_read_execLoad]
+  exact deposit_read_amount4 b a o
 
 theorem deposit_state6_amount_scratch (b a o : Nat) :
     (depositState6 b a o).memory.read depositAmountScratch = a := by
   unfold depositState6
-  simpa [memory_execLoad] using deposit_state5_amount_scratch b a o
+  rw [memory_read_execLoad]
+  exact deposit_state5_amount_scratch b a o
 
 theorem deposit_state7_amount_scratch (b a o : Nat) :
     (depositState7 b a o).memory.read depositAmountScratch = a := by
   unfold depositState7
-  simpa [nextPc, setReg] using deposit_state6_amount_scratch b a o
+  rw [memory_read_nextPc, memory_read_setReg]
+  exact deposit_state6_amount_scratch b a o
 
 theorem deposit_state8_amount_scratch (b a o : Nat) :
     (depositState8 b a o).memory.read depositAmountScratch = a := by

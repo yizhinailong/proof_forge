@@ -380,14 +380,35 @@ theorem memory_nextPc (state : SbpfState) :
 theorem memory_setReg (state : SbpfState) (reg : Reg) (value : Nat) :
     (setReg state reg value).memory = state.memory := rfl
 
+theorem memory_read_nextPc (state : SbpfState) (addr : Nat) :
+    (nextPc state).memory.read addr = state.memory.read addr := rfl
+
+theorem memory_read_setReg (state : SbpfState) (reg : Reg) (value addr : Nat) :
+    (setReg state reg value).memory.read addr = state.memory.read addr := rfl
+
 theorem memory_execLoad (state : SbpfState) (dst : Reg) (addr value : Nat) :
     (execLoad state dst addr value).memory = state.memory := rfl
+
+theorem memory_read_execLoad
+    (state : SbpfState) (dst : Reg) (addr value readAddr : Nat) :
+    (execLoad state dst addr value).memory.read readAddr =
+      state.memory.read readAddr := rfl
 
 theorem memory_execMov64 (state : SbpfState) (dst : Reg) (value : Nat) :
     (execMov64 state dst value).memory = state.memory := rfl
 
+theorem memory_read_execMov64
+    (state : SbpfState) (dst : Reg) (value readAddr : Nat) :
+    (execMov64 state dst value).memory.read readAddr =
+      state.memory.read readAddr := rfl
+
 theorem memory_execSetReturnData (state : SbpfState) (value : Nat) :
     (execSetReturnData state value).memory = state.memory := rfl
+
+theorem memory_read_execSetReturnData
+    (state : SbpfState) (value readAddr : Nat) :
+    (execSetReturnData state value).memory.read readAddr =
+      state.memory.read readAddr := rfl
 
 theorem memory_read_execStore (state : SbpfState) (addr value : Nat) :
     (execStore state addr value).memory.read addr = value := by
@@ -405,6 +426,9 @@ theorem memory_read_execStore_of_ne (state : SbpfState) {readAddr writeAddr valu
 
 theorem memory_execExit (state : SbpfState) (r0 : Nat) :
     (execExit state r0).memory = state.memory := rfl
+
+theorem memory_read_execExit (state : SbpfState) (r0 addr : Nat) :
+    (execExit state r0).memory.read addr = state.memory.read addr := rfl
 
 theorem returnData_nextPc (state : SbpfState) :
     (nextPc state).returnData = state.returnData := rfl
