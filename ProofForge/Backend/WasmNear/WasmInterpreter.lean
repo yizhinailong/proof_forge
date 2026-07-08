@@ -218,6 +218,46 @@ def evalPlain (state : WasmState) (name : String) : Except String WasmState := d
       | some value => .ok (stackPush state value)
       | none => .error s!"unsupported Wasm plain instruction `{name}`"
 
+def execDrop (state : WasmState) : Except String WasmState := do
+  let (_, state) ← stackPop state
+  .ok state
+
+def execConst (state : WasmState) (value : String) : Except String WasmState := do
+  .ok (stackPush state (← natValue? value))
+
+def execLocalGet (state : WasmState) (name : String) : Except String WasmState :=
+  match lookupLocal? state.locals name with
+  | some value => .ok (stackPush state value)
+  | none => .error s!"unknown Wasm local `{name}`"
+
+def execLocalSet (state : WasmState) (name : String) : Except String WasmState := do
+  let (value, state) ← stackPop state
+  .ok { state with locals := writeLocal state.locals name value }
+
+def execLocalTee (state : WasmState) (name : String) : Except String WasmState := do
+  let value ← stackPeek state
+  .ok { state with locals := writeLocal state.locals name value }
+
+def execGlobalGet (state : WasmState) (name : String) : Except String WasmState :=
+  match lookupGlobal? state.globals name with
+  | some value => .ok (stackPush state value)
+  | none => .error s!"unknown Wasm global `{name}`"
+
+def execGlobalSet (state : WasmState) (name : String) : Except String WasmState := do
+  let (value, state) ← stackPop state
+  .ok { state with globals := writeGlobal state.globals name value }
+
+def execLoad (state : WasmState) (name : String) (offset : Nat) : Except String WasmState := do
+  let (ptr, state) ← stackPop state
+  let byteCount ← loadByteCount name
+  .ok (stackPush state (readNatLE state.memory (ptr + offset) byteCount))
+
+def execStore (state : WasmState) (name : String) (offset : Nat) : Except String WasmState := do
+  let (value, state) ← stackPop state
+  let (ptr, state) ← stackPop state
+  let byteCount ← storeByteCount name
+  .ok { state with memory := writeNatLE state.memory (ptr + offset) byteCount value }
+
 def hostReadRegister (state : WasmState) (registerId ptr : Nat) : WasmState :=
   match lookupRegister? state.host.registers registerId with
   | none => state
@@ -306,12 +346,23 @@ def hostArity (bridge : ProofForge.Target.HostBridge) (name : String) :
   | .cosmWasm, _ => .error "CosmWasm host calls are not modeled by the NEAR Counter interpreter"
   | _, other => .error s!"unsupported host call `{other}`"
 
-def runHostCall (name : String) (state : WasmState) : Except String WasmState := do
-  let arity ← hostArity state.host.bridge name
+def runHostCallWith
+    (arity : String → Except String Nat)
+    (run : String → Array Nat → WasmState → Except String WasmState)
+    (name : String) (state : WasmState) : Except String WasmState := do
+  let arity ← arity name
   let (args, state) ← splitStackArgs state arity
-  match state.host.bridge with
-  | .near => runNearHostCall name args state
-  | .cosmWasm => .error "CosmWasm host calls are not modeled by the NEAR Counter interpreter"
+  run name args state
+
+def runHostCall (name : String) (state : WasmState) : Except String WasmState := do
+  let bridge := state.host.bridge
+  runHostCallWith (hostArity bridge)
+    (fun name args state =>
+      match bridge with
+      | .near => runNearHostCall name args state
+      | .cosmWasm => .error "CosmWasm host calls are not modeled by the NEAR Counter interpreter"
+    )
+    name state
 
 mutual
 
@@ -364,7 +415,7 @@ partial def evalInsn (mod : WasmModule) (insn : Insn)
       match insn with
       | .nop => .ok (fuel, state, .continue)
       | .drop =>
-          let (_, state) ← stackPop state
+          let state ← execDrop state
           .ok (fuel, state, .continue)
       | .return_ =>
           .ok (fuel, state, .return_)
@@ -377,35 +428,23 @@ partial def evalInsn (mod : WasmModule) (insn : Insn)
           else
             .ok (fuel, state, .continue)
       | .const _ value =>
-          .ok (fuel, stackPush state (← natValue? value), .continue)
+          .ok (fuel, ← execConst state value, .continue)
       | .localGet name =>
-          match lookupLocal? state.locals name with
-          | some value => .ok (fuel, stackPush state value, .continue)
-          | none => .error s!"unknown Wasm local `{name}`"
+          .ok (fuel, ← execLocalGet state name, .continue)
       | .localSet name =>
-          let (value, state) ← stackPop state
-          .ok (fuel, { state with locals := writeLocal state.locals name value }, .continue)
+          .ok (fuel, ← execLocalSet state name, .continue)
       | .localTee name =>
-          let value ← stackPeek state
-          .ok (fuel, { state with locals := writeLocal state.locals name value }, .continue)
+          .ok (fuel, ← execLocalTee state name, .continue)
       | .globalGet name =>
-          match lookupGlobal? state.globals name with
-          | some value => .ok (fuel, stackPush state value, .continue)
-          | none => .error s!"unknown Wasm global `{name}`"
+          .ok (fuel, ← execGlobalGet state name, .continue)
       | .globalSet name =>
-          let (value, state) ← stackPop state
-          .ok (fuel, { state with globals := writeGlobal state.globals name value }, .continue)
+          .ok (fuel, ← execGlobalSet state name, .continue)
       | .plain name =>
           .ok (fuel, ← evalPlain state name, .continue)
       | .load name offset =>
-          let (ptr, state) ← stackPop state
-          let byteCount ← loadByteCount name
-          .ok (fuel, stackPush state (readNatLE state.memory (ptr + offset) byteCount), .continue)
+          .ok (fuel, ← execLoad state name offset, .continue)
       | .store name offset =>
-          let (value, state) ← stackPop state
-          let (ptr, state) ← stackPop state
-          let byteCount ← storeByteCount name
-          .ok (fuel, { state with memory := writeNatLE state.memory (ptr + offset) byteCount value }, .continue)
+          .ok (fuel, ← execStore state name offset, .continue)
       | .call name =>
           match findFunc? mod name with
           | some func =>
