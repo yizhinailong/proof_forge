@@ -321,8 +321,8 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 | 3 | Solana Source opt-in (stop default teaching CPI) | ✅ Landed (bridge) |
 | 4 | **Solana auto-materialize portable IR → Plan/accounts** | ✅ B.2 landed (`Backend.Solana.Materialize`, artifact field) |
 | 4b | **Unified primary-chain materialize (EVM·Solana·Wasm-NEAR)** | ✅ `Target.Materialize` + artifact `materialization` on all three; `just primary-materialize` |
-| 4c | **Portable crosscall.invoke materialize (EVM CALL · Solana CPI · NEAR Promise)** | ✅ B.3; Solana `sol_invoke_signed_c`; NEAR `promise_create`; `just crosscall-materialize` |
-| 5 | NEAR Promise constructors out of portable product path (D-050 Slice 3) | ✅ Partial: portableModule vs promiseExtension; full Expr inductive removal deferred |
+| 4c | **Portable crosscall.invoke materialize (EVM CALL · Solana CPI · NEAR Promise)** | ✅ B.3; Solana `sol_invoke_signed_c` + AccountMeta/Info + return-data; NEAR `promise_create`; Shared `RemoteCall` |
+| 5 | NEAR Promise constructors out of portable product path (D-050 Slice 3) | ✅ Partial: `Source.Near` opt-in + portable-default ban; full Expr inductive removal deferred |
 | 6 | Mark `Source.Solana` fixture-only; demote from product docs | After auto-materialize works for Counter/Vault |
 | 7 | Stdlib portable policies → multi-target lowering | One Ownable/Token intent |
 | 8 | Spec/Builder de-EVM naming | Product surface cleanup |

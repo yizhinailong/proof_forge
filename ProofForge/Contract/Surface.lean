@@ -325,6 +325,13 @@ def nativeTransfer (recipient amount : ProofForge.IR.Expr) : EntryM Unit :=
   ProofForge.Contract.Builder.letBind "_sent" .u64
     (.crosscallInvokeValueTyped recipient (u64 0) amount #[] .u64)
 
+/-- Portable cross-contract intent (family-shared). Backends materialize as
+EVM CALL / Solana CPI / NEAR `promise_create` — authors never write CPI metas
+or Promise chains here. -/
+def remoteCall (target method : ProofForge.IR.Expr) (args : Array ProofForge.IR.Expr) :
+    ProofForge.IR.Expr :=
+  .crosscallInvoke target method args
+
 def hash4 (a b c d : Nat) : ProofForge.IR.Expr :=
   .literal (.hash4 a b c d)
 
@@ -332,6 +339,8 @@ def hash4 (a b c d : Nat) : ProofForge.IR.Expr :=
 def create2Deploy (callValue salt : ProofForge.IR.Expr) (initCodeHex : String) : ProofForge.IR.Expr :=
   .crosscallCreate2 callValue salt initCodeHex
 
+/-- Register a NEAR host string-pool entry (target metadata for `wasm-near`).
+Prefer this over Promise constructors on the portable path. -/
 def registerNearCrosscallString (value : String) : ModuleM Unit := do
   let _ ← ProofForge.Contract.Builder.nearCrosscallString value
   pure ()
@@ -339,14 +348,17 @@ def registerNearCrosscallString (value : String) : ModuleM Unit := do
 def nearAddressLit (idx : Nat) : ProofForge.IR.Expr :=
   ProofForge.Contract.Builder.nearAddressLit idx
 
+/-- NEAR host-extension: low-level pool invoke. Prefer `remoteCall` + string pool. -/
 def nearCrosscallPool (accountIndex methodId : ProofForge.IR.Expr) (args : Array ProofForge.IR.Expr)
     (deposit : ProofForge.IR.Expr) : ProofForge.IR.Expr :=
   ProofForge.Contract.Builder.nearCrosscallInvokePool accountIndex methodId args deposit
 
+/-- NEAR host-extension only (`Source.Near`): `promise_then` chaining. -/
 def nearPromiseThen (parentPromise callbackMethod : ProofForge.IR.Expr) (args : Array ProofForge.IR.Expr)
     (deposit : ProofForge.IR.Expr) : ProofForge.IR.Expr :=
   ProofForge.Contract.Builder.nearPromiseThen parentPromise callbackMethod args deposit
 
+/-- NEAR host-extension only (`Source.Near`): decode callback result as u64. -/
 def nearPromiseResultU64 (index : ProofForge.IR.Expr) : ProofForge.IR.Expr :=
   ProofForge.Contract.Builder.nearPromiseResultU64 index
 

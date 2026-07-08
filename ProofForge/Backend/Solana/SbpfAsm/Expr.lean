@@ -567,8 +567,10 @@ where
       workCtx := c
       argIdx := argIdx + 1
     let dataBytes := (1 + args.size) * 8
-    nodes := nodes ++ invokeSignedC dataBytes
-    .ok (nodes, workCtx)
+    let (retNoneLabel, ctxAfterArgs) := workCtx.freshLabel
+    let (retEndLabel, ctxFinal) := ctxAfterArgs.freshLabel
+    nodes := nodes ++ invokeSignedC dataBytes retNoneLabel retEndLabel
+    .ok (nodes, ctxFinal)
 
   lowerCmp (ctx : LowerCtx) (lhs rhs : IR.Expr) (condJmp : Opcode) : Except LowerError (Array AstNode × LowerCtx) := do
     let (ln, ctx) ← lowerExpr ctx lhs

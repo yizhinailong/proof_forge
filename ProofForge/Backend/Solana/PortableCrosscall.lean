@@ -82,11 +82,88 @@ def copyProgramIdFromAccountIndex : Array AstNode :=
     storeReg .stxdw .r8 24 .r3
   ]
 
-/-- Build SolInstruction C record with zero account metas and `dataLen` bytes
-of instruction data at `cpiInstructionDataOffset`. -/
+/-- Resolve input account pointer for runtime index (saved target) into r7. -/
+def loadTargetAccountPtr : Array AstNode :=
+  stackPtr .r6 accountPtrTableOffset ++ #[
+    .instruction {
+      opcode := .ldxdw
+      dst := some .r2
+      src := some .r10
+      off := some (.num portableTargetIndexSaveOffset)
+    },
+    .instruction { opcode := .mul64, dst := some .r2, imm := some (.num 8) },
+    .instruction { opcode := .add64, dst := some .r6, src := some .r2 },
+    .instruction { opcode := .ldxdw, dst := some .r7, src := some .r6, off := some (.num 0) }
+  ]
+
+/-- Pack one AccountMeta for the target program account (readonly, non-signer).
+Key pointer is the account's pubkey in input serialization. -/
+def packTargetAccountMeta : Array AstNode :=
+  #[
+    .comment "portable CPI: AccountMeta[0] = account[target] (readonly, non-signer)"
+  ] ++
+  loadTargetAccountPtr ++ #[
+    .instruction { opcode := .add64, dst := some .r7, imm := some (.num ACCOUNT_HEADER_SIZE) }
+  ] ++
+  stackPtr .r6 cpiAccountMetaOffset ++ #[
+    storeReg .stxdw .r6 0 .r7,
+    storeImm .stb .r6 8 0,  -- is_writable
+    storeImm .stb .r6 9 0   -- is_signer
+  ]
+
+/-- Pack one SolAccountInfo for the target account from input layout fields
+(header offsets are fixed relative to the account start pointer). -/
+def packTargetAccountInfo : Array AstNode :=
+  let signerOff := 1
+  let writableOff := 2
+  let executableOff := 3
+  let keyRel := ACCOUNT_HEADER_SIZE
+  let ownerRel := ACCOUNT_HEADER_SIZE + PUBKEY_SIZE
+  let lamportsRel := ownerRel + PUBKEY_SIZE
+  let dataLenRel := lamportsRel + U64_SIZE
+  let dataStartRel := dataLenRel + U64_SIZE
+  #[
+    .comment "portable CPI: AccountInfo[0] from input account[target]"
+  ] ++
+  loadTargetAccountPtr ++
+  stackPtr .r6 cpiAccountInfoOffset ++ #[
+    -- key_ptr
+    .instruction { opcode := .mov64, dst := some .r8, src := some .r7 },
+    .instruction { opcode := .add64, dst := some .r8, imm := some (.num keyRel) },
+    storeReg .stxdw .r6 0 .r8,
+    -- lamports_ptr
+    .instruction { opcode := .mov64, dst := some .r8, src := some .r7 },
+    .instruction { opcode := .add64, dst := some .r8, imm := some (.num lamportsRel) },
+    storeReg .stxdw .r6 8 .r8,
+    -- data_len
+    .instruction { opcode := .mov64, dst := some .r8, src := some .r7 },
+    .instruction { opcode := .add64, dst := some .r8, imm := some (.num dataLenRel) },
+    .instruction { opcode := .ldxdw, dst := some .r3, src := some .r8, off := some (.num 0) },
+    storeReg .stxdw .r6 16 .r3,
+    -- data_ptr
+    .instruction { opcode := .mov64, dst := some .r8, src := some .r7 },
+    .instruction { opcode := .add64, dst := some .r8, imm := some (.num dataStartRel) },
+    storeReg .stxdw .r6 24 .r8,
+    -- owner_ptr
+    .instruction { opcode := .mov64, dst := some .r8, src := some .r7 },
+    .instruction { opcode := .add64, dst := some .r8, imm := some (.num ownerRel) },
+    storeReg .stxdw .r6 32 .r8,
+    -- rent_epoch (placeholder 0; full layout needs data-size-dependent offset)
+    loadImm .r3 0,
+    storeReg .stxdw .r6 40 .r3,
+    -- is_signer / is_writable / executable flags from account header
+    .instruction { opcode := .ldxb, dst := some .r3, src := some .r7, off := some (.num signerOff) },
+    storeReg .stxb .r6 48 .r3,
+    .instruction { opcode := .ldxb, dst := some .r3, src := some .r7, off := some (.num writableOff) },
+    storeReg .stxb .r6 49 .r3,
+    .instruction { opcode := .ldxb, dst := some .r3, src := some .r7, off := some (.num executableOff) },
+    storeReg .stxb .r6 50 .r3
+  ]
+
+/-- Build SolInstruction C record: program_id, 1 account meta, ix data. -/
 def packSolInstruction (dataLen : Nat) : Array AstNode :=
   #[
-    .comment "portable CPI: SolInstruction (program_id, empty metas, ix data)"
+    .comment "portable CPI: SolInstruction (program_id, 1 meta, ix data)"
   ] ++
   stackPtr .r5 cpiInstructionOffset ++
   stackPtr .r8 cpiProgramIdOffset ++ #[
@@ -94,7 +171,7 @@ def packSolInstruction (dataLen : Nat) : Array AstNode :=
   ] ++
   stackPtr .r7 cpiAccountMetaOffset ++ #[
     storeReg .stxdw .r5 8 .r7,
-    loadImm .r3 0,
+    loadImm .r3 1,
     storeReg .stxdw .r5 16 .r3
   ] ++
   stackPtr .r8 cpiInstructionDataOffset ++ #[
@@ -103,12 +180,42 @@ def packSolInstruction (dataLen : Nat) : Array AstNode :=
     storeReg .stxdw .r5 32 .r3
   ]
 
-/-- Emit `sol_invoke_signed_c` with zero account infos and zero signers.
-Preserves the entry input pointer in r1 across the syscall. Result: r2 = 0
-(return-data path is a follow-on stub when callee writes return data). -/
-def invokeSignedC (dataLen : Nat) : Array AstNode :=
+/-- After a successful CPI, read the first u64 of `sol_get_return_data` into r2.
+If no return data (or length < 8), r2 := 0. Labels must be unique per site. -/
+def decodeReturnDataU64 (retNoneLabel retEndLabel : String) : Array AstNode :=
   #[
-    .comment s!"portable crosscall → sol_invoke_signed_c (data_len={dataLen}, accounts=0, signers=0)",
+    .comment "portable CPI: decode first u64 of sol_get_return_data → r2"
+  ] ++
+  stackPtr .r1 returnDataScratchOffset ++ #[
+    loadImm .r2 8
+  ] ++
+  stackPtr .r3 returnDataProgramIdOffset ++ #[
+    storeImm .stxdw .r3 0 0,
+    storeImm .stxdw .r3 8 0,
+    storeImm .stxdw .r3 16 0,
+    storeImm .stxdw .r3 24 0,
+    .comment "r1=data_ptr r2=max_len=8 r3=program_id_ptr",
+    callSyscall sol_get_return_data,
+    .instruction {
+      opcode := .jlt
+      dst := some .r0
+      imm := some (.num 8)
+      off := some (.sym retNoneLabel)
+    }
+  ] ++
+  stackPtr .r3 returnDataScratchOffset ++ #[
+    .instruction { opcode := .ldxdw, dst := some .r2, src := some .r3, off := some (.num 0) },
+    .instruction { opcode := .ja, off := some (.sym retEndLabel) },
+    .label retNoneLabel,
+    .instruction { opcode := .mov64, dst := some .r2, imm := some (.num 0) },
+    .label retEndLabel
+  ]
+
+/-- Emit `sol_invoke_signed_c` with one account info (target) and zero signers.
+Preserves r1 (entry input). Result in r2: first return-data u64 or 0. -/
+def invokeSignedC (dataLen : Nat) (retNoneLabel retEndLabel : String) : Array AstNode :=
+  #[
+    .comment s!"portable crosscall → sol_invoke_signed_c (data_len={dataLen}, accounts=1, signers=0)",
     .instruction {
       opcode := .stxdw
       dst := some .r10
@@ -117,13 +224,15 @@ def invokeSignedC (dataLen : Nat) : Array AstNode :=
     }
   ] ++
   copyProgramIdFromAccountIndex ++
+  packTargetAccountMeta ++
+  packTargetAccountInfo ++
   packSolInstruction dataLen ++
   stackPtr .r1 cpiInstructionOffset ++
   stackPtr .r2 cpiAccountInfoOffset ++ #[
-    loadImm .r3 0,
+    loadImm .r3 1,
     loadImm .r4 0,
     loadImm .r5 0,
-    .comment "r1=instruction_ptr r2=account_infos_ptr r3=0 r4=0 r5=0",
+    .comment "r1=instruction_ptr r2=account_infos_ptr r3=1 r4=0 r5=0",
     callSyscall sol_invoke_signed_c,
     .instruction {
       opcode := .jne
@@ -136,10 +245,9 @@ def invokeSignedC (dataLen : Nat) : Array AstNode :=
       dst := some .r1
       src := some .r10
       off := some (.num entryInputSaveOffset)
-    },
-    .comment "portable CPI result: u64 0 (callee return-data not yet decoded)",
-    .instruction { opcode := .mov64, dst := some .r2, imm := some (.num 0) }
-  ]
+    }
+  ] ++
+  decodeReturnDataU64 retNoneLabel retEndLabel
 
 structure PortableCrosscallSite where
   entrypoint : String

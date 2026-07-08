@@ -10,8 +10,14 @@ an explicit opt-in import so Solana Surface is on the search path:
 import ProofForge.Contract.Source.Solana
 ```
 
-`Source.Solana` re-exports this module plus `ProofForge.Solana` / `Solana.Surface`.
-Portable Shared files must not import `Source.Solana` (`just portable-default`).
+NEAR Promise chaining (`nearPromiseThen` / result decode) is opt-in via:
+
+```lean
+import ProofForge.Contract.Source.Near
+```
+
+Portable Shared files must not import `Source.Solana` or `Source.Near`
+(`just portable-default`). Use `remoteCall` for portable cross-contract intent.
 -/
 import Lean
 import ProofForge.Contract.Surface

@@ -20,12 +20,22 @@ FORBIDDEN_IMPORT_RE = re.compile(
     r"^\s*import\s+("
     r"ProofForge\.Solana"
     r"|ProofForge\.Contract\.Source\.Solana"
+    r"|ProofForge\.Contract\.Source\.Near"
     r"|ProofForge\.Backend\.(Solana|Evm|WasmNear|Move)"
     r"|ProofForge\.Evm\b"
     r"|Lean\.Evm\b"
     r")",
     re.MULTILINE,
 )
+
+# NEAR Promise host-extension must not appear in Shared product sources.
+FORBIDDEN_NEAR_EXTENSION = [
+    "nearPromiseThen",
+    "nearPromiseResultU64",
+    "nearPromiseResultsCount",
+    "nearCrosscallPool",
+    "nearCrosscallInvokePool",
+]
 
 # Author must not select a chain token standard in Shared sources.
 FORBIDDEN_STANDARD_RE = re.compile(
@@ -84,6 +94,14 @@ def check_shared_file(path: Path) -> None:
                 f"{rel}: portable Shared must not contain Solana authoring `{needle}`; "
                 "use business logic / TokenSpec and let --target materialize accounts/CPI "
                 "(or import ProofForge.Contract.Source.Solana only in Examples/Solana)"
+            )
+
+    for needle in FORBIDDEN_NEAR_EXTENSION:
+        if needle in text:
+            fail(
+                f"{rel}: portable Shared must not use NEAR Promise host-extension `{needle}`; "
+                "use remoteCall (portable crosscall.invoke) and let --target materialize "
+                "(or import ProofForge.Contract.Source.Near only in NEAR fixtures)"
             )
 
     if FORBIDDEN_SOLANA_DSL_RE.search(text):

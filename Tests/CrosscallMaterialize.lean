@@ -6,6 +6,7 @@ Phase B.3: portable crosscall materialization on primary chains.
 -/
 import ProofForge.IR.Examples.CrosscallProbe
 import ProofForge.IR.Examples.NearCrosscallProbe
+import Examples.Shared.RemoteCall
 import ProofForge.Backend.Evm.Plan
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.PortableCrosscall
@@ -52,6 +53,9 @@ def main : IO Unit := do
   | .ok src =>
       require (src.contains "portable crosscall") "asm should mark CPI materialization"
       require (src.contains "sol_invoke_signed_c") "asm packs real sol_invoke_signed_c"
+      require (src.contains "AccountMeta") "asm packs account metas"
+      require (src.contains "AccountInfo") "asm packs account infos"
+      require (src.contains "sol_get_return_data") "asm decodes return data"
       require (src.contains "error_cpi") "asm traps CPI failures"
 
   -- NEAR: portable invoke → promise_create; full fixture still works.
@@ -118,4 +122,23 @@ def main : IO Unit := do
   require ((forProfile moveAptos).nativeForm == NativeForm.moveCall) "Aptos form"
   require ((forProfile moveSui).nativeForm == NativeForm.moveCall) "Sui form"
 
-  IO.println "crosscall-materialize: ok (evm·solana·near + honest secondary)"
+  -- Shared portable RemoteCall (contract_source + remoteCall) multi-target.
+  let shared := Examples.Shared.RemoteCall.module
+  require (moduleHasPortableCrosscall shared) "Shared.RemoteCall has portable crosscall"
+  match ProofForge.Backend.Evm.Plan.buildModulePlan shared with
+  | .error e => throw (IO.userError s!"EVM plan Shared.RemoteCall failed: {e.message}")
+  | .ok _ => pure ()
+  match ProofForge.Target.resolveModule solanaSbpfAsm shared with
+  | .error e => throw (IO.userError s!"Solana resolve Shared.RemoteCall: {e.render}")
+  | .ok _ => pure ()
+  match ProofForge.Backend.Solana.SbpfAsm.renderModule shared with
+  | .error e => throw (IO.userError s!"Solana lower Shared.RemoteCall: {e.message}")
+  | .ok src =>
+      require (src.contains "sol_invoke_signed_c") "Shared.RemoteCall Solana CPI"
+      require (src.contains "sol_get_return_data") "Shared.RemoteCall return-data"
+  -- NEAR needs string-pool metadata for account/method names; use portable IR probe.
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule nearPortable with
+  | .error e => throw (IO.userError s!"NEAR portable path for multi-target failed: {e.message}")
+  | .ok wat => require (wat.contains "promise_create") "NEAR multi-target promise_create"
+
+  IO.println "crosscall-materialize: ok (evm·solana·near + shared RemoteCall + honest secondary)"
