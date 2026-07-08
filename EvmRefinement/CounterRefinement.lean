@@ -2750,6 +2750,39 @@ theorem counterCallCalldata_size (call : CounterCall) :
     (counterCallCalldata call).size = 4 := by
   cases call <;> rfl
 
+def counterCallSelectorNat : CounterCall → Nat
+  | .initialize => 2167012380
+  | .increment => 3500007562
+  | .get => 1833756220
+
+def counterCallCalldataWord (call : CounterCall) : EvmSemantics.UInt256 :=
+  EvmSemantics.UInt256.ofNat (counterCallSelectorNat call * 2 ^ 224)
+
+theorem counterCall_calldataload_zero_eq (call : CounterCall) :
+    EvmSemantics.UInt256.ofNat
+        (EvmSemantics.Data.Bytes.bytesToBigEndianNat
+          (EvmSemantics.MachineState.readPadded
+            (counterCallCalldata call) 0 32)) =
+      counterCallCalldataWord call := by
+  cases call <;> native_decide
+
+theorem counterCall_selector_shr224_eq (call : CounterCall) :
+    EvmSemantics.UInt256.shiftRight (counterCallCalldataWord call)
+        (EvmSemantics.UInt256.ofNat 224) =
+      EvmSemantics.UInt256.ofNat (counterCallSelectorNat call) := by
+  cases call <;> native_decide
+
+theorem counterCall_selector_eq_true (call : CounterCall) :
+    EvmSemantics.UInt256.eq
+        (EvmSemantics.UInt256.ofNat (counterCallSelectorNat call))
+        (EvmSemantics.UInt256.ofNat (counterCallSelectorNat call)) =
+      EvmSemantics.UInt256.ofNat 1 := by
+  cases call <;> native_decide
+
+theorem counterCall_selector_condition_nonzero (_call : CounterCall) :
+    (EvmSemantics.UInt256.ofNat 1).toNat ≠ 0 := by
+  native_decide
+
 def counterTraceSafeFromCount : Nat → List CounterCall → Bool
   | count, [] => decide (count < counterU64Modulus)
   | _count, .initialize :: rest => counterTraceSafeFromCount 0 rest
@@ -2832,6 +2865,9 @@ def counterGetBodyOffset : Nat := 135
 
 def counterGetSelectorNat : Nat := 1833756220
 
+theorem counterGetSelectorNat_eq :
+    counterGetSelectorNat = counterCallSelectorNat .get := rfl
+
 def counterGetTrampolineBytes : ByteArray :=
   ByteArray.mk #[0x5b, 0x60, 0x2b, 0x60, 0x87, 0x56]
 
@@ -2884,6 +2920,9 @@ def counterIncrementCheckedAddOffset : Nat := 151
 def counterIncrementOverflowRevertOffset : Nat := 164
 
 def counterIncrementSelectorNat : Nat := 3500007562
+
+theorem counterIncrementSelectorNat_eq :
+    counterIncrementSelectorNat = counterCallSelectorNat .increment := rfl
 
 def counterIncrementTrampolineBytes : ByteArray :=
   ByteArray.mk #[0x5b, 0x60, 0x38, 0x60, 0x5d, 0x56]
@@ -2971,8 +3010,15 @@ def counterInitializeTrampolineOffset : Nat := 60
 
 def counterInitializeSelectorNat : Nat := 2167012380
 
+theorem counterInitializeSelectorNat_eq :
+    counterInitializeSelectorNat = counterCallSelectorNat .initialize := rfl
+
 def counterInitializeCalldataWord : EvmSemantics.UInt256 :=
   EvmSemantics.UInt256.ofNat (counterInitializeSelectorNat * 2 ^ 224)
+
+theorem counterInitializeCalldataWord_eq :
+    counterInitializeCalldataWord = counterCallCalldataWord .initialize := by
+  rfl
 
 theorem counterInitialize_calldataload_zero_eq :
     EvmSemantics.UInt256.ofNat
