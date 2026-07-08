@@ -222,7 +222,7 @@ def jumpCondition (opcode : Opcode) (lhs rhs : Nat) : Except String Bool :=
 theorem jumpCondition_jeq_true {lhs : Nat} :
     jumpCondition .jeq lhs lhs = .ok true := by
   unfold jumpCondition
-  simp [Nat.beq_refl]
+  simp
 
 theorem jumpCondition_jeq_false {lhs rhs : Nat} (h : lhs ≠ rhs) :
     jumpCondition .jeq lhs rhs = .ok false := by
@@ -237,7 +237,7 @@ theorem jumpCondition_jne_true {lhs rhs : Nat} (h : lhs ≠ rhs) :
 theorem jumpCondition_jne_false {lhs : Nat} :
     jumpCondition .jne lhs lhs = .ok false := by
   unfold jumpCondition
-  simp [Nat.beq_refl]
+  simp
 
 theorem jumpCondition_jeq_reg_eq
     {state : SbpfState} {dst : Reg} {lhs rhs : Nat}
@@ -299,7 +299,7 @@ def execAlu64 (state : SbpfState) (dst : Reg) (opcode : Opcode) (lhs rhs : Nat) 
 def execLddw (state : SbpfState) (dst : Reg) (value : Nat) : SbpfState :=
   nextPc (setReg state dst value)
 
-def execLoad (state : SbpfState) (dst : Reg) (addr value : Nat) : SbpfState :=
+def execLoad (state : SbpfState) (dst : Reg) (_addr value : Nat) : SbpfState :=
   nextPc (setReg state dst value)
 
 def execStore (state : SbpfState) (addr value : Nat) : SbpfState :=
@@ -385,6 +385,23 @@ theorem memory_execLoad (state : SbpfState) (dst : Reg) (addr value : Nat) :
 
 theorem memory_execMov64 (state : SbpfState) (dst : Reg) (value : Nat) :
     (execMov64 state dst value).memory = state.memory := rfl
+
+theorem memory_read_execStore (state : SbpfState) (addr value : Nat) :
+    (execStore state addr value).memory.read addr = value := by
+  unfold execStore
+  simp [nextPc, Memory.read_write]
+
+theorem memory_read_execStore_of_ne (state : SbpfState) {readAddr writeAddr value : Nat}
+    (hne : readAddr ≠ writeAddr) :
+    (execStore state writeAddr value).memory.read readAddr =
+      state.memory.read readAddr := by
+  unfold execStore
+  simpa [nextPc] using
+    (Memory.read_write_of_ne state.memory
+      (readAddr := readAddr) (writeAddr := writeAddr) (value := value) hne)
+
+theorem memory_execExit (state : SbpfState) (r0 : Nat) :
+    (execExit state r0).memory = state.memory := rfl
 
 def readLoad (program : SbpfProgram) (state : SbpfState) (inst : Inst) :
     Except String SbpfState :=

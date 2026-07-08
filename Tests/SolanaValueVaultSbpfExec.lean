@@ -5,6 +5,7 @@ import ProofForge.Backend.Solana.ValueVaultSbpfExec
 namespace ProofForge.Tests.SolanaValueVaultSbpfExec
 
 open ProofForge.Backend.Solana.SbpfInterpreter
+open ProofForge.Backend.Solana.SbpfExec
 open ProofForge.Backend.Solana.ValueVaultSbpfExec
 
 example :
@@ -36,9 +37,31 @@ example :
   deposit_state18_balance 10 4 3
 
 example :
+    runSteps depositStorageProgram 24 (depositStorageInitialState 10 4 3) =
+      .ok (depositFinalState 10 4 3) :=
+  deposit_runSteps 10 4 3
+
+example :
+    (depositFinalState 10 4 3).memory.read balanceOff = 14 :=
+  depositFinal_balance 10 4 3
+
+example :
+    (depositFinalState 10 4 3).memory.read lastValueOff = 4 :=
+  depositFinal_last_value 10 4 3
+
+example :
+    (depositFinalState 10 4 3).memory.read operationsOff = 4 :=
+  depositFinal_operations 10 4 3
+
+example :
     stateFieldOffset? ProofForge.IR.Examples.ValueVault.module "balance" =
       some balanceOff :=
   balanceOff_matches_layout
+
+example :
+    stateFieldOffset? ProofForge.IR.Examples.ValueVault.module "last_value" =
+      some lastValueOff :=
+  lastValueOff_matches_layout
 
 example :
     stateFieldOffset? ProofForge.IR.Examples.ValueVault.module "operations" =
