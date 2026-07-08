@@ -7928,6 +7928,13 @@ theorem counterInitializeReturn_preserves_storage_model_stepFE_ok
   · rw [hresult]
     exact counterInitializeObservable_of_returned_empty
 
+theorem counterStepFEReduction_of_ready_step
+    {state nextState : EvmState} {op : EvmSemantics.Operation}
+    (hready : counterStepFEReady state op)
+    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
+    ProofForge.Backend.Evm.PowdrExec.StepFEReduction state nextState := by
+  exact ProofForge.Backend.Evm.PowdrExec.StepFEReduction.of_step hready.1 hstep
+
 theorem counterStepFEPath_initialize_return_segment_ok
     {s0 s1 s2 s3 s4 s5 : EvmState}
     (hready0 :
@@ -7971,10 +7978,13 @@ theorem counterRunBytecode_initialize_return_segment_ok
     (hstep4 : EvmSemantics.EVM.stepFE s4 = .ok s5) :
     ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 5 =
       .ok (s5, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) := by
-  exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath_done
-    (counterStepFEPath_initialize_return_segment_ok
-      hready0 hstep0 hready1 hstep1 hready2 hstep2
-      hready3 hstep3 hready4 hstep4)
+  exact ProofForge.Backend.Evm.PowdrExec.runSteps_of_reductionChain
+    (ProofForge.Backend.Evm.PowdrExec.stepFEReductionChain_five
+      (counterStepFEReduction_of_ready_step hready0 hstep0)
+      (counterStepFEReduction_of_ready_step hready1 hstep1)
+      (counterStepFEReduction_of_ready_step hready2 hstep2)
+      (counterStepFEReduction_of_ready_step hready3 hstep3)
+      (counterStepFEReduction_of_ready_step hready4 hstep4))
 
 theorem counterStepFEPath_get_return_segment_ok
     {s0 s1 s2 s3 s4 s5 s6 : EvmState}
@@ -8023,10 +8033,14 @@ theorem counterRunBytecode_get_return_segment_ok
     (hstep5 : EvmSemantics.EVM.stepFE s5 = .ok s6) :
     ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 6 =
       .ok (s6, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) := by
-  exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath_done
-    (counterStepFEPath_get_return_segment_ok
-      hready0 hstep0 hready1 hstep1 hready2 hstep2 hready3 hstep3
-      hready4 hstep4 hready5 hstep5)
+  exact ProofForge.Backend.Evm.PowdrExec.runSteps_of_reductionChain
+    (ProofForge.Backend.Evm.PowdrExec.stepFEReductionChain_six
+      (counterStepFEReduction_of_ready_step hready0 hstep0)
+      (counterStepFEReduction_of_ready_step hready1 hstep1)
+      (counterStepFEReduction_of_ready_step hready2 hstep2)
+      (counterStepFEReduction_of_ready_step hready3 hstep3)
+      (counterStepFEReduction_of_ready_step hready4 hstep4)
+      (counterStepFEReduction_of_ready_step hready5 hstep5))
 
 theorem counterStepFEPath_get_body_and_return_ok
     {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17
@@ -8158,14 +8172,35 @@ theorem counterRunBytecode_get_body_and_return_ok
     (hstep17 : EvmSemantics.EVM.stepFE s17 = .ok s18) :
     ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 18 =
       .ok (s18, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) := by
-  exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath_done
-    (counterStepFEPath_get_body_and_return_ok
-      hready0 hstep0 hready1 hstep1 hready2 hstep2
-      hready3 hstep3 hready4 hstep4 hready5 hstep5
-      hready6 hstep6 hready7 hstep7 hready8 hstep8
-      hready9 hstep9 hready10 hstep10 hready11 hstep11
-      hready12 hstep12 hready13 hstep13 hready14 hstep14
-      hready15 hstep15 hready16 hstep16 hready17 hstep17)
+  have hbody :
+      ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain s0 12 s12 :=
+    ProofForge.Backend.Evm.PowdrExec.stepFEReductionChain_twelve
+      (counterStepFEReduction_of_ready_step hready0 hstep0)
+      (counterStepFEReduction_of_ready_step hready1 hstep1)
+      (counterStepFEReduction_of_ready_step hready2 hstep2)
+      (counterStepFEReduction_of_ready_step hready3 hstep3)
+      (counterStepFEReduction_of_ready_step hready4 hstep4)
+      (counterStepFEReduction_of_ready_step hready5 hstep5)
+      (counterStepFEReduction_of_ready_step hready6 hstep6)
+      (counterStepFEReduction_of_ready_step hready7 hstep7)
+      (counterStepFEReduction_of_ready_step hready8 hstep8)
+      (counterStepFEReduction_of_ready_step hready9 hstep9)
+      (counterStepFEReduction_of_ready_step hready10 hstep10)
+      (counterStepFEReduction_of_ready_step hready11 hstep11)
+  have hreturn :
+      ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain s12 6 s18 :=
+    ProofForge.Backend.Evm.PowdrExec.stepFEReductionChain_six
+      (counterStepFEReduction_of_ready_step hready12 hstep12)
+      (counterStepFEReduction_of_ready_step hready13 hstep13)
+      (counterStepFEReduction_of_ready_step hready14 hstep14)
+      (counterStepFEReduction_of_ready_step hready15 hstep15)
+      (counterStepFEReduction_of_ready_step hready16 hstep16)
+      (counterStepFEReduction_of_ready_step hready17 hstep17)
+  exact ProofForge.Backend.Evm.PowdrExec.runSteps_of_reductionChain
+    (by
+      simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using
+        ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.append
+          hbody hreturn)
 
 theorem counterStepFEPath_increment_return_segment_ok
     {s0 s1 s2 s3 s4 : EvmState}
@@ -8202,9 +8237,12 @@ theorem counterRunBytecode_increment_return_segment_ok
     (hstep3 : EvmSemantics.EVM.stepFE s3 = .ok s4) :
     ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 4 =
       .ok (s4, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) := by
-  exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath_done
-    (counterStepFEPath_increment_return_segment_ok
-      hready0 hstep0 hready1 hstep1 hready2 hstep2 hready3 hstep3)
+  exact ProofForge.Backend.Evm.PowdrExec.runSteps_of_reductionChain
+    (ProofForge.Backend.Evm.PowdrExec.stepFEReductionChain_four
+      (counterStepFEReduction_of_ready_step hready0 hstep0)
+      (counterStepFEReduction_of_ready_step hready1 hstep1)
+      (counterStepFEReduction_of_ready_step hready2 hstep2)
+      (counterStepFEReduction_of_ready_step hready3 hstep3))
 
 theorem counterStepFEPath_initialize_body_and_return_ok
     {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17
@@ -8430,16 +8468,45 @@ theorem counterRunBytecode_initialize_body_and_return_ok
   have hrun :
       ProofForge.Backend.Evm.PowdrAdapter.runBytecode s0 22 =
         .ok (s22, (#[] : Array ProofForge.Backend.Evm.PowdrAdapter.ObservableStep)) := by
-    exact ProofForge.Backend.Evm.PowdrAdapter.runBytecode_of_stepFEPath_done
-      (counterStepFEPath_initialize_body_and_return_ok
-        hready0 hstep0 hready1 hstep1 hready2 hstep2
-        hready3 hstep3 hready4 hstep4 hready5 hstep5
-        hready6 hstep6 hready7 hstep7 hready8 hstep8
-        hready9 hstep9 hready10 hstep10 hready11 hstep11
-        hready12 hstep12 hready13 hstep13 hready14 hstep14
-        hready15 hstep15 hready16 hstep16 hready17 hstep17
-        hready18 hstep18 hready19 hstep19 hready20 hstep20
-        hready21 hstep21)
+    have hbody0 :
+        ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain s0 12 s12 :=
+      ProofForge.Backend.Evm.PowdrExec.stepFEReductionChain_twelve
+        (counterStepFEReduction_of_ready_step hready0 hstep0)
+        (counterStepFEReduction_of_ready_step hready1 hstep1)
+        (counterStepFEReduction_of_ready_step hready2 hstep2)
+        (counterStepFEReduction_of_ready_step hready3 hstep3)
+        (counterStepFEReduction_of_ready_step hready4 hstep4)
+        (counterStepFEReduction_of_ready_step hready5 hstep5)
+        (counterStepFEReduction_of_ready_step hready6 hstep6)
+        (counterStepFEReduction_of_ready_step hready7 hstep7)
+        (counterStepFEReduction_of_ready_step hready8 hstep8)
+        (counterStepFEReduction_of_ready_step hready9 hstep9)
+        (counterStepFEReduction_of_ready_step hready10 hstep10)
+        (counterStepFEReduction_of_ready_step hready11 hstep11)
+    have hbody1 :
+        ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain s12 5 s17 :=
+      ProofForge.Backend.Evm.PowdrExec.stepFEReductionChain_five
+        (counterStepFEReduction_of_ready_step hready12 hstep12)
+        (counterStepFEReduction_of_ready_step hready13 hstep13)
+        (counterStepFEReduction_of_ready_step hready14 hstep14)
+        (counterStepFEReduction_of_ready_step hready15 hstep15)
+        (counterStepFEReduction_of_ready_step hready16 hstep16)
+    have hreturn :
+        ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain s17 5 s22 :=
+      ProofForge.Backend.Evm.PowdrExec.stepFEReductionChain_five
+        (counterStepFEReduction_of_ready_step hready17 hstep17)
+        (counterStepFEReduction_of_ready_step hready18 hstep18)
+        (counterStepFEReduction_of_ready_step hready19 hstep19)
+        (counterStepFEReduction_of_ready_step hready20 hstep20)
+        (counterStepFEReduction_of_ready_step hready21 hstep21)
+    have hbody :=
+      ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.append
+        hbody0 hbody1
+    exact ProofForge.Backend.Evm.PowdrExec.runSteps_of_reductionChain
+      (by
+        simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using
+          ProofForge.Backend.Evm.PowdrExec.StepFEReductionChain.append
+            hbody hreturn)
   have hstorage17 :
       counterStorageValue counterContractAddress counterCountSlot s17 =
         counterInitializeStorageWord
@@ -8630,13 +8697,6 @@ theorem counterStepFEPath_initialize_dispatcher_body_and_return_ok
   simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using
     ProofForge.Backend.Evm.PowdrAdapter.stepFEPath_append
       hpathDispatcher hpathBody
-
-theorem counterStepFEReduction_of_ready_step
-    {state nextState : EvmState} {op : EvmSemantics.Operation}
-    (hready : counterStepFEReady state op)
-    (hstep : EvmSemantics.EVM.stepFE state = .ok nextState) :
-    ProofForge.Backend.Evm.PowdrExec.StepFEReduction state nextState := by
-  exact ProofForge.Backend.Evm.PowdrExec.StepFEReduction.of_step hready.1 hstep
 
 theorem counterStepFEReductionChain_initialize_dispatcher_body_and_return_ok
     {s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17
