@@ -638,7 +638,7 @@ solana-web3-compat:
     python3 scripts/solana/check-web3-compat-wrappers.py
 
 # Run all Solana gates that are safe for default CI.
-solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke portable-value-vault solana-emit-asm solana-plan-smoke solana-auto-materialize solana-web3-compat solana-pinocchio-reference-equivalence solana-sbpf-exec-smoke solana-sbpf-genericity-smoke solana-counter-sbpf-regression solana-refinement-smoke
+solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke portable-value-vault solana-emit-asm solana-plan-smoke solana-auto-materialize primary-materialize solana-web3-compat solana-pinocchio-reference-equivalence solana-sbpf-exec-smoke solana-sbpf-genericity-smoke solana-counter-sbpf-regression solana-refinement-smoke
 
 # Check shared-vs-target example topology.
 examples-topology:
@@ -655,6 +655,12 @@ portable-default:
 solana-auto-materialize:
     lake build ProofForge.Backend.Solana.Materialize Examples.Shared.Counter Examples.Shared.ValueVault ProofForge.Solana.Examples.Vault
     lake env lean --run Tests/SolanaAutoMaterialize.lean
+
+# Primary chains (EVM · Solana · Wasm-NEAR): unified materialization report for Shared Counter.
+primary-materialize:
+    lake build ProofForge.Target.Materialize Examples.Shared.Counter
+    lake env lean --run Tests/PrimaryMaterialize.lean
+
 
 # Check translated documentation freshness and example topology.
 docs-check: examples-topology portable-default

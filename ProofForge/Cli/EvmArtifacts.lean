@@ -303,7 +303,8 @@ def writeEvmDeployManifest
     (chainProfile? : Option ProofForge.Target.EvmChainProfile)
     (constructorParams : Array ConstructorParamSpec)
     (sourceArtifact? : Option String)
-    (yulArtifact bytecodeArtifact initCodeArtifact constructorArgs : String) : IO Unit := do
+    (yulArtifact bytecodeArtifact initCodeArtifact constructorArgs : String)
+    (module? : Option ProofForge.IR.Module := none) : IO Unit := do
   let mut inputFields : Array (String × String) := #[
     ("yul", yulArtifact),
     ("bytecode", bytecodeArtifact),
@@ -311,12 +312,30 @@ def writeEvmDeployManifest
   ]
   if let some sourceArtifact := sourceArtifact? then
     inputFields := inputFields.push ("source", sourceArtifact)
+  let materializationJson :=
+    match module? with
+    | some module =>
+        ProofForge.Target.Materialize.Report.json
+          (ProofForge.Target.Materialize.forEvm module)
+    | none =>
+        ProofForge.Target.Materialize.Report.json {
+          targetId := "evm"
+          targetFamily := "evm"
+          storageBinding := ProofForge.Target.evm.storageBinding.id
+          mode := .autoPortable
+          layoutKind := "contract-global-slots"
+          hostBridge? := none
+          stateUnits := 0
+          entrypointCount := entrypoints.size
+          note := "EVM materialization summary without full IR module in this path"
+        }
   let manifest := jsonObject #[
     ("schemaVersion", "1"),
     ("kind", jsonString "proof-forge-evm-deploy-manifest"),
     ("target", jsonString "evm"),
     ("targetFamily", jsonString "evm"),
     ("storageBinding", jsonString ProofForge.Target.evm.storageBinding.id),
+    ("materialization", materializationJson),
     ("artifactKind", jsonString "evm-initcode-deploy"),
     ("fixture", jsonString fixture),
     ("contractName", jsonString (contractNameForFixture fixture)),
@@ -382,6 +401,7 @@ def writeEvmArtifactMetadata
     bytecodeArtifact
     initCodeArtifact
     constructorArgs
+    module?
   let mut artifactFields : Array (String × String) := #[
     ("yul", yulArtifact),
     ("bytecode", bytecodeArtifact),
@@ -403,11 +423,29 @@ def writeEvmArtifactMetadata
   let contractSizeStatus :=
     if bytecodeBytes > contractSizeLimit then "exceeded"
     else "passed"
+  let materializationJson :=
+    match module? with
+    | some module =>
+        ProofForge.Target.Materialize.Report.json
+          (ProofForge.Target.Materialize.forEvm module)
+    | none =>
+        ProofForge.Target.Materialize.Report.json {
+          targetId := "evm"
+          targetFamily := "evm"
+          storageBinding := ProofForge.Target.evm.storageBinding.id
+          mode := .autoPortable
+          layoutKind := "contract-global-slots"
+          hostBridge? := none
+          stateUnits := 0
+          entrypointCount := entrypoints.size
+          note := "EVM materialization summary without full IR module in this path"
+        }
   let metadata := jsonObject #[
     ("schemaVersion", "1"),
     ("target", jsonString "evm"),
     ("targetFamily", jsonString "evm"),
     ("storageBinding", jsonString ProofForge.Target.evm.storageBinding.id),
+    ("materialization", materializationJson),
     ("artifactKind", jsonString "evm-bytecode"),
     ("fixture", jsonString fixture),
     ("sourceKind", jsonString sourceKind),

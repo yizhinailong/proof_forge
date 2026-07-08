@@ -88,6 +88,10 @@ unsafe def compileContractSourceSbpf (opts : CliOptions) : IO UInt32 := do
         ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
         ("targetFamily", jsonString "solana"),
         ("storageBinding", jsonString ProofForge.Target.solanaSbpfAsm.storageBinding.id),
+        ("materialization",
+          ProofForge.Target.Materialize.Report.json
+            (ProofForge.Target.Materialize.forSolana spec.module
+              (ProofForge.Backend.Solana.Extension.ProgramExtensions.fromPlan plan))),
         ("solanaMaterialization",
           ProofForge.Backend.Solana.Materialize.reportJson
             (ProofForge.Backend.Solana.Materialize.report spec.module

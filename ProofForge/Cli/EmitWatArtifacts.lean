@@ -92,6 +92,15 @@ def writeEmitWatDeployManifest
     ("storageBinding", jsonString (match ProofForge.Target.storageBindingForTargetId? targetId with
       | some binding => binding.id
       | none => "unknown")),
+    ("materialization",
+      match ProofForge.Target.find? targetId with
+      | some profile =>
+          match ProofForge.Target.Materialize.forPrimaryProfile profile module with
+          | some report => ProofForge.Target.Materialize.Report.json report
+          | none => ProofForge.Target.Materialize.Report.json
+              (ProofForge.Target.Materialize.forWasmNear module)
+      | none => ProofForge.Target.Materialize.Report.json
+          (ProofForge.Target.Materialize.forWasmNear module)),
     ("artifactKind", jsonString "wasm-deploy"),
     ("fixture", jsonString fixture),
     ("sourceKind", jsonString sourceKind),
@@ -143,6 +152,15 @@ def writeEmitWatArtifactMetadata
   if let some wasmArtifact := wasmArtifact? then
     artifactFields := artifactFields.push ("wasm", wasmArtifact)
   let wat2wasmStatus := if wasmArtifact?.isSome then "passed" else "skipped"
+  let materializationJson :=
+    match ProofForge.Target.find? targetId with
+    | some profile =>
+        match ProofForge.Target.Materialize.forPrimaryProfile profile module with
+        | some report => ProofForge.Target.Materialize.Report.json report
+        | none => ProofForge.Target.Materialize.Report.json
+            (ProofForge.Target.Materialize.forWasmNear module)
+    | none => ProofForge.Target.Materialize.Report.json
+        (ProofForge.Target.Materialize.forWasmNear module)
   let metadata := jsonObject #[
     ("schemaVersion", "1"),
     ("target", jsonString targetId),
@@ -150,6 +168,7 @@ def writeEmitWatArtifactMetadata
     ("storageBinding", jsonString (match ProofForge.Target.storageBindingForTargetId? targetId with
       | some binding => binding.id
       | none => "unknown")),
+    ("materialization", materializationJson),
     ("artifactKind", jsonString "wasm"),
     ("fixture", jsonString fixture),
     ("sourceKind", jsonString sourceKind),

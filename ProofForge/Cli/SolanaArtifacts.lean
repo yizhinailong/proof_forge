@@ -285,6 +285,10 @@ def compileSolanaSdkSbpf (opts : CliOptions) : IO UInt32 := do
         ("sourceModule", jsonString spec.name),
         ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
         ("capabilityPlan", capabilityPlanJson plan),
+        ("materialization",
+          ProofForge.Target.Materialize.Report.json
+            (ProofForge.Target.Materialize.forSolana spec.module
+              (ProofForge.Backend.Solana.Extension.ProgramExtensions.fromPlan plan))),
         ("solanaMaterialization",
           ProofForge.Backend.Solana.Materialize.reportJson
             (ProofForge.Backend.Solana.Materialize.report spec.module
@@ -355,6 +359,10 @@ def compileValueVaultIrSbpf (opts : CliOptions) : IO UInt32 := do
         ("sourceModule", jsonString spec.name),
         ("capabilities", jsonStringArray (dedupStrings (plan.capabilities.map fun capability => capability.id))),
         ("capabilityPlan", capabilityPlanJson plan),
+        ("materialization",
+          ProofForge.Target.Materialize.Report.json
+            (ProofForge.Target.Materialize.forSolana spec.module
+              (ProofForge.Backend.Solana.Extension.ProgramExtensions.fromPlan plan))),
         ("solanaMaterialization",
           ProofForge.Backend.Solana.Materialize.reportJson
             (ProofForge.Backend.Solana.Materialize.report spec.module

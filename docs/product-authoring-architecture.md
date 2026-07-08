@@ -227,6 +227,18 @@ Implementation sketch:
 **without** `import Source.Solana` and without any `account`/`cpi` line, and
 pass Solana light gates.
 
+#### Primary-chain materialize table (landed)
+
+| Target | `storageBinding` | `layoutKind` | auto-portable for Shared Counter |
+|---|---|---|---|
+| `evm` | `contract-global` | `contract-global-slots` | ✅ |
+| `solana-sbpf-asm` | `account-data` | `account-data` | ✅ (state account synthesized) |
+| `wasm-near` | `host-key-value` | `host-key-value` | ✅ (host bridge `near`) |
+
+Artifact field **`materialization`** is the same JSON shape on all three
+primary chains so operators can compare builds without learning three schemas.
+Solana also keeps `solanaMaterialization` with account lists for detail.
+
 ### Phase C — Clean portable IR (compiler hygiene)
 
 Already partially tracked in [ir-portability-remediation](ir-portability-remediation.md):
@@ -287,7 +299,8 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 | 1 | Portable-default lint + docs | ✅ Landed |
 | 2 | TokenSpec feature-only; standard from target | ✅ Landed |
 | 3 | Solana Source opt-in (stop default teaching CPI) | ✅ Landed (bridge) |
-| 4 | **Solana auto-materialize portable IR → Plan/accounts** | ✅ B.2 landed for portable state → default account (`Materialize.lean`, `solanaMaterialization` artifact field, `just solana-auto-materialize`) |
+| 4 | **Solana auto-materialize portable IR → Plan/accounts** | ✅ B.2 landed (`Backend.Solana.Materialize`, artifact field) |
+| 4b | **Unified primary-chain materialize (EVM·Solana·Wasm-NEAR)** | ✅ `Target.Materialize` + artifact `materialization` on all three; `just primary-materialize` |
 | 5 | NEAR Promise out of portable Expr; crosscall materialize | IR hygiene + async |
 | 6 | Mark `Source.Solana` fixture-only; demote from product docs | After auto-materialize works for Counter/Vault |
 | 7 | Stdlib portable policies → multi-target lowering | One Ownable/Token intent |
