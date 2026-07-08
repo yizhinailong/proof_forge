@@ -86,6 +86,17 @@ theorem gap_module_not_covered :
         : Module) = false := by
   native_decide
 
+-- 11. FV-9.4+ capability-registry wire: the covered fragment uses only
+-- covered capabilities. The canonical Counter module's capabilities are all
+-- in `coveredCapabilities`, witnessed by `native_decide`.
+#check (coveredCapabilities : Array ProofForge.Target.Capability)
+#check (coveredFragment_implies_coveredCapabilities :
+  capsAllCovered ProofForge.IR.Examples.Counter.module.capabilities = true)
+
+theorem coveredFragment_uses_only_covered_capabilities :
+    capsAllCovered ProofForge.IR.Examples.Counter.module.capabilities = true := by
+  native_decide
+
 def main : IO UInt32 := do
-  IO.println "constructor-coverage-smoke: FV-9.2 coverage table + IR-side preservation lemmas + counter-model irStateRel preservation + FV-9.4 module-level fragment scoping + honesty bridge checked"
+  IO.println "constructor-coverage-smoke: FV-9.2 coverage table + IR-side preservation lemmas + counter-model irStateRel preservation + FV-9.4 module-level fragment scoping + honesty bridge + FV-9.4+ capability-registry wire checked"
   return 0

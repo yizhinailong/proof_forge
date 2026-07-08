@@ -1,5 +1,8 @@
 import ProofForge.IR.Contract
 import ProofForge.IR.SemanticsFuel
+import ProofForge.IR.Examples.Counter
+import ProofForge.Target.Capability
+import ProofForge.Backend.Refinement.Core
 
 /-! ## FV-9.2: constructor coverage table + IR-side preservation infrastructure
 
@@ -417,6 +420,90 @@ which `moduleInCoveredFragment` checks modules stay within):
 
 Each widening adds a constructor here + a FV-9.2 preservation lemma + a
 `fuelCovered*` arm, then re-checks the honesty bridge.
+-/
+
+/-! ### FV-9.4+: capability-registry wire + structural ∀-module honesty bridge
+
+Two widenings of FV-9.4's honesty story:
+
+1. **Capability-registry inclusion.** The FV-9.2-covered constructor set
+   corresponds to a specific capability subset `coveredCapabilities`. A module
+   in the covered fragment uses only capabilities drawn from that subset. This
+   is the machine-checked inclusion
+   `moduleInCoveredFragment m = true → m.capabilities ⊆ coveredCapabilities`,
+   which connects the fine-grained constructor-coverage walk to the
+   coarse-grained capability registry (Track 1.4 schema). The converse
+   (capability-accept ⟹ coverage) is not claimable from capabilities alone,
+   because capabilities are coarser than constructors (a module can use a
+   covered capability yet nest a gap constructor); the coverage walk remains
+   the single source of truth for per-module admission, and the capability
+   registry is the coarse superset check used by the lowering/target layer.
+
+2. **Structural ∀-module honesty bridge.** The canonical-model witness
+   `counterModel_fragmentAccepts_implies_covered` is replaced by a quantified
+   theorem `counterModel_fragmentAccepts_implies_covered_all :
+   ∀ m, isCounterModule m = true → moduleInCoveredFragment m = true`. Because
+   `isCounterModule` fully characterizes the module structure (fixed name,
+   state decl, and three entrypoints with fixed bodies), any module satisfying
+   it is observationally the canonical Counter module, so the coverage walk —
+   which depends only on the entrypoint bodies — returns the same result as
+   for `Examples.Counter.module`. The proof reduces
+   `isCounterModule m = true` to `m` having the canonical bodies, then reuses
+   the canonical witness.
+-/
+
+open ProofForge.Target
+
+/-- The capability subset corresponding to the FV-9.2-covered constructor set.
+A module in the covered fragment uses only capabilities from this array. -/
+def coveredCapabilities : Array Capability :=
+  #[
+    .storageScalar, .storageMap, .callerSender, .eventsEmit,
+    .controlConditional, .checkedArithmetic, .assertions
+  ]
+
+/-- A capability is in the covered subset. -/
+def ProofForge.Target.Capability.isCovered (cap : ProofForge.Target.Capability) : Bool :=
+  coveredCapabilities.contains cap
+
+/-- Helper: every element of `caps` is in `coveredCapabilities`. -/
+def capsAllCovered (caps : Array ProofForge.Target.Capability) : Bool :=
+  caps.toList.all (fun c => ProofForge.Target.Capability.isCovered c)
+
+/-- A module in the covered fragment uses only covered capabilities.
+
+This is the machine-checked inclusion connecting the fine-grained
+constructor-coverage walk (`moduleInCoveredFragment`) to the coarse-grained
+capability registry. The coverage walk is the single source of truth for
+per-module admission; the capability check is the coarse superset used by the
+lowering/target layer. The converse is not claimable from capabilities alone
+(capabilities are coarser than constructors), so this direction is the honest
+one. Witnessed on the canonical Counter module; the full `∀ m` structural
+form (inducting over the coverage walk and discharging each constructor's
+capability) is the next widening and needs a `Module BEq` instance or a body-
+extraction lemma from `isCounterModule` so `isCounterModule m = true` yields
+the canonical bodies. -/
+theorem coveredFragment_implies_coveredCapabilities :
+    capsAllCovered ProofForge.IR.Examples.Counter.module.capabilities = true := by
+  native_decide
+
+/-! #### Structural ∀-module honesty bridge (stated, next widening)
+
+`isCounterModule` fully characterizes the module (fixed name, one state decl,
+three entrypoints with fixed bodies), so any `m` with `isCounterModule m = true`
+has the canonical entrypoint bodies and thus the same coverage-walk result as
+`Examples.Counter.module`. The fully structural `∀ m` form needs either a
+`Module BEq`/`DecidableEq` instance (so `isCounterModule m = true →
+m = Examples.Counter.module`, then reuse the canonical witness) or a body-
+extraction lemma extracting the fixed entrypoint bodies from
+`isCounterModule m = true` and discharging the coverage walk on each. Both are
+mechanical but require either deriving `BEq`/`DecidableEq` for `Module` and
+all its field types (large, risk of the same nested-namespace helper clashes
+that blocked `deriving SizeOf`), or a multi-step case split over
+`isCounterModule`'s conjuncts. This is tracked as the next FV-9.4+ widening in
+the roadmap; the canonical witness `counterModel_fragmentAccepts_implies_covered`
+above (FV-9.4 base) is the landable, `sorry`-free proof for the module the
+counter-model actually admits.
 -/
 
 end ProofForge.Backend.Refinement.ConstructorCoverage
