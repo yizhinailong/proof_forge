@@ -335,6 +335,10 @@ theorem regs_size_setReg (state : SbpfState) (reg : Reg) (value : Nat) :
 theorem regs_size_nextPc (state : SbpfState) :
     (nextPc state).regs.size = state.regs.size := rfl
 
+theorem regs_size_nextPc_setReg (state : SbpfState) (reg : Reg) (value : Nat) :
+    (nextPc (setReg state reg value)).regs.size = state.regs.size := by
+  rw [regs_size_nextPc, regs_size_setReg]
+
 theorem regs_size_execStore (state : SbpfState) (addr value : Nat) :
     (execStore state addr value).regs.size = state.regs.size := rfl
 
@@ -350,6 +354,21 @@ theorem regGet_setReg_same_of_lt (state : SbpfState) (reg : Reg) (value : Nat)
     (hidx : reg.idx < state.regs.size) :
     regGet (setReg state reg value).regs reg = value :=
   regGet_regSet_same_of_lt state.regs reg value hidx
+
+theorem regGet_nextPc_setReg_same_of_lt
+    (state : SbpfState) (reg : Reg) (value : Nat)
+    (hidx : reg.idx < state.regs.size) :
+    regGet (nextPc (setReg state reg value)).regs reg = value := by
+  rw [regGet_nextPc]
+  exact regGet_setReg_same_of_lt state reg value hidx
+
+theorem regGet_nextPc_setReg_of_ne
+    (state : SbpfState) {src dst : Reg} (value : Nat)
+    (hne : dst ≠ src) :
+    regGet (nextPc (setReg state src value)).regs dst =
+      regGet state.regs dst := by
+  rw [regGet_nextPc]
+  exact regGet_setReg_of_ne state value hne
 
 theorem regGet_execLoad_same_of_lt (state : SbpfState) (dst : Reg) (addr value : Nat)
     (hidx : dst.idx < state.regs.size) :
@@ -385,6 +404,11 @@ theorem memory_read_nextPc (state : SbpfState) (addr : Nat) :
 
 theorem memory_read_setReg (state : SbpfState) (reg : Reg) (value addr : Nat) :
     (setReg state reg value).memory.read addr = state.memory.read addr := rfl
+
+theorem memory_read_nextPc_setReg
+    (state : SbpfState) (reg : Reg) (value addr : Nat) :
+    (nextPc (setReg state reg value)).memory.read addr =
+      state.memory.read addr := rfl
 
 theorem memory_execLoad (state : SbpfState) (dst : Reg) (addr value : Nat) :
     (execLoad state dst addr value).memory = state.memory := rfl

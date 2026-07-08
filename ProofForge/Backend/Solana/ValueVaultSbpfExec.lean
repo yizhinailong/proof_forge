@@ -775,13 +775,14 @@ theorem deposit_step14 (b a o : Nat) :
 theorem deposit_state15_r10 (b a o : Nat) :
     regGet (depositState15 b a o).regs .r10 = stackBase := by
   unfold depositState15
-  simp [nextPc, regGet_setReg_of_ne, deposit_state14_r10 b a o]
+  rw [regGet_nextPc_setReg_of_ne]
+  exact deposit_state14_r10 b a o
+  decide
 
 theorem deposit_state15_r2 (b a o : Nat) :
     regGet (depositState15 b a o).regs .r2 = 1 + o := by
   unfold depositState15
-  rw [regGet_nextPc]
-  exact regGet_setReg_same_of_lt (depositState14 b a o) .r2 (1 + o)
+  exact regGet_nextPc_setReg_same_of_lt (depositState14 b a o) .r2 (1 + o)
     (by simp [Reg.idx, registerCount, deposit_state14_regs_size b a o])
 
 theorem deposit_addr_r10_next_ops15 (b a o : Nat) :
@@ -798,14 +799,15 @@ theorem deposit_step15 (b a o : Nat) :
 theorem deposit_state15_r1 (b a o : Nat) :
     regGet (depositState15 b a o).regs .r1 = inputBase := by
   unfold depositState15
-  rw [regGet_nextPc, regGet_setReg_of_ne]
+  rw [regGet_nextPc_setReg_of_ne]
   exact deposit_state14_r1 b a o
   decide
 
 theorem deposit_state15_regs_size (b a o : Nat) :
     (depositState15 b a o).regs.size = registerCount := by
   unfold depositState15
-  simp [regs_size_nextPc, regs_size_setReg, deposit_state14_regs_size b a o]
+  rw [regs_size_nextPc_setReg]
+  exact deposit_state14_regs_size b a o
 
 theorem deposit_state16_r10 (b a o : Nat) :
     regGet (depositState16 b a o).regs .r10 = stackBase := by
@@ -866,7 +868,7 @@ theorem deposit_state14_next_balance_scratch (b a o : Nat) :
 theorem deposit_state15_next_balance_scratch (b a o : Nat) :
     (depositState15 b a o).memory.read depositNextScratch = a + b := by
   unfold depositState15
-  rw [memory_read_nextPc, memory_read_setReg]
+  rw [memory_read_nextPc_setReg]
   exact deposit_state14_next_balance_scratch b a o
 
 theorem deposit_state16_next_balance_scratch (b a o : Nat) :
@@ -896,7 +898,7 @@ theorem deposit_state6_amount_scratch (b a o : Nat) :
 theorem deposit_state7_amount_scratch (b a o : Nat) :
     (depositState7 b a o).memory.read depositAmountScratch = a := by
   unfold depositState7
-  rw [memory_read_nextPc, memory_read_setReg]
+  rw [memory_read_nextPc_setReg]
   exact deposit_state6_amount_scratch b a o
 
 theorem deposit_state8_amount_scratch (b a o : Nat) :
