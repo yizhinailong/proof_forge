@@ -11,6 +11,20 @@ namespace ProofForge.Tests.WasmExec
 open ProofForge.Backend.WasmNear.WasmExec
 
 example : True := by
+  have _ := @runStateSteps
+  have _ := @StateStepReduction
+  have _ := @StateStepReduction.of_step
+  have _ := @StateStepReductionChain
+  have _ := @runStateSteps_of_reductionChain
+  have _ := @StateStepReductionChain.append
+  have _ := @ExecutionSegment
+  have _ := @runStateSteps_of_executionSegment
+  have _ := @executionSegment_of_reductionChain
+  have _ := @executionSegment_append
+  have _ := @StateStepProvider
+  have _ := @stateStepProvider_single
+  have _ := @stateStepProvider_append
+  have _ := @runStateSteps_post_of_provider
   have _ := @valueStack_stackPush
   have _ := @locals_stackPush
   have _ := @globals_stackPush
@@ -55,6 +69,32 @@ theorem local_write_sample :
       (ProofForge.Backend.WasmNear.WasmInterpreter.writeLocal (#[] : Locals) "x" 9)
       "x" = some 9 := by
   exact lookupLocal_writeLocal_same (#[] : Locals) "x" 9
+
+def samplePush7 : StateStep :=
+  fun state => .ok (ProofForge.Backend.WasmNear.WasmInterpreter.stackPush state 7)
+
+def sampleSetX : StateStep :=
+  fun state => ProofForge.Backend.WasmNear.WasmInterpreter.execLocalSet state "x"
+
+theorem state_step_reduction_chain_sample :
+    StateStepReductionChain [samplePush7, sampleSetX] ({} : State)
+      { ({} : State) with locals :=
+          ProofForge.Backend.WasmNear.WasmInterpreter.writeLocal (#[] : Locals) "x" 7 } := by
+  apply StateStepReductionChain.cons
+  · exact StateStepReduction.of_step rfl
+  · apply StateStepReductionChain.cons
+    · exact StateStepReduction.of_step <| by
+        simpa [sampleSetX] using
+          execLocalSet_stackPush ({} : State) "x" 7
+    · exact StateStepReductionChain.nil
+        { ({} : State) with locals :=
+            ProofForge.Backend.WasmNear.WasmInterpreter.writeLocal (#[] : Locals) "x" 7 }
+
+theorem run_state_steps_chain_sample :
+    runStateSteps [samplePush7, sampleSetX] ({} : State) =
+      .ok { ({} : State) with locals :=
+          ProofForge.Backend.WasmNear.WasmInterpreter.writeLocal (#[] : Locals) "x" 7 } := by
+  exact runStateSteps_of_reductionChain state_step_reduction_chain_sample
 
 end ProofForge.Tests.WasmExec
 

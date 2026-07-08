@@ -27,6 +27,152 @@ abbrev Registers := WasmInterpreter.Registers
 abbrev Storage := WasmInterpreter.Storage
 abbrev HostState := WasmInterpreter.HostState
 abbrev State := WasmInterpreter.WasmState
+abbrev StateStep := State → Except String State
+
+def runStateSteps : List StateStep → State → Except String State
+  | [], state => .ok state
+  | step :: rest, state => do
+      let state ← step state
+      runStateSteps rest state
+
+structure StateStepReduction (step : StateStep) (state nextState : State) : Prop where
+  hstep : step state = .ok nextState
+
+theorem StateStepReduction.of_step
+    {step : StateStep} {state nextState : State}
+    (hstep : step state = .ok nextState) :
+    StateStepReduction step state nextState :=
+  { hstep }
+
+inductive StateStepReductionChain : List StateStep → State → State → Prop where
+  | nil (state : State) : StateStepReductionChain [] state state
+  | cons {step : StateStep} {rest : List StateStep} {state midState finalState : State}
+      (head : StateStepReduction step state midState)
+      (tail : StateStepReductionChain rest midState finalState) :
+      StateStepReductionChain (step :: rest) state finalState
+
+theorem runStateSteps_of_reductionChain
+    {steps : List StateStep} {state finalState : State}
+    (chain : StateStepReductionChain steps state finalState) :
+    runStateSteps steps state = .ok finalState := by
+  induction chain with
+  | nil state =>
+      rfl
+  | cons head tail ih =>
+      rw [runStateSteps, head.hstep]
+      exact ih
+
+theorem StateStepReductionChain.append
+    {leftSteps rightSteps : List StateStep}
+    {state midState finalState : State}
+    (leftChain : StateStepReductionChain leftSteps state midState)
+    (rightChain : StateStepReductionChain rightSteps midState finalState) :
+    StateStepReductionChain (leftSteps ++ rightSteps) state finalState := by
+  induction leftChain with
+  | nil state =>
+      simpa using rightChain
+  | cons head tail ih =>
+      simpa using StateStepReductionChain.cons head (ih rightChain)
+
+structure ExecutionSegment (steps : List StateStep)
+    (post : State → State → Prop) (state finalState : State) : Prop where
+  chain : StateStepReductionChain steps state finalState
+  postcondition : post state finalState
+
+theorem runStateSteps_of_executionSegment
+    {steps : List StateStep} {post : State → State → Prop}
+    {state finalState : State}
+    (segment : ExecutionSegment steps post state finalState) :
+    runStateSteps steps state = .ok finalState :=
+  runStateSteps_of_reductionChain segment.chain
+
+theorem executionSegment_of_reductionChain
+    {steps : List StateStep} {post : State → State → Prop}
+    {state finalState : State}
+    (chain : StateStepReductionChain steps state finalState)
+    (hpost : post state finalState) :
+    ExecutionSegment steps post state finalState :=
+  { chain
+    postcondition := hpost }
+
+theorem executionSegment_append
+    {leftSteps rightSteps : List StateStep}
+    {leftPost rightPost combinedPost : State → State → Prop}
+    {state midState finalState : State}
+    (combine :
+      leftPost state midState → rightPost midState finalState →
+        combinedPost state finalState)
+    (leftSegment : ExecutionSegment leftSteps leftPost state midState)
+    (rightSegment : ExecutionSegment rightSteps rightPost midState finalState) :
+    ExecutionSegment (leftSteps ++ rightSteps) combinedPost state finalState :=
+  { chain :=
+      StateStepReductionChain.append leftSegment.chain rightSegment.chain
+    postcondition :=
+      combine leftSegment.postcondition rightSegment.postcondition }
+
+structure StateStepProvider (steps : List StateStep)
+    (pre : State → Prop) (post : State → State → Prop) : Prop where
+  chain :
+    ∀ {state}, pre state →
+      ∃ finalState,
+        StateStepReductionChain steps state finalState ∧
+          post state finalState
+
+theorem stateStepProvider_single
+    {step : StateStep} {pre : State → Prop} {post : State → State → Prop}
+    (nextState : ∀ state, pre state → State)
+    (reduction :
+      ∀ {state} (hpre : pre state),
+        StateStepReduction step state (nextState state hpre))
+    (postcondition :
+      ∀ {state} (hpre : pre state),
+        post state (nextState state hpre)) :
+    StateStepProvider [step] pre post where
+  chain := by
+    intro state hpre
+    exact ⟨nextState state hpre,
+      StateStepReductionChain.cons (reduction hpre)
+        (StateStepReductionChain.nil (nextState state hpre)),
+      postcondition hpre⟩
+
+theorem stateStepProvider_append
+    {leftSteps rightSteps : List StateStep}
+    {leftPre rightPre : State → Prop}
+    {leftPost rightPost combinedPost : State → State → Prop}
+    (leftProvider :
+      StateStepProvider leftSteps leftPre leftPost)
+    (rightProvider :
+      StateStepProvider rightSteps rightPre rightPost)
+    (rightPre_of_leftPost :
+      ∀ {state midState},
+        leftPre state → leftPost state midState → rightPre midState)
+    (combine :
+      ∀ {state midState finalState},
+        leftPre state →
+        leftPost state midState →
+        rightPost midState finalState →
+        combinedPost state finalState) :
+    StateStepProvider (leftSteps ++ rightSteps) leftPre combinedPost where
+  chain := by
+    intro state hleftPre
+    obtain ⟨midState, leftChain, hleftPost⟩ :=
+      leftProvider.chain hleftPre
+    obtain ⟨finalState, rightChain, hrightPost⟩ :=
+      rightProvider.chain
+        (rightPre_of_leftPost hleftPre hleftPost)
+    exact ⟨finalState,
+      StateStepReductionChain.append leftChain rightChain,
+      combine hleftPre hleftPost hrightPost⟩
+
+theorem runStateSteps_post_of_provider
+    {steps : List StateStep} {pre : State → Prop}
+    {post : State → State → Prop} {state : State}
+    (provider : StateStepProvider steps pre post) (hpre : pre state) :
+    ∃ finalState,
+      runStateSteps steps state = .ok finalState ∧
+      post state finalState := by
+  obtain ⟨finalState, chain, hpost⟩ := provider.chain hpre
+  exact ⟨finalState, runStateSteps_of_reductionChain chain, hpost⟩
 
 theorem valueStack_stackPush (state : State) (value : Nat) :
     (stackPush state value).valueStack = state.valueStack.push value := rfl
