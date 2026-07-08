@@ -56,6 +56,50 @@ Full chain-native IR↔target refinement remains in progress." Avoid
 "ProofForge is formally verified" without naming the tier; today that statement
 is only defensible for the specific tier and fragment being cited.
 
+## Trusted Computing Base (Track 1.6 audit)
+
+The `native_decide` vs `decide` distinction is the main axis of the Lean FV
+TCB. Both discharge a `Bool` proposition, but they trust different evaluators:
+
+| Evaluator | Trust | Where it works | Where it fails |
+|-----------|-------|-----------------|----------------|
+| `decide` | Lean kernel only (no compiler). The `Decidable` instance must reduce in the kernel. | Small, structurally-recursive `def`s; `DecidableEq` instances on datatypes; theorems whose RHS is a closed kernel-reducible computation. | `partial def`s (not kernel-reducible); fuel-indexed `def`s with a fuel counter large enough to make kernel reduction infeasible (e.g. `Ownership.defaultFuel = 256`); functions that call external/compiled code. |
+| `native_decide` | Lean's native (compiled) evaluator. Faster and works on more functions, but trusts the compiler. | All of the above plus `partial def`s (when the compiled code terminates) and deep fuel-indexed computations. | Does not exist when the kernel must check (e.g. inside a proof that cannot rely on compiled evaluation); cannot be used in environments where native evaluation is disabled. |
+
+**Track 1.6 audit conclusion (2026-07-08):**
+
+1. **EVM bytecode lane** trusts **powdr `stepF`** + `native_decide` (the pinned
+   `evm-semantics` tree and Lean's native evaluator are in the EVM TCB). The
+   Yul→bytecode `solc` hop is **not** proven.
+2. **Self-built target traces** (Solana sBPF, Wasm/NEAR in-Lean interpreters)
+   trust the **in-Lean interpreter** (reviewed, not compiler-trusted for the
+   structural lemmas) + the **external differential gate** (Mollusk/Surfpool for
+   Solana, NEAR sandbox for Wasm) for CPI/PDA/syscall/Promise coverage that
+   stays outside the in-Lean slice.
+3. **`decide`-downgradeable candidates (Track 1.6):** theorems whose RHS is a
+   closed computation over structurally-recursive, kernel-reducible `def`s.
+   The `Ownership` checker was **total-ized in Track 1.5** (fuel-indexed,
+   kernel-reducible in principle), but its `defaultFuel = 256` makes kernel
+   reduction of `checkEntrypointOk` too deep to discharge via `decide` in
+   practice — so the Track 1.5 soundness theorems stay on `native_decide`.
+   Lowering `defaultFuel` to a kernel-reducible depth, or restructuring the
+   checker to recurse on expression depth rather than a flat fuel counter, is
+   future work that would let those theorems move to `decide`.
+4. **Structural (universal) theorems** that use `induction`/structural lemmas
+   (e.g. `runTraceListGen_sound`, `traceSimulation_lift`,
+   `requireCapabilityPlan_sound`, `invariants_hold_after_scenario`) are
+   **kernel-checked** (no `native_decide` on the proof itself; any
+   `native_decide` is only on the concrete premise, not the bridge).
+
+The practical TCB statement for external communication:
+
+> "ProofForge's structural refinement theorems are kernel-checked. Pointwise
+> trace-matching theorems over fixed fixtures are `native_decide`-checked
+> (trusting Lean's native evaluator). EVM bytecode reduction trusts the pinned
+> powdr `stepF`. Self-built target traces (Solana sBPF, Wasm/NEAR) trust the
+> in-Lean interpreter for the covered slice and an external differential gate
+> for the rest."
+
 ## Verification targets, in priority order
 
 ### FV-1: Capability routing soundness (small, high value)

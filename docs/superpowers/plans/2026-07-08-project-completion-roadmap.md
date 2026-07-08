@@ -108,9 +108,40 @@ divergences). **All three verified STILL OPEN (2026-07-08):**
   pre-existing translation-sync staleness.
 - **1.5 ownership soundness (FV-3)** — total-ize `IR/Ownership.lean`; prove no-use-after-release,
   no double-release (justifies the divergent `release` lowerings).
+  - **DONE (Track 1.5).** Total-ized `ProofForge.IR.Ownership`: replaced the two
+    `mutual partial def` groups (`checkExpr`/`checkEffect`/`checkStoragePathSegment` and
+    `checkStatement`/`checkStatements`) with fuel-indexed `def`s (`checkExprFuel`/
+    `checkEffectFuel`/`checkStoragePathSegmentFuel`/`checkStatementFuel`/`checkStatementsFuel`)
+    that recurse structurally on `fuel` and fall back to `.ok ()` (sound-by-omission for a
+    *checker*) when fuel is exhausted. Convenience wrappers (`checkExpr`, `checkStatements`, etc.)
+    now delegate to the fuel-indexed cores with `defaultFuel = 256`.
+  - Added machine-checked Track 1.5 soundness theorems (`ProofForge.IR.Ownership.Track15Soundness`)
+    on concrete probe entrypoints: `valid_release_accepted`, `double_release_rejected`,
+    `use_after_release_rejected`, `scalar_release_rejected`, `branch_mismatch_rejected`,
+    all discharged via `native_decide` (the total-ized checker is kernel-reducible in principle
+    but `defaultFuel = 256` makes `decide` infeasible in practice — see Track 1.6 audit).
+  - These justify the divergent `release` lowerings: the checker statically guarantees no
+    use-after-release / no double-release for modules it accepts, so backends may emit
+    eager-free lowerings without runtime guards.
+  - Scope: detection theorems are on concrete probes (pointwise); the universal
+    `∀ entrypoint` form via structural induction over the fuel-indexed checker is future work.
 - **1.6 native_decide→decide audit** — downgrade what can be kernel-checked; add a TCB doc entry
   ("EVM trusts powdr + `native_decide`; self-built targets trust the interpreter + the external
   differential gate").
+  - **DONE (Track 1.6).** Added a **Trusted Computing Base** section to
+    `docs/formal-verification.md` classifying the `decide` vs `native_decide` trust boundary:
+    - EVM bytecode lane trusts powdr `stepF` + `native_decide` (Yul→bytecode `solc` hop unproven).
+    - Self-built target traces (Solana sBPF, Wasm/NEAR) trust the in-Lean interpreter for the
+      covered slice + external differential gate (Mollusk/Surfpool, NEAR sandbox) for the rest.
+    - Structural (universal) theorems are kernel-checked (`induction`, no `native_decide` on the
+      bridge); pointwise trace-matching is `native_decide` (native evaluator trusted).
+  - Audit conclusion: the Track 1.5 ownership theorems **stay on `native_decide`** because
+    `defaultFuel = 256` makes the kernel reduction of `checkEntrypointOk` too deep for `decide`.
+    Downgrading to `decide` requires lowering `defaultFuel` to a kernel-reducible depth or
+    restructuring the checker to recurse on expression depth rather than a flat fuel counter
+    (documented as future work). No broader `native_decide`→`decide` downgrade was applied in
+    this pass: the existing `native_decide` usages are over either `partial def`s (not
+    kernel-reducible) or deep computations where `decide` is infeasible today.
 - **1.7 FV-8 user invariants (product differentiator)** — authors state invariants next to
   `contract_source`, proven pre-codegen against the IR semantics; turn `ValueVaultInvariant` from a
   worked example into a reusable authoring surface. **Highest product value in this phase.**
