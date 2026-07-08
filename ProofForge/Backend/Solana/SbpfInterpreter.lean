@@ -554,6 +554,114 @@ theorem returnData_execExit (state : SbpfState) (r0 : Nat) :
 theorem returnData_execSetReturnData (state : SbpfState) (value : Nat) :
     (execSetReturnData state value).returnData = some value := rfl
 
+theorem pc_nextPc (state : SbpfState) :
+    (nextPc state).pc = state.pc + 1 := rfl
+
+theorem pc_setReg (state : SbpfState) (reg : Reg) (value : Nat) :
+    (setReg state reg value).pc = state.pc := rfl
+
+theorem pc_nextPc_setReg (state : SbpfState) (reg : Reg) (value : Nat) :
+    (nextPc (setReg state reg value)).pc = state.pc + 1 := rfl
+
+theorem pc_execLoad (state : SbpfState) (dst : Reg) (addr value : Nat) :
+    (execLoad state dst addr value).pc = state.pc + 1 := rfl
+
+theorem pc_execLddw (state : SbpfState) (dst : Reg) (value : Nat) :
+    (execLddw state dst value).pc = state.pc + 1 := rfl
+
+theorem pc_execMov64 (state : SbpfState) (dst : Reg) (value : Nat) :
+    (execMov64 state dst value).pc = state.pc + 1 := rfl
+
+theorem pc_execStore (state : SbpfState) (addr value : Nat) :
+    (execStore state addr value).pc = state.pc + 1 := rfl
+
+theorem pc_execJump (state : SbpfState) (target : Nat) :
+    (execJump state target).pc = target := rfl
+
+theorem pc_execExit (state : SbpfState) (r0 : Nat) :
+    (execExit state r0).pc = state.pc + 1 := rfl
+
+theorem pc_execSetReturnData (state : SbpfState) (value : Nat) :
+    (execSetReturnData state value).pc = state.pc + 1 := rfl
+
+theorem pc_execGetClockSysvar (state : SbpfState) (ptr : Nat) :
+    (execGetClockSysvar state ptr).pc = state.pc + 1 := rfl
+
+theorem pc_execLog64 (state : SbpfState) :
+    (execLog64 state).pc = state.pc + 1 := rfl
+
+theorem halted_nextPc (state : SbpfState) :
+    (nextPc state).halted = state.halted := rfl
+
+theorem halted_setReg (state : SbpfState) (reg : Reg) (value : Nat) :
+    (setReg state reg value).halted = state.halted := rfl
+
+theorem halted_nextPc_setReg (state : SbpfState) (reg : Reg) (value : Nat) :
+    (nextPc (setReg state reg value)).halted = state.halted := rfl
+
+theorem halted_execLoad (state : SbpfState) (dst : Reg) (addr value : Nat) :
+    (execLoad state dst addr value).halted = state.halted := rfl
+
+theorem halted_execLddw (state : SbpfState) (dst : Reg) (value : Nat) :
+    (execLddw state dst value).halted = state.halted := rfl
+
+theorem halted_execMov64 (state : SbpfState) (dst : Reg) (value : Nat) :
+    (execMov64 state dst value).halted = state.halted := rfl
+
+theorem halted_execStore (state : SbpfState) (addr value : Nat) :
+    (execStore state addr value).halted = state.halted := rfl
+
+theorem halted_execJump (state : SbpfState) (target : Nat) :
+    (execJump state target).halted = state.halted := rfl
+
+theorem halted_execExit (state : SbpfState) (r0 : Nat) :
+    (execExit state r0).halted = true := rfl
+
+theorem halted_execSetReturnData (state : SbpfState) (value : Nat) :
+    (execSetReturnData state value).halted = state.halted := rfl
+
+theorem halted_execGetClockSysvar (state : SbpfState) (ptr : Nat) :
+    (execGetClockSysvar state ptr).halted = state.halted := rfl
+
+theorem halted_execLog64 (state : SbpfState) :
+    (execLog64 state).halted = state.halted := rfl
+
+theorem entryR0_nextPc (state : SbpfState) :
+    (nextPc state).entryR0 = state.entryR0 := rfl
+
+theorem entryR0_setReg (state : SbpfState) (reg : Reg) (value : Nat) :
+    (setReg state reg value).entryR0 = state.entryR0 := rfl
+
+theorem entryR0_nextPc_setReg (state : SbpfState) (reg : Reg) (value : Nat) :
+    (nextPc (setReg state reg value)).entryR0 = state.entryR0 := rfl
+
+theorem entryR0_execLoad (state : SbpfState) (dst : Reg) (addr value : Nat) :
+    (execLoad state dst addr value).entryR0 = state.entryR0 := rfl
+
+theorem entryR0_execLddw (state : SbpfState) (dst : Reg) (value : Nat) :
+    (execLddw state dst value).entryR0 = state.entryR0 := rfl
+
+theorem entryR0_execMov64 (state : SbpfState) (dst : Reg) (value : Nat) :
+    (execMov64 state dst value).entryR0 = state.entryR0 := rfl
+
+theorem entryR0_execStore (state : SbpfState) (addr value : Nat) :
+    (execStore state addr value).entryR0 = state.entryR0 := rfl
+
+theorem entryR0_execJump (state : SbpfState) (target : Nat) :
+    (execJump state target).entryR0 = state.entryR0 := rfl
+
+theorem entryR0_execExit (state : SbpfState) (r0 : Nat) :
+    (execExit state r0).entryR0 = r0 := rfl
+
+theorem entryR0_execSetReturnData (state : SbpfState) (value : Nat) :
+    (execSetReturnData state value).entryR0 = state.entryR0 := rfl
+
+theorem entryR0_execGetClockSysvar (state : SbpfState) (ptr : Nat) :
+    (execGetClockSysvar state ptr).entryR0 = state.entryR0 := rfl
+
+theorem entryR0_execLog64 (state : SbpfState) :
+    (execLog64 state).entryR0 = state.entryR0 := rfl
+
 def readLoad (program : SbpfProgram) (state : SbpfState) (inst : Inst) :
     Except String SbpfState :=
   match dstReg inst with
