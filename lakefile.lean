@@ -19,6 +19,7 @@ lean_lib ProofForge where
     `ProofForge.Backend.Solana.SbpfAsm,
     `ProofForge.Backend.Solana.SbpfExec,
     `ProofForge.Backend.Solana.SbpfExecSmoke,
+    `ProofForge.Backend.Solana.ValueVaultSbpfExec,
     `ProofForge.Backend.Solana.CounterSbpfExec,
     `ProofForge.Backend.Solana.CounterSbpfRefinement,
     `ProofForge.Compiler.Yul.AST,
