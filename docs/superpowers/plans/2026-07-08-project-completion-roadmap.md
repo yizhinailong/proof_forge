@@ -66,13 +66,17 @@ divergences). **All three verified STILL OPEN (2026-07-08):**
   pre-existing `docs/targets/README.md` translation-sync staleness, now also flagging
   `docs/capability-registry.md` whose `arith.checked` section was updated to describe the
   new node-level field.)
-- **0.2 capability derivation** — `capabilityCallsForSpec` is intent-OR-module (`if calls.size == 0`);
-  module capabilities silently drop when intents exist, so `resolveSpec` can return `.ok` for a
-  module using an unsupported capability. Fix: `intent ∪ module` (dedup). File: `Target/Adapter.lean`.
-- **0.3 `nearCrosscallInvokePool`** — maps to generic `.crosscallInvoke`; the capability layer
-  can't reject it on EVM/Solana (only a hardcoded Validate arm does). Fix: give it a unique
-  `.nearPromise` capability (or move it to an extension node per D-027). File: `IR/Contract.lean`.
+- **0.2 capability derivation** — DONE (2026-07-08, commit `9dbaef3b`). `capabilityCallsForSpec`
+  was intent-OR-module (`if calls.size == 0`), dropping module-derived capabilities whenever any
+  intent declared a capability. Replaced with a deduplicated `intent ∪ module` union so module
+  capabilities are always checked. Added `BEq` deriving to `TargetMetadata` and `CapabilityCall` to
+  support dedup. File: `Target/Adapter.lean`.
+- **0.3 `nearCrosscallInvokePool`** — DONE (2026-07-08, commit `9dbaef3b`). Mapped to the unique
+  `.nearPromise` capability (like its sibling `nearPromiseThen`), so the capability layer now
+  rejects it on non-NEAR targets (EVM/Solana); the pre-existing hardcoded EVM `Validate` arms
+  remain as defense-in-depth. File: `IR/Contract.lean`.
 - Card: Track 0 in [execution-plan §1](../../zh/execution-plan-2026-07.md).
+- **Phase 2 exit:** all three Track 0 correctness bugs fixed + green. ✅
 
 ## Phase 3 — Complete the FV foundation (Track 1 remainder) — 1 agent
 
