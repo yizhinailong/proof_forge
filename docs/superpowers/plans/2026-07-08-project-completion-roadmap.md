@@ -16,31 +16,31 @@ Machine-checked, universally-quantified (`∀ safe input`) IR↔target refinemen
 - **Solana** — against a self-built sBPF interpreter (light ~6k lines; Counter universal C-proof +
   ValueVault genericity 283 thms + full-opcode audit; two-hop trust via Mollusk/Surfpool).
 - **WASM/NEAR** — Counter universal C-proof CLOSED + green; ValueVault Wasm abstract-core
-  trace + canonical anchor landed; CosmWasm host dispatch + smoke landed. WASM-5 chain proof
-  (`counterCosmWasm_*_simulates`) is the one remaining theorem.
+  trace + canonical anchor landed; CosmWasm host dispatch + chain-axis proof
+  (`counterCosmWasm_*_simulates`) landed + smoke gated in `just check`. WASM-5 done.
 
 The self-build path (Solana/WASM) is ~⅓ the size of the import path (EVM) and builds in seconds —
 that asymmetry is settled and expected. This is the platform's differentiator, delivered on the 3
 primary chains.
 
-## Phase 1 — Finish the FV C-proof lane (IN PROGRESS, immediate) — 1 agent
+## Phase 1 — Finish the FV C-proof lane (DONE — 2026-07-08) — 1 agent
 
-Only remainder is **WASM-5** (the double genericity test):
+WASM-5 (the double genericity test) is now closed on both axes:
 
 - **ValueVault WASM (contract axis):** `ValueVaultWasmExec.lean` /
-  `ValueVaultWasmRefinement.lean` now close the abstract-core path — `valueVaultWasm_step_simulates`
+  `ValueVaultWasmRefinement.lean` close the abstract-core path — `valueVaultWasm_step_simulates`
   (all 7 entrypoints), `valueVaultWasm_trace_simulates` (arbitrary calls), `after_initialize`,
   and the `initialize 10 → deposit 5 → getNetValue` full-prefix anchor. This is the **abstract-core
   route** (relation-level `canonicalCoreStorage` + one-step simulate + trace lift), intentionally
   lighter than Solana's 283 per-instruction theorems — the asymmetry is by design, not a gap.
-  Remaining: deepen coverage / audit if a reviewer wants parity, but do NOT reimplement per-opcode.
-- **CosmWasm (chain axis — the killer test):** `WasmInterpreter.runHostCall` now dispatches
-  `.cosmWasm` → `runCosmWasmHostCall` (`db_read`/`db_write`/`set_return_data`), `Tests/WasmCosmWasmHost.lean`
-  smoke + `just wasm-cosmwasm-host-smoke` (in `just check`) are green. **MISSING is the proof:**
-  `counterCosmWasm_*_simulates` — Counter reusing the SAME abstract core, swapping host only.
-  This is the one theorem that proves "not per-chain rewrites".
+- **CosmWasm (chain axis — the killer test):** `CounterCosmWasmRefinement.lean` proves Counter
+  reuses the SAME host-agnostic `counterWasmCoreTraceStep` with only the host swapped
+  (`counterCosmWasm_*_simulates` + `counterCosmWasm_host_db_write_step_preserves_rel`).
+  `WasmInterpreter.runHostCall` dispatches `.cosmWasm` → `runCosmWasmHostCall`
+  (`db_read`/`db_write`/`set_return_data`). Smoke gate `just wasm-cosmwasm-refinement-smoke`
+  (in `just check`) is green.
 - Card: WASM-5 in [FV target-semantics plan](2026-07-07-fv-target-semantics.md).
-- **Exit:** all 3 chains have complete universal C-proof + double genericity, green.
+- **Exit:** all 3 chains have complete universal C-proof + double genericity, green. ✅
 
 ## Phase 2 — Close the Track 0 correctness bugs (IMPORTANT — FV did NOT touch these) — 1 agent
 
@@ -98,7 +98,7 @@ divergences). **All three verified STILL OPEN (2026-07-08):**
 
 ## Recommended order for agents (hand each agent ONE phase, or one task within it)
 
-1. **Phase 1 (WASM-5)** — closes the FV lane. One agent, near done.
+1. **Phase 1 (WASM-5)** — ✅ CLOSED 2026-07-08: both axes landed + gated.
 2. **Phase 2 (Track 0 bugs)** — real shipping bugs, small + high value; makes the FV meaningful.
 3. **Phase 3 (FV foundation)** — `1.7` FV-8 is the product differentiator; `1.4/1.5/1.6` harden the TCB.
 4. **Phase 4 / 5** — parallelizable once 1–3 land; ZK + client + platform gaps are docs-first, low risk.
