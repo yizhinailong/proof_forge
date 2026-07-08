@@ -1,0 +1,167 @@
+# FV-9 — Universal compiler correctness over the supported fragment (∀ contracts)
+
+> **The keystone that turns "two contracts refine" into "every fragment contract refines."**
+> Today's machine-checked guarantee is *per-contract* (Counter, ValueVault) + *generic
+> per-instruction*. This task closes the CompCert-style theorem: `∀ contract in the supported
+> fragment, IR-semantics(contract) ⊑ target-semantics(compile(contract))`, by structural
+> induction over IR program structure, reusing the already-proven generic per-instruction layer
+> as the per-constructor cases. Agent-executable; grounded in a 2026-07-08 feasibility scout.
+
+## Why this is needed (the honest gap)
+
+There are two distinct meanings of "universal", and only the first is currently proven:
+
+1. **Universal over inputs, fixed contract** — `∀ calls, safe → Counter refines`. ✅ Done
+   (Counter, ValueVault). Already a real `∀` over the infinite input space.
+2. **Universal over contracts** — `∀ m ∈ fragment, m refines`. ❌ **Not proven.** This is the
+   compiler-correctness theorem. Counter/ValueVault are two *witnesses*, not this theorem.
+
+The proof stack has three layers; L3 is missing:
+
+| Layer | Content | Status |
+|---|---|---|
+| **L1 generic per-instruction** (`SbpfExec` 260 thms, `WasmExec` 54, `PowdrExec`) | each opcode/instruction lowering correct, ∀ machine state | ✅ generic, done |
+| **L2 per-contract composition** (Counter, ValueVault) | compose L1 into a whole-program refinement | ⚠️ 2 witnesses, contract-bound |
+| **L3 ∀-contract induction glue** | "any fragment program's refinement follows by composing L1 over its structure" | ❌ **missing → this task** |
+
+Counter+ValueVault are the manual instantiations of what L3's induction would produce
+automatically. The hard per-constructor content largely lives in L1; the missing piece is the
+inductive glue **plus a proof-usable generic IR interpreter to induct over** (see below).
+
+## Feasibility scout (2026-07-08) — the real blocker is the IR interpreter, not the induction
+
+- **A generic IR interpreter EXISTS** — `IR/Semantics.lean` (1279 lines): `evalExpr` (line 420)
+  recurses over any `Expr`, with a full generic substrate (`State`, `Frame`, `Bindings`,
+  `evalNumericBinary`, `evalCrosscallInvoke*`, `writeStructFields`, …). So there *is* a
+  `∀ module` semantics in principle.
+- **But it is all `partial def`** → **unusable in proofs** (Lean's kernel cannot unfold or induct
+  on `partial def`). Every generic evaluator in `Semantics.lean` is `partial`.
+- **The proof-usable semantics is fuel-indexed and Counter-local** — `CounterSemantics.lean:34`
+  `evalExprFuel : Nat → State → Frame → Expr → Except String ExprResult` (+ `execStmtFuel`,
+  `evalEffectFuel`). It is total (structural on fuel) and therefore provable, but it lives in the
+  Counter file.
+- **ValueVault has NO fueled interpreter at all** (`grep evalExprFuel ValueVaultSemantics.lean` =
+  empty). It reaches its refinement via the *abstract-core* route (relation-level
+  `canonicalCoreStorage`), sidestepping a generic interpreter entirely.
+- **Consequence:** there is **no single generic, total, proof-usable `evalModuleFuel : Module →
+  … → Trace`** for a `∀ module` theorem to quantify over. That absence — not the induction — is
+  why every refinement today is per-contract. **FV-9's first and biggest task is to build that
+  shared interpreter.**
+
+## The target theorem (per target; IR side shared)
+
+Stated in the existing trace-simulation vocabulary (`ObservableStep` / `TargetSemantics` /
+`traceSimulation_lift` in `Backend/Refinement/Core.lean`), just quantified over the module:
+
+```
+theorem <target>_fragment_refines
+    (m : Module) (hm : SupportedFragment <target> m)
+    (calls : List Call) (hsafe : TraceSafe m calls) :
+    TraceSimulates
+      (irTraceFuel m calls)                       -- shared generic total interpreter (FV-9.0)
+      (<target>Trace (compile <target> m) calls)  -- existing target semantics
+```
+
+where `irTraceFuel` is the NEW shared interpreter, `compile <target>` is the existing lowering,
+and `<target>Trace` is the existing per-target semantics. `SupportedFragment` carves out exactly
+the constructor set the induction covers (FV-9.4).
+
+## Task breakdown
+
+### FV-9.0 — Build the shared, total, proof-usable generic IR interpreter (PREREQUISITE, the big one)
+
+- Promote the fueled evaluator out of `CounterSemantics.lean` into the IR layer (new
+  `IR/EvalFuel.lean` or a section of `IR/Semantics.lean`): generic `evalExprFuel`,
+  `execStmtFuel`, `evalEffectFuel`, `evalEntrypointFuel`, and a top-level
+  `evalModuleFuel : Nat → Module → Call → Except String (State × Option Value)` over **any**
+  module — no Counter/ValueVault names.
+- Prove it **agrees with the executable `partial def` semantics** in `Semantics.lean` on
+  terminating runs (fuel-monotonicity + `evalExprFuel` refines `evalExpr`), OR make the fueled
+  interpreter canonical and derive the `partial` executable one from it. Pick whichever keeps the
+  existing executable smokes (`counterTrace` etc.) green.
+- **Re-point Counter** at the shared interpreter (near-free — same shape it already uses).
+- **Re-point ValueVault** at the shared interpreter (real work — it currently uses the
+  abstract-core route; either bridge the abstract core to the fueled interpreter, or re-derive its
+  entrypoints through `evalModuleFuel`). This also *upgrades* the "abstract-core asymmetry" noted
+  in the completion roadmap.
+- **Exit:** one generic `evalModuleFuel`, 0 contract names; both witnesses build against it; green.
+
+### FV-9.1 — Define the simulation relation once, generically
+
+- Extract the IR-state ↔ target-state relation `R` that the per-contract proofs currently inline
+  (`counterWasmCore…`, `counterSbpfCore…`, powdr storage-model) into a single generic
+  `IRTargetRel (target) (irState : IR.State) (ts : <target>State) : Prop` in
+  `Backend/Refinement/Core.lean` (or per-target where the state types force it).
+- Prove the trivial base: `R` holds at the initial state for any module.
+
+### FV-9.2 — Per-constructor preservation lemmas (reuse L1; fill the gaps)
+
+For each `Expr` and statement constructor, prove: if `R` holds before, executing it under
+`evalModuleFuel` and running the lowered target instructions re-establishes `R`. **The L1 layers
+are these cases** — most arithmetic/storage/local cases are already proven generically. Inventory
+the constructor set (from `IR/Contract.lean`) and mark coverage:
+
+- **Likely already covered by L1 + the two witnesses:** `literal`, `local`, `add/sub/mul` (incl.
+  the `overflowChecked` node flag), storage `scalar`/`map` read+write, `get`/`increment`/`deposit`
+  entrypoint shapes, event emit.
+- **Likely gaps (no witness exercises them → induction stalls → new L1 lemmas needed):**
+  `div`, `mod`, `bitAnd/bitOr/bitXor`, `shiftLeft/shiftRight`, `memoryArrayNew/Get/Length`,
+  `arrayLit/arrayGet`, dynamic arrays, `structLit`/`field`, the env expressions
+  (`timestamp`, `blockHash`, `chainId`, `gasLeft`, …), and the `crosscallInvoke*` family.
+- Deliverable: a coverage table (constructor × {covered | gap}) checked in next to the proof, and
+  an L1 lemma for every constructor the fragment (FV-9.4) admits.
+
+### FV-9.3 — The structural induction
+
+- Prove `<target>_fragment_refines` by induction over IR program structure, discharging each case
+  with its FV-9.2 lemma and lifting to traces via the existing `traceSimulation_lift`.
+- Keep the IR side (FV-9.0/9.1) shared; only the per-constructor discharge is per-target.
+
+### FV-9.4 — Fragment scoping + honesty
+
+- `SupportedFragment <target> m` must admit **exactly** the constructors FV-9.2 proves and exclude
+  the rest, so the theorem is true as stated. Wire it to the capability registry
+  (`capabilityAccept ⟹ fragment`, already a Track 1.4 schema in `Backend/Refinement/Core.lean`).
+- Document the admitted-constructor set explicitly. A modest fragment with a real `∀ m` quantifier
+  is qualitatively stronger than two witnesses — ship that first, then widen.
+
+## Scope discipline (do NOT boil the ocean)
+
+- **One target end-to-end first: Solana** (self-built, lightest, `SbpfExec` already the richest L1
+  at 260 thms). Prove `∀ m ∈ fragment, IR ⊑ Solana(compile m)` fully as the template, THEN
+  replicate the induction to WASM and EVM (IR side FV-9.0/9.1 is shared, so replication is cheap).
+- **Incremental fragment:** start the fragment at the arithmetic + scalar/map storage +
+  control-flow core that Counter+ValueVault already exercise (so FV-9.2 has few gaps), get the
+  `∀ m` theorem green, THEN widen the fragment constructor-by-constructor. Each widening = a new
+  FV-9.2 lemma + a fragment-predicate line.
+- Keep the discipline that held for L1: generic files carry **0 contract names**; every theorem
+  **closed** (no `sorry`/`axiom`); self-built targets keep the external differential gate.
+
+## Definition of done
+
+- A shared generic `evalModuleFuel` in the IR layer (0 contract names), agreeing with the
+  executable semantics, with both Counter and ValueVault re-pointed at it. Green.
+- `solana_fragment_refines : ∀ m ∈ SupportedFragment solana, ∀ safe calls, TraceSimulates …`,
+  **closed and green**, over a documented (non-trivial) fragment.
+- A constructor-coverage table; the fragment predicate admits exactly the proven constructors.
+- (Stretch, same phase) the WASM and EVM analogues via the shared IR side.
+
+## Non-goals / honest limits
+
+- **Not** "all conceivable contracts" — the theorem is over the *capability-gated supported
+  fragment*, which is the correct and honest scope. Turing-complete arbitrary programs are out.
+- **Not** the proving-system / VM-conformance hop — EVM still trusts powdr; self-built targets
+  still trust the external differential gate. FV-9 is about IR ⊑ target, not target ≈ real VM.
+- **Not** a rewrite of L1 — L1 is the reusable substance; FV-9 adds the interpreter + glue on top.
+
+## Risks / watch-items
+
+- **`partial`→fueled agreement (FV-9.0)** is the main proof-engineering risk: if the executable
+  `partial` semantics and the fueled one diverge on any constructor, the induction proves a
+  different function than what ships. Prove agreement explicitly; don't assume it.
+- **ValueVault re-pointing** may surface that the abstract-core route took shortcuts the fueled
+  interpreter won't allow — budget for it.
+- **Fragment honesty:** resist quantifying over a fragment wider than FV-9.2 covers; a green
+  theorem over a secretly-narrow fragment that *reads* as "all contracts" is the failure mode.
+```
+
