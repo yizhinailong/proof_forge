@@ -22,6 +22,20 @@ example :
   deposit_state8_next_balance_scratch 10 4 3
 
 example :
+    step depositStorageProgram (depositState16 10 4 3) =
+      .ok (depositState17 10 4 3) :=
+  deposit_step16 10 4 3
+
+example :
+    step depositStorageProgram (depositState17 10 4 3) =
+      .ok (depositState18 10 4 3) :=
+  deposit_step17 10 4 3
+
+example :
+    (depositState18 10 4 3).memory.read balanceOff = 14 :=
+  deposit_state18_balance 10 4 3
+
+example :
     stateFieldOffset? ProofForge.IR.Examples.ValueVault.module "balance" =
       some balanceOff :=
   balanceOff_matches_layout

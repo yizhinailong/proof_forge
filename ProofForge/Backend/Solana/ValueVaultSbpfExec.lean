@@ -561,6 +561,13 @@ theorem deposit_state9_r10 (b a o : Nat) :
   exact deposit_state8_r10 b a o
   decide
 
+theorem deposit_state9_r1 (b a o : Nat) :
+    regGet (depositState9 b a o).regs .r1 = inputBase := by
+  unfold depositState9
+  rw [regGet_execLoad_of_ne]
+  exact deposit_state8_r1 b a o
+  decide
+
 theorem deposit_state9_r2 (b a o : Nat) :
     regGet (depositState9 b a o).regs .r2 = o := by
   unfold depositState9
@@ -583,6 +590,12 @@ theorem deposit_state10_r10 (b a o : Nat) :
   unfold depositState10
   rw [regGet_execStore]
   exact deposit_state9_r10 b a o
+
+theorem deposit_state10_r1 (b a o : Nat) :
+    regGet (depositState10 b a o).regs .r1 = inputBase := by
+  unfold depositState10
+  rw [regGet_execStore]
+  exact deposit_state9_r1 b a o
 
 theorem deposit_state9_regs_size (b a o : Nat) :
     (depositState9 b a o).regs.size = registerCount := by
@@ -619,6 +632,13 @@ theorem deposit_state11_r10 (b a o : Nat) :
   exact deposit_state10_r10 b a o
   decide
 
+theorem deposit_state11_r1 (b a o : Nat) :
+    regGet (depositState11 b a o).regs .r1 = inputBase := by
+  unfold depositState11
+  rw [regGet_execLoad_of_ne]
+  exact deposit_state10_r1 b a o
+  decide
+
 theorem deposit_state11_r2 (b a o : Nat) :
     regGet (depositState11 b a o).regs .r2 = o := by
   unfold depositState11
@@ -641,6 +661,12 @@ theorem deposit_state12_r10 (b a o : Nat) :
   unfold depositState12
   rw [regGet_execStore]
   exact deposit_state11_r10 b a o
+
+theorem deposit_state12_r1 (b a o : Nat) :
+    regGet (depositState12 b a o).regs .r1 = inputBase := by
+  unfold depositState12
+  rw [regGet_execStore]
+  exact deposit_state11_r1 b a o
 
 theorem deposit_state11_regs_size (b a o : Nat) :
     (depositState11 b a o).regs.size = registerCount := by
@@ -670,6 +696,13 @@ theorem deposit_state13_r10 (b a o : Nat) :
   unfold depositState13
   rw [regGet_execMov64_of_ne]
   exact deposit_state12_r10 b a o
+  decide
+
+theorem deposit_state13_r1 (b a o : Nat) :
+    regGet (depositState13 b a o).regs .r1 = inputBase := by
+  unfold depositState13
+  rw [regGet_execMov64_of_ne]
+  exact deposit_state12_r1 b a o
   decide
 
 theorem deposit_addr_r10_ops13 (b a o : Nat) :
@@ -720,6 +753,13 @@ theorem deposit_state14_r10 (b a o : Nat) :
   exact deposit_state13_r10 b a o
   decide
 
+theorem deposit_state14_r1 (b a o : Nat) :
+    regGet (depositState14 b a o).regs .r1 = inputBase := by
+  unfold depositState14
+  rw [regGet_execLoad_of_ne]
+  exact deposit_state13_r1 b a o
+  decide
+
 theorem deposit_step14 (b a o : Nat) :
     step depositStorageProgram (depositState14 b a o) =
       .ok (depositState15 b a o) :=
@@ -748,6 +788,148 @@ theorem deposit_step15 (b a o : Nat) :
       .ok (depositState16 b a o) :=
   step_stxdw_ok (depositReady15 b a o) (by rfl)
     (deposit_addr_r10_next_ops15 b a o) (deposit_state15_r2 b a o)
+
+theorem deposit_state15_r1 (b a o : Nat) :
+    regGet (depositState15 b a o).regs .r1 = inputBase := by
+  unfold depositState15
+  rw [regGet_nextPc, regGet_setReg_of_ne]
+  exact deposit_state14_r1 b a o
+  decide
+
+theorem deposit_state15_regs_size (b a o : Nat) :
+    (depositState15 b a o).regs.size = registerCount := by
+  unfold depositState15
+  simp [regs_size_nextPc, regs_size_setReg, deposit_state14_regs_size b a o]
+
+theorem deposit_state16_r10 (b a o : Nat) :
+    regGet (depositState16 b a o).regs .r10 = stackBase := by
+  unfold depositState16
+  rw [regGet_execStore]
+  exact deposit_state15_r10 b a o
+
+theorem deposit_state16_r1 (b a o : Nat) :
+    regGet (depositState16 b a o).regs .r1 = inputBase := by
+  unfold depositState16
+  rw [regGet_execStore]
+  exact deposit_state15_r1 b a o
+
+theorem deposit_state16_regs_size (b a o : Nat) :
+    (depositState16 b a o).regs.size = registerCount := by
+  unfold depositState16
+  rw [regs_size_execStore]
+  exact deposit_state15_regs_size b a o
+
+theorem deposit_state9_next_balance_scratch (b a o : Nat) :
+    (depositState9 b a o).memory.read depositNextScratch = a + b := by
+  unfold depositState9
+  simpa [memory_execLoad] using deposit_state8_next_balance_scratch b a o
+
+theorem deposit_state10_next_balance_scratch (b a o : Nat) :
+    (depositState10 b a o).memory.read depositNextScratch = a + b := by
+  unfold depositState10 execStore
+  calc
+    (nextPc
+          { depositState9 b a o with
+            memory := (depositState9 b a o).memory.write depositLhsScratch o }).memory.read
+        depositNextScratch =
+        (depositState9 b a o).memory.read depositNextScratch := by
+          simpa [nextPc] using
+            (Memory.read_write_of_ne (depositState9 b a o).memory
+              (readAddr := depositNextScratch) (writeAddr := depositLhsScratch)
+              (value := o) (by native_decide))
+    _ = a + b := deposit_state9_next_balance_scratch b a o
+
+theorem deposit_state11_next_balance_scratch (b a o : Nat) :
+    (depositState11 b a o).memory.read depositNextScratch = a + b := by
+  unfold depositState11
+  simpa [memory_execLoad] using deposit_state10_next_balance_scratch b a o
+
+theorem deposit_state12_next_balance_scratch (b a o : Nat) :
+    (depositState12 b a o).memory.read depositNextScratch = a + b := by
+  unfold depositState12 execStore
+  calc
+    (nextPc
+          { depositState11 b a o with
+            memory := (depositState11 b a o).memory.write depositOpsScratch o }).memory.read
+        depositNextScratch =
+        (depositState11 b a o).memory.read depositNextScratch := by
+          simpa [nextPc] using
+            (Memory.read_write_of_ne (depositState11 b a o).memory
+              (readAddr := depositNextScratch) (writeAddr := depositOpsScratch)
+              (value := o) (by native_decide))
+    _ = a + b := deposit_state11_next_balance_scratch b a o
+
+theorem deposit_state13_next_balance_scratch (b a o : Nat) :
+    (depositState13 b a o).memory.read depositNextScratch = a + b := by
+  unfold depositState13
+  simpa [memory_execMov64] using deposit_state12_next_balance_scratch b a o
+
+theorem deposit_state14_next_balance_scratch (b a o : Nat) :
+    (depositState14 b a o).memory.read depositNextScratch = a + b := by
+  unfold depositState14
+  simpa [memory_execLoad] using deposit_state13_next_balance_scratch b a o
+
+theorem deposit_state15_next_balance_scratch (b a o : Nat) :
+    (depositState15 b a o).memory.read depositNextScratch = a + b := by
+  unfold depositState15
+  simpa [nextPc, setReg] using deposit_state14_next_balance_scratch b a o
+
+theorem deposit_state16_next_balance_scratch (b a o : Nat) :
+    (depositState16 b a o).memory.read depositNextScratch = a + b := by
+  unfold depositState16 execStore
+  calc
+    (nextPc
+          { depositState15 b a o with
+            memory := (depositState15 b a o).memory.write depositNextOpsScratch (1 + o) }).memory.read
+        depositNextScratch =
+        (depositState15 b a o).memory.read depositNextScratch := by
+          simpa [nextPc] using
+            (Memory.read_write_of_ne (depositState15 b a o).memory
+              (readAddr := depositNextScratch) (writeAddr := depositNextOpsScratch)
+              (value := 1 + o) (by native_decide))
+    _ = a + b := deposit_state15_next_balance_scratch b a o
+
+theorem deposit_addr_r10_next16 (b a o : Nat) :
+    memoryAddress (depositState16 b a o) .r10 24 = depositNextScratch := by
+  simp [memoryAddress, deposit_state16_r10 b a o, depositNextScratch]
+  native_decide
+
+theorem deposit_step16 (b a o : Nat) :
+    step depositStorageProgram (depositState16 b a o) =
+      .ok (depositState17 b a o) :=
+  step_ldxdw_ok (depositReady16 b a o) (by rfl)
+    (deposit_addr_r10_next16 b a o) (deposit_state16_next_balance_scratch b a o)
+
+theorem deposit_state17_r1 (b a o : Nat) :
+    regGet (depositState17 b a o).regs .r1 = inputBase := by
+  unfold depositState17
+  rw [regGet_execLoad_of_ne]
+  exact deposit_state16_r1 b a o
+  decide
+
+theorem deposit_state17_r10 (b a o : Nat) :
+    regGet (depositState17 b a o).regs .r10 = stackBase := by
+  unfold depositState17
+  rw [regGet_execLoad_of_ne]
+  exact deposit_state16_r10 b a o
+  decide
+
+theorem deposit_state17_r2 (b a o : Nat) :
+    regGet (depositState17 b a o).regs .r2 = a + b := by
+  unfold depositState17
+  apply regGet_execLoad_same_of_lt
+  simp [Reg.idx, registerCount, deposit_state16_regs_size b a o]
+
+theorem deposit_addr_r1_balance17 (b a o : Nat) :
+    memoryAddress (depositState17 b a o) .r1 balanceOff = balanceOff := by
+  simp [memoryAddress, deposit_state17_r1 b a o, balanceOff, inputBase]
+  native_decide
+
+theorem deposit_step17 (b a o : Nat) :
+    step depositStorageProgram (depositState17 b a o) =
+      .ok (depositState18 b a o) :=
+  step_stxdw_ok (depositReady17 b a o) (by rfl)
+    (deposit_addr_r1_balance17 b a o) (deposit_state17_r2 b a o)
 
 theorem deposit_state18_balance (b a o : Nat) :
     (depositState18 b a o).memory.read balanceOff = a + b := by
