@@ -10489,9 +10489,36 @@ def counterPreparedInitializeReductionChainModel_of_stepFE_path
     {s0 s36 : EvmState}
     (hprepared : CounterPreparedCall counterCompiledPowdrConfig .initialize s0)
     (path : CounterPreparedInitializeStepFEPath s0 s36) :
-    CounterPreparedInitializeReductionChainModel s0 s36 :=
-  counterPreparedInitializeReductionChainModel_of_segmentModel path
-    (counterPreparedInitializeSegmentModel_of_stepFE_path hprepared path)
+    CounterPreparedInitializeReductionChainModel s0 s36 := by
+  obtain ⟨hat0, hstack0, hcalldata0, _haddr0, _hcallStack0⟩ :=
+    counterCompiledPreparedInitialize_entry_facts hprepared
+  obtain ⟨_hrun, hhalt, hstorageRun, hstoragePrefix, _hcallStackReturn,
+      _hcallStackBody, hcallStackPrepared, hobs⟩ :=
+    counterRunBytecode_initialize_dispatcher_body_and_return_ok
+      hstack0 hat0 path.hready0 path.hstep0 hcalldata0 path.hready1 path.hstep1
+      path.hready2 path.hstep2 path.hready3 path.hstep3 path.hready4 path.hstep4
+      path.hready5 path.hstep5 path.hready6 path.hstep6 path.hready7 path.hstep7
+      path.hready8 path.hstep8 path.hready9 path.hstep9 path.hat10
+      path.hready10 path.hstep10 path.hat11 path.hready11 path.hstep11
+      path.hat12 path.hready12 path.hstep12 path.hready13 path.hstep13
+      path.hready14 path.hstep14 path.hat15 path.hready15 path.hstep15
+      path.hat16 path.hready16 path.hstep16 path.hat17 path.hready17
+      path.hstep17 path.hat18 path.hready18 path.hstep18 path.hat19
+      path.hready19 path.hstep19 path.hat20 path.hready20 path.hstep20
+      path.hat21 path.hready21 path.hstep21 path.hat22 path.hready22
+      path.hstep22 path.hat23 path.hready23 path.hstep23 path.hat24
+      path.hready24 path.hstep24 path.hat25 path.hready25 path.hstep25
+      path.hat26 path.haddrSload path.hready26 path.hstep26 path.hat27
+      path.hready27 path.hstep27 path.hat28 path.hready28 path.hstep28
+      path.hat29 path.hready29 path.hstep29 path.hat30 path.haddrSstore
+      path.hready30 path.hstep30 path.hready31 path.hstep31 path.hready32
+      path.hstep32 path.hready33 path.hstep33 path.hready34 path.hstep34
+      path.hready35 path.hstep35
+  refine
+    { chain := counterPreparedInitializeStepFEPath_to_reductionChain path
+      postcondition := ?_ }
+  refine ⟨hhalt, hcallStackPrepared, ?_, hobs⟩
+  rw [hstorageRun, hstoragePrefix]
 
 theorem counterCompiledPreparedInitialize_storage_model_of_segment_model_ok
     {s0 s36 : EvmState}
@@ -10545,8 +10572,9 @@ theorem counterCompiledPreparedInitialize_storage_model_of_stepFE_path_ok
       counterStorageValue counterContractAddress counterCountSlot nextEvm =
         counterInitializeStorageWord
           (counterStorageValue counterContractAddress counterCountSlot s0) := by
-  exact counterCompiledPreparedInitialize_storage_model_of_segment_model_ok
-    hprepared (counterPreparedInitializeSegmentModel_of_stepFE_path hprepared path)
+  exact counterCompiledPreparedInitialize_storage_model_of_reduction_chain_model_ok
+    hprepared
+    (counterPreparedInitializeReductionChainModel_of_stepFE_path hprepared path)
 
 theorem counterCompiledPreparedInitialize_storage_model_of_stepFE_path_chain_ok
     {s0 s36 : EvmState}
@@ -10558,9 +10586,8 @@ theorem counterCompiledPreparedInitialize_storage_model_of_stepFE_path_chain_ok
       counterStorageValue counterContractAddress counterCountSlot nextEvm =
         counterInitializeStorageWord
           (counterStorageValue counterContractAddress counterCountSlot s0) := by
-  exact counterCompiledPreparedInitialize_storage_model_of_reduction_chain_model_ok
-    hprepared
-    (counterPreparedInitializeReductionChainModel_of_stepFE_path hprepared path)
+  exact counterCompiledPreparedInitialize_storage_model_of_stepFE_path_ok
+    hprepared path
 
 abbrev CounterPreparedInitializeSegmentProvider :=
   ProofForge.Backend.Evm.PowdrExec.SegmentProvider
