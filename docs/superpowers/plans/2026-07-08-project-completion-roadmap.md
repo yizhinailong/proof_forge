@@ -80,6 +80,26 @@ divergences). **All three verified STILL OPEN (2026-07-08):**
 
 ## Phase 3 — Complete the FV foundation (Track 1 remainder) — 1 agent
 
+- **1.2 unified refinement contract** — DONE. `ProofForge.Backend.Refinement.Core.lean`
+  holds the single shared refinement surface: `ObservableReturn`, `ObservableStep`,
+  `TraceCall`, `TraceObligation`, and the `TargetSemantics` record (the unified contract
+  that replaced the three-backend `BackendSemantics` typeclass idea). EVM, Solana sBPF, and
+  Wasm/NEAR each instantiate `TargetSemantics` — no duplicated `ObservableReturn`/
+  `TraceObligation` definitions exist in the backend tree. This is the prerequisite that
+  lets external Lean semantics (powdr `evm-semantics`, Cairo formal-proofs, Lampe) plug in
+  as refinement targets.
+- **1.3 minimal Solana sBPF interpreter** — DONE. `ProofForge.Backend.Solana.SbpfInterpreter.lean`
+  is a total, fuel-indexed interpreter over the `Asm.AstNode` subset: register file, linear
+  memory (`Memory` with `read`/`write` + read-write lemmas), ALU64, conditional jumps (with
+  per-condition lemmas), load/store, and the syscalls Counter/ValueVault use
+  (`sol_set_return_data`, `sol_get_clock_sysvar`, `sol_log_64_`). It exposes `step`/`run`,
+  `runEntrypoint`/`runTraceList`/`runTrace`/`executableTraceOk` (the IR↔sBPF differential
+  obligation pipeline), the Counter-slice simulation relation `R` (`counter_R_after_initialize_ok`
+  / `counter_R_after_increment_ok`, `native_decide`), and `counter_interpreter_smoke_ok`.
+  `ProofForge.Backend.Solana.SbpfExec.lean` (~3k lines) provides the contract-agnostic
+  symbolic-execution step lemmas new backends reuse. Gated by `just solana-sbpf-exec-smoke`
+  and `just solana-refinement-smoke` (both in `just check` via `solana-light`).
+
 - **1.4 supported-fragment predicate** — DONE (2026-07-08). Generalized the
   fragment machinery beyond the single Counter enumeration into a two-predicate
   per-target scheme on `TargetSemantics`:

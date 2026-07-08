@@ -36,8 +36,8 @@ backlog 的新增/重排。
 | # | 任务 | 产出 | 依赖 |
 |---|---|---|---|
 | 1.1 **keystone** | IR 解释器在"已验证片段"上 total 化（良基 `def`/fuel），换掉 `evalExpr`/`runEntrypoint` 的 `partial def` | 归纳原理 → 可陈述 `∀ input` 全称 refinement | — |
-| 1.2 | 统一 refinement 契约：把三份复制的 `ObservableReturn`/`TraceObligation`（EVM/NEAR/Solana）合并成一个共享类型 + `BackendSemantics` typeclass | `Backend/Refinement/Core.lean`（新） | — |
-| 1.3 | Solana 最小 sBPF 解释器：对 `Asm.AstNode` 子集（寄存器堆 + 线性内存 + Counter 用到的 ~15 opcode）做 `step`/`run`，建 IR↔sBPF 差分 obligation | `Backend/Solana/SbpfSemantics.lean`（新） | 1.2 |
+| 1.2 | 统一 refinement 契约：把三份复制的 `ObservableReturn`/`TraceObligation`（EVM/NEAR/Solana）合并成一个共享类型 + `BackendSemantics` typeclass | `Backend/Refinement/Core.lean`（新） | — | ✅ DONE |
+| 1.3 | Solana 最小 sBPF 解释器：对 `Asm.AstNode` 子集（寄存器堆 + 线性内存 + Counter 用到的 ~15 opcode）做 `step`/`run`，建 IR↔sBPF 差分 obligation | `Backend/Solana/SbpfSemantics.lean`（新） | 1.2 | ✅ DONE |
 | 1.4 | 每目标"支持片段"谓词 + 两条定理：`能力接受 ⟹ 属于片段` 与 `属于片段 ⟹ 降级成功`；用定理替代 `check-ir-coverage-manifest.py` | 覆盖完备性从测试升级成证明 | 1.1 |
 | 1.5 | Ownership checker（FV-3）total 化，证"永不用已释放局部、永不双重释放" | `IR/Ownership.lean` | 1.1 |
 | 1.6 | `native_decide`（130 处）→ kernel `decide` 可降级项审计；TCB 文档写明"信任 Lean 编译器" | 收敛可信基 | — |
