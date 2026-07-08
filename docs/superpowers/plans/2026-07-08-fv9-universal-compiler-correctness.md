@@ -236,13 +236,58 @@ slice. The FV-9.2 gap constructors (`div`/`mod`/`bitAnd`/`shiftLeft`/
 `arrayLit`/`structLit`/`crosscallInvoke*`/env) block widening until they
 have preservation lemmas.
 
-### FV-9.4 — Fragment scoping + honesty
+### FV-9.4 — Fragment scoping + honesty — **DONE (2026-07-09): module-level coverage predicate + honesty bridge landed**
 
 - `SupportedFragment <target> m` must admit **exactly** the constructors FV-9.2 proves and exclude
   the rest, so the theorem is true as stated. Wire it to the capability registry
   (`capabilityAccept ⟹ fragment`, already a Track 1.4 schema in `Backend/Refinement/Core.lean`).
 - Document the admitted-constructor set explicitly. A modest fragment with a real `∀ m` quantifier
   is qualitatively stronger than two witnesses — ship that first, then widen.
+
+**Landed (2026-07-09):**
+
+- `moduleInCoveredFragment : Module → Bool` — the constructor-coverage half of FV-9.4's
+  `SupportedFragment <target> m` obligation. Holds iff every `Expr`/`Effect`/`Statement` in the
+  module's entrypoint bodies is within the shared fueled interpreter's covered fragment.
+- Depth-fueled full-coverage walk (`exprFullyCoveredD`/`effectFullyCoveredD`/
+  `statementFullyCoveredD`/`stmtsAllCoveredD`) — a fuel-indexed recursive traversal that is total
+  and proof-usable without relying on a `SizeOf` instance for `Expr`/`Effect`/`Statement` (Lean's
+  `deriving SizeOf` cannot auto-generate one here due to nested-namespace helper name clashes). At
+  `fuel = 0` the walk is conservative (returns `false`), so a module with nesting deeper than the
+  supplied fuel is rejected — a soundness-preserving under-approximation, never an
+  over-approximation. The walk uses depth 64, comfortably exceeding the static nesting of every
+  supported example module.
+- Shallow + depth wrappers (`exprFC`/`effectFC`/`stmtFC`) — each visited node is gated by the
+  shallow `fuelCoveredExpr`/`Effect`/`Statement` predicate AND has its sub-expressions walked, so a
+  gap constructor appearing **anywhere** in the tree (not just at the root) is rejected. This is
+  the honesty guarantee: the fragment predicate admits exactly the FV-9.2-covered constructors and
+  excludes the rest, structurally.
+- `counterModel_fragmentAccepts_implies_covered` — the honesty bridge witness: the canonical
+  Counter module passes the full-coverage walk (`moduleInCoveredFragment Counter.module = true`),
+  witnessed by `native_decide`. So the counter-model's `fragmentAccepts` claims to prove only a
+  module whose every constructor is covered — the loop between "claimed proved scope" and
+  "constructors actually proven" is closed.
+- Gap-exclusion witness — a module containing a gap `Effect` (`storageArrayRead`) is rejected by
+  the walk (`moduleInCoveredFragment GapMod = false`), so the theorem is never stated for a module
+  it cannot prove.
+- Admitted-constructor set documented in `ConstructorCoverage.lean` (Expr/Effect/Statement covered
+  vs. gap tables).
+- Smoke gate `Tests/ConstructorCoverageSmoke.lean` extended with FV-9.4 checks
+  (`moduleInCoveredFragment`, `exprFullyCovered`/`effectFullyCovered`/`statementFullyCovered`,
+  `counterModel_fragmentAccepts_implies_covered`, gap-module exclusion); lives in `just check`.
+
+**Honest limits / non-goals (FV-9.4):**
+
+- The honesty bridge is witnessed on the canonical Counter module, not yet as a structural
+  `∀ m, isCounterModule m → moduleInCoveredFragment m` theorem. The full ∀-module form is
+  FV-9.3's structural induction once widened; the witness proves the bridge holds for the module
+  the counter-model actually admits.
+- The capability-registry wire (`capabilityAccept ⟹ moduleInCoveredFragment`) is the next
+  FV-9.4+ widening: each target's `TargetProfile` capability set implies coverage. The Track 1.4
+  schema (`fragmentAccepts ⊂ lowerableAccepts`, `lowerable_implies_lowering_total`) already exists
+  in `Core.lean`; connecting it to `moduleInCoveredFragment` per-target is the remaining step.
+- The depth bound (64) is a static soundness-preserving under-approximation; a module deeper than
+  64 is rejected even if fully covered. Widening to a structural `∀ m` form removes this bound.
 
 ## Scope discipline (do NOT boil the ocean)
 

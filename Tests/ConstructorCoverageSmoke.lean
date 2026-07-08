@@ -64,6 +64,28 @@ theorem crosscallInvoke_is_gap :
     exprStatus (.crosscallInvoke (.local "t") (.local "m") #[]) = .gap := by
   decide
 
+-- 8. FV-9.4 module-level fragment scoping: the module coverage predicate and
+-- the honesty bridge exist.
+#check (moduleInCoveredFragment : Module → Bool)
+#check (exprFullyCovered : Expr → Bool)
+#check (effectFullyCovered : Effect → Bool)
+#check (statementFullyCovered : Statement → Bool)
+
+-- 9. The counter-model's fragment is covered: the canonical Counter module
+-- passes the depth-fueled full-coverage walk, so every constructor it uses is
+-- within FV-9.2's covered set. This is the honesty bridge witness — the module
+-- the counter-model claims to prove only uses covered constructors.
+#check counterModel_fragmentAccepts_implies_covered
+
+-- 10. A module containing a gap constructor is rejected by the coverage walk
+-- (honesty: the fragment predicate excludes modules it cannot prove).
+theorem gap_module_not_covered :
+    moduleInCoveredFragment
+      ({ name := "GapMod", structs := #[], state := #[],
+         entrypoints := #[{ name := "bad", body := #[.effect (.storageArrayRead "a" (.literal (.u64 0)))] }] }
+        : Module) = false := by
+  native_decide
+
 def main : IO UInt32 := do
-  IO.println "constructor-coverage-smoke: FV-9.2 coverage table + IR-side preservation lemmas + counter-model irStateRel preservation checked"
+  IO.println "constructor-coverage-smoke: FV-9.2 coverage table + IR-side preservation lemmas + counter-model irStateRel preservation + FV-9.4 module-level fragment scoping + honesty bridge checked"
   return 0
