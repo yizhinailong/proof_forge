@@ -143,6 +143,219 @@ theorem nearHost_hook_ok
   runHostCallWith_ok (hostArity .near) runNearHostCall name state argsState
     finalState argCount args harity hsplit hrun
 
+theorem runHostCall_near_input_stack_ok
+    (state : State) (registerId : Nat)
+    (hbridge : state.host.bridge = .near) :
+    runHostCall "input" (stackPush state registerId) =
+      .ok { state with
+        host := { state.host with
+          registers := writeRegister state.host.registers registerId state.host.input } } := by
+  rw [runHostCall_near_eq_hook (stackPush state registerId) "input"
+    (by simp [stackPush, hbridge])]
+  exact nearHost_hook_ok
+    (name := "input")
+    (state := stackPush state registerId)
+    (argsState := state)
+    (finalState := { state with
+      host := { state.host with
+        registers := writeRegister state.host.registers registerId state.host.input } })
+    (argCount := 1)
+    (args := #[registerId])
+    rfl
+    (splitStackArgs_stackPush1 state registerId)
+    (nearHost_input_ok state registerId)
+
+theorem runHostCall_near_storage_read_hit_stack_ok
+    (state : State) (keyLen keyPtr registerId : Nat) (value : Bytes)
+    (hbridge : state.host.bridge = .near)
+    (hlookup :
+      lookupStorage? state.host.storage (readBytes state.memory keyPtr keyLen) = some value) :
+    runHostCall "storage_read"
+        (stackPush (stackPush (stackPush state keyLen) keyPtr) registerId) =
+      .ok (stackPush
+        { state with
+          host := { state.host with
+            registers := writeRegister state.host.registers registerId value } }
+        1) := by
+  rw [runHostCall_near_eq_hook
+    (stackPush (stackPush (stackPush state keyLen) keyPtr) registerId)
+    "storage_read" (by simp [stackPush, hbridge])]
+  exact nearHost_hook_ok
+    (name := "storage_read")
+    (state := stackPush (stackPush (stackPush state keyLen) keyPtr) registerId)
+    (argsState := state)
+    (finalState := stackPush
+      { state with
+        host := { state.host with
+          registers := writeRegister state.host.registers registerId value } }
+      1)
+    (argCount := 3)
+    (args := #[keyLen, keyPtr, registerId])
+    rfl
+    (splitStackArgs_stackPush3 state keyLen keyPtr registerId)
+    (nearHost_storage_read_hit_ok state keyLen keyPtr registerId value hlookup)
+
+theorem runHostCall_near_storage_read_miss_stack_ok
+    (state : State) (keyLen keyPtr registerId : Nat)
+    (hbridge : state.host.bridge = .near)
+    (hlookup :
+      lookupStorage? state.host.storage (readBytes state.memory keyPtr keyLen) = none) :
+    runHostCall "storage_read"
+        (stackPush (stackPush (stackPush state keyLen) keyPtr) registerId) =
+      .ok (stackPush state 0) := by
+  rw [runHostCall_near_eq_hook
+    (stackPush (stackPush (stackPush state keyLen) keyPtr) registerId)
+    "storage_read" (by simp [stackPush, hbridge])]
+  exact nearHost_hook_ok
+    (name := "storage_read")
+    (state := stackPush (stackPush (stackPush state keyLen) keyPtr) registerId)
+    (argsState := state)
+    (finalState := stackPush state 0)
+    (argCount := 3)
+    (args := #[keyLen, keyPtr, registerId])
+    rfl
+    (splitStackArgs_stackPush3 state keyLen keyPtr registerId)
+    (nearHost_storage_read_miss_ok state keyLen keyPtr registerId hlookup)
+
+theorem runHostCall_near_storage_write_fresh_stack_ok
+    (state : State) (keyLen keyPtr valueLen valuePtr registerId : Nat)
+    (hbridge : state.host.bridge = .near)
+    (hlookup :
+      lookupStorage? state.host.storage (readBytes state.memory keyPtr keyLen) = none) :
+    runHostCall "storage_write"
+        (stackPush
+          (stackPush
+            (stackPush
+              (stackPush
+                (stackPush state keyLen) keyPtr) valueLen) valuePtr) registerId) =
+      .ok (stackPush
+        { state with
+          host := { state.host with
+            storage :=
+              writeStorage state.host.storage
+                (readBytes state.memory keyPtr keyLen)
+                (readBytes state.memory valuePtr valueLen),
+            registers := state.host.registers } }
+        0) := by
+  rw [runHostCall_near_eq_hook
+    (stackPush
+      (stackPush
+        (stackPush
+          (stackPush
+            (stackPush state keyLen) keyPtr) valueLen) valuePtr) registerId)
+    "storage_write" (by simp [stackPush, hbridge])]
+  exact nearHost_hook_ok
+    (name := "storage_write")
+    (state := stackPush
+      (stackPush
+        (stackPush
+          (stackPush
+            (stackPush state keyLen) keyPtr) valueLen) valuePtr) registerId)
+    (argsState := state)
+    (finalState := stackPush
+      { state with
+        host := { state.host with
+          storage :=
+            writeStorage state.host.storage
+              (readBytes state.memory keyPtr keyLen)
+              (readBytes state.memory valuePtr valueLen),
+          registers := state.host.registers } }
+      0)
+    (argCount := 5)
+    (args := #[keyLen, keyPtr, valueLen, valuePtr, registerId])
+    rfl
+    (splitStackArgs_stackPush5 state keyLen keyPtr valueLen valuePtr registerId)
+    (nearHost_storage_write_fresh_ok state keyLen keyPtr valueLen valuePtr
+      registerId hlookup)
+
+theorem runHostCall_near_storage_write_replace_stack_ok
+    (state : State) (keyLen keyPtr valueLen valuePtr registerId : Nat)
+    (old : Bytes)
+    (hbridge : state.host.bridge = .near)
+    (hlookup :
+      lookupStorage? state.host.storage (readBytes state.memory keyPtr keyLen) = some old) :
+    runHostCall "storage_write"
+        (stackPush
+          (stackPush
+            (stackPush
+              (stackPush
+                (stackPush state keyLen) keyPtr) valueLen) valuePtr) registerId) =
+      .ok (stackPush
+        { state with
+          host := { state.host with
+            storage :=
+              writeStorage state.host.storage
+                (readBytes state.memory keyPtr keyLen)
+                (readBytes state.memory valuePtr valueLen),
+            registers := writeRegister state.host.registers registerId old } }
+        1) := by
+  rw [runHostCall_near_eq_hook
+    (stackPush
+      (stackPush
+        (stackPush
+          (stackPush
+            (stackPush state keyLen) keyPtr) valueLen) valuePtr) registerId)
+    "storage_write" (by simp [stackPush, hbridge])]
+  exact nearHost_hook_ok
+    (name := "storage_write")
+    (state := stackPush
+      (stackPush
+        (stackPush
+          (stackPush
+            (stackPush state keyLen) keyPtr) valueLen) valuePtr) registerId)
+    (argsState := state)
+    (finalState := stackPush
+      { state with
+        host := { state.host with
+          storage :=
+            writeStorage state.host.storage
+              (readBytes state.memory keyPtr keyLen)
+              (readBytes state.memory valuePtr valueLen),
+          registers := writeRegister state.host.registers registerId old } }
+      1)
+    (argCount := 5)
+    (args := #[keyLen, keyPtr, valueLen, valuePtr, registerId])
+    rfl
+    (splitStackArgs_stackPush5 state keyLen keyPtr valueLen valuePtr registerId)
+    (nearHost_storage_write_replace_ok state keyLen keyPtr valueLen valuePtr
+      registerId old hlookup)
+
+theorem runHostCall_near_value_return_stack_ok
+    (state : State) (len ptr : Nat)
+    (hbridge : state.host.bridge = .near) :
+    runHostCall "value_return" (stackPush (stackPush state len) ptr) =
+      .ok { state with
+        host := { state.host with returnValue := readBytes state.memory ptr len } } := by
+  rw [runHostCall_near_eq_hook (stackPush (stackPush state len) ptr)
+    "value_return" (by simp [stackPush, hbridge])]
+  exact nearHost_hook_ok
+    (name := "value_return")
+    (state := stackPush (stackPush state len) ptr)
+    (argsState := state)
+    (finalState := { state with
+      host := { state.host with returnValue := readBytes state.memory ptr len } })
+    (argCount := 2)
+    (args := #[len, ptr])
+    rfl
+    (splitStackArgs_stackPush2 state len ptr)
+    (nearHost_value_return_ok state len ptr)
+
+theorem runHostCall_near_attached_deposit_stack_ok
+    (state : State) (hbridge : state.host.bridge = .near) :
+    runHostCall "attached_deposit" state =
+      .ok (stackPush state state.host.attachedDeposit) := by
+  rw [runHostCall_near_eq_hook state "attached_deposit" hbridge]
+  exact nearHost_hook_ok
+    (name := "attached_deposit")
+    (state := state)
+    (argsState := state)
+    (finalState := stackPush state state.host.attachedDeposit)
+    (argCount := 0)
+    (args := #[])
+    rfl
+    (splitStackArgs_zero state)
+    (nearHost_attached_deposit_ok state)
+
 theorem nearHost_storage_read_after_write_same
     (storage : NearHost.Storage) (key value : Bytes) :
     lookupStorage? (writeStorage storage key value) key = some value :=

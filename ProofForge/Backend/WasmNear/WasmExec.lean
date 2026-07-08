@@ -51,6 +51,39 @@ theorem stackPop_stackPush (state : State) (value : Nat) :
     stackPop (stackPush state value) = .ok (value, state) := by
   simp [stackPop, stackPush]
 
+theorem splitStackArgs_zero (state : State) :
+    splitStackArgs state 0 = .ok (#[], state) := by
+  simp [splitStackArgs]
+
+theorem splitStackArgs_stackPush1 (state : State) (a : Nat) :
+    splitStackArgs (stackPush state a) 1 = .ok (#[a], state) := by
+  simp [splitStackArgs, stackPush, Array.extract_push]
+
+theorem splitStackArgs_stackPush2 (state : State) (a b : Nat) :
+    splitStackArgs (stackPush (stackPush state a) b) 2 = .ok (#[a, b], state) := by
+  have hle1 : ¬ state.valueStack.size + 1 ≤ state.valueStack.size := by omega
+  have hlt : ¬ state.valueStack.size + 1 + 1 < 2 := by omega
+  simp [splitStackArgs, stackPush, Array.extract_push, hle1, hlt]
+
+theorem splitStackArgs_stackPush3 (state : State) (a b c : Nat) :
+    splitStackArgs (stackPush (stackPush (stackPush state a) b) c) 3 =
+      .ok (#[a, b, c], state) := by
+  have hle1 : ¬ state.valueStack.size + 1 ≤ state.valueStack.size := by omega
+  have hlepos2 : state.valueStack.size ≤ state.valueStack.size + 1 + 1 := by omega
+  have hlt : ¬ state.valueStack.size + 1 + 1 + 1 < 3 := by omega
+  simp [splitStackArgs, stackPush, Array.extract_push, hle1, hlepos2, hlt]
+
+theorem splitStackArgs_stackPush5 (state : State) (a b c d e : Nat) :
+    splitStackArgs
+        (stackPush (stackPush (stackPush (stackPush (stackPush state a) b) c) d) e) 5 =
+      .ok (#[a, b, c, d, e], state) := by
+  have hle1 : ¬ state.valueStack.size + 1 ≤ state.valueStack.size := by omega
+  have hlepos2 : state.valueStack.size ≤ state.valueStack.size + 1 + 1 := by omega
+  have hlepos3 : state.valueStack.size ≤ state.valueStack.size + 1 + 1 + 1 := by omega
+  have hlepos4 : state.valueStack.size ≤ state.valueStack.size + 1 + 1 + 1 + 1 := by omega
+  have hlt : ¬ state.valueStack.size + 1 + 1 + 1 + 1 + 1 < 5 := by omega
+  simp [splitStackArgs, stackPush, Array.extract_push, hle1, hlepos2, hlepos3, hlepos4, hlt]
+
 theorem evalPlain_unary_stackPush
     (state : State) (name : String) (value result : Nat)
     (happly : applyUnaryPlain name value = some result) :
