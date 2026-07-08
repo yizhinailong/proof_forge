@@ -36,6 +36,30 @@ theorem Memory.read_write (memory : Memory) (addr value : Nat) :
   unfold Memory.read Memory.write
   simp [Memory.find?_write memory addr value]
 
+theorem Memory.read_write_of_ne (memory : Memory) {readAddr writeAddr value : Nat}
+    (hne : readAddr ≠ writeAddr) :
+    (memory.write writeAddr value).read readAddr = memory.read readAddr := by
+  have hwrite : writeAddr ≠ readAddr := by
+    intro h
+    exact hne h.symm
+  cases memory with
+  | mk entries =>
+      induction entries with
+      | nil =>
+          unfold Memory.read Memory.write
+          simp [hwrite]
+      | cons entry entries ih =>
+          cases entry with
+          | mk addr stored =>
+              unfold Memory.read Memory.write at *
+              by_cases haddrRead : addr = readAddr
+              · subst addr
+                simp [hne]
+              · by_cases haddrWrite : addr = writeAddr
+                · subst addr
+                  simpa [Memory.read, Memory.write, hwrite] using ih
+                · simpa [Memory.read, Memory.write, haddrRead, haddrWrite, hwrite] using ih
+
 def registerCount : Nat := 11
 def stackBase : Nat := 1000000
 def inputBase : Nat := 0
@@ -48,6 +72,22 @@ def regGet (regs : Array Nat) (reg : Reg) : Nat :=
 
 def regSet (regs : Array Nat) (reg : Reg) (value : Nat) : Array Nat :=
   regs.set! reg.idx value
+
+theorem regSet_size (regs : Array Nat) (reg : Reg) (value : Nat) :
+    (regSet regs reg value).size = regs.size := by
+  unfold regSet
+  simp [Array.set!]
+
+theorem regGet_regSet_same_of_lt (regs : Array Nat) (reg : Reg) (value : Nat)
+    (hidx : reg.idx < regs.size) :
+    regGet (regSet regs reg value) reg = value := by
+  unfold regGet regSet
+  simp [hidx]
+
+theorem regGet_regSet_of_ne (regs : Array Nat) {src dst : Reg} (value : Nat)
+    (hne : dst ≠ src) :
+    regGet (regSet regs src value) dst = regGet regs dst := by
+  cases dst <;> cases src <;> simp [regGet, regSet, Reg.idx] at hne ⊢
 
 structure SbpfProgram where
   instructions : Array Inst
@@ -279,6 +319,72 @@ def execGetClockSysvar (state : SbpfState) (ptr : Nat) : SbpfState :=
 
 def execLog64 (state : SbpfState) : SbpfState :=
   nextPc (setReg state .r0 0)
+
+theorem regGet_nextPc (state : SbpfState) (reg : Reg) :
+    regGet (nextPc state).regs reg = regGet state.regs reg := rfl
+
+theorem regGet_setReg_of_ne (state : SbpfState) {src dst : Reg} (value : Nat)
+    (hne : dst ≠ src) :
+    regGet (setReg state src value).regs dst = regGet state.regs dst :=
+  regGet_regSet_of_ne state.regs value hne
+
+theorem regs_size_setReg (state : SbpfState) (reg : Reg) (value : Nat) :
+    (setReg state reg value).regs.size = state.regs.size :=
+  regSet_size state.regs reg value
+
+theorem regs_size_nextPc (state : SbpfState) :
+    (nextPc state).regs.size = state.regs.size := rfl
+
+theorem regs_size_execStore (state : SbpfState) (addr value : Nat) :
+    (execStore state addr value).regs.size = state.regs.size := rfl
+
+theorem regs_size_execLoad (state : SbpfState) (dst : Reg) (addr value : Nat) :
+    (execLoad state dst addr value).regs.size = state.regs.size := by
+  simp [execLoad, regs_size_nextPc, regs_size_setReg]
+
+theorem regs_size_execMov64 (state : SbpfState) (dst : Reg) (value : Nat) :
+    (execMov64 state dst value).regs.size = state.regs.size := by
+  simp [execMov64, regs_size_nextPc, regs_size_setReg]
+
+theorem regGet_setReg_same_of_lt (state : SbpfState) (reg : Reg) (value : Nat)
+    (hidx : reg.idx < state.regs.size) :
+    regGet (setReg state reg value).regs reg = value :=
+  regGet_regSet_same_of_lt state.regs reg value hidx
+
+theorem regGet_execLoad_same_of_lt (state : SbpfState) (dst : Reg) (addr value : Nat)
+    (hidx : dst.idx < state.regs.size) :
+    regGet (execLoad state dst addr value).regs dst = value := by
+  simp [execLoad, regGet_nextPc, regGet_setReg_same_of_lt, hidx]
+
+theorem regGet_execMov64_same_of_lt (state : SbpfState) (dst : Reg) (value : Nat)
+    (hidx : dst.idx < state.regs.size) :
+    regGet (execMov64 state dst value).regs dst = value := by
+  simp [execMov64, regGet_nextPc, regGet_setReg_same_of_lt, hidx]
+
+theorem regGet_execStore (state : SbpfState) (addr value : Nat) (reg : Reg) :
+    regGet (execStore state addr value).regs reg = regGet state.regs reg := rfl
+
+theorem regGet_execLoad_of_ne (state : SbpfState) {src dst : Reg} (addr value : Nat)
+    (hne : dst ≠ src) :
+    regGet (execLoad state src addr value).regs dst = regGet state.regs dst := by
+  simp [execLoad, regGet_nextPc, regGet_setReg_of_ne, hne]
+
+theorem regGet_execMov64_of_ne (state : SbpfState) {src dst : Reg} (value : Nat)
+    (hne : dst ≠ src) :
+    regGet (execMov64 state src value).regs dst = regGet state.regs dst := by
+  simp [execMov64, regGet_nextPc, regGet_setReg_of_ne, hne]
+
+theorem memory_nextPc (state : SbpfState) :
+    (nextPc state).memory = state.memory := rfl
+
+theorem memory_setReg (state : SbpfState) (reg : Reg) (value : Nat) :
+    (setReg state reg value).memory = state.memory := rfl
+
+theorem memory_execLoad (state : SbpfState) (dst : Reg) (addr value : Nat) :
+    (execLoad state dst addr value).memory = state.memory := rfl
+
+theorem memory_execMov64 (state : SbpfState) (dst : Reg) (value : Nat) :
+    (execMov64 state dst value).memory = state.memory := rfl
 
 def readLoad (program : SbpfProgram) (state : SbpfState) (inst : Inst) :
     Except String SbpfState :=

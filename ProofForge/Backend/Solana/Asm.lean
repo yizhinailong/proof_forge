@@ -19,7 +19,7 @@ namespace ProofForge.Backend.Solana.Asm
 
 inductive Reg where
   | r0 | r1 | r2 | r3 | r4 | r5 | r6 | r7 | r8 | r9 | r10
-  deriving BEq, Repr, Inhabited
+  deriving BEq, DecidableEq, Repr, Inhabited
 
 def Reg.idx : Reg → Nat
   | .r0 => 0  | .r1 => 1  | .r2 => 2  | .r3 => 3  | .r4 => 4
