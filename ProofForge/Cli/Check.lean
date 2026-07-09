@@ -199,9 +199,32 @@ def checkFixtureCapabilities (profile : ProofForge.Target.TargetProfile) (fixtur
         validation := pushValidation report.validation "capabilities" "failed"
       }
 
+/-- Fixture-only Spike/Research targets: source check must fail closed (PF-P0-01/02). -/
+def isFixtureOnlySourceTarget (targetId : String) : Bool :=
+  targetId == "wasm-cosmwasm" ||
+  targetId == "wasm-cloudflare-workers" ||
+  targetId == "psy-dpn" ||
+  targetId == "aleo-leo" ||
+  targetId == "move-aptos" ||
+  targetId == "move-sui"
+
 unsafe def checkContractSource (profile : ProofForge.Target.TargetProfile) (input : FilePath)
     (root? : Option FilePath) (moduleName? : Option Name) (report : Report) : IO Report := do
   let mut next := report
+  -- Decouple registry membership from source-command support (PF-P0-02).
+  if isFixtureOnlySourceTarget profile.id then
+    return {
+      next with
+      diagnostics := pushDiagnostic next.diagnostics {
+        severity := .error
+        code := "input.unsupported"
+        message :=
+          s!"proof-forge check --target {profile.id}: source input is not supported; \
+use `proof-forge emit --target {profile.id} --fixture <id>` for the Counter spike surface"
+        file? := some input.toString
+      }
+      validation := pushValidation next.validation "contractSource" "failed"
+    }
   let spec ←
     try
       let spec ← ProofForge.Cli.ContractLoader.loadSpec input root? moduleName?
