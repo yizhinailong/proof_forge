@@ -92,4 +92,64 @@ def registerAccountId (accountId : String) : ModuleM ProofForge.IR.Expr := do
   let idx ← ProofForge.Contract.Builder.ensureCrosscallString accountId
   pure (peerHandle idx)
 
+/-- EIP-2612 `permit` on an external token peer (method id `permit` in pool).
+Does **not** implement token-side nonces (TokenSpec `permit` still rejects for
+*being* the ERC-20). Scalar-bounded: v/r/s as portable words. -/
+def externalTokenPermit (token : ExternalToken)
+    (owner spender value deadline v r s : ProofForge.IR.Expr) : ModuleM ProofForge.IR.Expr := do
+  let mIdx ← ProofForge.Contract.Builder.ensureCrosscallString methodPermit
+  pure (remoteCall token.peer (peerHandle mIdx) #[owner, spender, value, deadline, v, r, s])
+
+/-! ## External ERC-4626 vault peer -/
+
+structure ExternalVault where
+  peer : ProofForge.IR.Expr
+  depositMethod : ProofForge.IR.Expr
+  withdrawMethod : ProofForge.IR.Expr
+  convertToSharesMethod : ProofForge.IR.Expr
+  convertToAssetsMethod : ProofForge.IR.Expr
+  totalAssetsMethod : ProofForge.IR.Expr
+  assetMethod : ProofForge.IR.Expr
+  deriving Repr
+
+def declareExternalVault (peerId : String) : ModuleM ExternalVault := do
+  let tIdx ← ProofForge.Contract.Builder.ensureCrosscallString peerId
+  let mDep ← ProofForge.Contract.Builder.ensureCrosscallString methodVaultDeposit
+  let mWd ← ProofForge.Contract.Builder.ensureCrosscallString methodVaultWithdraw
+  let mCts ← ProofForge.Contract.Builder.ensureCrosscallString methodVaultConvertToShares
+  let mCta ← ProofForge.Contract.Builder.ensureCrosscallString methodVaultConvertToAssets
+  let mTa ← ProofForge.Contract.Builder.ensureCrosscallString methodVaultTotalAssets
+  let mAsset ← ProofForge.Contract.Builder.ensureCrosscallString methodVaultAsset
+  pure {
+    peer := peerHandle tIdx
+    depositMethod := peerHandle mDep
+    withdrawMethod := peerHandle mWd
+    convertToSharesMethod := peerHandle mCts
+    convertToAssetsMethod := peerHandle mCta
+    totalAssetsMethod := peerHandle mTa
+    assetMethod := peerHandle mAsset
+  }
+
+def externalVaultDeposit (v : ExternalVault) (assets receiver : ProofForge.IR.Expr) :
+    ProofForge.IR.Expr :=
+  remoteCall v.peer v.depositMethod #[assets, receiver]
+
+def externalVaultWithdraw (v : ExternalVault) (assets receiver owner : ProofForge.IR.Expr) :
+    ProofForge.IR.Expr :=
+  remoteCall v.peer v.withdrawMethod #[assets, receiver, owner]
+
+def externalVaultConvertToShares (v : ExternalVault) (assets : ProofForge.IR.Expr) :
+    ProofForge.IR.Expr :=
+  remoteCall v.peer v.convertToSharesMethod #[assets]
+
+def externalVaultConvertToAssets (v : ExternalVault) (shares : ProofForge.IR.Expr) :
+    ProofForge.IR.Expr :=
+  remoteCall v.peer v.convertToAssetsMethod #[shares]
+
+def externalVaultTotalAssets (v : ExternalVault) : ProofForge.IR.Expr :=
+  remoteCall v.peer v.totalAssetsMethod #[]
+
+def externalVaultAsset (v : ExternalVault) : ProofForge.IR.Expr :=
+  remoteCall v.peer v.assetMethod #[]
+
 end ProofForge.Contract.Protocol

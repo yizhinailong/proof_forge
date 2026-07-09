@@ -92,6 +92,8 @@ Facades: `ProofForge.Protocols.Evm.IERC20` · `IERC721`
 | Client | Meaning | Status |
 |--------|---------|--------|
 | IERC20 transfer / approve / transferFrom / balanceOf / totalSupply | CALL + 4-byte selector + ABI words | ✅ thin client |
+| IERC20Permit (EIP-2612) | `permit` / `nonces` / `DOMAIN_SEPARATOR` | ✅ external call client (not TokenSpec body) |
+| IERC4626 vault | deposit / withdraw / convert / totalAssets | ✅ external call client (not Layer C vault) |
 | IERC20 client fixture | `pushTokens` / `readBalance` / `readSupply` | ✅ `Examples/Backend/Evm/Contracts/Ierc20Client` |
 | IERC721 ownerOf / transferFrom / safeTransferFrom / balanceOf / … | CALL + selectors | ✅ thin client |
 | IERC721 client fixture | `moveToken` / `safeMoveToken` / `readOwner` | ✅ `Examples/Backend/Evm/Contracts/Ierc721Client` |

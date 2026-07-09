@@ -3,12 +3,15 @@ Layer B Protocols smoke: catalog + EVM IERC20/721 examples + NEAR FT peer
 example + Solana facade inventory.
 -/
 import ProofForge.Protocols
+import ProofForge.Target.ProtocolMaterialize
 import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.Backend.Solana.Extension.Cpi
 import ProofForge.Contract.Builder
 import ProofForge.Contract.Surface
 import Examples.Backend.Evm.Contracts.Ierc20Client
+import Examples.Backend.Evm.Contracts.Ierc20PermitClient
+import Examples.Backend.Evm.Contracts.Ierc4626Client
 import Examples.Backend.Evm.Contracts.Ierc721Client
 import Examples.Backend.Evm.Contracts.MulticallClient
 import Examples.Backend.Evm.Contracts.Permit2Client
@@ -56,6 +59,20 @@ def main : IO UInt32 := do
     "permit2 catalog"
   require (ProofForge.Protocols.Evm.Permit2.selectorTransferFrom == 0x36c78516)
     "permit2 transferFrom selector"
+  require (ProofForge.Protocols.Evm.IERC4626.catalogId == "protocols.evm.ierc4626")
+    "ierc4626 catalog"
+  require (ProofForge.Protocols.Evm.IERC4626.selectorDeposit == 0x6e553f65)
+    "4626 deposit selector"
+  require (ProofForge.Protocols.Evm.IERC4626.selectorConvertToShares == 0xc6e6f592)
+    "4626 convertToShares"
+  require (ProofForge.Protocols.Evm.IERC20Permit.catalogId == "protocols.evm.ierc20_permit")
+    "ierc20 permit catalog"
+  require (ProofForge.Protocols.Evm.IERC20Permit.selectorPermit == 0xd505accf)
+    "eip-2612 permit selector"
+  require (ProofForge.Target.ProtocolMaterialize.evmSelector? "deposit" == some 0x6e553f65)
+    "ProtocolMaterialize deposit"
+  require (ProofForge.Target.ProtocolMaterialize.evmSelector? "permit" == some 0xd505accf)
+    "ProtocolMaterialize permit"
   require (ProofForge.Protocols.Near.FungibleToken.methodFtTransfer == "ft_transfer")
     "ft_transfer method name"
   require (ProofForge.Protocols.Near.FungibleToken.methodStorageDeposit == "storage_deposit")
@@ -85,6 +102,10 @@ def main : IO UInt32 := do
   let ierc20 := Examples.Backend.Evm.Contracts.Ierc20Client.module
   require (ierc20.entrypoints.any (·.name == "pushTokens")) "Ierc20Client has pushTokens"
   require (ierc20.nearCrosscallStrings.any (· == "token.peer")) "Ierc20Client registers token.peer"
+  let ierc4626 := Examples.Backend.Evm.Contracts.Ierc4626Client.module
+  require (ierc4626.nearCrosscallStrings.any (· == "vault.peer")) "Ierc4626 vault.peer"
+  let iercPermit := Examples.Backend.Evm.Contracts.Ierc20PermitClient.module
+  require (iercPermit.nearCrosscallStrings.any (· == "permit.token")) "permit.token peer"
   match ProofForge.Backend.Evm.IR.renderModule ierc20 with
   | .error e => throw (IO.userError s!"EVM Ierc20Client render failed: {e.message}")
   | .ok yul =>

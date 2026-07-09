@@ -43,6 +43,7 @@ abbrev ModuleM := ProofForge.Contract.Surface.ModuleM
 abbrev EntryM := ProofForge.Contract.Surface.EntryM
 abbrev ContractSpec := ProofForge.Contract.ContractSpec
 abbrev ExternalToken := ProofForge.Contract.Protocol.ExternalToken
+abbrev ExternalVault := ProofForge.Contract.Protocol.ExternalVault
 abbrev RemoteRef := ProofForge.Contract.Surface.RemoteRef
 
 def checkpointId : ProofForge.IR.Expr :=
@@ -171,6 +172,29 @@ def externalTokenTotalSupply (token : ExternalToken) : ProofForge.IR.Expr :=
 def registerAccountId (accountId : String) : ModuleM ProofForge.IR.Expr :=
   ProofForge.Contract.Protocol.registerAccountId accountId
 
+def declareExternalVault (peerId : String) : ModuleM ExternalVault :=
+  ProofForge.Contract.Protocol.declareExternalVault peerId
+
+def externalVaultDeposit [ToExpr α] [ToExpr β] (vault : ExternalVault) (assets : α) (receiver : β) :
+    ProofForge.IR.Expr :=
+  ProofForge.Contract.Protocol.externalVaultDeposit vault (expr assets) (expr receiver)
+
+def externalVaultWithdraw [ToExpr α] [ToExpr β] [ToExpr γ]
+    (vault : ExternalVault) (assets : α) (receiver : β) (owner : γ) : ProofForge.IR.Expr :=
+  ProofForge.Contract.Protocol.externalVaultWithdraw vault (expr assets) (expr receiver) (expr owner)
+
+def externalVaultConvertToShares [ToExpr α] (vault : ExternalVault) (assets : α) : ProofForge.IR.Expr :=
+  ProofForge.Contract.Protocol.externalVaultConvertToShares vault (expr assets)
+
+def externalVaultConvertToAssets [ToExpr α] (vault : ExternalVault) (shares : α) : ProofForge.IR.Expr :=
+  ProofForge.Contract.Protocol.externalVaultConvertToAssets vault (expr shares)
+
+def externalVaultTotalAssets (vault : ExternalVault) : ProofForge.IR.Expr :=
+  ProofForge.Contract.Protocol.externalVaultTotalAssets vault
+
+def externalVaultAsset (vault : ExternalVault) : ProofForge.IR.Expr :=
+  ProofForge.Contract.Protocol.externalVaultAsset vault
+
 def remoteCallRef (remote : RemoteRef) (args : Array ProofForge.IR.Expr) : ProofForge.IR.Expr :=
   ProofForge.Contract.Surface.remoteCallRef remote args
 
@@ -225,6 +249,8 @@ scoped syntax "lean_invariant " ident " := " str : contractItem
 scoped syntax "remote " ident str str ";" : contractItem
 /-- Product protocol intent: external fungible token peer (no Protocols import). -/
 scoped syntax "external_token " ident str ";" : contractItem
+/-- Product protocol intent: external ERC-4626 vault peer. -/
+scoped syntax "external_vault " ident str ";" : contractItem
 scoped syntax "do " term ";" : contractItem
 scoped syntax "entry " ident " do" ppLine entryStmt* : contractItem
 scoped syntax "entry " ident " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
@@ -692,6 +718,14 @@ private def lowerItem (item : TSyntax `contractItem) : MacroM LoweredItem := do
         binder := fun body =>
           `(bind (ProofForge.Contract.Protocol.declareExternalToken $peerLit)
               (fun ($name : ProofForge.Contract.Protocol.ExternalToken) => $body))
+      }
+  | `(contractItem| external_vault $name:ident $peer:str;) => do
+      let peerS ← strLitValue peer
+      let peerLit : TSyntax `term := quote peerS
+      return {
+        binder := fun body =>
+          `(bind (ProofForge.Contract.Protocol.declareExternalVault $peerLit)
+              (fun ($name : ProofForge.Contract.Protocol.ExternalVault) => $body))
       }
   | `(contractItem| do $action:term;) =>
       return { action? := some action }

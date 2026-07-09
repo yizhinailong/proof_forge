@@ -167,8 +167,13 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 | δ.2b | BinaryLayout → static CPI stores (revoke/close/ATA) | **done** |
 | δ.3 | Multicall Call[] full Yul object + `just multicall-abi-yul` | **done** |
 | γ.3 | Product external approve path (`set_allowance`) | **done** |
+| δ.2c | BinaryLayout Token-2022 static tags (pause/fee/…) | **done** |
+| ε.1 | IERC4626 external client + `external_vault` product | **done** |
+| ε.2 | EIP-2612 external `permit` client (call peer; not TokenSpec body) | **done** |
 
-**Next:** portable IR runtime Call[] (dynamic) if product needs; Wave ε ERC-4626 / EIP-2612 only when TokenSpec product story requires them.
+**Honesty still open:** TokenSpec `permit` / ERC-4626 **body** generation (Layer C)
+remains reject/missing — only *calling* deployed peers is done. Dynamic IR Call[]
+auto-lower remains deferred.
 
 ---
 

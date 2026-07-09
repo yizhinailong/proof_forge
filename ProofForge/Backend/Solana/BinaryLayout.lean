@@ -91,11 +91,36 @@ def splCloseAccount : Array Field := #[.u8 9]
 def associatedTokenCreate : Array Field := #[.u8 0]
 def associatedTokenCreateIdempotent : Array Field := #[.u8 1]
 
+/-! ## Token-2022 static tags (no runtime amount) -/
+
+/-- Token-2022 TransferFee extension: `u8=26` ‖ `u8 sub`. -/
+def token2022TransferFeeTag (sub : Nat) : Array Field :=
+  #[.u8 26, .u8 sub]
+
+/-- Token-2022 Pausable: `u8=44` ‖ `u8 sub` (0=init config head uses pubkey too). -/
+def token2022PausableTag (sub : Nat) : Array Field :=
+  #[.u8 44, .u8 sub]
+
+def token2022Pause : Array Field := token2022PausableTag 1
+def token2022Resume : Array Field := token2022PausableTag 2
+
+/-- `initialize_non_transferable_mint`: single u8 instruction tag (SPL = 32). -/
+def token2022InitializeNonTransferableMint : Array Field := #[.u8 32]
+
+/-- `initialize_immutable_owner`: single u8 (SPL = 22). -/
+def token2022InitializeImmutableOwner : Array Field := #[.u8 22]
+
 /-- Expected ix data lengths for CPI lowerer honesty checks. -/
 def splTransferCheckedDataLen : Nat := packSize (splTransferChecked 0 0)  -- 10
 def splTransferDataLen : Nat := packSize (splTransfer 0)  -- 9
 def systemTransferDataLen : Nat := packSize (systemTransfer 0)  -- 12
 def splRevokeDataLen : Nat := packSize splRevoke
 def splCloseAccountDataLen : Nat := packSize splCloseAccount
+def token2022PausableTagDataLen : Nat := packSize token2022Pause  -- 2
+def token2022TransferFeeTagDataLen : Nat := packSize (token2022TransferFeeTag 0)  -- 2
+def token2022InitializeNonTransferableMintDataLen : Nat :=
+  packSize token2022InitializeNonTransferableMint
+def token2022InitializeImmutableOwnerDataLen : Nat :=
+  packSize token2022InitializeImmutableOwner
 
 end ProofForge.Backend.Solana.BinaryLayout

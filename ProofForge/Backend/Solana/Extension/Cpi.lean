@@ -796,13 +796,9 @@ def lowerToken2022TransferCheckedWithFeeData
   lowerCpiU64Field valueBindings cpi "solana.cpi.fee_source" "fee" 11
 
 def lowerToken2022TransferFeeTagData (layoutName : String) (subTag : Nat) : Array AstNode :=
-  #[
-    .comment s!"solana.cpi.data {layoutName}: u8 instruction=26, u8 transfer_fee_instruction={subTag}"
-  ] ++
-  stackPtr .r8 cpiInstructionDataOffset ++ #[
-    storeImm .stb .r8 0 26,
-    storeImm .stb .r8 1 subTag
-  ]
+  (lowerStaticBinaryLayout
+    s!"{layoutName}: u8 instruction=26, u8 transfer_fee_instruction={subTag}"
+    (token2022TransferFeeTag subTag)).1
 
 def token2022NumTokenAccounts (cpi : CpiInvoke) : Nat :=
   match cpiMetadataValue? cpi "solana.cpi.num_token_accounts" with
@@ -835,12 +831,9 @@ def lowerToken2022SetTransferFeeData
     "solana.cpi.maximum_fee" "maximum_fee" 4
 
 def lowerToken2022InitializeNonTransferableMintData : Array AstNode :=
-  #[
-    .comment "solana.cpi.data token-2022.initialize_non_transferable_mint: u8 instruction=32"
-  ] ++
-  stackPtr .r8 cpiInstructionDataOffset ++ #[
-    storeImm .stb .r8 0 32
-  ]
+  (lowerStaticBinaryLayout
+    "token-2022.initialize_non_transferable_mint: u8 instruction=32"
+    token2022InitializeNonTransferableMint).1
 
 /-- Initialize metadata pointer: u8 instruction=39, u8 sub=0, pubkey authority,
     pubkey metadata_address. -/
@@ -877,12 +870,9 @@ def lowerToken2022InitializeDefaultAccountStateData (cpi : CpiInvoke) : Array As
 
 /-- Initialize immutable owner: u8 instruction=22 (discriminator only, no extra data). -/
 def lowerToken2022InitializeImmutableOwnerData : Array AstNode :=
-  #[
-    .comment "solana.cpi.data token-2022.initialize_immutable_owner: u8 instruction=22"
-  ] ++
-  stackPtr .r8 cpiInstructionDataOffset ++ #[
-    storeImm .stb .r8 0 22
-  ]
+  (lowerStaticBinaryLayout
+    "token-2022.initialize_immutable_owner: u8 instruction=22"
+    token2022InitializeImmutableOwner).1
 
 def lowerToken2022InitializePermanentDelegateData
     (accountBindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
@@ -963,13 +953,9 @@ def lowerToken2022InitializePausableConfigData
     "solana.cpi.pausable_authority" "pausable_authority" 2
 
 def lowerToken2022PausableTagData (layoutName : String) (subTag : Nat) : Array AstNode :=
-  #[
-    .comment s!"solana.cpi.data {layoutName}: u8 instruction=44, u8 pausable_instruction={subTag}"
-  ] ++
-  stackPtr .r8 cpiInstructionDataOffset ++ #[
-    storeImm .stb .r8 0 44,
-    storeImm .stb .r8 1 subTag
-  ]
+  (lowerStaticBinaryLayout
+    s!"{layoutName}: u8 instruction=44, u8 pausable_instruction={subTag}"
+    (token2022PausableTag subTag)).1
 
 /-- Memo CPI data: raw bytes from the input binding. No discriminator — the
     Memo program accepts arbitrary bytes as instruction data. This initial
@@ -1073,21 +1059,24 @@ def lowerCpiInstructionData (accountBindings : Array CpiAccountBinding)
   | some "token-2022.transfer_checked_with_fee" =>
       (lowerToken2022TransferCheckedWithFeeData valueBindings cpi, 19)
   | some "token-2022.withdraw_withheld_tokens_from_mint" =>
-      (lowerToken2022TransferFeeTagData "token-2022.withdraw_withheld_tokens_from_mint" 2, 2)
+      (lowerToken2022TransferFeeTagData "token-2022.withdraw_withheld_tokens_from_mint" 2,
+        token2022TransferFeeTagDataLen)
   | some "token-2022.withdraw_withheld_tokens_from_accounts" =>
       (lowerToken2022WithdrawWithheldTokensFromAccountsData cpi, 3)
   | some "token-2022.harvest_withheld_tokens_to_mint" =>
-      (lowerToken2022TransferFeeTagData "token-2022.harvest_withheld_tokens_to_mint" 4, 2)
+      (lowerToken2022TransferFeeTagData "token-2022.harvest_withheld_tokens_to_mint" 4,
+        token2022TransferFeeTagDataLen)
   | some "token-2022.set_transfer_fee" =>
       (lowerToken2022SetTransferFeeData valueBindings cpi, 12)
   | some "token-2022.initialize_non_transferable_mint" =>
-      (lowerToken2022InitializeNonTransferableMintData, 1)
+      (lowerToken2022InitializeNonTransferableMintData,
+        token2022InitializeNonTransferableMintDataLen)
   | some "token-2022.initialize_metadata_pointer" =>
       (lowerToken2022InitializeMetadataPointerData accountBindings cpi, 66)
   | some "token-2022.initialize_default_account_state" =>
       (lowerToken2022InitializeDefaultAccountStateData cpi, 3)
   | some "token-2022.initialize_immutable_owner" =>
-      (lowerToken2022InitializeImmutableOwnerData, 1)
+      (lowerToken2022InitializeImmutableOwnerData, token2022InitializeImmutableOwnerDataLen)
   | some "token-2022.initialize_permanent_delegate" =>
       (lowerToken2022InitializePermanentDelegateData accountBindings cpi, 33)
   | some "token-2022.initialize_interest_bearing_mint" =>
@@ -1099,9 +1088,9 @@ def lowerCpiInstructionData (accountBindings : Array CpiAccountBinding)
   | some "token-2022.initialize_pausable_config" =>
       (lowerToken2022InitializePausableConfigData accountBindings cpi, 34)
   | some "token-2022.pause" =>
-      (lowerToken2022PausableTagData "token-2022.pause" 1, 2)
+      (lowerToken2022PausableTagData "token-2022.pause" 1, token2022PausableTagDataLen)
   | some "token-2022.resume" =>
-      (lowerToken2022PausableTagData "token-2022.resume" 2, 2)
+      (lowerToken2022PausableTagData "token-2022.resume" 2, token2022PausableTagDataLen)
   | some "memo.memo" =>
       (lowerMemoData valueBindings cpi, 8)
   | some dl =>

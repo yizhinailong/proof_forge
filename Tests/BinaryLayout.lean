@@ -34,6 +34,13 @@ def main : IO UInt32 := do
   require (pack splRevoke == #[5]) "revoke tag byte"
   require (pack splCloseAccount == #[9]) "close_account tag byte"
 
+  require (token2022PausableTagDataLen == 2) "pausable tag len"
+  require (pack token2022Pause == #[44, 1]) "pause bytes"
+  require (pack token2022Resume == #[44, 2]) "resume bytes"
+  require (pack token2022InitializeNonTransferableMint == #[32]) "non-transferable tag"
+  require (pack token2022InitializeImmutableOwner == #[22]) "immutable owner tag"
+  require (pack (token2022TransferFeeTag 2) == #[26, 2]) "transfer fee tag"
+
   IO.println "binary-layout: ok"
   pure 0
 

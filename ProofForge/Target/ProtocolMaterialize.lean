@@ -19,6 +19,8 @@ also act as portable protocol ids). Each host materializes:
 | `transferFrom`   | IERC20 `transferFrom`        | legacy JSON array           | portable CPI method tag     |
 | `ft_balance_of`  | IERC20 `balanceOf`           | `ft_balance_of` + JsonEncode| portable CPI method tag     |
 | `ft_total_supply`| IERC20 `totalSupply`         | `ft_total_supply` + `{}`    | portable CPI method tag     |
+| `deposit` / vault | IERC4626 deposit / convert   | n/a (EVM-first)             | portable CPI smoke          |
+| `permit`         | EIP-2612 permit              | n/a                         | portable CPI smoke          |
 
 **Solana note:** real SPL `transfer_checked` needs account metas + per-program
 `dataLayout` (TokenSpec / Source.Solana CPI). Portable `crosscall.invoke` still
@@ -27,7 +29,7 @@ therefore **IR/CPI-shaped smoke**, not live Tokenkeg equivalence. Token product
 loop for *being* the mint uses `just product-token-solana` (plan path).
 
 Related: [protocols-layer](../../docs/protocols-layer.md),
-[product-sdk-gap-plan](../../docs/product-sdk-gap-plan-2026-07.md) Wave γ.
+[product-sdk-gap-plan](../../docs/product-sdk-gap-plan-2026-07.md) Wave γ / ε.
 -/
 import ProofForge.IR.Contract
 
@@ -45,6 +47,13 @@ def methodApprove : String := "approve"
 def methodTransferFrom : String := "transferFrom"
 def methodFtBalanceOf : String := "ft_balance_of"
 def methodFtTotalSupply : String := "ft_total_supply"
+def methodPermit : String := "permit"
+def methodVaultDeposit : String := "deposit"
+def methodVaultWithdraw : String := "withdraw"
+def methodVaultConvertToShares : String := "convertToShares"
+def methodVaultConvertToAssets : String := "convertToAssets"
+def methodVaultTotalAssets : String := "totalAssets"
+def methodVaultAsset : String := "asset"
 
 /-- All portable FT protocol method ids registered by `declareExternalToken`. -/
 def portableFtMethodIds : Array String := #[
@@ -55,15 +64,37 @@ def portableFtMethodIds : Array String := #[
   methodFtTotalSupply
 ]
 
-/-- IERC20 4-byte selectors (OpenZeppelin / Ethereum wiki). -/
+/-- Vault + permit pool method ids (`declareExternalVault` / permit). -/
+def portableVaultMethodIds : Array String := #[
+  methodVaultDeposit,
+  methodVaultWithdraw,
+  methodVaultConvertToShares,
+  methodVaultConvertToAssets,
+  methodVaultTotalAssets,
+  methodVaultAsset
+]
+
+/-- IERC20 / EIP-2612 / IERC4626 4-byte selectors. -/
 def evmSelector? : String → Option Nat
   | "ft_transfer" | "transfer" => some 0xa9059cbb
   | "approve" => some 0x095ea7b3
   | "transferFrom" | "ft_transfer_from" => some 0x23b872dd
   | "ft_balance_of" | "balanceOf" => some 0x70a08231
   | "ft_total_supply" | "totalSupply" => some 0x18160ddd
+  | "permit" => some 0xd505accf
+  | "nonces" => some 0x7ecebe00
+  | "DOMAIN_SEPARATOR" => some 0x3644e515
+  | "asset" => some 0x38d52e0f
+  | "totalAssets" => some 0x01e1d114
+  | "convertToShares" => some 0xc6e6f592
+  | "convertToAssets" => some 0x07a2d13a
+  | "maxDeposit" => some 0x402d267d
+  | "maxWithdraw" => some 0xce96cb77
+  | "deposit" => some 0x6e553f65
+  | "mint" => some 0x94bf804d
+  | "withdraw" => some 0xb460af94
+  | "redeem" => some 0xba087652
   | _ => none
-
 /-- NEAR native method name for promise_create (identity for NEP-141 names). -/
 def nearMethod? : String → Option String
   | "ft_transfer" => some "ft_transfer"

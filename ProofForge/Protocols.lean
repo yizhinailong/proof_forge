@@ -13,6 +13,8 @@ See `docs/protocols-layer.md`.
 -/
 import ProofForge.Protocols.Solana
 import ProofForge.Protocols.Evm.IERC20
+import ProofForge.Protocols.Evm.IERC20Permit
+import ProofForge.Protocols.Evm.IERC4626
 import ProofForge.Protocols.Evm.IERC721
 import ProofForge.Protocols.Evm.Multicall
 import ProofForge.Protocols.Evm.Permit2

@@ -44,6 +44,7 @@ Full narrative: [docs/tutorials/portable-shared-path.md](../../docs/tutorials/po
 | [Counter.lean](Counter.lean) | state + entrypoints |
 | [RemoteCall.lean](RemoteCall.lean) | portable remote + scalar ABI |
 | [ExternalTokenTransfer.lean](ExternalTokenTransfer.lean) | external FT protocol intent (no Protocols import) |
+| [ExternalVault.lean](ExternalVault.lean) | external ERC-4626 vault protocol intent |
 | [AuthRemoteCall.lean](AuthRemoteCall.lean) | caller + debit + remote |
 | [ArrayExample.lean](ArrayExample.lean) | arrays |
 | [Ownable.lean](Ownable.lean) | owner policy |
