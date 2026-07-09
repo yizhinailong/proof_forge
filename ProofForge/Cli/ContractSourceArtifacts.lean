@@ -103,7 +103,8 @@ unsafe def compileContractSourceSbpf (opts : CliOptions) : IO UInt32 := do
           ProofForge.Backend.Solana.Materialize.reportJson
             (ProofForge.Backend.Solana.Materialize.report spec.module
               (ProofForge.Backend.Solana.Extension.ProgramExtensions.fromPlan plan))),
-        ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
+        -- Assembly intermediate only (PF-P0-03): do not claim solana-elf.
+        ("artifactKind", jsonString "solana-sbpf-asm"),
         ("fixture", jsonString (leanBaseName input)),
         ("sourceKind", jsonString "contract-sdk"),
         ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
@@ -131,7 +132,7 @@ unsafe def compileContractSourceSbpf (opts : CliOptions) : IO UInt32 := do
           ("contractSourceLowering", jsonString "passed"),
           ("targetRouting", jsonString "passed"),
           ("manifestGeneration", jsonString "passed"),
-          ("sbpfBuild", jsonString "pending")
+          ("sbpfBuild", jsonString "skipped")
         ])
       ]
       IO.FS.writeFile metadataOutput (metadata ++ "\n")

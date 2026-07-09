@@ -126,8 +126,14 @@ def main : IO UInt32 := do
     ["build", "--target", "wasm-near", "--fixture", "context", "--format", "wat", "-o", "build/wasm-near/context"]
     ["--emit-context-emitwat", "-o", "build/wasm-near/context"]
   requireLegacy
-    ["build", "--target", "solana-sbpf-asm", "--root", ".", "-o", "build/portable-counter/Counter.s", "Examples/Product/Counter.lean"]
+    ["build", "--target", "solana-sbpf-asm", "--format", "s", "--root", ".", "-o", "build/portable-counter/Counter.s", "Examples/Product/Counter.lean"]
     ["--contract-source-sbpf", "-o", "build/portable-counter/Counter.s", "--root", ".", "Examples/Product/Counter.lean"]
+  requireLegacy
+    ["build", "--target", "solana-sbpf-asm", "--format", "elf", "--root", ".", "-o", "build/portable-counter/Counter.so", "Examples/Product/Counter.lean"]
+    ["--contract-source-solana-elf", "-o", "build/portable-counter/Counter.so", "--root", ".", "Examples/Product/Counter.lean"]
+  requireLegacy
+    ["build", "--target", "solana-sbpf-asm", "--root", ".", "-o", "build/portable-counter/Counter.so", "Examples/Product/Counter.lean"]
+    ["--contract-source-solana-elf", "-o", "build/portable-counter/Counter.so", "--root", ".", "Examples/Product/Counter.lean"]
   requireLegacy
     ["build", "--target", "wasm-near", "--root", ".", "-o", "build/portable-counter/near", "Examples/Product/Counter.lean"]
     -- Host bridge (NEAR vs Soroban) is selected from --target on EmitWat path.

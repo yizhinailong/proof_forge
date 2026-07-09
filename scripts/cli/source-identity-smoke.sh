@@ -87,7 +87,8 @@ build_one() {
       fi
       ;;
     solana-sbpf-asm)
-      out_arg="$out_dir/ValueVault.s"
+      # Default final artifact is ELF (PF-P0-03).
+      out_arg="$out_dir/ValueVault.so"
       extra+=(--artifact-output "$out_dir/ValueVault.proof-forge-artifact.json")
       ;;
     wasm-near|wasm-stellar-soroban)

@@ -6,12 +6,14 @@ import ProofForge.Backend.Solana.Package
 import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Cli.Artifact
 import ProofForge.Cli.ArrayUtil
+import ProofForge.Cli.ContractLoader
 import ProofForge.Cli.FileUtil
 import ProofForge.Cli.JsonUtil
 import ProofForge.Cli.Options
 import ProofForge.Cli.Process
 import ProofForge.Cli.SolanaArtifacts
 import ProofForge.Cli.TargetJson
+import ProofForge.Cli.Usage
 import ProofForge.Contract.Examples.ValueVault
 import ProofForge.Contract.Spec
 import ProofForge.IR.Examples.Counter
@@ -208,6 +210,17 @@ def compileSolanaSpecElf (opts : CliOptions) (defaultOutput : FilePath)
   | .error err =>
       throw <| IO.userError err.render
 
+/-- Source-backed Solana ELF build (PF-P0-03). Loads `contract_source` and runs
+the same package/ELF path as fixture ELF emits. Fails if `sbpf` is unavailable. -/
+unsafe def compileContractSourceSolanaElf (opts : CliOptions) : IO UInt32 := do
+  let some input := opts.input?
+    | IO.eprintln usage
+      return 1
+  let spec ← ProofForge.Cli.ContractLoader.loadSpec input opts.root? opts.moduleName?
+  let base := leanBaseName input
+  let defaultOut := siblingPath input s!"{base}.so"
+  compileSolanaSpecElf opts defaultOut base base spec
+
 def compileSolanaSpecSbpf (opts : CliOptions) (defaultOutput : FilePath)
     (fixture : String) (spec : ProofForge.Contract.ContractSpec) : IO UInt32 := do
   let output := opts.output?.getD defaultOutput
@@ -238,7 +251,7 @@ def compileSolanaSpecSbpf (opts : CliOptions) (defaultOutput : FilePath)
         ("schemaVersion", "1"),
         ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
         ("targetFamily", jsonString "solana"),
-        ("artifactKind", jsonString ProofForge.Backend.Solana.SbpfAsm.artifactKind),
+        ("artifactKind", jsonString "solana-sbpf-asm"),
         ("fixture", jsonString fixture),
         ("sourceKind", jsonString "contract-sdk"),
         ("irVersion", jsonString ProofForge.Backend.Solana.SbpfAsm.irVersion),
@@ -271,7 +284,7 @@ def compileSolanaSpecSbpf (opts : CliOptions) (defaultOutput : FilePath)
         ("validation", jsonObject #[
           ("targetRouting", jsonString "passed"),
           ("manifestGeneration", jsonString "passed"),
-          ("sbpfBuild", jsonString "pending"),
+          ("sbpfBuild", jsonString "skipped"),
           ("liveCpi", jsonString "pending")
         ])
       ]

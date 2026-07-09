@@ -283,7 +283,7 @@ equals = "solana"
 path = "artifactKind"
 kind = "string"
 non_empty = true
-equals = "solana-elf"
+equals = "solana-sbpf-asm"
 
 [[artifact.json]]
 path = "fixture"

@@ -241,7 +241,15 @@ use --target evm | solana-sbpf-asm | wasm-near (see `just token-feature-matrix`)
         Except.error "proof-forge build --target solana-sbpf-asm --token requires a .lean TokenSpec or .learn token source"
   | "solana-sbpf-asm", false, _, _, _ =>
       if isLeanSource then
-        Except.ok "--contract-source-sbpf"
+        -- Default final artifact is ELF (PF-P0-03). `--format s` is the
+        -- toolchain-free assembly intermediate for static product CI.
+        if format? == some "s" then
+          Except.ok "--contract-source-sbpf"
+        else if format?.isNone || format? == some "elf" || format? == some "so" then
+          Except.ok "--contract-source-solana-elf"
+        else
+          Except.error
+            s!"proof-forge build --target solana-sbpf-asm does not support format '{format?.getD ""}'; use --format s or --format elf"
       else if format? == some "s" || format?.isNone then
         Except.ok "--emit-counter-ir-sbpf"
       else

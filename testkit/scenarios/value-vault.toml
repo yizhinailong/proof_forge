@@ -663,7 +663,7 @@ equals = "solana"
 
 [[artifact.json]]
 path = "artifactKind"
-equals = "solana-elf"
+equals = "solana-sbpf-asm"
 
 [[artifact.json]]
 path = "fixture"

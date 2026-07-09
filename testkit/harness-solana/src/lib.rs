@@ -398,12 +398,16 @@ fn build_contract_source_fixture(
     artifact_path: &Path,
 ) -> Result<()> {
     let mut build = Command::new("lake");
+    // PF-P0-03: default Solana source build is ELF; testkit scaffolds its own
+    // sbpf package from assembly, so request the toolchain-free intermediate.
     build.current_dir(repo_root).args([
         "env",
         "proof-forge",
         "build",
         "--target",
         "solana-sbpf-asm",
+        "--format",
+        "s",
         "--root",
         ".",
         "-o",
@@ -415,7 +419,7 @@ fn build_contract_source_fixture(
     run_required(
         &mut build,
         &format!(
-            "proof-forge build --target solana-sbpf-asm for scenario `{}`",
+            "proof-forge build --target solana-sbpf-asm --format s for scenario `{}`",
             case.manifest.scenario.name
         ),
     )?;

@@ -154,6 +154,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .learnBytecode => compileLearnBytecode opts
   | .learnSbpf => compileLearnSbpf opts
   | .contractSourceSbpf => compileContractSourceSbpf opts
+  | .contractSourceSolanaElf => compileContractSourceSolanaElf opts
   | .contractSourceEmitWat => compileContractSourceEmitWat opts
   | .learnTarget => compileLearnTarget opts
   | .learnTokenTarget => compileLearnTokenTarget opts
