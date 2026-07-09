@@ -328,6 +328,7 @@ unsafe def main (args : List String) : IO UInt32 := do
             match ProofForge.Cli.parseArgs legacyArgs {} with
             | Except.ok opts => Except.ok { opts with
                 cmd := ProofForge.Cli.Command.build,
+                format? := state.format?,
                 scenario? := state.scenario?.map FilePath.mk,
                 fromNewSurface := true }
             | Except.error msg => Except.error msg
@@ -342,6 +343,7 @@ unsafe def main (args : List String) : IO UInt32 := do
             | Except.ok opts => Except.ok { opts with
                 cmd := ProofForge.Cli.Command.emit,
                 fixture? := state.fixture?,
+                format? := state.format?,
                 scenario? := state.scenario?.map FilePath.mk,
                 fromNewSurface := true }
             | Except.error msg => Except.error msg

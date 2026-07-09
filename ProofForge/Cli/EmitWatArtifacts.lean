@@ -203,7 +203,7 @@ def writeEmitWatArtifactMetadata
       | none =>
           ProofForge.Target.Preflight.Report.json
             (ProofForge.Target.Preflight.run ProofForge.Target.wasmNear module)),
-    ("artifactKind", jsonString "wasm"),
+    ("artifactKind", jsonString (if wasmArtifact?.isSome then "wasm" else "wat")),
     ("fixture", jsonString fixture),
     ("sourceKind", jsonString sourceKind),
     ("irVersion", if sourceKind == "portable-ir" then jsonString "portable-ir-v0" else "null"),
@@ -278,7 +278,11 @@ def writeEmitWatArtifactMetadata
       ("nativeWrapper", nearClientOutput)
     ] (some nearExtension)
 
-def writeWatPackage (outputDir : FilePath) (name : String) (wat : String) : IO (FilePath × Option FilePath) := do
+/-- Write WAT and optionally convert to Wasm.
+`requireWasm = true` (default final build): wat2wasm failure/missing is fatal (PF-P0-08).
+`requireWasm = false` (`--format wat` intermediate): WAT-only success is allowed. -/
+def writeWatPackage (outputDir : FilePath) (name : String) (wat : String)
+    (requireWasm : Bool := true) : IO (FilePath × Option FilePath) := do
   IO.FS.createDirAll outputDir
   let watPath := outputDir / s!"{name}.wat"
   IO.FS.writeFile watPath wat
@@ -289,11 +293,20 @@ def writeWatPackage (outputDir : FilePath) (name : String) (wat : String) : IO (
       IO.println s!"wrote EmitWat {name}.wat + {name}.wasm to {outputDir}"
       return (watPath, some wasmPath)
     else
-      IO.eprintln s!"wat2wasm exit {r.exitCode}: {r.stderr.trimAscii} (WAT at {watPath})"
+      let msg := s!"wat2wasm exit {r.exitCode}: {r.stderr.trimAscii} (WAT at {watPath})"
+      if requireWasm then
+        throw <| IO.userError
+          s!"final Wasm build requires wat2wasm success: {msg}; use --format wat for WAT-only intermediate"
+      else
+        IO.eprintln msg
+        return (watPath, none)
+  catch e =>
+    if requireWasm then
+      throw <| IO.userError
+        s!"final Wasm build requires wat2wasm on PATH (failed: {e.toString}); install wabt or use --format wat"
+    else
+      IO.println s!"wrote EmitWat {name}.wat to {watPath} (wat2wasm unavailable; install wabt to build wasm)"
       return (watPath, none)
-  catch _ =>
-    IO.println s!"wrote EmitWat {name}.wat to {watPath} (wat2wasm unavailable; install wabt to build wasm)"
-    return (watPath, none)
 
 /-- Deploy peer map is **explicit** via CLI (`--peer` / `--peers-demo`).
 Default is identity: logical ids stay as declared in Shared. -/
@@ -311,6 +324,10 @@ def emitWatBridge (opts : CliOptions) : ProofForge.Target.HostBridge :=
         ProofForge.Target.HostBridge.near
   | none => ProofForge.Target.HostBridge.near
 
+def emitWatRequireWasm (opts : CliOptions) : Bool :=
+  -- PF-P0-08: explicit --format wat is the WAT intermediate; default final build needs Wasm.
+  !(opts.format? == some "wat")
+
 def compileEmitWat (opts : CliOptions) (name : String) (mod : ProofForge.IR.Module) : IO UInt32 := do
   let some output := opts.output?
     | throw <| IO.userError "emitwat mode requires -o output directory"
@@ -319,7 +336,7 @@ def compileEmitWat (opts : CliOptions) (name : String) (mod : ProofForge.IR.Modu
   -- Unified entry: WasmHost.EmitWat routes near / soroban / cosmWasm.
   match ProofForge.Backend.WasmHost.EmitWat.renderModule mod bridge peerMap with
   | .ok wat =>
-      let (watPath, wasmPath?) ← writeWatPackage output name wat
+      let (watPath, wasmPath?) ← writeWatPackage output name wat (requireWasm := emitWatRequireWasm opts)
       writeEmitWatArtifactMetadata opts (emitWatTargetId opts) name "portable-ir" mod output watPath wasmPath?
       return 0
   | .error e =>
@@ -336,7 +353,7 @@ def compileEmitWatWithPlan
   let peerMap := emitWatPeerMap opts
   match ProofForge.Backend.WasmHost.EmitWat.renderModuleWithPlan mod plan bridge peerMap with
   | .ok wat =>
-      let (watPath, wasmPath?) ← writeWatPackage output name wat
+      let (watPath, wasmPath?) ← writeWatPackage output name wat (requireWasm := emitWatRequireWasm opts)
       writeEmitWatArtifactMetadata opts (emitWatTargetId opts) name "contract-sdk" mod
         output watPath wasmPath?
       return 0

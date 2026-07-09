@@ -1,6 +1,7 @@
 import Init.Notation
 import Init.System.IO
 import Lean
+import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.Cli.ContractLoader
 import ProofForge.Cli.Fixture
@@ -11,6 +12,7 @@ import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.ErrorRefProbe
 import ProofForge.IR.Examples.HashProbe
 import ProofForge.IR.Examples.MapProbe
+import ProofForge.Target.HostBridge
 import ProofForge.Target.Registry
 import ProofForge.Target.Preflight
 
@@ -268,10 +270,14 @@ use `proof-forge emit --target {profile.id} --fixture <id>` for the Counter spik
               diagnostics := pushDiagnostic preflighted.diagnostics (diagnosticFromTarget diag "capability.unsupported" .error)
               validation := pushValidation preflighted.validation "capabilities" "failed"
             }
-          | .ok _ =>
+          | .ok plan =>
             let resolved := { preflighted with validation := pushValidation preflighted.validation "capabilities" "passed" }
-            if profile.id == ProofForge.Target.wasmNear.id then
-              match ProofForge.Backend.WasmHost.EmitWat.renderModule spec.module with
+            -- PF-P0-07: L2 adapter validation without emitting artifacts.
+            if profile.id == ProofForge.Target.wasmNear.id ||
+               profile.id == ProofForge.Target.wasmStellarSoroban.id ||
+               profile.id == ProofForge.Target.wasmCosmWasm.id then
+              let bridge := profile.hostBridge?.getD ProofForge.Target.HostBridge.near
+              match ProofForge.Backend.WasmHost.EmitWat.renderModuleWithPlan spec.module plan bridge with
               | .ok _ =>
                   return { resolved with validation := pushValidation resolved.validation "lowering" "passed" }
               | .error err =>
@@ -285,8 +291,25 @@ use `proof-forge emit --target {profile.id} --fixture <id>` for the Counter spik
                   }
                   validation := pushValidation resolved.validation "lowering" "failed"
                 }
+            else if profile.id == ProofForge.Target.solanaSbpfAsm.id then
+              match ProofForge.Backend.Solana.SbpfAsm.renderModuleWithPlan spec.module plan with
+              | .ok _ =>
+                  return { resolved with validation := pushValidation resolved.validation "lowering" "passed" }
+              | .error err =>
+                return {
+                  resolved with
+                  diagnostics := pushDiagnostic resolved.diagnostics {
+                    severity := .error
+                    code := "lowering.failed"
+                    message := err.render
+                    file? := some input.toString
+                  }
+                  validation := pushValidation resolved.validation "lowering" "failed"
+                }
             else if profile.id == ProofForge.Target.evm.id then
-              return { resolved with validation := pushValidation resolved.validation "contractSource" "passed" }
+              -- EVM L2: capability resolve + preflight is the shared gate; Yul emission
+              -- needs full CLI ABI/constructor context and is validated by build smokes.
+              return { resolved with validation := pushValidation resolved.validation "lowering" "passed" }
             else
               return { resolved with validation := pushValidation resolved.validation "contractSource" "passed" }
 
