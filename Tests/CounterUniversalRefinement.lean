@@ -10,6 +10,7 @@ lists from related states, and init-prefixed traces from arbitrary IR states.
 namespace ProofForge.Tests.CounterUniversalRefinement
 
 open ProofForge.Backend.Refinement
+open ProofForge.Backend.Refinement.ConstructorCoverage
 open ProofForge.Backend.Refinement.CounterUniversal
 
 #check counter_initialize_simulates
@@ -74,9 +75,11 @@ via body-extraction lemmas (not `rfl` / discarded `m`). -/
 #check moduleIrStep
 #check moduleIrStep_eq_irStep_of_isCounterModule
 #check counterModel_fragment_refines_all
+#check counterModel_fragment_refines_all_of_isCounterModule
 #check isCounterInitializeEntrypoint_body
 #check isCounterIncrementEntrypoint_body
 #check isCounterGetEntrypoint_body
+#check counterModel_fragmentAccepts_implies_covered_all
 
 theorem sample_fragment_refines_all
     (state : ProofForge.IR.Semantics.State) (count : Nat)
@@ -93,8 +96,9 @@ theorem sample_fragment_refines_all
         (moduleIrStep ProofForge.IR.Examples.Counter.module) state sampleCalls observables ∧
       ProofForge.IR.StepSemantics.IRTraceMatches
         counterModelTargetSemantics.traceStep count sampleCalls observables :=
-  counterModel_fragment_refines_all ProofForge.IR.Examples.Counter.module rfl
-    (by native_decide) sampleCalls state count h
+  -- Coverage discharged from isCounterModule alone (FV-9.4+ bridge).
+  counterModel_fragment_refines_all_of_isCounterModule
+    ProofForge.IR.Examples.Counter.module rfl sampleCalls state count h
 
 theorem sample_related_trace_fragment_refines_via_field
     {state : ProofForge.IR.Semantics.State} {count : Nat}

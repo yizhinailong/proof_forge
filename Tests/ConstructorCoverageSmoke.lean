@@ -71,11 +71,13 @@ theorem crosscallInvoke_is_gap :
 #check (effectFullyCovered : Effect → Bool)
 #check (statementFullyCovered : Statement → Bool)
 
--- 9. The counter-model's fragment is covered: the canonical Counter module
--- passes the depth-fueled full-coverage walk, so every constructor it uses is
--- within FV-9.2's covered set. This is the honesty bridge witness — the module
--- the counter-model claims to prove only uses covered constructors.
+-- 9. Honesty bridge: structural ∀ m (FV-9.4+) + canonical corollary.
+#check counterModel_fragmentAccepts_implies_covered_all
 #check counterModel_fragmentAccepts_implies_covered
+
+theorem sample_isCounterModule_implies_covered :
+    ∀ m, isCounterModule m = true → moduleInCoveredFragment m = true :=
+  counterModel_fragmentAccepts_implies_covered_all
 
 -- 10. A module containing a gap constructor is rejected by the coverage walk
 -- (honesty: the fragment predicate excludes modules it cannot prove).

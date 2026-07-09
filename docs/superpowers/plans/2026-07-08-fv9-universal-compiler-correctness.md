@@ -272,10 +272,9 @@ Smoke: `counter-universal-refinement-smoke` + host regressions still green.
 
 **Honest limits / non-goals (FV-9.4):**
 
-- The honesty bridge is witnessed on the canonical Counter module, not yet as a structural
-  `∀ m, isCounterModule m → moduleInCoveredFragment m` theorem. The full ∀-module form is
-  FV-9.3's structural induction once widened; the witness proves the bridge holds for the module
-  the counter-model actually admits.
+- The structural `∀ m, isCounterModule m → moduleInCoveredFragment m` form is landed
+  (`counterModel_fragmentAccepts_implies_covered_all`, FV-9.4+). Gap: it is Counter-shaped only —
+  other fragment modules need their own body-extraction + coverage lemmas when the fragment widens.
 - The capability-registry wire (`capabilityAccept ⟹ moduleInCoveredFragment`) is the next
   FV-9.4+ widening: each target's `TargetProfile` capability set implies coverage. The Track 1.4
   schema (`fragmentAccepts ⊂ lowerableAccepts`, `lowerable_implies_lowering_total`) already exists
@@ -300,20 +299,15 @@ Smoke: `counter-universal-refinement-smoke` + host regressions still green.
 - Smoke gate extended with the capability-registry wire checks (`coveredCapabilities`,
   `coveredFragment_implies_coveredCapabilities`).
 
-**FV-9.4+ remaining (structural `∀ m` honesty bridge):**
+**FV-9.4+ structural `∀ m` honesty bridge — DONE (2026-07-09):**
 
-- The structural `∀ m, isCounterModule m = true → moduleInCoveredFragment m = true` is stated but
-  not yet proven `sorry`-free. Because `isCounterModule` fully characterizes the module (fixed
-  name, one state decl, three entrypoints with fixed bodies), any `m` satisfying it has the
-  canonical entrypoint bodies and thus the same coverage-walk result as `Examples.Counter.module`.
-  Proving the `∀ m` form needs either (a) deriving `BEq`/`DecidableEq` for `Module` and all its
-  field types (large; risk of the same nested-namespace helper clashes that blocked
-  `deriving SizeOf`) so `isCounterModule m = true → m = Examples.Counter.module`, then reusing
-  the canonical witness, or (b) a body-extraction lemma extracting the fixed entrypoint bodies
-  from `isCounterModule m = true` and discharging the coverage walk on each. Both are mechanical;
-  tracked as the next widening. The canonical witness
-  `counterModel_fragmentAccepts_implies_covered` is the landable, `sorry`-free proof for the
-  module the counter-model actually admits.
+- `counterModel_fragmentAccepts_implies_covered_all` :
+  `∀ m, isCounterModule m = true → moduleInCoveredFragment m = true`.
+  Proof: FV-9.5 body extraction + `stmtsAllCoveredD 64` on each concrete Counter body
+  (`counterInitialize/Increment/GetBody_covered`). No `Module DecidableEq`.
+- Canonical witness is a corollary of the `∀ m` form.
+- `counterModel_fragment_refines_all_of_isCounterModule` discharges coverage from
+  `isCounterModule` alone.
 
 **FV-9.4+ landed (2026-07-09): capability-registry inclusion (canonical witness).**
 
@@ -333,20 +327,8 @@ Smoke: `counter-universal-refinement-smoke` + host regressions still green.
 - Smoke gate extended with `coveredCapabilities` / `capsAllCovered` /
   `coveredFragment_implies_coveredCapabilities` checks.
 
-**FV-9.4+ structural `∀ m` honesty bridge — stated, next widening (not yet landed).**
-
-The structural form `∀ m, isCounterModule m = true → moduleInCoveredFragment m = true` replaces the
-canonical-model witness with a real quantifier. `isCounterModule` fully characterizes the module
-(fixed name, one state decl, three entrypoints with fixed bodies), so any `m` satisfying it has the
-canonical entrypoint bodies and thus the same coverage-walk result. Proving this requires either:
-
-- (a) deriving `BEq`/`DecidableEq` for `Module` and all its field types (`StructDecl`, `StateDecl`,
-  `Entrypoint`, `AllocatorConfig`, `ValueType`, `Statement`, `Effect`, `Expr`, `ContextField`,
-  `ErrorRef`, `StoragePathSegment`, `Literal`, `AssignOp`, `EntrypointKind`) so
-  `isCounterModule m = true → m = Examples.Counter.module`, then reuse the canonical witness; or
-- (b) a body-extraction lemma extracting the fixed entrypoint bodies from `isCounterModule m = true`
-  and discharging the coverage walk on each via a multi-step case split over `isCounterModule`'s
-  conjuncts.
+**FV-9.4+ structural `∀ m` honesty bridge — DONE (see above).** Landed via path (b): body
+extraction (FV-9.5) + coverage on extracted bodies. No `Module DecidableEq`.
 
 Both are mechanical. Option (a) risks the same nested-namespace helper name clashes that blocked
 `deriving SizeOf` for `Expr`/`Effect`/`Statement`; option (b) is the lower-risk path. Tracked as
@@ -393,19 +375,11 @@ module the counter-model actually admits.
   converse (capability-accept ⟹ coverage) is **not** claimable from capabilities alone (capabilities
   are coarser than constructors — a module can use a covered capability yet nest a gap
   constructor); the coverage walk remains the single source of truth for per-module admission, and
-  this inclusion is the honest direction. The `∀ m` structural form (inducting over the coverage
-  walk and discharging each constructor's capability) is the next widening.
-- The structural `∀ m` honesty bridge (`∀ m, isCounterModule m = true → moduleInCoveredFragment m = true`)
-  is **stated**, not yet proven `sorry`-free. Because `isCounterModule` fully characterizes the
-  module (fixed name, state decl, three entrypoints with fixed bodies), any `m` satisfying it has
-  the canonical bodies and thus the same coverage-walk result as `Examples.Counter.module`. Proving
-  the `∀ m` form needs either (a) deriving `BEq`/`DecidableEq` for `Module` and all its field types
-  (large, risk of the same nested-namespace helper clashes that blocked `deriving SizeOf`), or
-  (b) a body-extraction lemma extracting the fixed entrypoint bodies from `isCounterModule m = true`
-  and discharging the coverage walk on each. Both are mechanical widenings; the canonical witness
-  `counterModel_fragmentAccepts_implies_covered` (FV-9.4 base, `sorry`-free) is the landable proof
-  for the module the counter-model actually admits. The `∀ m` form is tracked here as the next
-  step; no `sorry` is committed.
+  this inclusion is the honest direction. Capability-level `∀ m` (inducting over the walk and
+  discharging each constructor's capability set) remains a possible widening; constructor-level
+  `∀ m` honesty for `moduleInCoveredFragment` is **landed** (see FV-9.4+ above).
+- Structural `∀ m` honesty bridge **landed**:
+  `counterModel_fragmentAccepts_implies_covered_all`.
 
 ## Scope discipline (do NOT boil the ocean)
 

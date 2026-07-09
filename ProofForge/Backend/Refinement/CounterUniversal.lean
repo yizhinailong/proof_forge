@@ -395,7 +395,10 @@ theorem moduleIrStep_eq_irStep_of_isCounterModule {m : Module}
 
 `moduleIrStep m` runs **`m`'s own entrypoint bodies**. The bridge
 `moduleIrStep_eq_irStep_of_isCounterModule` (body extraction, not `rfl`)
-reduces the quantifier to the canonical `counterModel_fragment_refines`. -/
+reduces the quantifier to the canonical `counterModel_fragment_refines`.
+
+`hcovered` is retained as the SupportedFragment coverage half; it is discharged
+from `hm` by `counterModel_fragmentAccepts_implies_covered_all` (FV-9.4+). -/
 theorem counterModel_fragment_refines_all
     (m : Module) (hm : isCounterModule m = true)
     (_hcovered : moduleInCoveredFragment m = true)
@@ -410,9 +413,24 @@ theorem counterModel_fragment_refines_all
       IRTraceMatches counterModelTargetSemantics.traceStep count calls observables := by
   have hstep : ∀ c s, moduleIrStep m s c = irStep s c :=
     fun c s => moduleIrStep_eq_irStep_of_isCounterModule hm c s
-  -- Pointwise step equality lifts to equal trace runners.
   have hfun : moduleIrStep m = irStep := funext fun s => funext fun c => hstep c s
   rw [hfun]
   exact counterModel_fragment_refines calls hrel
+
+/-- Same as `counterModel_fragment_refines_all`, with coverage discharged from
+`isCounterModule` alone (FV-9.4+ honesty bridge). -/
+theorem counterModel_fragment_refines_all_of_isCounterModule
+    (m : Module) (hm : isCounterModule m = true)
+    (calls : List CounterCall) (state : State) (count : Nat)
+    (hrel : CounterStateRel state count) :
+    ∃ finalIr finalMs observables,
+      runTraceListGen (moduleIrStep m) calls state = .ok (finalIr, observables) ∧
+      runTraceListGen counterModelTargetSemantics.traceStep calls count =
+        .ok (finalMs, observables) ∧
+      CounterStateRel finalIr finalMs ∧
+      IRTraceMatches (moduleIrStep m) state calls observables ∧
+      IRTraceMatches counterModelTargetSemantics.traceStep count calls observables :=
+  counterModel_fragment_refines_all m hm
+    (counterModel_fragmentAccepts_implies_covered_all m hm) calls state count hrel
 
 end ProofForge.Backend.Refinement.CounterUniversal
