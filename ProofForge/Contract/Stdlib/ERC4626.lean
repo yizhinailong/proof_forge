@@ -23,12 +23,10 @@ client (`Protocols.Evm.IERC4626` / Product `external_vault`).
   (gross = `shares * 10000 / (10000 - feeBps)` when fee > 0). |
 | Exit fee | Same **`feeBps`** on withdraw/redeem: skim fee assets to
   `feeRecipient`; user receives net underlying. |
-| Fee-on-transfer assets | **deposit/mint**: after IERC20 `transferFrom`, re-read
-  `balanceOf(vaultSelf)` and account **balance delta** as actual assets
-  (shares/totalAssets use actual, not the requested pull amount). Exit push
-  still assumes transfer delivers full amount (no pre-balance on recipient). |
-| `preview*` | deposit/mint assume non-FOT (requested = actual); withdraw/redeem net
-  after exit fee |
+| Fee-on-transfer assets | **deposit/mint**: pull then `balanceOf(vaultSelf)` **up-delta**.
+  **withdraw/redeem**: push then vault `balanceOf` **down-delta** for
+  `totalAssets` (user still requested net/gross; vault books actual left). |
+| `preview*` | assume non-FOT (requested ≈ actual); fees still applied in Spec |
 
 Spec math lives in `Spec` (Nat formulas + fee/empty-vault theorems).
 -/
@@ -111,8 +109,10 @@ def withdraw? (s : State) (assets : Nat) (feeBps : Nat := 0) : Option (State × 
         totalSupply := s.totalSupply - shares
       }, shares)
 
-/-- Redeem `shares`; user assets net of exit fee. Returns `(next, userAssets)`. -/
-def redeem? (s : State) (shares : Nat) (feeBps : Nat := 0) : Option (State × Nat) :=
+/-- Redeem `shares`; user assets net of exit fee. Returns `(next, userAssets)`.
+`actualLeft` is vault balance decrease after pushes (FOT-aware bookkeeping). -/
+def redeem? (s : State) (shares : Nat) (feeBps : Nat := 0)
+    (actualLeft? : Option Nat := none) : Option (State × Nat) :=
   if shares == 0 || shares > s.totalSupply then none
   else
     let assets := convertToAssets s shares
@@ -120,10 +120,18 @@ def redeem? (s : State) (shares : Nat) (feeBps : Nat := 0) : Option (State × Na
     else
       let userAssets := netAfterExitFee assets feeBps
       if userAssets == 0 then none
-      else some ({
-        totalAssets := s.totalAssets - assets
-        totalSupply := s.totalSupply - shares
-      }, userAssets)
+      else
+        let left := actualLeft?.getD assets
+        if left > s.totalAssets then none
+        else some ({
+          totalAssets := s.totalAssets - left
+          totalSupply := s.totalSupply - shares
+        }, userAssets)
+
+/-- Exit FOT: book `actualLeft` vault decrease, not the planned transfer amount. -/
+def redeemFot? (s : State) (shares actualLeft : Nat) (feeBps : Nat := 0) :
+    Option (State × Nat) :=
+  redeem? s shares feeBps (some actualLeft)
 
 theorem empty_convert_shares (a : Nat) : convertToShares empty a = a := by
   simp [convertToShares, empty]
@@ -309,7 +317,31 @@ def mintFeeSharesIfAny : EntryM Unit := do
       ]
       #[ProofForge.Contract.Surface.field "value" fee]
 
-/-- Push exit-fee assets to `feeRecipient` (IERC20 transfer). -/
+/-- Snapshot `balanceOf(vaultSelf)` into `balanceScratch` (exit FOT measure start). -/
+def beginVaultAssetMeasure : EntryM Unit := do
+  let assetTok := ProofForge.Contract.Surface.read assetAddress
+  let selfAddr := ProofForge.Contract.Surface.read vaultSelf
+  let before :=
+    ProofForge.Contract.Surface.remoteCall assetTok
+      (ProofForge.Contract.Surface.u64 ierC20BalanceOfSelector) #[selfAddr]
+  ProofForge.Contract.Surface.write balanceScratch before
+
+/-- After pushes: `actualAssetsScratch = balanceScratch - balanceOf(vaultSelf)`. -/
+def endVaultAssetMeasure : EntryM Unit := do
+  let assetTok := ProofForge.Contract.Surface.read assetAddress
+  let selfAddr := ProofForge.Contract.Surface.read vaultSelf
+  let after :=
+    ProofForge.Contract.Surface.remoteCall assetTok
+      (ProofForge.Contract.Surface.u64 ierC20BalanceOfSelector) #[selfAddr]
+  ProofForge.Contract.Builder.letBind "_pf_bal_after_push" .u64 after
+  ProofForge.Contract.Surface.write actualAssetsScratch
+    (ProofForge.Contract.Surface.sub
+      (ProofForge.Contract.Surface.read balanceScratch)
+      (ProofForge.Contract.Builder.localVar "_pf_bal_after_push"))
+  ProofForge.Contract.Surface.requireNonZero
+    (ProofForge.Contract.Surface.read actualAssetsScratch) "zero actual assets left vault"
+
+/-- Push exit-fee assets to `feeRecipient` (IERC20 transfer; pair with measure). -/
 def pushExitFeeAssetsIfAny : EntryM Unit := do
   let fee := ProofForge.Contract.Surface.read feeScratch
   ProofForge.Contract.Surface.whenPositive fee do
@@ -323,7 +355,7 @@ def pushExitFeeAssetsIfAny : EntryM Unit := do
     ProofForge.Contract.Builder.letBind "_pf_exit_fee_push" .u64 sent
 
 /-- Pull `amount` via transferFrom(caller, vaultSelf, amount), then set
-    `actualAssetsScratch` to `balanceOf(vaultSelf)` delta (fee-on-transfer). -/
+    `actualAssetsScratch` to `balanceOf(vaultSelf)` up-delta (fee-on-transfer). -/
 def pullAssetsMeasuring (amount : ProofForge.IR.Expr) : EntryM Unit := do
   let assetTok := ProofForge.Contract.Surface.read assetAddress
   let selfAddr := ProofForge.Contract.Surface.read vaultSelf
@@ -346,6 +378,14 @@ def pullAssetsMeasuring (amount : ProofForge.IR.Expr) : EntryM Unit := do
       (ProofForge.Contract.Surface.read balanceScratch))
   ProofForge.Contract.Surface.requireNonZero
     (ProofForge.Contract.Surface.read actualAssetsScratch) "zero actual assets"
+
+/-- Push `amount` to `recipient` via IERC20 transfer (pair with vault measure). -/
+def pushAssets (recipient amount : ProofForge.IR.Expr) : EntryM Unit := do
+  let assetTok := ProofForge.Contract.Surface.read assetAddress
+  let sent :=
+    ProofForge.Contract.Surface.remoteCall assetTok
+      (ProofForge.Contract.Surface.u64 ierC20TransferSelector) #[recipient, amount]
+  ProofForge.Contract.Builder.letBind "_pf_push" .u64 sent
 
 contract_mixin ERC4626Mixin do
   use ProofForge.Contract.Surface.scalar assetAddress
@@ -536,7 +576,7 @@ contract_mixin ERC4626Mixin do
       "zero assets";
     do ProofForge.Contract.Surface.requireEq caller (ProofForge.Contract.Surface.ref holder)
       "not holder";
-    -- `assets` leave the vault; user receives net after exit fee
+    -- Plan shares / net user assets from requested `assets` (exit fee skim)
     convertScratch := assets;
     do applyConvertToShares (ProofForge.Contract.Surface.ref assets);
     let shares : .u64 := convertScratch;
@@ -553,15 +593,18 @@ contract_mixin ERC4626Mixin do
     do mapWrite shareBalances holder (ownerBal -! shares);
     let ts : .u64 := totalSupply;
     totalSupply := ts -! shares;
-    let ta : .u64 := totalAssetsSlot;
-    totalAssetsSlot := ta -! assets;
-    let assetTok : .u64 := assetAddress;
-    let _sent : .u64 :=
-      ProofForge.Contract.Surface.remoteCall
-        (ProofForge.Contract.Surface.ref assetTok)
-        (u64 0xa9059cbb)
-        #[ProofForge.Contract.Surface.ref receiver, ProofForge.Contract.Surface.ref userAssets];
+    -- Push then book **actual** vault balance decrease (exit FOT)
+    do beginVaultAssetMeasure;
+    do pushAssets (ProofForge.Contract.Surface.ref receiver)
+      (ProofForge.Contract.Surface.ref userAssets);
     do pushExitFeeAssetsIfAny;
+    do endVaultAssetMeasure;
+    let actualLeft : .u64 := actualAssetsScratch;
+    do ProofForge.Contract.Surface.requireGe
+      (ProofForge.Contract.Surface.read totalAssetsSlot)
+      (ProofForge.Contract.Surface.ref actualLeft) "actual left > totalAssets";
+    let ta : .u64 := totalAssetsSlot;
+    totalAssetsSlot := ta -! actualLeft;
     emit Withdraw indexed #[
       fieldAsName "sender" caller,
       fieldAsName "receiver" receiver,
@@ -601,15 +644,17 @@ contract_mixin ERC4626Mixin do
     do mapWrite shareBalances holder (ownerBal -! shares);
     let ts : .u64 := totalSupply;
     totalSupply := ts -! shares;
-    let ta : .u64 := totalAssetsSlot;
-    totalAssetsSlot := ta -! grossAssets;
-    let assetTok : .u64 := assetAddress;
-    let _sent : .u64 :=
-      ProofForge.Contract.Surface.remoteCall
-        (ProofForge.Contract.Surface.ref assetTok)
-        (u64 0xa9059cbb)
-        #[ProofForge.Contract.Surface.ref receiver, ProofForge.Contract.Surface.ref userAssets];
+    do beginVaultAssetMeasure;
+    do pushAssets (ProofForge.Contract.Surface.ref receiver)
+      (ProofForge.Contract.Surface.ref userAssets);
     do pushExitFeeAssetsIfAny;
+    do endVaultAssetMeasure;
+    let actualLeft : .u64 := actualAssetsScratch;
+    do ProofForge.Contract.Surface.requireGe
+      (ProofForge.Contract.Surface.read totalAssetsSlot)
+      (ProofForge.Contract.Surface.ref actualLeft) "actual left > totalAssets";
+    let ta : .u64 := totalAssetsSlot;
+    totalAssetsSlot := ta -! actualLeft;
     emit Withdraw indexed #[
       fieldAsName "sender" caller,
       fieldAsName "receiver" receiver,

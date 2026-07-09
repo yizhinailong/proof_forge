@@ -183,8 +183,9 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 | ε.13 | ERC-4626 exit fee + mint net shares / preview symmetry | **done** |
 | ε.14 | ERC-4626 fee-on-transfer deposit/mint (balance delta) | **done** |
 | ε.15 | Call[] runtime length via max-pack + length-word overwrite | **done** |
+| ε.16 | ERC-4626 exit FOT (vault balance down-delta on push) | **done** |
 
-**Honesty still open:** exit push FOT (recipient-side); fully dynamic Call
+**Honesty still open:** recipient-side FOT re-measure; fully dynamic Call
 element calldata (not just length of a static max prefix).
 
 ---

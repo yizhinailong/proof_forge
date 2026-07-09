@@ -63,11 +63,17 @@ def main : IO UInt32 := do
           require (userSh == 990) "user net after 1% fee"
           require (sFee.totalSupply == 1000 && sFee.totalAssets == 1000) "gross supply"
           -- exit fee: redeem all supply-equivalent path via Spec
-          match redeem? sFee 1000 100 with
+          match redeem? sFee 1000 100 none with
           | none => throw (IO.userError "redeem with exit fee should succeed")
           | some (sOut, userAssets) =>
               require (userAssets == 990) "user net assets after 1% exit fee"
               require (sOut.totalAssets == 0 && sOut.totalSupply == 0) "emptied"
+          -- exit FOT: planned leave 1000 but vault only lost 995
+          match redeemFot? { totalAssets := 1000, totalSupply := 1000 } 1000 995 0 with
+          | none => throw (IO.userError "redeemFot should succeed")
+          | some (sFot, _) =>
+              require (sFot.totalAssets == 5) "exit FOT books actual left"
+              require (sFot.totalSupply == 0) "shares burned"
       match deposit? s1 0 0 with
       | some _ => throw (IO.userError "zero deposit must fail")
       | none => pure ()
