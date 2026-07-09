@@ -733,7 +733,8 @@ fn outcome_from_mollusk_result(
         budget: Some(proof_forge_testkit_core::BudgetOutcome {
             solana_cu: Some(compute_units),
             evm_gas: None,
-            near_gas: None,
+            wasmtime_fuel_cumulative: None,
+            wasmtime_fuel_delta: None,
         }),
         error,
         raw_line,
