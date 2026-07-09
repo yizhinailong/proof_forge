@@ -140,8 +140,8 @@ def main : IO Unit := do
   require (MAX_CPI_ACCOUNT_INFOS == 128) "Solana CPI account infos ceiling is 128"
   require (MAX_PORTABLE_CPI_ACCOUNTS == min MAX_TX_ACCOUNT_LOCKS MAX_PORTABLE_CPI_STACK_ACCOUNTS)
     "portable CPI max is min(tx locks, stack capacity)"
-  require (MAX_PORTABLE_CPI_ACCOUNTS == 16)
-    "current stack frame packs 16 portable CPI accounts"
+  require (MAX_PORTABLE_CPI_ACCOUNTS == 40)
+    "dedicated portable CPI frame packs 40 accounts (min of 64 locks and stack)"
   require ((forProfile moveAptos).nativeForm == NativeForm.moveCall) "Aptos form"
   require ((forProfile moveSui).nativeForm == NativeForm.moveCall) "Sui form"
 

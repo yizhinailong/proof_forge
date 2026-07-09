@@ -41,14 +41,40 @@ open ProofForge.Backend.Solana.Extension
 open ProofForge.Backend.Solana.StateLayout
 open ProofForge.Backend.Solana.Syscalls
 
-/-- Stack word for runtime account-index (`target`) of a portable crosscall.
-Sits just below the account pointer table so it never collides with the fixed
-CPI packing frame (`cpiInstructionOffset` … `cpiSignerSeedDataOffset`). -/
-def portableTargetIndexSaveOffset : Nat := 3264
+/-! ## Dedicated portable CPI stack frame
+
+Does **not** reuse Extension CPI offsets (`cpiAccountMetaOffset` …) so Source.Solana
+hand-tuned CPI keeps its layout. Layout (offsets from r10, low → high usage):
+
+```
+portableCpiIxOffset          SolInstruction (40)
+portableCpiMetaOffset        AccountMeta[MAX] (MAX×16)
+portableCpiProgramIdOffset   program id (32)
+portableCpiDataOffset        ix data (portable args)
+portableCpiInfoOffset        AccountInfo[MAX] (MAX×56)
+portableReturnDataOffset     return-data buffer (8+)
+portableTargetIndexSave      target account index word
+accountPtrTableOffset        64 account ptrs (shared entry prologue)
+entryInputSaveOffset …
+```
+-/
+
+def portableCpiIxOffset : Nat := 64
+def portableCpiMetaOffset : Nat := 128
+/-- Metas consume `MAX_PORTABLE_CPI_ACCOUNTS × 16` bytes from `portableCpiMetaOffset`. -/
+def portableCpiProgramIdOffset : Nat :=
+  portableCpiMetaOffset + MAX_PORTABLE_CPI_ACCOUNTS * 16  -- 128+640=768
+def portableCpiDataOffset : Nat := portableCpiProgramIdOffset + 32  -- 800
+def portableCpiInfoOffset : Nat := portableCpiDataOffset + 256  -- 1056, room for many u64 args
+/-- Infos: 40×56=2240 → end 1056+2240=3296; return data just below account table (3488). -/
+def portableReturnDataOffset : Nat := 3360
+def portableReturnDataProgramIdOffset : Nat := 3368
+/-- Target account index save; below return-data, above infos end (~3296). -/
+def portableTargetIndexSaveOffset : Nat := 3336
 
 /-- Store r2 (u64) into portable instruction data at word index `wordIdx`. -/
 def storeIxDataWord (wordIdx : Nat) : Array AstNode :=
-  stackPtr .r8 cpiInstructionDataOffset ++ #[
+  stackPtr .r8 portableCpiDataOffset ++ #[
     .instruction {
       opcode := .stxdw
       dst := some .r8
@@ -58,9 +84,7 @@ def storeIxDataWord (wordIdx : Nat) : Array AstNode :=
   ]
 
 /-- Copy 32-byte pubkey from the input account at runtime index (stack word at
-`portableTargetIndexSaveOffset`) into `cpiProgramIdOffset`. Account keys sit
-`ACCOUNT_HEADER_SIZE` bytes into each serialized input account; the pointer
-table is built by the entrypoint prologue. -/
+`portableTargetIndexSaveOffset`) into `portableCpiProgramIdOffset`. -/
 def copyProgramIdFromAccountIndex : Array AstNode :=
   #[
     .comment "portable CPI: program_id ← input account[target].key (32 bytes)"
@@ -77,7 +101,7 @@ def copyProgramIdFromAccountIndex : Array AstNode :=
     .instruction { opcode := .ldxdw, dst := some .r7, src := some .r6, off := some (.num 0) },
     .instruction { opcode := .add64, dst := some .r7, imm := some (.num ACCOUNT_HEADER_SIZE) }
   ] ++
-  stackPtr .r8 cpiProgramIdOffset ++ #[
+  stackPtr .r8 portableCpiProgramIdOffset ++ #[
     .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 0) },
     storeReg .stxdw .r8 0 .r3,
     .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num 8) },
@@ -126,7 +150,7 @@ def storeAccountMetaFromR7 (slotIdx : Nat) : Array AstNode :=
   #[
     .comment s!"portable CPI: AccountMeta[{slotIdx}] from input account[{slotIdx}] header flags"
   ] ++
-  stackPtr .r6 cpiAccountMetaOffset ++ #[
+  stackPtr .r6 portableCpiMetaOffset ++ #[
     .instruction { opcode := .add64, dst := some .r6, imm := some (.num metaOffset) },
     -- key_ptr = account + ACCOUNT_HEADER_SIZE
     .instruction { opcode := .mov64, dst := some .r8, src := some .r7 },
@@ -152,7 +176,7 @@ def storeAccountInfoFromR7 (slotIdx : Nat) : Array AstNode :=
   #[
     .comment s!"portable CPI: AccountInfo[{slotIdx}] from input account[{slotIdx}]"
   ] ++
-  stackPtr .r6 cpiAccountInfoOffset ++ #[
+  stackPtr .r6 portableCpiInfoOffset ++ #[
     .instruction { opcode := .add64, dst := some .r6, imm := some (.num infoOffset) },
     .instruction { opcode := .mov64, dst := some .r8, src := some .r7 },
     .instruction { opcode := .add64, dst := some .r8, imm := some (.num keyRel) },
@@ -203,16 +227,16 @@ def packSolInstruction (dataLen accountCount : Nat) : Array AstNode :=
   #[
     .comment s!"portable CPI: SolInstruction (program_id, {accountCount} metas, ix data)"
   ] ++
-  stackPtr .r5 cpiInstructionOffset ++
-  stackPtr .r8 cpiProgramIdOffset ++ #[
+  stackPtr .r5 portableCpiIxOffset ++
+  stackPtr .r8 portableCpiProgramIdOffset ++ #[
     storeReg .stxdw .r5 0 .r8
   ] ++
-  stackPtr .r7 cpiAccountMetaOffset ++ #[
+  stackPtr .r7 portableCpiMetaOffset ++ #[
     storeReg .stxdw .r5 8 .r7,
     loadImm .r3 accountCount,
     storeReg .stxdw .r5 16 .r3
   ] ++
-  stackPtr .r8 cpiInstructionDataOffset ++ #[
+  stackPtr .r8 portableCpiDataOffset ++ #[
     storeReg .stxdw .r5 24 .r8,
     loadImm .r3 dataLen,
     storeReg .stxdw .r5 32 .r3
@@ -224,10 +248,10 @@ def decodeReturnDataU64 (retNoneLabel retEndLabel : String) : Array AstNode :=
   #[
     .comment "portable CPI: decode first u64 of sol_get_return_data → r2"
   ] ++
-  stackPtr .r1 returnDataScratchOffset ++ #[
+  stackPtr .r1 portableReturnDataOffset ++ #[
     loadImm .r2 8
   ] ++
-  stackPtr .r3 returnDataProgramIdOffset ++ #[
+  stackPtr .r3 portableReturnDataProgramIdOffset ++ #[
     storeImm .stxdw .r3 0 0,
     storeImm .stxdw .r3 8 0,
     storeImm .stxdw .r3 16 0,
@@ -241,7 +265,7 @@ def decodeReturnDataU64 (retNoneLabel retEndLabel : String) : Array AstNode :=
       off := some (.sym retNoneLabel)
     }
   ] ++
-  stackPtr .r3 returnDataScratchOffset ++ #[
+  stackPtr .r3 portableReturnDataOffset ++ #[
     .instruction { opcode := .ldxdw, dst := some .r2, src := some .r3, off := some (.num 0) },
     .instruction { opcode := .ja, off := some (.sym retEndLabel) },
     .label retNoneLabel,
@@ -268,8 +292,8 @@ def invokeSignedC (dataLen accountCount : Nat) (retNoneLabel retEndLabel : Strin
   copyProgramIdFromAccountIndex ++
   packAllTxAccounts n ++
   packSolInstruction dataLen n ++
-  stackPtr .r1 cpiInstructionOffset ++
-  stackPtr .r2 cpiAccountInfoOffset ++ #[
+  stackPtr .r1 portableCpiIxOffset ++
+  stackPtr .r2 portableCpiInfoOffset ++ #[
     loadImm .r3 n,
     loadImm .r4 0,
     loadImm .r5 0,

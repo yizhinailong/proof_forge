@@ -20,6 +20,7 @@ import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.ErrorRefProbe
 import ProofForge.Solana.Examples.Vault
 import ProofForge.Target
+import ProofForge.Target.Preflight
 
 open System
 open ProofForge.Cli.JsonUtil
@@ -289,6 +290,9 @@ def compileSolanaSdkSbpf (opts : CliOptions) : IO UInt32 := do
           ProofForge.Target.Materialize.Report.json
             (ProofForge.Target.Materialize.forSolana spec.module
               (ProofForge.Backend.Solana.Extension.ProgramExtensions.fromPlan plan))),
+        ("preflight",
+          ProofForge.Target.Preflight.Report.json
+            (ProofForge.Target.Preflight.run ProofForge.Target.solanaSbpfAsm spec.module)),
         ("solanaMaterialization",
           ProofForge.Backend.Solana.Materialize.reportJson
             (ProofForge.Backend.Solana.Materialize.report spec.module

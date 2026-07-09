@@ -13,7 +13,7 @@ entrypoint:
   mov64 r3, r1
   add64 r3, 8
   mov64 r6, r10
-  sub64 r6, 3328
+  sub64 r6, 3488
   stxdw [r6+0], r3
   ldxdw r4, [r3+80]
   add64 r3, 88
@@ -28,7 +28,7 @@ entrypoint:
   add64 r3, r6
 entrypoint_account_scan_0_aligned:
   mov64 r6, r10
-  sub64 r6, 3328
+  sub64 r6, 3488
   stxdw [r6+8], r3
   ldxdw r4, [r3+80]
   add64 r3, 88
@@ -43,7 +43,7 @@ entrypoint_account_scan_0_aligned:
   add64 r3, r6
 entrypoint_account_scan_1_aligned:
   mov64 r6, r10
-  sub64 r6, 3328
+  sub64 r6, 3488
   stxdw [r6+16], r3
   ldxdw r4, [r3+80]
   add64 r3, 88
@@ -59,13 +59,13 @@ entrypoint_account_scan_1_aligned:
 entrypoint_account_scan_2_aligned:
   mov64 r9, r3
   add64 r9, 8
-  stxdw [r10-3584], r9
+  stxdw [r10-4008], r9
   ; instruction_data.length >= 1
-  ldxdw r3, [r10-3584]
+  ldxdw r3, [r10-4008]
   sub64 r3, 8
   ldxdw r2, [r3+0]
   jlt r2, 1, error_instruction_data
-  ldxdw r3, [r10-3584]
+  ldxdw r3, [r10-4008]
   ldxb r2, [r3+0]
   jeq r2, 0, sol_initialize
   jeq r2, 1, sol_call_remote
@@ -78,7 +78,7 @@ sol_initialize:
   ; account.validation: generated account schema
   ; account.validation[0:marker]: writable=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 2
   ldxb r2, [r7+0]
@@ -91,7 +91,7 @@ sol_initialize:
   add64 r4, r2
   stxdw [r10-3600], r4
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 40
   ldxdw r4, [r10-3600]
@@ -109,21 +109,21 @@ sol_initialize:
   jne r5, r6, error_owner
   ; account.validation[1:payer]: signer=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+8]
   add64 r7, 1
   ldxb r2, [r7+0]
   jeq r2, 0, error_signer
   ; account.validation[1:payer]: writable=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+8]
   add64 r7, 2
   ldxb r2, [r7+0]
   jeq r2, 0, error_not_writable
   ; account.validation[2:callee_program]: owner=executable
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+16]
   add64 r7, 3
   ldxb r2, [r7+0]
@@ -138,7 +138,7 @@ sol_call_remote:
   ; account.validation: generated account schema
   ; account.validation[0:marker]: writable=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 2
   ldxb r2, [r7+0]
@@ -151,7 +151,7 @@ sol_call_remote:
   add64 r4, r2
   stxdw [r10-3600], r4
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 40
   ldxdw r4, [r10-3600]
@@ -169,46 +169,46 @@ sol_call_remote:
   jne r5, r6, error_owner
   ; account.validation[1:payer]: signer=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+8]
   add64 r7, 1
   ldxb r2, [r7+0]
   jeq r2, 0, error_signer
   ; account.validation[1:payer]: writable=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+8]
   add64 r7, 2
   ldxb r2, [r7+0]
   jeq r2, 0, error_not_writable
   ; account.validation[2:callee_program]: owner=executable
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+16]
   add64 r7, 3
   ldxb r2, [r7+0]
   jeq r2, 0, error_owner
   ; portable address handle → u64 account index 0
   mov64 r2, 0
-  stxdw [r10-3264], r2
+  stxdw [r10-3336], r2
   ; portable address handle → u64 account index 1
   mov64 r2, 1
   ; portable crosscall → Solana CPI (method + args as ix data)
   mov64 r8, r10
-  sub64 r8, 384
+  sub64 r8, 800
   stxdw [r8+0], r2
-  ; portable crosscall → sol_invoke_signed_c (data_len=8, accounts=3/16, signers=0)
-  stxdw [r10-3520], r1
+  ; portable crosscall → sol_invoke_signed_c (data_len=8, accounts=3/40, signers=0)
+  stxdw [r10-4000], r1
   ; portable CPI: program_id ← input account[target].key (32 bytes)
   mov64 r6, r10
-  sub64 r6, 3328
-  ldxdw r2, [r10-3264]
+  sub64 r6, 3488
+  ldxdw r2, [r10-3336]
   mul64 r2, 8
   add64 r6, r2
   ldxdw r7, [r6+0]
   add64 r7, 8
   mov64 r8, r10
-  sub64 r8, 512
+  sub64 r8, 768
   ldxdw r3, [r7+0]
   stxdw [r8+0], r3
   ldxdw r3, [r7+8]
@@ -217,13 +217,13 @@ sol_call_remote:
   stxdw [r8+16], r3
   ldxdw r3, [r7+24]
   stxdw [r8+24], r3
-  ; portable CPI: forward 3 tx accounts (max=16; tx locks=64)
+  ; portable CPI: forward 3 tx accounts (max=40; tx locks=64)
   mov64 r6, r10
-  sub64 r6, 3328
+  sub64 r6, 3488
   ldxdw r7, [r6+0]
   ; portable CPI: AccountMeta[0] from input account[0] header flags
   mov64 r6, r10
-  sub64 r6, 256
+  sub64 r6, 128
   add64 r6, 0
   mov64 r8, r7
   add64 r8, 8
@@ -233,11 +233,11 @@ sol_call_remote:
   ldxb r3, [r7+1]
   stxb [r6+9], r3
   mov64 r6, r10
-  sub64 r6, 3328
+  sub64 r6, 3488
   ldxdw r7, [r6+0]
   ; portable CPI: AccountInfo[0] from input account[0]
   mov64 r6, r10
-  sub64 r6, 1152
+  sub64 r6, 1056
   add64 r6, 0
   mov64 r8, r7
   add64 r8, 8
@@ -264,11 +264,11 @@ sol_call_remote:
   ldxb r3, [r7+3]
   stxb [r6+50], r3
   mov64 r6, r10
-  sub64 r6, 3328
+  sub64 r6, 3488
   ldxdw r7, [r6+8]
   ; portable CPI: AccountMeta[1] from input account[1] header flags
   mov64 r6, r10
-  sub64 r6, 256
+  sub64 r6, 128
   add64 r6, 16
   mov64 r8, r7
   add64 r8, 8
@@ -278,11 +278,11 @@ sol_call_remote:
   ldxb r3, [r7+1]
   stxb [r6+9], r3
   mov64 r6, r10
-  sub64 r6, 3328
+  sub64 r6, 3488
   ldxdw r7, [r6+8]
   ; portable CPI: AccountInfo[1] from input account[1]
   mov64 r6, r10
-  sub64 r6, 1152
+  sub64 r6, 1056
   add64 r6, 56
   mov64 r8, r7
   add64 r8, 8
@@ -309,11 +309,11 @@ sol_call_remote:
   ldxb r3, [r7+3]
   stxb [r6+50], r3
   mov64 r6, r10
-  sub64 r6, 3328
+  sub64 r6, 3488
   ldxdw r7, [r6+16]
   ; portable CPI: AccountMeta[2] from input account[2] header flags
   mov64 r6, r10
-  sub64 r6, 256
+  sub64 r6, 128
   add64 r6, 32
   mov64 r8, r7
   add64 r8, 8
@@ -323,11 +323,11 @@ sol_call_remote:
   ldxb r3, [r7+1]
   stxb [r6+9], r3
   mov64 r6, r10
-  sub64 r6, 3328
+  sub64 r6, 3488
   ldxdw r7, [r6+16]
   ; portable CPI: AccountInfo[2] from input account[2]
   mov64 r6, r10
-  sub64 r6, 1152
+  sub64 r6, 1056
   add64 r6, 112
   mov64 r8, r7
   add64 r8, 8
@@ -357,35 +357,35 @@ sol_call_remote:
   mov64 r5, r10
   sub64 r5, 64
   mov64 r8, r10
-  sub64 r8, 512
+  sub64 r8, 768
   stxdw [r5+0], r8
   mov64 r7, r10
-  sub64 r7, 256
+  sub64 r7, 128
   stxdw [r5+8], r7
   mov64 r3, 3
   stxdw [r5+16], r3
   mov64 r8, r10
-  sub64 r8, 384
+  sub64 r8, 800
   stxdw [r5+24], r8
   mov64 r3, 8
   stxdw [r5+32], r3
   mov64 r1, r10
   sub64 r1, 64
   mov64 r2, r10
-  sub64 r2, 1152
+  sub64 r2, 1056
   mov64 r3, 3
   mov64 r4, 0
   mov64 r5, 0
   ; r1=instruction_ptr r2=account_infos_ptr r3=3 r4=0 r5=0
   call sol_invoke_signed_c
   jne r0, 0, error_cpi
-  ldxdw r1, [r10-3520]
+  ldxdw r1, [r10-4000]
   ; portable CPI: decode first u64 of sol_get_return_data → r2
   mov64 r1, r10
-  sub64 r1, 2048
+  sub64 r1, 3360
   mov64 r2, 8
   mov64 r3, r10
-  sub64 r3, 3104
+  sub64 r3, 3368
   stxdw [r3+0], r0
   stxdw [r3+8], r0
   stxdw [r3+16], r0
@@ -394,7 +394,7 @@ sol_call_remote:
   call sol_get_return_data
   jlt r0, 8, sol_lbl_0
   mov64 r3, r10
-  sub64 r3, 2048
+  sub64 r3, 3360
   ldxdw r2, [r3+0]
   ja sol_lbl_1
 sol_lbl_0:
@@ -414,7 +414,7 @@ sol_call_with_args:
   ; account.validation: generated account schema
   ; account.validation[0:marker]: writable=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 2
   ldxb r2, [r7+0]
@@ -427,7 +427,7 @@ sol_call_with_args:
   add64 r4, r2
   stxdw [r10-3600], r4
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 40
   ldxdw r4, [r10-3600]
@@ -445,54 +445,54 @@ sol_call_with_args:
   jne r5, r6, error_owner
   ; account.validation[1:payer]: signer=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+8]
   add64 r7, 1
   ldxb r2, [r7+0]
   jeq r2, 0, error_signer
   ; account.validation[1:payer]: writable=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+8]
   add64 r7, 2
   ldxb r2, [r7+0]
   jeq r2, 0, error_not_writable
   ; account.validation[2:callee_program]: owner=executable
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+16]
   add64 r7, 3
   ldxb r2, [r7+0]
   jeq r2, 0, error_owner
   ; portable address handle → u64 account index 0
   mov64 r2, 0
-  stxdw [r10-3264], r2
+  stxdw [r10-3336], r2
   ; portable address handle → u64 account index 1
   mov64 r2, 1
   ; portable crosscall → Solana CPI (method + args as ix data)
   mov64 r8, r10
-  sub64 r8, 384
+  sub64 r8, 800
   stxdw [r8+0], r2
   mov64 r2, 42
   mov64 r8, r10
-  sub64 r8, 384
+  sub64 r8, 800
   stxdw [r8+8], r2
   mov64 r2, 7
   mov64 r8, r10
-  sub64 r8, 384
+  sub64 r8, 800
   stxdw [r8+16], r2
-  ; portable crosscall → sol_invoke_signed_c (data_len=24, accounts=3/16, signers=0)
-  stxdw [r10-3520], r1
+  ; portable crosscall → sol_invoke_signed_c (data_len=24, accounts=3/40, signers=0)
+  stxdw [r10-4000], r1
   ; portable CPI: program_id ← input account[target].key (32 bytes)
   mov64 r6, r10
-  sub64 r6, 3328
-  ldxdw r2, [r10-3264]
+  sub64 r6, 3488
+  ldxdw r2, [r10-3336]
   mul64 r2, 8
   add64 r6, r2
   ldxdw r7, [r6+0]
   add64 r7, 8
   mov64 r8, r10
-  sub64 r8, 512
+  sub64 r8, 768
   ldxdw r3, [r7+0]
   stxdw [r8+0], r3
   ldxdw r3, [r7+8]
@@ -501,13 +501,13 @@ sol_call_with_args:
   stxdw [r8+16], r3
   ldxdw r3, [r7+24]
   stxdw [r8+24], r3
-  ; portable CPI: forward 3 tx accounts (max=16; tx locks=64)
+  ; portable CPI: forward 3 tx accounts (max=40; tx locks=64)
   mov64 r6, r10
-  sub64 r6, 3328
+  sub64 r6, 3488
   ldxdw r7, [r6+0]
   ; portable CPI: AccountMeta[0] from input account[0] header flags
   mov64 r6, r10
-  sub64 r6, 256
+  sub64 r6, 128
   add64 r6, 0
   mov64 r8, r7
   add64 r8, 8
@@ -517,11 +517,11 @@ sol_call_with_args:
   ldxb r3, [r7+1]
   stxb [r6+9], r3
   mov64 r6, r10
-  sub64 r6, 3328
+  sub64 r6, 3488
   ldxdw r7, [r6+0]
   ; portable CPI: AccountInfo[0] from input account[0]
   mov64 r6, r10
-  sub64 r6, 1152
+  sub64 r6, 1056
   add64 r6, 0
   mov64 r8, r7
   add64 r8, 8
@@ -548,11 +548,11 @@ sol_call_with_args:
   ldxb r3, [r7+3]
   stxb [r6+50], r3
   mov64 r6, r10
-  sub64 r6, 3328
+  sub64 r6, 3488
   ldxdw r7, [r6+8]
   ; portable CPI: AccountMeta[1] from input account[1] header flags
   mov64 r6, r10
-  sub64 r6, 256
+  sub64 r6, 128
   add64 r6, 16
   mov64 r8, r7
   add64 r8, 8
@@ -562,11 +562,11 @@ sol_call_with_args:
   ldxb r3, [r7+1]
   stxb [r6+9], r3
   mov64 r6, r10
-  sub64 r6, 3328
+  sub64 r6, 3488
   ldxdw r7, [r6+8]
   ; portable CPI: AccountInfo[1] from input account[1]
   mov64 r6, r10
-  sub64 r6, 1152
+  sub64 r6, 1056
   add64 r6, 56
   mov64 r8, r7
   add64 r8, 8
@@ -593,11 +593,11 @@ sol_call_with_args:
   ldxb r3, [r7+3]
   stxb [r6+50], r3
   mov64 r6, r10
-  sub64 r6, 3328
+  sub64 r6, 3488
   ldxdw r7, [r6+16]
   ; portable CPI: AccountMeta[2] from input account[2] header flags
   mov64 r6, r10
-  sub64 r6, 256
+  sub64 r6, 128
   add64 r6, 32
   mov64 r8, r7
   add64 r8, 8
@@ -607,11 +607,11 @@ sol_call_with_args:
   ldxb r3, [r7+1]
   stxb [r6+9], r3
   mov64 r6, r10
-  sub64 r6, 3328
+  sub64 r6, 3488
   ldxdw r7, [r6+16]
   ; portable CPI: AccountInfo[2] from input account[2]
   mov64 r6, r10
-  sub64 r6, 1152
+  sub64 r6, 1056
   add64 r6, 112
   mov64 r8, r7
   add64 r8, 8
@@ -641,35 +641,35 @@ sol_call_with_args:
   mov64 r5, r10
   sub64 r5, 64
   mov64 r8, r10
-  sub64 r8, 512
+  sub64 r8, 768
   stxdw [r5+0], r8
   mov64 r7, r10
-  sub64 r7, 256
+  sub64 r7, 128
   stxdw [r5+8], r7
   mov64 r3, 3
   stxdw [r5+16], r3
   mov64 r8, r10
-  sub64 r8, 384
+  sub64 r8, 800
   stxdw [r5+24], r8
   mov64 r3, 24
   stxdw [r5+32], r3
   mov64 r1, r10
   sub64 r1, 64
   mov64 r2, r10
-  sub64 r2, 1152
+  sub64 r2, 1056
   mov64 r3, 3
   mov64 r4, 0
   mov64 r5, 0
   ; r1=instruction_ptr r2=account_infos_ptr r3=3 r4=0 r5=0
   call sol_invoke_signed_c
   jne r0, 0, error_cpi
-  ldxdw r1, [r10-3520]
+  ldxdw r1, [r10-4000]
   ; portable CPI: decode first u64 of sol_get_return_data → r2
   mov64 r1, r10
-  sub64 r1, 2048
+  sub64 r1, 3360
   mov64 r2, 8
   mov64 r3, r10
-  sub64 r3, 3104
+  sub64 r3, 3368
   stxdw [r3+0], r0
   stxdw [r3+8], r0
   stxdw [r3+16], r0
@@ -678,7 +678,7 @@ sol_call_with_args:
   call sol_get_return_data
   jlt r0, 8, sol_lbl_2
   mov64 r3, r10
-  sub64 r3, 2048
+  sub64 r3, 3360
   ldxdw r2, [r3+0]
   ja sol_lbl_3
 sol_lbl_2:

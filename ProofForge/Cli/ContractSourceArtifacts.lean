@@ -18,6 +18,7 @@ import ProofForge.Contract.SdkSchema
 import ProofForge.Contract.Spec
 import ProofForge.IR
 import ProofForge.Target
+import ProofForge.Target.Preflight
 
 open System
 open ProofForge.Cli.JsonUtil
@@ -95,6 +96,9 @@ unsafe def compileContractSourceSbpf (opts : CliOptions) : IO UInt32 := do
         ("crosscallMaterialization",
           ProofForge.Target.CrosscallMaterialize.Report.json
             (ProofForge.Target.CrosscallMaterialize.forProfile ProofForge.Target.solanaSbpfAsm)),
+        ("preflight",
+          ProofForge.Target.Preflight.Report.json
+            (ProofForge.Target.Preflight.run ProofForge.Target.solanaSbpfAsm spec.module)),
         ("solanaMaterialization",
           ProofForge.Backend.Solana.Materialize.reportJson
             (ProofForge.Backend.Solana.Materialize.report spec.module

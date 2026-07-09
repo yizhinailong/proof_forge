@@ -411,8 +411,8 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 | 4c | **Portable crosscall.invoke materialize (EVM CALL · Solana CPI · NEAR Promise)** | ✅ B.3; Solana `sol_invoke_signed_c` + AccountMeta/Info + return-data; NEAR `promise_create`; Shared `RemoteCall` |
 | 5 | NEAR Promise constructors out of portable product path (D-050 Slice 3) | ✅ Partial: `Source.Near` opt-in + portable-default ban; full Expr inductive removal deferred |
 | 5b | **Layered preflight (L0 portability + L1 capability) before materialize** | ✅ `Target.Preflight`; L2 stays backend; L3/L4 = materialize + prologue |
-| 5c | Dedicated portable CPI stack frame (16 → 64 account pack) | Solana stack re-layout |
-| 5d | Wire Preflight into CLI `check` / artifact `preflight` field | Operator visibility |
+| 5c | Dedicated portable CPI stack frame (16 → 40 pack; 64 ptr table) | ✅ Dedicated frame; full 64 infos need heap (4 KiB stack) |
+| 5d | Wire Preflight into CLI artifact `preflight` field | ✅ Solana + contract_source + EVM deploy metadata |
 | 6 | Mark `Source.Solana` fixture-only; demote from product docs | After auto-materialize works for Counter/Vault |
 | 7 | Stdlib portable policies → multi-target lowering | One Ownable/Token intent |
 | 8 | Spec/Builder de-EVM naming | Product surface cleanup |

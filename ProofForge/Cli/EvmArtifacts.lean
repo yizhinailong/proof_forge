@@ -16,6 +16,7 @@ import ProofForge.Contract.SdkSchema
 import ProofForge.Contract.Spec.Json
 import ProofForge.IR
 import ProofForge.Target
+import ProofForge.Target.Preflight
 
 open ProofForge.Cli.ConstructorAbi
 open ProofForge.Cli.HexUtil
@@ -339,6 +340,14 @@ def writeEvmDeployManifest
     ("crosscallMaterialization",
       ProofForge.Target.CrosscallMaterialize.Report.json
         (ProofForge.Target.CrosscallMaterialize.forProfile ProofForge.Target.evm)),
+    ("preflight",
+      match module? with
+      | some module =>
+          ProofForge.Target.Preflight.Report.json
+            (ProofForge.Target.Preflight.run ProofForge.Target.evm module)
+      | none =>
+          "{\"targetId\":\"evm\",\"capabilityOk\":true,\"portabilityOk\":true,\"readyToMaterialize\":true,\"crosscallNativeForm\":\"evm-call\",\"note\":\"preflight skipped (no IR module in this path)\"}"
+    ),
     ("artifactKind", jsonString "evm-initcode-deploy"),
     ("fixture", jsonString fixture),
     ("contractName", jsonString (contractNameForFixture fixture)),
@@ -452,6 +461,14 @@ def writeEvmArtifactMetadata
     ("crosscallMaterialization",
       ProofForge.Target.CrosscallMaterialize.Report.json
         (ProofForge.Target.CrosscallMaterialize.forProfile ProofForge.Target.evm)),
+    ("preflight",
+      match module? with
+      | some module =>
+          ProofForge.Target.Preflight.Report.json
+            (ProofForge.Target.Preflight.run ProofForge.Target.evm module)
+      | none =>
+          "{\"targetId\":\"evm\",\"capabilityOk\":true,\"portabilityOk\":true,\"readyToMaterialize\":true,\"crosscallNativeForm\":\"evm-call\",\"note\":\"preflight skipped (no IR module in this path)\"}"
+    ),
     ("artifactKind", jsonString "evm-bytecode"),
     ("fixture", jsonString fixture),
     ("sourceKind", jsonString sourceKind),

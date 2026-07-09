@@ -35,17 +35,17 @@ def MAX_TX_ACCOUNT_LOCKS : Nat := 64
 SIMD-0339 may raise this further; we still stack-pack within the frame. -/
 def MAX_CPI_ACCOUNT_INFOS : Nat := 128
 
-/-- sBPF stack packing capacity for portable CPI `SolAccountInfo` records with
-the shared CPI frame (`cpiAccountInfoOffset` 1152 … `returnDataScratchOffset`
-2048): `(2048 - 1152) / 56 = 16` infos. Metas fit in `256..512` for the same
-count (`16 * 16 = 256`). Raising this requires a dedicated portable CPI frame
-re-layout (tracked separately). Product max is also capped by
-`MAX_TX_ACCOUNT_LOCKS`. -/
-def MAX_PORTABLE_CPI_STACK_ACCOUNTS : Nat := 16
+/-- Dedicated portable CPI frame packs metas + infos below the account pointer
+table (`accountPtrTableOffset` 3488). Budget for infos:
+`table - portableCpiInfoBase`, with metas/program_id/data below infos.
+`40 × 56 = 2240` infos + `40 × 16 = 640` metas + headers fit under 3488 with
+headroom for return-data scratch. Full `MAX_TX_ACCOUNT_LOCKS` (64) would need
+heap-backed infos (table+infos alone are `64 × 64 = 4096` bytes). -/
+def MAX_PORTABLE_CPI_STACK_ACCOUNTS : Nat := 40
 
 /-- Effective max accounts for portable CPI materialization — the maximum the
 product path will forward into `sol_invoke_signed_c` (full instruction account
-vector, clipped to this ceiling). -/
+vector, clipped to this ceiling). Equals `min(64, 40)` today. -/
 def MAX_PORTABLE_CPI_ACCOUNTS : Nat :=
   min MAX_TX_ACCOUNT_LOCKS MAX_PORTABLE_CPI_STACK_ACCOUNTS
 

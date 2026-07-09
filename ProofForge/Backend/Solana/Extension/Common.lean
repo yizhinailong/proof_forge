@@ -73,9 +73,13 @@ def stackPtr (dst : Reg) (offset : Nat) : Array AstNode := #[
   .instruction { opcode := .sub64, dst := some dst, imm := some (.num offset) }
 ]
 
-def entryInputSaveOffset : Nat := 3520
-def accountPtrTableOffset : Nat := 3328
-def entryInstructionDataSaveOffset : Nat := 3584
+/-- High stack frame for entry saves + account pointer table.
+Sized so the table can hold `MAX_TX_ACCOUNT_LOCKS` (64) account pointers
+before the entry save slots (4 KiB sBPF stack budget). -/
+def entryInputSaveOffset : Nat := 4000
+def entryInstructionDataSaveOffset : Nat := 4008
+/-- 64 × 8-byte pointers: occupies `[accountPtrTableOffset, entryInputSaveOffset)`. -/
+def accountPtrTableOffset : Nat := entryInputSaveOffset - (64 * 8)  -- 3488
 def entryInstructionDataReg : Reg := .r9
 
 def loadSavedInstructionDataPtr (dst : Reg) : Array AstNode :=
