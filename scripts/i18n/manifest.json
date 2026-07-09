@@ -1,9 +1,9 @@
 {
   "README.md": {
-    "sha256": "deff3e964a1045eef729a8a3cdd4822802c116fa37f04bf44e4ca603f3f20483",
+    "sha256": "239b47ce0889b97ec44b54fda047842932b8e53b3e458056d888eeb4e98cdd3b",
     "zh": "docs/zh/README-root.zh.md",
     "model": "manual-zh",
-    "note": "manually synced through the 2026-07-10 audit integration"
+    "note": "manually synced for PF-P0-05 (README/capability registry honesty)"
   },
   "CONTRIBUTING.md": {
     "sha256": "b47c1fcaf0d003718e5487575f74486b403ed4bbfb88dc7fc1891cbe23cc7b64",
@@ -32,10 +32,10 @@
     "note": "synced after Product/Backend reorg path renames"
   },
   "docs/capability-registry.md": {
-    "sha256": "0cea0f876c859487a3d463222da1e06eba99cdc6f70e443a40adcbec015acb49",
+    "sha256": "f20cd943f74234d9f5852c9ffefcb2fa46a71c2fd5033841ae35c8fa2a7a1c73",
     "zh": "docs/zh/capability-registry.zh.md",
-    "model": "gemini-3-flash-preview",
-    "note": "synced after Product/Backend reorg path renames"
+    "model": "manual-zh",
+    "note": "manually synced for PF-P0-05 (README/capability registry honesty)"
   },
   "docs/portable-ir.md": {
     "sha256": "d28f500c252fcfbeb905950ec2f67ee3c43a331e4c4c7dafdaccbfde762015c2",

@@ -8,8 +8,8 @@ Status: **Active**
 Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
 
-Baseline: `just check` passed on `7663babb`; `just doc-sync-audit` still reports
-the seven advisory findings intentionally tracked by PF-P0-05.
+Baseline: Wave 0 partial — PF-P0-01..04 done on main; PF-P0-05 closes mechanical
+doc-sync drift via `just doc-sync-audit-strict`.
 
 ---
 

@@ -787,6 +787,10 @@ docs-check: examples-topology portable-default
 doc-sync-audit:
     scripts/docs/audit-doc-code-sync.sh
 
+# PF-P0-05: fail if any mechanical doc↔code finding remains.
+doc-sync-audit-strict:
+    scripts/docs/audit-doc-code-sync.sh --strict
+
 # Emit Counter .qnt model and run `quint verify`. Skips if Java < 17.
 quint-model-gate:
     scripts/quint/model-check-gate.sh
