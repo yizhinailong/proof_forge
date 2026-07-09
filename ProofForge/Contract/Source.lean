@@ -33,6 +33,10 @@ namespace ProofForge.Contract.Source
 open Lean
 open ProofForge.IR
 
+/-- Machine-readable `contract_source` surface version (PF-P1-05). Bump when
+entry arity, item syntax, or diagnostic codes change incompatibly. -/
+def sourceDslVersion : String := "contract_source-v1"
+
 abbrev ScalarRef := ProofForge.Contract.Surface.ScalarRef
 abbrev MapRef := ProofForge.Contract.Surface.MapRef
 abbrev BindingRef := ProofForge.Contract.Surface.BindingRef
@@ -262,11 +266,14 @@ scoped syntax "entry " ident "(" ident " : " term ", " ident " : " term ", " ide
 scoped syntax "entry " ident "(" ident " : " term ", " ident " : " term ", " ident " : " term ")" " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
 scoped syntax "entry " ident "(" ident " : " term ", " ident " : " term ", " ident " : " term ", " ident " : " term ")" " do" ppLine entryStmt* : contractItem
 scoped syntax "entry " ident "(" ident " : " term ", " ident " : " term ", " ident " : " term ", " ident " : " term ")" " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
+scoped syntax "entry " ident "(" ident " : " term ", " ident " : " term ", " ident " : " term ", " ident " : " term ", " ident " : " term ")" " do" ppLine entryStmt* : contractItem
+scoped syntax "entry " ident "(" ident " : " term ", " ident " : " term ", " ident " : " term ", " ident " : " term ", " ident " : " term ")" " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
 scoped syntax "query " ident " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
 scoped syntax "query " ident "(" ident " : " term ")" " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
 scoped syntax "query " ident "(" ident " : " term ", " ident " : " term ")" " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
 scoped syntax "query " ident "(" ident " : " term ", " ident " : " term ", " ident " : " term ")" " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
 scoped syntax "query " ident "(" ident " : " term ", " ident " : " term ", " ident " : " term ", " ident " : " term ")" " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
+scoped syntax "query " ident "(" ident " : " term ", " ident " : " term ", " ident " : " term ", " ident " : " term ", " ident " : " term ")" " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
 
 scoped syntax "let " ident " : " term " := " term ";" : entryStmt
 scoped syntax ident " := " term ";" : entryStmt
@@ -437,7 +444,7 @@ private def lowerSolanaSeed (seed : TSyntax `solanaSeed) : MacroM (TSyntax `term
   | `(solanaSeed| account_seed $accountRef:ident) =>
       `(ProofForge.Solana.Surface.accountSeed $accountRef)
   | _ =>
-      Macro.throwError s!"unsupported Solana PDA seed: {seed.raw}"
+      Macro.throwErrorAt seed s!"unsupported Solana PDA seed (dsl {sourceDslVersion})"
 
 private def lowerSolanaSeeds (seedItems : TSyntaxArray `solanaSeed) : MacroM (TSyntax `term) := do
   let lowered ← seedItems.mapM lowerSolanaSeed
@@ -450,7 +457,7 @@ private def lowerSolanaSignerSeed (seed : TSyntax `solanaSignerSeed) : MacroM (T
   | `(solanaSignerSeed| bump_seed $bindingRef:ident) =>
       `(ProofForge.Solana.Surface.bindingName $bindingRef)
   | _ =>
-      Macro.throwError s!"unsupported Solana signer seed: {seed.raw}"
+      Macro.throwErrorAt seed s!"unsupported Solana signer seed (dsl {sourceDslVersion})"
 
 private def lowerSolanaSignerSeeds (seedItems : TSyntaxArray `solanaSignerSeed) : MacroM (TSyntax `term) := do
   let lowered ← seedItems.mapM lowerSolanaSignerSeed
@@ -590,7 +597,9 @@ partial def lowerEntryBody (stmts : Array (TSyntax `entryStmt)) :
               ProofForge.Contract.Surface.binding $nameLit (.fixedArray .u64 3)
             ProofForge.Contract.Source.bindValue $name (ProofForge.Contract.Source.u64Array3 $a $b $c) *> $acc)
     | _ =>
-        Macro.throwError s!"unsupported contract source statement: {stmt.raw}"
+        Macro.throwErrorAt stmt
+          s!"unsupported contract source statement (dsl {sourceDslVersion}); \
+check entry body syntax or import ProofForge.Contract.Source.Solana for Solana extensions"
   return acc
 
 private def mkEntry0 (name : TSyntax `ident) (retTy : TSyntax `term)
@@ -646,6 +655,21 @@ private def mkEntry4 (name p1 : TSyntax `ident) (t1 : TSyntax `term)
           (← `(ProofForge.Contract.Surface.entry
               (ProofForge.Contract.Surface.method $nameLit #[$p1, $p2, $p3, $p4] $retTy)
               $body)))))
+
+private def mkEntry5 (name p1 : TSyntax `ident) (t1 : TSyntax `term)
+    (p2 : TSyntax `ident) (t2 : TSyntax `term) (p3 : TSyntax `ident) (t3 : TSyntax `term)
+    (p4 : TSyntax `ident) (t4 : TSyntax `term) (p5 : TSyntax `ident) (t5 retTy : TSyntax `term)
+    (stmts : Array (TSyntax `entryStmt)) : MacroM (TSyntax `term) := do
+  let nameLit := identNameLit name
+  let body ← lowerEntryBody stmts
+  mkParamLet p1 t1
+    (← mkParamLet p2 t2
+      (← mkParamLet p3 t3
+        (← mkParamLet p4 t4
+          (← mkParamLet p5 t5
+            (← `(ProofForge.Contract.Surface.entry
+                (ProofForge.Contract.Surface.method $nameLit #[$p1, $p2, $p3, $p4, $p5] $retTy)
+                $body))))))
 
 private structure LoweredItem where
   action? : Option (TSyntax `term) := none
@@ -876,6 +900,10 @@ private def lowerItem (item : TSyntax `contractItem) : MacroM LoweredItem := do
       return { action? := some (← mkEntry4 name p1 t1 p2 t2 p3 t3 p4 t4 (← `(.unit)) stmts) }
   | `(contractItem| entry $name:ident ($p1:ident : $t1:term, $p2:ident : $t2:term, $p3:ident : $t3:term, $p4:ident : $t4:term) returns($retTy:term) do $stmts:entryStmt*) =>
       return { action? := some (← mkEntry4 name p1 t1 p2 t2 p3 t3 p4 t4 retTy stmts) }
+  | `(contractItem| entry $name:ident ($p1:ident : $t1:term, $p2:ident : $t2:term, $p3:ident : $t3:term, $p4:ident : $t4:term, $p5:ident : $t5:term) do $stmts:entryStmt*) =>
+      return { action? := some (← mkEntry5 name p1 t1 p2 t2 p3 t3 p4 t4 p5 t5 (← `(.unit)) stmts) }
+  | `(contractItem| entry $name:ident ($p1:ident : $t1:term, $p2:ident : $t2:term, $p3:ident : $t3:term, $p4:ident : $t4:term, $p5:ident : $t5:term) returns($retTy:term) do $stmts:entryStmt*) =>
+      return { action? := some (← mkEntry5 name p1 t1 p2 t2 p3 t3 p4 t4 p5 t5 retTy stmts) }
   | `(contractItem| query $name:ident returns($retTy:term) do $stmts:entryStmt*) =>
       return { action? := some (← mkEntry0 name retTy stmts) }
   | `(contractItem| query $name:ident ($p1:ident : $t1:term) returns($retTy:term) do $stmts:entryStmt*) =>
@@ -886,8 +914,12 @@ private def lowerItem (item : TSyntax `contractItem) : MacroM LoweredItem := do
       return { action? := some (← mkEntry3 name p1 t1 p2 t2 p3 t3 retTy stmts) }
   | `(contractItem| query $name:ident ($p1:ident : $t1:term, $p2:ident : $t2:term, $p3:ident : $t3:term, $p4:ident : $t4:term) returns($retTy:term) do $stmts:entryStmt*) =>
       return { action? := some (← mkEntry4 name p1 t1 p2 t2 p3 t3 p4 t4 retTy stmts) }
+  | `(contractItem| query $name:ident ($p1:ident : $t1:term, $p2:ident : $t2:term, $p3:ident : $t3:term, $p4:ident : $t4:term, $p5:ident : $t5:term) returns($retTy:term) do $stmts:entryStmt*) =>
+      return { action? := some (← mkEntry5 name p1 t1 p2 t2 p3 t3 p4 t4 p5 t5 retTy stmts) }
   | _ =>
-      Macro.throwError s!"unsupported contract source item: {item.raw}"
+      Macro.throwErrorAt item
+        s!"unsupported contract source item (dsl {sourceDslVersion}); \
+check entry arity (0–5 params) or item syntax"
 
 private def lowerContractItems (items : Array (TSyntax `contractItem)) :
     MacroM (TSyntax `term × Array LoweredItem) := do

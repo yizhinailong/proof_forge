@@ -8,7 +8,8 @@ Status: **Active**
 Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
 
-Baseline: Wave 1 complete (PF-P1-01..04). Next: Wave 2 PF-P1-05 authoring DSL diagnostic boundary.
+Baseline: Wave 1 complete (PF-P1-01..04). Wave 2: PF-P1-05 DSL version + 5-param
+entries + throwErrorAt diagnostics; remaining: isolate Solana Surface from Source.lean.
 
 ---
 
@@ -112,7 +113,7 @@ implementation SHA is only known after the implementation commit exists.
 | 1 | PF-P1-02 | done: verified@3ece05d8; just target-support; just product; just docs-check | all Wave 0 tasks done; coordinate with PF-P1-01 |
 | 1 | PF-P1-03 | done: verified@3021cb13; just artifact-bundle; just solana-source-elf; just product; just check | PF-P1-01 and PF-P1-02 done |
 | 1 | PF-P1-04 | done: verified@4cae7f88; just preflight-l2; just check-l2-parity; just product; just check | PF-P1-01 through PF-P1-03 done |
-| 2 | PF-P1-05 | pending | Wave 1 done |
+| 2 | PF-P1-05 | in_progress: dsl v1 + 5-param entry + located diagnostics; next: remove Solana.Surface import from Source.lean | Wave 1 done |
 | 2 | PF-P1-06 | pending | Wave 1 done |
 | 3 | PF-P2-01 | pending | Waves 1 and 2 done |
 | 3 | PF-P2-02 | pending | Waves 1 and 2 done; complete one backend slice at a time |
