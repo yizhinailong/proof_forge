@@ -1,0 +1,190 @@
+/-
+Copyright (c) 2026 DaviRain. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+
+# Product multi-target matrix (Phase 3)
+
+Every **Product** business module must materialize on primary hosts by changing
+only `--target` semantics (plan / lower). Authors never write chain DSL.
+
+Hosts: EVM plan · Solana sBPF · NEAR EmitWat · Soroban EmitWat (non-token).
+TokenSpec: EVM · Solana · NEAR honesty only (no Soroban token lane).
+-/
+import Examples.Product.AccessControl
+import Examples.Product.ArrayExample
+import Examples.Product.AuthRemoteCall
+import Examples.Product.Counter
+import Examples.Product.FeeToken
+import Examples.Product.FungibleToken
+import Examples.Product.Ownable
+import Examples.Product.OwnableHash
+import Examples.Product.OwnablePausable
+import Examples.Product.Pausable
+import Examples.Product.ReentrancyGuard
+import Examples.Product.RemoteCall
+import Examples.Product.RoleGatedToken
+import Examples.Product.SoulboundToken
+import Examples.Product.StakingVault
+import Examples.Product.ValueVault
+import ProofForge.Backend.Evm.Plan
+import ProofForge.Backend.Solana.Manifest
+import ProofForge.Backend.Solana.Materialize
+import ProofForge.Backend.Solana.SbpfAsm
+import ProofForge.Backend.WasmHost.EmitWat
+import ProofForge.Contract.Token
+import ProofForge.IR.Contract
+import ProofForge.IR.Examples.Counter
+import ProofForge.Target.HostBridge
+import ProofForge.Target.Materialize
+import ProofForge.Target.Registry
+
+namespace ProofForge.Tests.Product.Matrix
+
+open ProofForge.IR
+open ProofForge.Target
+open ProofForge.Target.Materialize
+open ProofForge.Backend.Solana.Manifest
+open ProofForge.Contract.Token
+
+def require (cond : Bool) (msg : String) : IO Unit :=
+  if cond then pure () else throw (IO.userError msg)
+
+def contains (haystack needle : String) : Bool :=
+  haystack.contains needle
+
+/-- Primary four-host materialize for a portable IR module. -/
+def assertFourHost (label : String) (m : Module) : IO Unit := do
+  match ProofForge.Backend.Evm.Plan.buildModulePlan m with
+  | .error e => throw (IO.userError s!"{label} EVM plan: {e.message}")
+  | .ok _ => pure ()
+  match ProofForge.Backend.Solana.SbpfAsm.renderModule m with
+  | .error e => throw (IO.userError s!"{label} Solana: {e.message}")
+  | .ok src =>
+      require (src.length > 0) s!"{label} Solana empty asm"
+      require (contains src "account.validation" || contains src "entrypoint")
+        s!"{label} Solana should emit entrypoint/account materialization"
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule m with
+  | .error e => throw (IO.userError s!"{label} NEAR: {e.message}")
+  | .ok wat => require (wat.length > 0) s!"{label} NEAR empty wat"
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule m .soroban with
+  | .error e => throw (IO.userError s!"{label} Soroban: {e.message}")
+  | .ok wat =>
+      require (wat.length > 0) s!"{label} Soroban empty wat"
+      require (!contains wat "promise_create")
+        s!"{label} Soroban must not import NEAR promise_create"
+
+/-- Storage binding reports for primary three (auto-portable). -/
+def assertAutoPortablePrimary (label : String) (m : Module) : IO Unit := do
+  let evmR := Materialize.forEvm m
+  let solR := Materialize.forSolana m {}
+  let nearR := Materialize.forWasmNear m
+  require (evmR.mode == .autoPortable) s!"{label} EVM auto-portable"
+  require (solR.mode == .autoPortable) s!"{label} Solana auto-portable"
+  require (nearR.mode == .autoPortable) s!"{label} NEAR auto-portable"
+  require (evmR.storageBinding == "contract-global") s!"{label} EVM binding"
+  require (solR.storageBinding == "account-data") s!"{label} Solana binding"
+  require (nearR.storageBinding == "host-key-value") s!"{label} NEAR binding"
+
+/-- Phase 2: Product is author source; IR fixture shares shape (not body/selectors). -/
+def testCounterSingleSource : IO Unit := do
+  let product := Examples.Product.Counter.module
+  let ir := ProofForge.IR.Examples.Counter.module
+  require (product.name == ir.name) "Counter name Product=IR fixture"
+  require (product.state.map (·.id) == ir.state.map (·.id))
+    "Counter state ids Product=IR fixture"
+  require (product.entrypoints.map (·.name) == ir.entrypoints.map (·.name))
+    "Counter entrypoint names Product=IR fixture"
+  require (product.entrypoints.map (·.name) == #["initialize", "increment", "get"])
+    "Product Counter entrypoint names"
+  -- Authors do not pin selectors; IR fixture may keep them for EVM CLI goldens.
+  require (product.entrypoints.all (fun e => e.selector?.isNone))
+    "Product Counter must be name-only (no author selectors)"
+  assertAutoPortablePrimary "Counter" product
+  assertFourHost "Counter" product
+
+def testPolicies : IO Unit := do
+  for (label, m) in #[
+    ("Ownable", Examples.Product.Ownable.module),
+    ("OwnableHash", Examples.Product.OwnableHash.module),
+    ("Pausable", Examples.Product.Pausable.module),
+    ("OwnablePausable", Examples.Product.OwnablePausable.module),
+    ("AccessControl", Examples.Product.AccessControl.module),
+    ("ReentrancyGuard", Examples.Product.ReentrancyGuard.module)
+  ] do
+    assertFourHost label m
+  -- Ownable: Solana synthesizes authority without Source.Solana
+  let ownable := Examples.Product.Ownable.module
+  let accounts := buildModuleAccounts ownable {}
+  require (accounts.any (fun a => a.name == "authority" && a.signer))
+    "Ownable Solana authority auto-fill"
+
+def testVaultsAndTokens : IO Unit := do
+  assertFourHost "ValueVault" Examples.Product.ValueVault.module
+  assertFourHost "StakingVault" Examples.Product.StakingVault.module
+  assertFourHost "RoleGatedToken" Examples.Product.RoleGatedToken.module
+  assertFourHost "ArrayExample" Examples.Product.ArrayExample.module
+  -- nativeValue → writable signer@0
+  let stakeAccounts := buildModuleAccounts Examples.Product.StakingVault.module {}
+  match stakeAccounts[0]? with
+  | some a =>
+      require a.signer "StakingVault leading signer"
+      require a.writable "StakingVault nativeValue writable fee payer"
+  | none => throw (IO.userError "StakingVault empty accounts")
+
+def testRemote : IO Unit := do
+  let remote := Examples.Product.RemoteCall.module
+  let authRemote := Examples.Product.AuthRemoteCall.module
+  assertFourHost "RemoteCall" remote
+  assertFourHost "AuthRemoteCall" authRemote
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule remote with
+  | .ok wat => require (contains wat "promise_create") "RemoteCall NEAR promise"
+  | .error e => throw (IO.userError e.message)
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule remote .soroban with
+  | .ok wat => require (contains wat "invoke_contract") "RemoteCall Soroban invoke"
+  | .error e => throw (IO.userError e.message)
+  match ProofForge.Backend.Solana.SbpfAsm.renderModule remote with
+  | .ok src => require (contains src "sol_invoke_signed_c") "RemoteCall Solana CPI"
+  | .error e => throw (IO.userError e.message)
+  let authAccounts := buildModuleAccounts authRemote {}
+  require (authAccounts.any (·.signer)) "AuthRemoteCall authority"
+  require (authAccounts.any (fun a => a.name == "callee_program"))
+    "AuthRemoteCall callee_program auto-fill"
+
+def testTokenIntent : IO Unit := do
+  -- Fungible: three-host plan (no Soroban lane)
+  match planForTarget evm Examples.Product.FungibleToken.spec with
+  | .error e => throw (IO.userError s!"Fungible EVM: {e}")
+  | .ok _ => pure ()
+  match planForTarget solanaSbpfAsm Examples.Product.FungibleToken.spec with
+  | .error e => throw (IO.userError s!"Fungible Solana: {e}")
+  | .ok _ => pure ()
+  match planForTarget wasmNear Examples.Product.FungibleToken.spec with
+  | .error e => throw (IO.userError s!"Fungible NEAR: {e}")
+  | .ok _ => pure ()
+  -- Fee / soulbound: Solana ok; EVM honest reject
+  match planForTarget solanaSbpfAsm Examples.Product.FeeToken.spec with
+  | .error e => throw (IO.userError s!"Fee Solana: {e}")
+  | .ok _ => pure ()
+  match planForTarget evm Examples.Product.FeeToken.spec with
+  | .error _ => pure ()
+  | .ok _ => throw (IO.userError "FeeToken must reject on EVM")
+  match planForTarget evm Examples.Product.SoulboundToken.spec with
+  | .error _ => pure ()
+  | .ok _ => throw (IO.userError "Soulbound must reject on EVM")
+  match planForTarget wasmStellarSoroban Examples.Product.FungibleToken.spec with
+  | .error _ => pure ()
+  | .ok _ => throw (IO.userError "Soroban must have no TokenSpec lane")
+
+def main : IO UInt32 := do
+  testCounterSingleSource
+  testPolicies
+  testVaultsAndTokens
+  testRemote
+  testTokenIntent
+  IO.println "product-matrix: ok (Counter·policies·vaults·remote·token × hosts)"
+  return 0
+
+end ProofForge.Tests.Product.Matrix
+
+def main : IO UInt32 :=
+  ProofForge.Tests.Product.Matrix.main

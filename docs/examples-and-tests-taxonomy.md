@@ -40,8 +40,24 @@ Platform does:  chain materialization (ABI, accounts, CPI, host, token standard)
 just product
 ```
 
-Runs the product gate (portable-default + multi-target materialize path).
+Runs:
+
+1. `portable-default` (Product sources stay business-only)
+2. `product-matrix` — `Tests/Product/Matrix.lean` (every Product module × EVM · Solana · NEAR · Soroban; TokenSpec honesty)
+3. Multi-target CLI smokes (Counter, RemoteCall)
+
 Full engineering suite remains `just check` (product + backend + formal).
+
+## Single Counter author source (Phase 2)
+
+| Module | Role |
+|--------|------|
+| `Examples/Product/Counter.lean` | **Author source** (name-only entrypoints) |
+| `ProofForge.Contract.Examples.Counter` | Spec alias → Product |
+| `ProofForge.IR.Examples.Counter` | IR fixture: same **shape**; may pin selectors / wrapping add for formal+CLI |
+| `Examples/Backend/*/Counter` | Thin wrappers / goldens only |
+
+Shape parity is enforced in `Tests/Product/Matrix.lean`.
 
 ## Migration note
 

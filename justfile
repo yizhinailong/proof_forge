@@ -693,20 +693,27 @@ portable-solana-accounts:
     lake build Examples.Product.AuthRemoteCall Examples.Product.Ownable Examples.Product.RemoteCall Examples.Product.RoleGatedToken Examples.Product.StakingVault ProofForge.Backend.Solana.Manifest ProofForge.Backend.Solana.Materialize ProofForge.Backend.Solana.SbpfAsm
     lake env lean --run Tests/SolanaPortableAccounts.lean
 
-# Primary product gate: Examples/Product business sources + multi-target materialize.
+# Primary product gate: Product sources × multi-target materialize matrix.
 # Docs: docs/examples-and-tests-taxonomy.md · Examples/Product/README.md
-product: portable-tutorial
-
-# Product tutorial path (Counter → Ownable → Token → Remote).
-portable-tutorial:
+product:
     just portable-default
+    just product-matrix
     just portable-counter-multi-target
+    just portable-remote-call-multi-target
+    @echo "product: ok (matrix · counter · remote)"
+
+# Product multi-target Lean matrix (all Product contracts × primary hosts).
+product-matrix:
+    lake build Examples.Product.AccessControl Examples.Product.ArrayExample Examples.Product.AuthRemoteCall Examples.Product.Counter Examples.Product.FeeToken Examples.Product.FungibleToken Examples.Product.Ownable Examples.Product.OwnableHash Examples.Product.OwnablePausable Examples.Product.Pausable Examples.Product.ReentrancyGuard Examples.Product.RemoteCall Examples.Product.RoleGatedToken Examples.Product.SoulboundToken Examples.Product.StakingVault Examples.Product.ValueVault ProofForge.IR.Examples.Counter ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmHost.EmitWat ProofForge.Target.Materialize
+    lake env lean --run Tests/Product/Matrix.lean
+
+# Extended product path (policies + token honesty + Solana accounts); kept for depth.
+portable-tutorial: product
     just portable-auth-materialize
     just shared-token-intent
     just token-feature-matrix
-    just portable-remote-call-multi-target
     just portable-solana-accounts
-    @echo "product: ok (Counter · Ownable · Token · Remote · AuthRemote)"
+    @echo "portable-tutorial: ok (product + policies · token · accounts)"
 
 # Check translated documentation freshness and example topology.
 docs-check: examples-topology portable-default
