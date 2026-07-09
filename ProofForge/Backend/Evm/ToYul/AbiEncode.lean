@@ -18,6 +18,8 @@ Memory at `memBase..memBase+4+size` should be zeroed or unused free memory
 (EVM expands memory with zeros). Plans only list non-default stores; gaps stay 0.
 -/
 import ProofForge.Backend.Evm.AbiEncode
+import ProofForge.Backend.Evm.Plan
+import ProofForge.IR.Contract
 import ProofForge.Compiler.Yul.AST
 import ProofForge.Compiler.Yul.Printer
 
@@ -170,4 +172,72 @@ def aggregateObject (objectName : String) (multicallTarget outSize : Nat)
 def renderAggregateObjectYul (objectName : String) (multicallTarget outSize : Nat)
     (calls : Array Call) (memBase : Nat := defaultMemBase) : String :=
   Printer.render (aggregateObject objectName multicallTarget outSize calls memBase)
+
+/-! ## IR auto-lower: compile-time ABI pack → Yul helper (target is runtime) -/
+
+open ProofForge.Backend.Evm.Plan (AbiPackedHelperSpec)
+
+/-- Stable helper name for a static pack (selector + stores fingerprint). -/
+def abiPackedHelperName (spec : AbiPackedHelperSpec) : String :=
+  Id.run do
+    let mut acc := s!"__pf_abi_packed_{spec.selector}_{spec.argsSize}_{spec.outSize}"
+    for s in spec.stores do
+      acc := s!"{acc}_{s.1}_{s.2}"
+    acc
+
+/-- Yul helper: pack selector+stores at `memBase`, CALL `target`, return first out word. -/
+def abiPackedHelperFunction (spec : AbiPackedHelperSpec) (memBase : Nat := defaultMemBase) :
+    Statement :=
+  let plan : Plan := {
+    stores := spec.stores.map fun s => { offset := s.1, value := .num s.2 }
+    size := spec.argsSize
+  }
+  let inSize := callInSize plan
+  let pack := packCalldataStatements memBase spec.selector plan
+  let body :=
+    pack ++ #[
+      .varDecl #[{ name := "_abi_ok" }] (some <|
+        builtin "call" #[
+          builtin "gas" #[],
+          .id "target",
+          .num 0,
+          .num memBase,
+          .num inSize,
+          .num memBase,
+          .num spec.outSize
+        ]),
+      .ifStmt
+        (builtin "iszero" #[.id "_abi_ok"])
+        { statements := #[.exprStmt (builtin "revert" #[.num 0, .num 0])] },
+      .assignment #["result"]
+        (if spec.outSize == 0 then .num 0
+         else builtin "mload" #[.num memBase])
+    ]
+  .funcDef (abiPackedHelperName spec)
+    #[{ name := "target" }]
+    #[{ name := "result" }]
+    { statements := body }
+
+def abiPackedHelperCallExpr (target : Lean.Compiler.Yul.Expr) (spec : AbiPackedHelperSpec) :
+    Lean.Compiler.Yul.Expr :=
+  Lean.Compiler.Yul.call (abiPackedHelperName spec) #[target]
+
+/-- Build IR `crosscallAbiPacked` from an AbiEncode plan (args region). -/
+def irFromPlan (target : ProofForge.IR.Expr) (selector : Nat) (plan : Plan)
+    (outSize : Nat := 32) : ProofForge.IR.Expr :=
+  ProofForge.IR.Expr.crosscallAbiPacked target selector
+    (plan.stores.map fun s => (s.offset, wordNat s.value))
+    plan.size
+    outSize
+
+/-- Multicall3 `aggregate(Call[])` as IR expr (compile-time calls). -/
+def irAggregate (target : ProofForge.IR.Expr) (calls : Array Call) (outSize : Nat := 32) :
+    ProofForge.IR.Expr :=
+  irFromPlan target 0x252dba42 (encodeAggregateArgs calls) outSize
+
+/-- Multicall3 `aggregate3(Call3[])` as IR expr. -/
+def irAggregate3 (target : ProofForge.IR.Expr) (calls : Array Call3) (outSize : Nat := 32) :
+    ProofForge.IR.Expr :=
+  irFromPlan target 0x82ad56cb (encodeAggregate3Args calls) outSize
+
 end ProofForge.Backend.Evm.ToYul.AbiEncode

@@ -136,6 +136,10 @@ mutual
         classifyExpr s!"{path}.a" a ++ classifyExpr s!"{path}.b" b ++
           classifyExpr s!"{path}.c" c ++ classifyExpr s!"{path}.d" d ++
           classifyExpr s!"{path}.e" e ++ classifyExpr s!"{path}.f" f
+    | .crosscallAbiPacked target _ _ _ _ =>
+        #[finding path "crosscallAbiPacked (compile-time ABI Call[] / plan)"
+            (.targetFamilyOnly .evm)] ++
+          classifyExpr s!"{path}.target" target
     | .cast value _ | .boolNot value | .hash value =>
         classifyExpr s!"{path}.value" value
     | .hashValue a b c d =>

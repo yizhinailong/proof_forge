@@ -66,7 +66,7 @@ Related: [product-authoring-architecture](product-authoring-architecture.md),
 
 | # | Gap | Desired |
 |---|-----|---------|
-| **P1.1** | ~~AbiEncode `Plan` not yet → Yul~~ | ✅ `ToYul.AbiEncode` mstore+CALL; IR Call[] auto-lower still open. |
+| **P1.1** | ~~AbiEncode `Plan` not yet → Yul~~ | ✅ `ToYul.AbiEncode` mstore+CALL; ✅ compile-time IR `crosscallAbiPacked` (runtime lengths still open). |
 | **P1.2** | ~~Solana no BinaryLayout~~ | ✅ pure LE `BinaryLayout`; full Cpi rewrite still optional. |
 | **P1.3** | Portable remote = scalar ABI only | Extend intentional types; or honest reject richer shapes. |
 | **P1.4** | Solana account auto-fill incomplete for all product examples | Every Product example builds Solana without Surface. |
@@ -179,9 +179,10 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 | ε.9 | ERC-4626 pro-rata rates (`convert` / deposit / withdraw floor) | **done** |
 | ε.10 | ERC-4626 `preview*` + IERC4626 preview client selectors | **done** |
 | ε.11 | ERC-4626 entry `feeBps` / `feeRecipient` on deposit·mint | **done** |
+| ε.12 | Compile-time Call[] IR auto-lower (`crosscallAbiPacked`) | **done** |
 
 **Honesty still open:** fee-on-transfer assets / exit fees / asymmetric
-mint-preview rounding; dynamic IR Call[] auto-lower.
+mint-preview rounding; **runtime-unknown** Call[] lengths.
 
 ---
 

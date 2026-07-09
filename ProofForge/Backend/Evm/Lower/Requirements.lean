@@ -104,6 +104,8 @@ mutual
         exprPlanUsesCheckedArithmetic a || exprPlanUsesCheckedArithmetic b ||
           exprPlanUsesCheckedArithmetic c || exprPlanUsesCheckedArithmetic d ||
           exprPlanUsesCheckedArithmetic e || exprPlanUsesCheckedArithmetic f
+    | .crosscallAbiPacked target _ _ _ _ =>
+        exprPlanUsesCheckedArithmetic target
     | .hashPack a b c d | .hashValue a b c d =>
         exprPlanUsesCheckedArithmetic a ||
           exprPlanUsesCheckedArithmetic b ||
@@ -383,6 +385,8 @@ mutual
           (localArrayHelperRequirementsFromExprPlan e)
           (localArrayHelperRequirementsFromExprPlan f)
         mergeLocalArrayHelperRequirements (mergeLocalArrayHelperRequirements ab cd) ef
+    | .crosscallAbiPacked target _ _ _ _ =>
+        localArrayHelperRequirementsFromExprPlan target
     | .hashPack a b c d | .hashValue a b c d =>
         let ab := mergeLocalArrayHelperRequirements
           (localArrayHelperRequirementsFromExprPlan a)
@@ -733,6 +737,8 @@ mutual
         HelperSet.insert
           (mergeHelperSets d (plannedHelpersFromExprPlan domainSep))
           .eip712PermitDigest
+    | .crosscallAbiPacked target _ _ _ _ =>
+        plannedHelpersFromExprPlan target
     | .hashPack a b c d | .hashValue a b c d =>
         let ab := mergeHelperSets
           (plannedHelpersFromExprPlan a)
@@ -1020,6 +1026,8 @@ mutual
         let cd := mergeContextPlans (contextOpsFromExprPlan c) (contextOpsFromExprPlan d)
         let ef := mergeContextPlans (contextOpsFromExprPlan e) (contextOpsFromExprPlan f)
         mergeContextPlans (mergeContextPlans ab cd) ef
+    | .crosscallAbiPacked target _ _ _ _ =>
+        contextOpsFromExprPlan target
     | .hashPack a b c d | .hashValue a b c d =>
         let ab := mergeContextPlans
           (contextOpsFromExprPlan a)

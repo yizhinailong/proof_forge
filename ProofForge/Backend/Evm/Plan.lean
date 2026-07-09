@@ -80,6 +80,9 @@ mutual
     | hashTwoToOne (lhs rhs : ExprPlan)
     | ecrecover (digest v r s : ExprPlan)
     | eip712PermitDigest (owner spender value nonce deadline domainSep : ExprPlan)
+    /-- Compile-time ABI-packed CALL: selector + static (offset,word) args region. -/
+    | crosscallAbiPacked (target : ExprPlan) (selector : Nat)
+        (stores : Array (Nat × Nat)) (argsSize : Nat) (outSize : Nat)
     | nativeValue
     | effect (effect : EffectPlan)
     deriving Repr
@@ -416,6 +419,19 @@ structure CreateHelperSpec where
 
 instance : BEq CreateHelperSpec := ⟨fun a b => a.mode == b.mode && a.initCodeHex == b.initCodeHex⟩
 
+/-- Compile-time ABI-packed CALL helper (selector + static args region). -/
+structure AbiPackedHelperSpec where
+  selector : Nat
+  stores : Array (Nat × Nat)
+  argsSize : Nat
+  outSize : Nat
+  deriving BEq, Repr
+
+instance : BEq AbiPackedHelperSpec :=
+  ⟨fun a b =>
+    a.selector == b.selector && a.stores == b.stores &&
+      a.argsSize == b.argsSize && a.outSize == b.outSize⟩
+
 /-! ## StmtPlan: target-semantic statement plan -/
 
 inductive StmtPlan where
@@ -626,6 +642,7 @@ mutual
     | .eip712PermitDigest a b c d e f =>
         contextOpsFromExpr a ++ contextOpsFromExpr b ++ contextOpsFromExpr c ++
           contextOpsFromExpr d ++ contextOpsFromExpr e ++ contextOpsFromExpr f
+    | .crosscallAbiPacked target _ _ _ _ => contextOpsFromExpr target
     | .cast value _ | .boolNot value | .hash value => contextOpsFromExpr value
     | .hashValue a b c d =>
         contextOpsFromExpr a ++ contextOpsFromExpr b ++ contextOpsFromExpr c ++ contextOpsFromExpr d

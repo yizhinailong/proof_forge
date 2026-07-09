@@ -434,6 +434,8 @@ mutual
         exprUsesCheckedArithmetic a || exprUsesCheckedArithmetic b ||
           exprUsesCheckedArithmetic c || exprUsesCheckedArithmetic d ||
           exprUsesCheckedArithmetic e || exprUsesCheckedArithmetic f
+    | .crosscallAbiPacked target _ _ _ _ =>
+        exprUsesCheckedArithmetic target
     | .crosscallInvoke t m args | .crosscallInvokeTyped t m args _
     | .crosscallInvokeValueTyped t m _ args _
     | .crosscallInvokeStaticTyped t m args _ | .crosscallInvokeDelegateTyped t m args _ =>
@@ -566,6 +568,12 @@ def lowerModuleWithPlan
     else
       let createSpecs := ProofForge.Backend.Evm.Lower.buildCreateHelperPlans module
       .ok (helpers ++ (← plannedCreateHelperFunctions createSpecs))
+  -- Compile-time ABI-packed CALL helpers (`crosscallAbiPacked` / Call[] materialize)
+  let abiPackSpecs := ProofForge.Backend.Evm.Lower.buildAbiPackedHelperPlans module
+  let helpers :=
+    helpers ++
+      abiPackSpecs.map (fun s =>
+        ProofForge.Backend.Evm.ToYul.AbiEncode.abiPackedHelperFunction s)
   let helpers ←
     if completePlan then
       .ok (helpers ++ ProofForge.Backend.Evm.ToYul.localArrayGetHelperFunctions plan.localArrayGetLengths)

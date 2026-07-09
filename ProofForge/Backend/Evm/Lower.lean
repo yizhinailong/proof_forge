@@ -552,6 +552,8 @@ mutual
         let collector ← collectEventPlansFromExpr module env collector d
         let collector ← collectEventPlansFromExpr module env collector e
         collectEventPlansFromExpr module env collector f
+    | .crosscallAbiPacked target _ _ _ _ =>
+        collectEventPlansFromExpr module env collector target
     | .cast value _ | .boolNot value | .hash value =>
         collectEventPlansFromExpr module env collector value
     | .hashValue a b c d => do
@@ -743,6 +745,8 @@ mutual
             (mergeNatSets (localArrayGetLengthsExpr env a) (localArrayGetLengthsExpr env b))
             (mergeNatSets (localArrayGetLengthsExpr env c) (localArrayGetLengthsExpr env d)))
           (mergeNatSets (localArrayGetLengthsExpr env e) (localArrayGetLengthsExpr env f))
+    | .crosscallAbiPacked target _ _ _ _ =>
+        localArrayGetLengthsExpr env target
     | .cast value _ | .boolNot value | .hash value =>
         localArrayGetLengthsExpr env value
     | .hashValue a b c d =>
@@ -917,6 +921,8 @@ mutual
             (mergeNatArraySets (nestedLocalArrayGetShapesExpr env a) (nestedLocalArrayGetShapesExpr env b))
             (mergeNatArraySets (nestedLocalArrayGetShapesExpr env c) (nestedLocalArrayGetShapesExpr env d)))
           (mergeNatArraySets (nestedLocalArrayGetShapesExpr env e) (nestedLocalArrayGetShapesExpr env f))
+    | .crosscallAbiPacked target _ _ _ _ =>
+        nestedLocalArrayGetShapesExpr env target
     | .cast value _ | .boolNot value | .hash value =>
         nestedLocalArrayGetShapesExpr env value
     | .hashValue a b c d =>

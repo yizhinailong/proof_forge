@@ -141,6 +141,9 @@ mutual
         ensureType "permit deadline" .u64 (← inferExprType module env deadline)
         discard <| inferExprType module env domainSep
         .ok .hash
+    | .crosscallAbiPacked target _selector _stores _argsSize _outSize => do
+        ensureType "abi-packed call target" .u64 (← inferExprType module env target)
+        .ok .u64
     | .nativeValue => .ok .u64
     | .crosscallInvoke target methodId args => do
         ensureCrosscallHandleType "crosscall target contract id"
@@ -878,6 +881,8 @@ mutual
         exprUsesCheckedArithmetic a || exprUsesCheckedArithmetic b ||
           exprUsesCheckedArithmetic c || exprUsesCheckedArithmetic d ||
           exprUsesCheckedArithmetic e || exprUsesCheckedArithmetic f
+    | .crosscallAbiPacked target _ _ _ _ =>
+        exprUsesCheckedArithmetic target
     | .crosscallInvoke t m args | .crosscallInvokeTyped t m args _
     | .crosscallInvokeValueTyped t m _ args _
     | .crosscallInvokeStaticTyped t m args _ | .crosscallInvokeDelegateTyped t m args _ =>

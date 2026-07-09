@@ -180,6 +180,7 @@ where
     | .ecrecover a b c d => exprUses a || exprUses b || exprUses c || exprUses d
     | .eip712PermitDigest a b c d e f =>
         exprUses a || exprUses b || exprUses c || exprUses d || exprUses e || exprUses f
+    | .crosscallAbiPacked target _ _ _ _ => exprUses target
     | .cast a _ | .boolNot a | .hash a | .memoryArrayLength a | .field a _
     | .nearPromiseResultStatus a | .nearPromiseResultU64 a => exprUses a
     | .arrayLit _ xs => xs.any exprUses

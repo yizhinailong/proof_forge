@@ -206,6 +206,16 @@ mutual
     Requires `crypto.ecrecover` (same EVM-only gate as ecrecover). -/
     | eip712PermitDigest (owner spender value nonce deadline domainSep : Expr)
     | nativeValue
+    /-- Compile-time ABI-packed CALL (EVM). `stores` are `(offset, word)` in the
+    **args region** after the 4-byte selector (from `Evm.AbiEncode.Plan`).
+    Runtime-unknown lengths are **not** supported — this is static Call[] /
+    plan materialize into IR. Requires `crosscall.invoke`. Other hosts reject. -/
+    | crosscallAbiPacked
+        (target : Expr)
+        (selector : Nat)
+        (stores : Array (Nat × Nat))
+        (argsSize : Nat)
+        (outSize : Nat)
     | crosscallInvoke (targetContractId : Expr) (methodId : Expr) (args : Array Expr)
     | crosscallInvokeTyped (targetContractId : Expr) (methodId : Expr) (args : Array Expr) (returnType : ValueType)
     | crosscallInvokeValueTyped (targetContractId : Expr) (methodId callValue : Expr) (args : Array Expr) (returnType : ValueType)
@@ -478,6 +488,8 @@ mutual
         #[.cryptoEcrecover, .cryptoHash] ++ owner.capabilities ++ spender.capabilities ++
           value.capabilities ++ nonce.capabilities ++ deadline.capabilities ++ domainSep.capabilities
     | .nativeValue => #[.valueNative]
+    | .crosscallAbiPacked target _selector _stores _argsSize _outSize =>
+        #[.crosscallInvoke] ++ target.capabilities
     | .crosscallInvoke target methodId args =>
         #[.crosscallInvoke] ++ target.capabilities ++ methodId.capabilities ++
           args.foldl (fun acc arg => acc ++ arg.capabilities) #[]

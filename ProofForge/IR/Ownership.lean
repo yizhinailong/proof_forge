@@ -141,6 +141,8 @@ mutual
         checkExprFuel fuel entrypoint env d
         checkExprFuel fuel entrypoint env e
         checkExprFuel fuel entrypoint env f
+    | fuel + 1, entrypoint, env, .crosscallAbiPacked target _ _ _ _ =>
+        checkExprFuel fuel entrypoint env target
     | fuel + 1, entrypoint, env, .cast value _ => checkExprFuel fuel entrypoint env value
     | fuel + 1, entrypoint, env, .boolNot value => checkExprFuel fuel entrypoint env value
     | fuel + 1, entrypoint, env, .hashValue a b c d => do

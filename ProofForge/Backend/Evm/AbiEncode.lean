@@ -29,8 +29,9 @@ This module is **pure layout**. Yul emit lives in `ToYul.AbiEncode`
 | Selector ‖ static arg words | Inner `callDataFromSelectorArgs` |
 | Plan → Yul | `ToYul.AbiEncode.emitCall` / `renderAggregateCallYul` |
 
-Not yet: nested dynamic arrays beyond Call[], runtime-unknown lengths,
-string-as-UTF8 (treat as bytes), IR auto-lower of Call[] from portable remote.
+Not yet: nested dynamic arrays beyond Call[], **runtime-unknown** lengths,
+string-as-UTF8 (treat as bytes). **Compile-time** Call[] IR auto-lower is
+available via `ToYul.AbiEncode.irAggregate` / `crosscallAbiPacked`.
 -/
 import Init.Data.Array.Basic
 import Init.Data.Nat.Basic

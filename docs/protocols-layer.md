@@ -100,6 +100,7 @@ Facades: `ProofForge.Protocols.Evm.IERC20` · `IERC721`
 | Multicall3 | selectors + **`AbiEncode` Call[] layout** | ✅ `encodeAggregate` / `encodeAggregate3` plans |
 | Multicall3 Yul | Plan → `mstore` + CALL | ✅ `ToYul.AbiEncode` / `renderAggregateCallYul` |
 | Multicall3 object | full Yul `object` + solc smoke | ✅ `just multicall-abi-yul` / `MulticallAggregateYul` |
+| Multicall3 IR | compile-time Call[] → `crosscallAbiPacked` | ✅ `aggregateIr` / EVM helper auto-lower (runtime lengths open) |
 | Solana BinaryLayout | LE field pack → static CPI data | ✅ revoke / close / ATA create |
 | | portable `remoteCall` scalar smoke | ✅ fixture still wires handles |
 | Permit2 | `allowance` / `approve` / `transferFrom` / `permitTransferFrom` | ✅ `Protocols.Evm.Permit2` + fixture (scalar-bounded) |

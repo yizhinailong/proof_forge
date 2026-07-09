@@ -12,15 +12,16 @@ Selectors (canonical Multicall3):
 - `tryAggregate(bool,(address,bytes)[])` → `0xbce38bd7`
 - `aggregate3((address,bool,bytes)[])` → `0x82ad56cb`
 
-## Two surfaces
+## Surfaces
 
-1. **Layout planning** (complete for static Call arrays):
+1. **Layout planning** (static Call arrays):
    `encodeAggregate` / `encodeAggregate3` → `AbiEncode.Plan`
 2. **Yul emit** (Wave δ): `renderAggregateCallYul` / `renderAggregate3CallYul`
-   via `ToYul.AbiEncode` (`mstore` + `call` with full Call[] region).
-3. **Portable remote** (scalar-bounded smoke path):
-   `aggregate` still uses `remoteCall` with scalar words for handle wiring
-   in IR modules; use (1)+(2) for real Multicall calldata.
+3. **IR auto-lower** (Wave ε): `aggregateIr` / `aggregate3Ir` →
+   `crosscallAbiPacked` (compile-time stores; EVM helper with mstore+CALL).
+   Runtime-unknown lengths still open.
+4. **Portable scalar remote**: `aggregate` still uses `remoteCall` with scalar
+   words for multi-target handle wiring / smoke.
 -/
 import ProofForge.Contract.Surface
 import ProofForge.Backend.Evm.AbiEncode
@@ -87,5 +88,15 @@ def renderAggregateCallYul (multicallTarget outSize : Nat) (calls : Array Call) 
 def renderAggregate3CallYul (multicallTarget outSize : Nat) (calls : Array Call3) : String :=
   ProofForge.Backend.Evm.ToYul.AbiEncode.renderAggregate3CallYul
     ProofForge.Backend.Evm.ToYul.AbiEncode.defaultMemBase multicallTarget outSize calls
+
+/-- Wave ε: compile-time Call[] → IR `crosscallAbiPacked` (EVM auto-lower to
+helper with mstore+CALL). Runtime-unknown lengths still unsupported. -/
+def aggregateIr (m : Multicall) (calls : Array Call) (outSize : Nat := 32) :
+    ProofForge.IR.Expr :=
+  ProofForge.Backend.Evm.ToYul.AbiEncode.irAggregate m.target calls outSize
+
+def aggregate3Ir (m : Multicall) (calls : Array Call3) (outSize : Nat := 32) :
+    ProofForge.IR.Expr :=
+  ProofForge.Backend.Evm.ToYul.AbiEncode.irAggregate3 m.target calls outSize
 
 end ProofForge.Protocols.Evm.Multicall
