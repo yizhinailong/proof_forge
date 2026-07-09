@@ -158,10 +158,25 @@ portability checks; fine-grained honesty is `materializeEnv`.
 Cross-ref: [chain-agnostic gap analysis (zh)](zh/chain-agnostic-gap-analysis.md) §(B)
 and suggested route step 1 (HostEnv before Address / sync-crosscall / Token).
 
-## 9. Tests
+## 9. Route steps 2–7 (chain-agnostic epics)
+
+| Step | Module | Honesty surface |
+|------|--------|-----------------|
+| 2 Identity | `Target/Identity.lean` | `materializeIdentity` (EVM-20 / Sol-32 / NEAR-name) |
+| 3 Sync crosscall | `CrosscallMaterialize` sync-subset | `requireSyncSubset` + `inferSolanaAccounts` + `materializeSyncRemote` |
+| 4 Token auth + FP | `Contract/TokenAuth.lean`, `FixedPoint.lean` | `materializeAuth` / `validateDecimals` |
+| 5 Upgrade | `UpgradePolicy/Lower.materializeUpgrade` | proxy / upgrade-authority / redeploy+migrate |
+| 6–7 Mechanics | `Target/PortableMechanics.lean` | crypto / error / serde materialize-or-reject |
+
+Smoke: `Tests/ChainAgnosticRoute.lean` + `Tests/HostRuntime.lean`.
+
+## 10. Tests
 
 `Tests/HostRuntime.lean` — catalog shape, primary + adapter targets, support counts,
 `requireHostRuntimeHonesty` + `resolveSpec` PDA-on-NEAR reject, catalog-ref on
 EventProbe, **HostEnv bucket + materialize-or-reject triad** (general / approximate
 / chainOnly) + `ContextField.toHostEnv` wiring.
+
+`Tests/ChainAgnosticRoute.lean` — Identity, sync-subset crosscall, TokenAuth +
+FixedPoint, upgrade lifecycle, PortableMechanics.
 -/

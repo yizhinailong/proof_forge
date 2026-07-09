@@ -20,25 +20,23 @@ honesty reject);缺的是把还没抽象的概念灌进去,以及解决几个抽
 | 算术/位运算/比较/布尔/cast/控制流/类型 | ✅ | IR 已覆盖(含 checked overflow node 字段) |
 | 存储 scalar / map / array / struct / dynamic | ✅ | capability `storageScalar/Map/Array/…` |
 | **可迭代集合**(有序 map、set、分页遍历) | ❌ **缺** | 各链差异极大(EVM 无原生迭代;Solana 账户;NEAR trie);DeFi/NFT 常用 |
-| **定点数 / decimals**(fixed-point) | ❌ **缺**(`fixedPoint` 0 文件) | token/DeFi 刚需,没有便携定点数学 |
+| **定点数 / decimals**(fixed-point) | ✅ **已落地** | `Contract/FixedPoint.lean`(scale / rescale / mulScaled; decimals 0–18) |
 
 ## 二、你点名的三块
 
-### (A) 跨合约调用 —— PARTIAL,含一个根本性冲突
+### (A) 跨合约调用 —— PARTIAL→策略已锁(step 3)
 
 - **已有**:便携面 `declareRemote` / `remoteCall` / `remoteCallRef`(逻辑 peer,不碰 host 池索引)→
   物化到 EVM call / Solana CPI / NEAR promise;Solana CPI 账户打包、PDA signer seeds、SPL-token
   `initialize_account3/mint` 都真跑通;honesty reject 已制度化。
-- **机械缺口**:类型化返回值 decode、多目标返回 ABI 统一。
-- **🔴 根本性冲突:同步 vs 异步。** EVM/Solana 是**同步**(同一 tx 内返回);NEAR 是**异步**
-  (promise + callback,结果在后续 block)。现在 NEAR 异步是 **opt-in 逃生口**(`nearPromiseThen`),
-  **没被抽象**。要真链无关,必须二选一:
-  - **(a) 便携面只暴露"同步请求-响应"子集**,底层在 NEAR 上编译成 promise+callback(对"调用并用返回值"
-    这类简单场景可行)——**推荐先做这个**;
-  - **(b) 暴露一个便携的 async/continuation 模型**(更通用但更难)。
-- **🔴 根本性冲突:Solana 必须预先声明账户。** Solana CPI 要求提前知道所有 touched 账户;EVM/NEAR
-  不用。要让开发者不传账户,**编译器必须从逻辑里推断账户集**(存储可推断;动态跨调难)。已部分做
-  (CPI account packing),但通用推断未完成。
+- **✅ 同步子集策略已锁定**:`CrosscallMaterialize.portableCrosscallPolicy = syncRequestResponseOnly`;
+  `requireSyncSubset` 拒绝 `nearPromiseThen` / `promise_result*`(逃生口仍可用但**非** portable 产品路径)。
+  NEAR portable remote → `promise_create` only(同 receipt 无返回值)。**不做**便携 continuation 模型
+  (plan non-goal)。
+- **✅ Solana 账户推断(portable remotes)**:`inferSolanaAccounts` + `materializeSyncRemote`——作者
+  **不传** account metas;从 peer + module.state 推断(含 SPL peer 的 token 程序/ATA 占位)。
+  动态/未知 peer 空 id → 诚实拒绝。更细的 CPI packing 仍在 Backend.Solana。
+- **机械缺口(仍)**:类型化返回值 decode、多目标返回 ABI 统一;NEAR 同 receipt 同步返回值。
 
 ### (B) Host runtime 环境方法 —— PARTIAL,词汇是 EVM 味的(这块你要的 plan 设计)
 
@@ -61,37 +59,35 @@ honesty reject);缺的是把还没抽象的概念灌进去,以及解决几个抽
   `materializeEnv` / `requireHostEnv`。**诚实规则**:只有该 target 已有真实 lower/host
   路径才 `.ok`(例如 NEAR `chainId` / `gasLeft` **拒绝**,不别名 `block_index` / 不发明
   `sol_get_cluster`)。IR `ContextField.toHostEnv` 桥接;测试覆盖 triad 矩阵。
-  文档:[host-runtime.md](../host-runtime.md) §8 HostEnv。后续仍缺:便携 Address、
-  把 lower 路径强制走 `materializeEnv`、补 Solana timestamp/self 与 NEAR chainId 等 lower。
-- **🟠 附带冲突:caller 身份类型不同**——EVM `msg.sender`(20 字节)vs NEAR 命名账户(字符串)vs
-  Solana pubkey(32 字节)。需要便携 `Address/Identity` 类型(见三-⑤)。
+  文档:[host-runtime.md](../host-runtime.md) §8 HostEnv。后续:把更多 lower 路径强制走
+  `materializeEnv`;补 Solana timestamp/self 与 NEAR chainId 等 lower。
+- **✅ 身份冲突(step 2)**:`Target/Identity.lean` `materializeIdentity`——EVM-20 / Sol-32 /
+  NEAR 命名账户;作者面统一 `ValueType.address` / `Address`。
 
-### (C) Token —— FORMING,需要在"不兼容模型"上做统一接口
+### (C) Token —— FORMING→auth feature 已锁(step 4)
 
-- **已有**:`Contract/Token.lean` 有 `TokenStandard` + `TokenFeature`(transferFee/nonTransferable/
-  confidentialTransfer/transferHook…);`FungibleToken/FeeToken/RoleGatedToken/SoulboundToken` 示例;
-  ERC20/SPL/NEP-141 客户端。但 `Contract/Token/` 目前 EVM 偏重(Evm/EvmSpec/EvmWrap)。
-- **🔴 根本性冲突:授权/权限模型不对齐。** ERC20 有 `approve/allowance`;SPL 有 `delegate` + 独立的
-  mint/freeze authority + associated token account + (Token-2022) extensions;NEP-141 有 storage
-  deposit + `ft_transfer_call`(带回调),**没有 allowance**。统一 token 必须:选一个**公共接口**
-  (`transfer/balanceOf/mint/burn`)+ 把分歧部分(allowance/authority/storage-deposit)建模成
-  **可选 feature**(`TokenFeature` 是对的起点)+ 各链 materialize/reject。
-- **缺失**:decimals/定点(见一);NFT/多 token(ERC721/1155、Metaplex、NEP-171);metadata 标准。
+- **已有**:`Contract/Token.lean` `TokenStandard` + `TokenFeature`;示例与各链客户端。
+- **✅ 授权模型 feature flag**:`Contract/TokenAuth.lean`——`allowance`(EVM) /
+  `authority`(SPL) / `storageDeposit`+`transferCall`(NEP-141);跨 host **诚实拒绝**(无假
+  allowance 上 NEP-141)。Core `transfer`/`balanceOf` 常开;`mint`/`burn` **capability-gated**
+  (`TokenFeature.mintable` / `burnable`)。
+- **✅ 定点**:`Contract/FixedPoint.lean`。
+- **仍缺**:NFT/多 token 全家桶;Token/ 路径仍偏 EVM codegen。
 
 ## 三、你问的"还差哪些组件"(其余轴)
 
 | 组件 | 状态 | 缺口 / 冲突 |
 |---|---|---|
-| ④ 访问控制 / auth | PARTIAL | Ownable/AccessControl/roles 在长;需统一角色模型 + 链原生 auth(signer vs sender vs predecessor)+ 多签 |
-| ⑤ **身份 / 地址** | ❌ **缺便携类型** | EVM 20 字节 / Solana 32 字节 pubkey / NEAR 命名账户——**根本不同**;需便携 `Address` 类型 + 校验 + 转换。**阻塞 caller/crosscall/token** |
-| ⑥ 升级 / 生命周期 | PARTIAL,EVM 味 | deploy/init 多;但 upgrade/proxy 是 EVM 概念(delegatecall proxy)。**🔴 冲突**:EVM proxy vs Solana program-upgrade-authority vs NEAR 重部署+migrate;需链无关升级 + 状态版本迁移 |
-| ⑦ value / 原生币 | PARTIAL | `valueNative` 有;语义不同(msg.value vs lamports vs attached deposit);余额查询、转账 |
-| ⑧ crypto | PARTIAL | `cryptoHash` 有;缺签名验证(ecrecover/ed25519)、hash 家族(keccak/sha256/poseidon)各链映射 |
-| ⑨ 错误模型 | PARTIAL | assertions/revert/`ErrorCatalog` 有;需便携错误(code/message + 各链如何 surface) |
-| ⑩ 序列化 / ABI | FORMING | AbiEncode(EVM)/JsonEncode(NEAR)/Borsh(Solana)在长;需便携 schema 词汇 → 各链编码收口 |
+| ④ 访问控制 / auth | PARTIAL | Ownable/AccessControl/roles 在长;需统一角色模型 + 链原生 auth + 多签 |
+| ⑤ **身份 / 地址** | ✅ **catalog 已落地** | `Target/Identity.lean` materialize-or-reject;Solana `self` 仍 reject 至 program-id lower |
+| ⑥ 升级 / 生命周期 | ✅ **intent 已落地** | `UpgradePolicy.materializeUpgrade`:EVM **uups only**(transparent 诚实拒绝)、Solana upgrade-authority、NEAR redeploy+migrate |
+| ⑦ value / 原生币 | PARTIAL | `valueNative` / HostEnv.attachedValue;余额查询仍粗 |
+| ⑧ crypto | ✅ **首批 catalog** | `PortableMechanics`:keccak/sha256 triad;ecrecover EVM-only;ed25519 Sol/NEAR |
+| ⑨ 错误模型 | ✅ **首批 catalog** | `mech.error.code` / `message` triad materialize |
+| ⑩ 序列化 / ABI | ✅ **首批 catalog** | abi EVM / borsh Sol(+NEAR) / json NEAR;跨 host 拒绝 |
 | ⑪ 事件 / 日志 | 基本 DONE | `eventsEmit` 有;indexed/topic 语义各链不同,需注记 |
-| ⑫ 时间 / 随机 | PARTIAL | timestamp 有;**随机是冲突**(EVM prevRandao vs Solana slot-hash vs NEAR random_seed vs VRF);多为"不可信随机",需诚实标注 |
-| ⑬ 资源计量 / gas | PARTIAL | `computeUnits` 有;gas 模型不同;需便携"资源预算"抽象或诚实忽略 |
+| ⑫ 时间 / 随机 | PARTIAL | HostEnv `randomness` untrusted 注记;VRF 未做 |
+| ⑬ 资源计量 / gas | PARTIAL | HostEnv `gasOrComputeBudgetLeft` EVM-only materialize;其余 reject |
 
 ## 四、最有用的结论:把缺口分两堆
 
@@ -115,14 +111,20 @@ honesty reject);缺的是把还没抽象的概念灌进去,以及解决几个抽
 
 ## 五、到"真正完成"的建议路线
 
-1. **✅ 去 EVM 化 host-env 词汇**(`HostEnv` + 三桶 + `materializeEnv` 在 `HostRuntime.lean`;
-   `ContextField.toHostEnv` 桥接)——catalog/诚实拒绝已落地;lower 路径逐步强制走表。
-2. **便携 `Address/Identity` 类型** —— 解锁 caller / crosscall / token,是多处冲突的公共前置。
-3. **跨调:定同步子集策略 + 账户推断** —— 让开发者永不传账户、永不写 promise。
-4. **统一 Token 接口 + feature flag** —— 覆盖 ERC20/SPL/NEP-141;补 decimals/定点。
-5. **链无关升级 / 生命周期 + 状态迁移**。
-6. **用 catalog+reject 机器批量磨机械堆**(crypto / 错误 / 序列化 / 集合 / 事件)。
-7. **FV 作诚实性兜底** —— 每个抽象要么"可证物化"要么"诚实拒绝"(你已有的纪律)。
+1. **✅ 去 EVM 化 host-env 词汇**(`HostEnv` + 三桶 + `materializeEnv`;`ContextField.toHostEnv`)。
+2. **✅ 便携 Address/Identity** — `Target/Identity.lean` `materializeIdentity`(EVM-20 / Sol-32 /
+   NEAR 命名账户);Solana `self` 诚实拒绝直到 program-id context lower。
+3. **✅ 跨调同步子集 + 账户推断** — `CrosscallMaterialize`:政策 `syncRequestResponseOnly`;
+   `requireSyncSubset` 拒绝 promise_then/result;Solana `inferSolanaAccounts` +
+   `materializeSyncRemote`(作者不传 metas)。
+4. **✅ Token core + auth feature + 定点** — `TokenAuth`(allowance/authority/storageDeposit/
+   transferCall 物化或拒绝,无假 allowance 上 NEP-141);`FixedPoint` decimals 0–18。
+5. **✅ 链无关升级** — `UpgradePolicy.materializeUpgrade`(EVM proxy / Solana upgrade-authority /
+   NEAR redeploy+migrate)。
+6. **✅ 机械堆(首批)** — `PortableMechanics`(keccak/sha256/ecrecover/ed25519、error、
+   abi/borsh/json);可迭代集合等仍属后续。
+7. **✅ FV/诚实纪律** — 每个新抽象均有 materialize-or-reject 测试
+   (`Tests/ChainAgnosticRoute.lean` + `Tests/HostRuntime.lean`)。
 
 ## 六、一句话
 
