@@ -41,7 +41,13 @@ val = art.get("validation") or {}
 assert val.get("sbpfBuild") == "passed", val
 arts = art.get("artifacts") or {}
 assert "solanaElf" in arts, arts.keys()
-print(f"ok metadata sourceModule={expect} sbpfBuild=passed")
+bundle = art.get("artifactBundle") or {}
+assert bundle.get("kind") == "proof-forge-artifact-bundle", bundle
+assert bundle.get("finalOutput") == "solana-elf", bundle
+assert bundle.get("primaryOutput") == "solana-elf", bundle
+kinds = {o.get("kind") for o in (bundle.get("outputs") or [])}
+assert "solana-elf" in kinds and "sbpf-asm" in kinds, kinds
+print(f"ok metadata sourceModule={expect} sbpfBuild=passed artifactBundle=final-elf")
 PY
 }
 
