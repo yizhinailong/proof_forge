@@ -149,17 +149,15 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 
 ---
 
-## 6. Suggested next execution slice
+## 6. Execution status
 
-**Start Wave α + first item of Wave β:**
+| ID | Task | Status |
+|----|------|--------|
+| α.1 | Product SDK index (`docs/product-sdk.md`) | **done** |
+| α.2 | Examples/README + CLI init/usage messaging | **done** |
+| β.1 | `just product-token-near` (plan + NEP-141 body) | **done** |
 
-| ID | Task | Size |
-|----|------|------|
-| α.1 | Write/refresh Product SDK index + messaging | S |
-| α.2 | Tighten Examples/README + CLI init messaging | S |
-| β.1 | One-command NEAR TokenSpec story + smoke alias | M |
-
-Then **γ.1** protocol-intent design (small RFC/note) before large code.
+**Next:** γ.1 portable protocol-intent design; β deepen Solana token one-button story.
 
 ---
 

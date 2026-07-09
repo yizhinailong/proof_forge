@@ -2,7 +2,18 @@ namespace ProofForge.Cli
 
 def usage : String :=
   String.intercalate "\n" [
-    "Usage:",
+    "ProofForge — portable contract SDK",
+    "",
+    "Product path (preferred):",
+    "  proof-forge init [DIR]                      # Product scaffold (business intent only)",
+    "  proof-forge build --target <id> … input.lean  # materialize; id: evm | solana-sbpf-asm | wasm-near | …",
+    "  proof-forge build --target <id> --token …    # TokenSpec → chain-native token plan/artifact",
+    "  proof-forge check --target <id> …",
+    "",
+    "Authors write contract_source / TokenSpec only — no CPI/PDA/Promise/layout packing.",
+    "See docs/product-sdk.md. Legacy emit/--learn flags remain below for fixtures/CI.",
+    "",
+    "Usage (legacy + full surface):",
     "  proof-forge [--root DIR] [--module Mod.Name] [-o output.yul] input.lean",
     "  proof-forge --evm-bytecode [--root DIR] [--module Mod.Name] [--yul-output file] [--artifact-output file] [--evm-chain-profile id] [--evm-constructor-param name:type] [--evm-constructor-arg name=value] [--evm-constructor-args-hex hex] [-o output.bin] input.lean",
     "  proof-forge --emit-counter-ir-yul [-o output.yul]",

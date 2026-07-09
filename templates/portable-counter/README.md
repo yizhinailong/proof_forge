@@ -1,9 +1,10 @@
 # Portable Counter Starter Template
 
-This is the smallest checked-in starter for a chain-neutral ProofForge
-contract. The source imports `ProofForge.Contract.Source`, not an EVM, Solana,
-or NEAR SDK. It expands to `ContractSpec` / portable IR; target selection
-happens at the CLI layer.
+**Product path** starter. Imports `ProofForge.Contract.Source` only — not
+EVM/Solana/NEAR Surfaces or Protocols. Target selection is CLI-only
+(`--target`). Encoding is plan-driven (you never pack layouts).
+
+See monorepo `docs/product-sdk.md` when developing against ProofForge itself.
 
 ## Quick Start
 

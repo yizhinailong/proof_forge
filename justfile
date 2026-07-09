@@ -699,13 +699,17 @@ backend: solana-lean
     @echo "backend: solana-lean ok (use solana-light / emitwat-ci-smoke / evm-* for more)"
 
 # Primary product gate: Product sources × multi-target materialize matrix.
-# Docs: docs/examples-and-tests-taxonomy.md · Examples/Product/README.md
+# Docs: docs/product-sdk.md · Examples/Product/README.md
 product:
     just portable-default
     just product-matrix
     just portable-counter-multi-target
     just portable-remote-call-multi-target
     @echo "product: ok (matrix · counter · remote)"
+
+# Wave β: Product TokenSpec on wasm-near — NEP-141 plan + FT body WAT (one health path).
+product-token-near:
+    scripts/portable/token-near-smoke.sh
 
 # Product multi-target Lean matrix (all Product contracts × primary hosts).
 product-matrix:

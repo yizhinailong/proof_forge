@@ -1,11 +1,14 @@
 # ProofForge Examples
 
 **Product thesis:** write business logic once; choose `--target` to materialize
-chain form. See [examples-and-tests-taxonomy](../docs/examples-and-tests-taxonomy.md).
+chain form. **Start here:** [docs/product-sdk.md](../docs/product-sdk.md).
+
+Taxonomy: [examples-and-tests-taxonomy](../docs/examples-and-tests-taxonomy.md).
 
 ## Product (author-facing)
 
 **[`Product/`](Product/)** — portable contracts and TokenSpec intents only.
+This is the **only** authoring tree for multi-chain apps.
 
 ```bash
 just product
@@ -30,6 +33,8 @@ and `Product/README.md`.
 ## Backend (compiler / fixtures only)
 
 **[`Backend/`](Backend/)** — **not** the product authoring path.
+Engine goldens (Yul/sBPF/WAT), Solana CPI packing fixtures, Learn parser
+samples. Do not teach Backend as the SDK.
 
 | Path | Role |
 |------|------|

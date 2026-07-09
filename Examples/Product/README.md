@@ -1,11 +1,14 @@
 # Product examples (business logic only)
 
+**Canonical authoring surface.** See [docs/product-sdk.md](../../docs/product-sdk.md).
+
 Authors write **intents and rules** here. `proof-forge build --target …`
 materializes EVM / Solana / NEAR / Soroban form. You do **not** write accounts,
-PDA, CPI, Promise, slots, or token standards.
+PDA, CPI, Promise, slots, token standards, or pack layouts (JSON/ABI/ix).
 
 ```bash
 just product
+just product-token-near   # TokenSpec plan + NEP-141 body on wasm-near
 ```
 
 Taxonomy: [docs/examples-and-tests-taxonomy.md](../../docs/examples-and-tests-taxonomy.md).
