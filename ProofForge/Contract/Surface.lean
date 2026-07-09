@@ -453,6 +453,11 @@ def whenPositive (value : ProofForge.IR.Expr) (body : EntryM Unit) : EntryM Unit
   let (_, entryBuilder) := body.run {}
   ProofForge.Contract.Builder.ifElse (ProofForge.Contract.Builder.gt value (u64 0)) entryBuilder.body #[]
 
+/-- Run `body` when `value == 0`. -/
+def whenZero (value : ProofForge.IR.Expr) (body : EntryM Unit) : EntryM Unit := do
+  let (_, entryBuilder) := body.run {}
+  ProofForge.Contract.Builder.ifElse (ProofForge.Contract.Builder.eq value (u64 0)) entryBuilder.body #[]
+
 /-- EVM `ecrecover(digest, v, r, s)` → address word. Requires `crypto.ecrecover`. -/
 def ecrecover (digest v r s : ProofForge.IR.Expr) : ProofForge.IR.Expr :=
   .ecrecover digest v r s

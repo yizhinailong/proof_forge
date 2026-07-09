@@ -78,6 +78,11 @@ def main : IO Unit := do
       -- transferFrom selector 0x23b872dd = 599290589
       require (yul.contains "599290589")
         "yul should pack IERC20 transferFrom remote for deposit pull"
+      -- pro-rata convert uses mul/div (not identity-only)
+      require (yul.contains "mul(" || yul.contains "mul ")
+        "yul should emit mul for pro-rata convert"
+      require (yul.contains "div(" || yul.contains "div ")
+        "yul should emit div for pro-rata convert"
   match ProofForge.Backend.Solana.SbpfAsm.renderModule m with
   | .error e => throw (IO.userError s!"Solana: {e.message}")
   | .ok src =>

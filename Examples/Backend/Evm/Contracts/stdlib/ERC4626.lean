@@ -1,5 +1,5 @@
 /-
-EVM example wrapper for the portable ERC-4626 stdlib mixin (1:1 synthetic vault).
+EVM example wrapper for the portable ERC-4626 stdlib mixin (pro-rata vault).
 -/
 import ProofForge.Contract.Stdlib.ERC4626
 
