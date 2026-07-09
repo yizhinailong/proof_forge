@@ -93,14 +93,35 @@ Gate: `just portable-default` rejects chain DSL in Product sources.
 | Target | Product command shape | Artifact |
 |--------|----------------------|----------|
 | `evm` | `build --target evm --token …` | ERC-20 Yul/bytecode |
-| `solana-sbpf-asm` | `build --target solana-sbpf-asm --token …` | SPL / Token-2022 **plan** |
+| `solana-sbpf-asm` | `just product-token-solana` | SPL **plan** (`transfer_checked`, …) |
 | `wasm-near` | `just product-token-near` | NEP-141 **plan** + FT body WAT (stdlib path) |
 
 Feature honesty: `just token-feature-matrix` (unsupported → reject, no silent drop).
 
 ```bash
-just product-token-near   # one Product-facing NEAR token health path
-just shared-token-intent  # Lean TokenSpec plan honesty
+just product-token-near     # NEAR TokenSpec plan + NEP-141 body
+just product-token-solana   # Solana TokenSpec SPL plan
+just shared-token-intent    # Lean TokenSpec plan honesty (broader)
+```
+
+### 5.1 Call an external token (protocol intent)
+
+Use Product protocol intent — **not** `import ProofForge.Protocols.*`:
+
+```lean
+external_token usdc "usdc.peer";
+-- …
+return externalTokenTransfer usdc to amount;
+```
+
+| Target | Materialize |
+|--------|-------------|
+| `evm` | IERC20 selector + CALL |
+| `wasm-near` | NEP-141 `ft_transfer` + JsonEncode |
+| `solana-sbpf-asm` | portable CPI smoke (live Tokenkeg needs plan/CPI path) |
+
+```bash
+just product-protocol-ft
 ```
 
 ---
@@ -113,6 +134,8 @@ just shared-token-intent  # Lean TokenSpec plan honesty
 | Full portable tutorial | `just portable-tutorial` |
 | Token feature matrix | `just token-feature-matrix` |
 | NEAR token (plan + body) | `just product-token-near` |
+| Solana token (SPL plan) | `just product-token-solana` |
+| External FT protocol intent | `just product-protocol-ft` |
 | Engineering CI subset | `just check` |
 
 ---

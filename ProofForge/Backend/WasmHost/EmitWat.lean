@@ -21,6 +21,7 @@ import Init.Data.Array.Basic
 import Init.Data.String.Basic
 import ProofForge.IR.Contract
 import ProofForge.IR.Ownership
+import ProofForge.Target.ProtocolMaterialize
 import ProofForge.Compiler.Wasm.AST
 import ProofForge.Compiler.Wasm.Printer
 import ProofForge.Backend.WasmHost.Aggregate
@@ -445,11 +446,16 @@ mutual
   partial def lowerJsonEmptyObjectArgs : Except EmitError (Array Insn × Nat × Nat) :=
     lowerJsonEncodeCrosscall (.obj #[])
 
-  /-- Dispatch: NEP-141 object JSON for known methods; else legacy JSON array of scalars. -/
+  /-- Dispatch: NEP-141 object JSON for known methods; else legacy JSON array of scalars.
+  Accepts portable aliases (`transfer` → `ft_transfer`) via ProtocolMaterialize. -/
   partial def lowerCrosscallArgsForMethod (ctx : Ctx) (env : LocalTypes)
       (methodName : String) (args : Array Expr) :
       Except EmitError (Array Insn × Nat × Nat) :=
-    match methodName with
+    let native :=
+      match ProofForge.Target.ProtocolMaterialize.nearMethod? methodName with
+      | some m => m
+      | none => methodName
+    match native with
     | "ft_transfer" => lowerNep141FtTransferArgs ctx env args
     | "ft_transfer_call" => lowerNep141FtTransferCallArgs ctx env args
     | "ft_balance_of" => lowerNep141FtBalanceOfArgs ctx env args

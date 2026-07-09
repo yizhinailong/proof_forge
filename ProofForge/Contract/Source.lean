@@ -23,6 +23,7 @@ no bare pool indices).
 -/
 import Lean
 import ProofForge.Contract.Surface
+import ProofForge.Contract.Protocol
 import ProofForge.Solana.Surface
 
 set_option hygiene false
@@ -41,6 +42,8 @@ abbrev EventField := ProofForge.Contract.Surface.EventField
 abbrev ModuleM := ProofForge.Contract.Surface.ModuleM
 abbrev EntryM := ProofForge.Contract.Surface.EntryM
 abbrev ContractSpec := ProofForge.Contract.ContractSpec
+abbrev ExternalToken := ProofForge.Contract.Protocol.ExternalToken
+abbrev RemoteRef := ProofForge.Contract.Surface.RemoteRef
 
 def checkpointId : ProofForge.IR.Expr :=
   ProofForge.Contract.Surface.checkpointId
@@ -143,6 +146,34 @@ def emitEvent (eventRef : ProofForge.Contract.Surface.EventRef)
     (fields : Array ProofForge.Contract.Surface.EventField) : EntryM Unit :=
   ProofForge.Contract.Surface.emit eventRef fields
 
+/-- Portable external FT peer (product protocol intent; no `Protocols.*` import). -/
+def declareExternalToken (peerId : String) : ModuleM ExternalToken :=
+  ProofForge.Contract.Protocol.declareExternalToken peerId
+
+def externalTokenTransfer [ToExpr α] [ToExpr β] (token : ExternalToken) (to : α) (amount : β) :
+    ProofForge.IR.Expr :=
+  ProofForge.Contract.Protocol.externalTokenTransfer token (expr to) (expr amount)
+
+def externalTokenApprove [ToExpr α] [ToExpr β] (token : ExternalToken) (spender : α) (amount : β) :
+    ProofForge.IR.Expr :=
+  ProofForge.Contract.Protocol.externalTokenApprove token (expr spender) (expr amount)
+
+def externalTokenTransferFrom [ToExpr α] [ToExpr β] [ToExpr γ]
+    (token : ExternalToken) (fromAddr : α) (to : β) (amount : γ) : ProofForge.IR.Expr :=
+  ProofForge.Contract.Protocol.externalTokenTransferFrom token (expr fromAddr) (expr to) (expr amount)
+
+def externalTokenBalanceOf [ToExpr α] (token : ExternalToken) (account : α) : ProofForge.IR.Expr :=
+  ProofForge.Contract.Protocol.externalTokenBalanceOf token (expr account)
+
+def externalTokenTotalSupply (token : ExternalToken) : ProofForge.IR.Expr :=
+  ProofForge.Contract.Protocol.externalTokenTotalSupply token
+
+def registerAccountId (accountId : String) : ModuleM ProofForge.IR.Expr :=
+  ProofForge.Contract.Protocol.registerAccountId accountId
+
+def remoteCallRef (remote : RemoteRef) (args : Array ProofForge.IR.Expr) : ProofForge.IR.Expr :=
+  ProofForge.Contract.Surface.remoteCallRef remote args
+
 declare_syntax_cat contractItem
 declare_syntax_cat entryStmt
 declare_syntax_cat solanaSeed
@@ -192,6 +223,8 @@ scoped syntax "quint_invariant " ident " := " str : contractItem
 scoped syntax "quint_liveness " ident " := " str : contractItem
 scoped syntax "lean_invariant " ident " := " str : contractItem
 scoped syntax "remote " ident str str ";" : contractItem
+/-- Product protocol intent: external fungible token peer (no Protocols import). -/
+scoped syntax "external_token " ident str ";" : contractItem
 scoped syntax "do " term ";" : contractItem
 scoped syntax "entry " ident " do" ppLine entryStmt* : contractItem
 scoped syntax "entry " ident " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
@@ -651,6 +684,14 @@ private def lowerItem (item : TSyntax `contractItem) : MacroM LoweredItem := do
         binder := fun body =>
           `(bind (ProofForge.Contract.Surface.declareRemote $peerLit $methodLit)
               (fun ($name : ProofForge.Contract.Surface.RemoteRef) => $body))
+      }
+  | `(contractItem| external_token $name:ident $peer:str;) => do
+      let peerS ← strLitValue peer
+      let peerLit : TSyntax `term := quote peerS
+      return {
+        binder := fun body =>
+          `(bind (ProofForge.Contract.Protocol.declareExternalToken $peerLit)
+              (fun ($name : ProofForge.Contract.Protocol.ExternalToken) => $body))
       }
   | `(contractItem| do $action:term;) =>
       return { action? := some action }

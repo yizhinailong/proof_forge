@@ -53,6 +53,7 @@ Portable surface → capability → materialize:
 | Events | `emit` / `emitIndexed` | LOG* | `sol_log_*` | host log |
 | Context | caller / block / value | CALLER, … | tx accounts | signer / deposit |
 | Peer remote | `declareRemote` + `remoteCallRef` | CALL | portable CPI | `promise_create` |
+| External FT peer | Product `external_token` / `externalTokenTransfer` | IERC20 selector | portable CPI smoke | NEP-141 JsonEncode |
 | Protocol CPI (Solana) | Solana Surface CPI builders | — | `sol_invoke_signed_c` + dataLayout | — |
 
 Gates: `Target.Capability`, preflight L0–L1, backend honesty rejects.  

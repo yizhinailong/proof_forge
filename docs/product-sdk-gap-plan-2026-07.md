@@ -156,8 +156,11 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 | α.1 | Product SDK index (`docs/product-sdk.md`) | **done** |
 | α.2 | Examples/README + CLI init/usage messaging | **done** |
 | β.1 | `just product-token-near` (plan + NEP-141 body) | **done** |
+| β.2 | `just product-token-solana` (SPL plan one-command) | **done** |
+| γ.1 | Portable protocol intent (`external_token` + materialize) | **done** |
+| γ.2 | `just product-protocol-ft` multi-target smoke | **done** |
 
-**Next:** γ.1 portable protocol-intent design; β deepen Solana token one-button story.
+**Next:** Wave δ (AbiEncode → Yul CALL payload; optional Solana BinaryLayout hygiene).
 
 ---
 

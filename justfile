@@ -711,9 +711,17 @@ product:
 product-token-near:
     scripts/portable/token-near-smoke.sh
 
+# Wave β deepen: Product TokenSpec → Solana SPL plan (one health path; live = solana-token-plan-live).
+product-token-solana:
+    scripts/portable/token-solana-smoke.sh
+
+# Wave γ: portable protocol-intent external FT (no Protocols.* import) × EVM/Solana/NEAR.
+product-protocol-ft:
+    scripts/portable/protocol-ft-smoke.sh
+
 # Product multi-target Lean matrix (all Product contracts × primary hosts).
 product-matrix:
-    lake build Examples.Product.AccessControl Examples.Product.ArrayExample Examples.Product.AuthRemoteCall Examples.Product.Counter Examples.Product.FeeToken Examples.Product.FungibleToken Examples.Product.Ownable Examples.Product.OwnableHash Examples.Product.OwnablePausable Examples.Product.Pausable Examples.Product.ReentrancyGuard Examples.Product.RemoteCall Examples.Product.RoleGatedToken Examples.Product.SoulboundToken Examples.Product.StakingVault Examples.Product.ValueVault ProofForge.IR.Examples.Counter ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmHost.EmitWat ProofForge.Target.Materialize
+    lake build Examples.Product.AccessControl Examples.Product.ArrayExample Examples.Product.AuthRemoteCall Examples.Product.Counter Examples.Product.ExternalTokenTransfer Examples.Product.FeeToken Examples.Product.FungibleToken Examples.Product.Ownable Examples.Product.OwnableHash Examples.Product.OwnablePausable Examples.Product.Pausable Examples.Product.ReentrancyGuard Examples.Product.RemoteCall Examples.Product.RoleGatedToken Examples.Product.SoulboundToken Examples.Product.StakingVault Examples.Product.ValueVault ProofForge.IR.Examples.Counter ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmHost.EmitWat ProofForge.Target.Materialize
     lake env lean --run Tests/Product/Matrix.lean
 
 # Extended product path (policies + token honesty + Solana accounts); kept for depth.

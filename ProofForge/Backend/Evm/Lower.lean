@@ -5,6 +5,7 @@ import ProofForge.Backend.Evm.Lower.Helpers
 import ProofForge.Backend.Evm.Validate
 import ProofForge.IR.Contract
 import ProofForge.Target.Adapter
+import ProofForge.Target.ProtocolMaterialize
 import ProofForge.Target.Registry
 
 /-! # EVM semantic plan lowering (IR -> ModulePlan)
@@ -385,7 +386,8 @@ def buildCrosscallReturnAssignmentPlan
     returns
     mode
     target := ← buildExprPlan module env target
-    methodId := ← buildExprPlan module env methodId
+    methodId := ← buildExprPlan module env
+      (ProtocolMaterialize.resolveEvmMethodExpr module.nearCrosscallStrings methodId)
     callValue? := ← callValue?.mapM (buildExprPlan module env)
     args := ← buildCrosscallArgWordPlansMany module env (crosscallModeArgContext mode) args
   }

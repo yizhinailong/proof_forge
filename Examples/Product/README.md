@@ -8,7 +8,9 @@ PDA, CPI, Promise, slots, token standards, or pack layouts (JSON/ABI/ix).
 
 ```bash
 just product
-just product-token-near   # TokenSpec plan + NEP-141 body on wasm-near
+just product-token-near     # TokenSpec plan + NEP-141 body on wasm-near
+just product-token-solana   # TokenSpec → Solana SPL plan
+just product-protocol-ft    # external_token transfer (no Protocols import)
 ```
 
 Taxonomy: [docs/examples-and-tests-taxonomy.md](../../docs/examples-and-tests-taxonomy.md).
@@ -30,7 +32,8 @@ Taxonomy: [docs/examples-and-tests-taxonomy.md](../../docs/examples-and-tests-ta
 | 2 | [Ownable.lean](Ownable.lean) | `just portable-auth-materialize` |
 | 3 | [FungibleToken.lean](FungibleToken.lean) | `just shared-token-intent` · `just token-feature-matrix` |
 | 4 | [RemoteCall.lean](RemoteCall.lean) | `just portable-remote-call-multi-target` |
-| 5 | [AuthRemoteCall.lean](AuthRemoteCall.lean) | `just portable-solana-accounts` |
+| 5 | [ExternalTokenTransfer.lean](ExternalTokenTransfer.lean) | `just product-protocol-ft` |
+| 6 | [AuthRemoteCall.lean](AuthRemoteCall.lean) | `just portable-solana-accounts` |
 
 Full narrative: [docs/tutorials/portable-shared-path.md](../../docs/tutorials/portable-shared-path.md).
 
@@ -40,6 +43,7 @@ Full narrative: [docs/tutorials/portable-shared-path.md](../../docs/tutorials/po
 |---------|------|
 | [Counter.lean](Counter.lean) | state + entrypoints |
 | [RemoteCall.lean](RemoteCall.lean) | portable remote + scalar ABI |
+| [ExternalTokenTransfer.lean](ExternalTokenTransfer.lean) | external FT protocol intent (no Protocols import) |
 | [AuthRemoteCall.lean](AuthRemoteCall.lean) | caller + debit + remote |
 | [ArrayExample.lean](ArrayExample.lean) | arrays |
 | [Ownable.lean](Ownable.lean) | owner policy |
