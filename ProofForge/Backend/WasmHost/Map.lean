@@ -64,11 +64,20 @@ def mapStorageReadHostInsnsSoroban (keyBytes : Nat) : Array Insn :=
     .call "_get"
   ]
 
+/-- CosmWasm: `db_read(key_ptr, key_len) → i64` le-word. -/
+def mapStorageReadHostInsnsCosmWasm (keyBytes : Nat) : Array Insn :=
+  #[
+    .i32Const MAPKEY_BUF,
+    .localGet "pl", .i32Const keyBytes, .plain "i32.add",
+    .call "db_read"
+  ]
+
 def mapStorageReadHostInsns (keyBytes : Nat)
     (bridge : ProofForge.Target.HostBridge := .near) : Array Insn :=
   match bridge with
   | .soroban => mapStorageReadHostInsnsSoroban keyBytes
-  | _ => mapStorageReadHostInsnsNear keyBytes
+  | .cosmWasm => mapStorageReadHostInsnsCosmWasm keyBytes
+  | .near => mapStorageReadHostInsnsNear keyBytes
 
 def mapStorageWriteHostInsnsNear (keyBytes valBytes : Nat) : Array Insn :=
   mapKeyByteLenInsns keyBytes ++ #[
@@ -84,35 +93,46 @@ def mapStorageWriteHostInsnsSoroban (keyBytes valBytes : Nat) : Array Insn :=
     .call "_put"
   ]
 
+def mapStorageWriteHostInsnsCosmWasm (keyBytes valBytes : Nat) : Array Insn :=
+  #[
+    .i32Const MAPKEY_BUF,
+    .localGet "pl", .i32Const keyBytes, .plain "i32.add",
+    .i32Const KEY_BUF, .i32Const valBytes,
+    .call "db_write"
+  ]
+
 def mapStorageWriteHostInsns (keyBytes valBytes : Nat)
     (bridge : ProofForge.Target.HostBridge := .near) : Array Insn :=
   match bridge with
   | .soroban => mapStorageWriteHostInsnsSoroban keyBytes valBytes
-  | _ => mapStorageWriteHostInsnsNear keyBytes valBytes
+  | .cosmWasm => mapStorageWriteHostInsnsCosmWasm keyBytes valBytes
+  | .near => mapStorageWriteHostInsnsNear keyBytes valBytes
+
+/-- Widen/narrow host scalar after register-less map read (Soroban i32 / CosmWasm i64). -/
+def mapRegisterlessReadCoerce (bridge : ProofForge.Target.HostBridge) (vt : ValueType) : Array Insn :=
+  match bridge, vt with
+  | .soroban, .u64 => #[.plain "i64.extend_i32_u"]
+  | .cosmWasm, .u32 | .cosmWasm, .bool => #[.plain "i32.wrap_i64"]
+  | _, _ => #[]
 
 def mapReadFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := .near) : Func :=
   match bridge with
-  | .soroban =>
+  | .soroban | .cosmWasm =>
       if vt == .hash then
         { name := mapReadName vt,
           params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "k", type := .i64 }],
           results := #[.i32],
           body := { insns := #[
             .localGet "pp", .localGet "pl", .localGet "k", .call mapBuildkeyName,
-            -- Hash map values on Soroban still use register-less stub: return zero hash ptr.
             .i32Const ZERO_HASH_BUF
           ] } }
       else
-        let extend : Array Insn :=
-          match vt with
-          | .u64 => #[.plain "i64.extend_i32_u"]
-          | _ => #[]
         { name := mapReadName vt,
           params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "k", type := .i64 }],
           results := #[wasmTypeOf vt],
           body := { insns := #[
             .localGet "pp", .localGet "pl", .localGet "k", .call mapBuildkeyName
-          ] ++ mapStorageReadHostInsns 8 .soroban ++ extend } }
+          ] ++ mapStorageReadHostInsns 8 bridge ++ mapRegisterlessReadCoerce bridge vt } }
   | _ =>
       if vt == .hash then
         { name := mapReadName vt,
@@ -145,7 +165,7 @@ def mapReadFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := .near
 
 def mapWriteFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := .near) : Func :=
   match bridge with
-  | .soroban =>
+  | .soroban | .cosmWasm =>
       if vt == .hash then
         { name := mapWriteName vt,
           params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 },
@@ -154,7 +174,7 @@ def mapWriteFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := .nea
           body := { insns := #[
             .localGet "pp", .localGet "pl", .localGet "k", .call mapBuildkeyName,
             .i32Const KEY_BUF, .localGet "v", .i32Const 32, .call memcpyName
-          ] ++ mapStorageWriteHostInsns 8 32 .soroban ++ #[
+          ] ++ mapStorageWriteHostInsns 8 32 bridge ++ #[
             .i32Const ZERO_HASH_BUF
           ] } }
       else
@@ -165,7 +185,7 @@ def mapWriteFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := .nea
           body := { insns := #[
             .localGet "pp", .localGet "pl", .localGet "k", .call mapBuildkeyName,
             .i32Const KEY_BUF, .localGet "v", .store (storeOpFor vt) 0
-          ] ++ mapStorageWriteHostInsns 8 (scalarWidth vt) .soroban ++ #[
+          ] ++ mapStorageWriteHostInsns 8 (scalarWidth vt) bridge ++ #[
             .localGet "v"
           ] } }
   | _ =>
@@ -207,7 +227,6 @@ def mapWriteFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := .nea
 def mapContainsFunc (bridge : ProofForge.Target.HostBridge := .near) : Func :=
   match bridge with
   | .soroban =>
-      -- Treat any `_get` as present (stub host returns 0 for miss).
       { name := mapContainsName,
         params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "k", type := .i64 }],
         results := #[.i64],
@@ -216,7 +235,16 @@ def mapContainsFunc (bridge : ProofForge.Target.HostBridge := .near) : Func :=
           .i32Const MAPKEY_BUF, .localGet "pl", .i32Const 8, .plain "i32.add", .call "_get",
           .plain "i64.extend_i32_u", .i64Const 0, .plain "i64.ne", .plain "i64.extend_i32_u"
         ] } }
-  | _ =>
+  | .cosmWasm =>
+      { name := mapContainsName,
+        params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "k", type := .i64 }],
+        results := #[.i64],
+        body := { insns := #[
+          .localGet "pp", .localGet "pl", .localGet "k", .call mapBuildkeyName,
+          .i32Const MAPKEY_BUF, .localGet "pl", .i32Const 8, .plain "i32.add", .call "db_read",
+          .i64Const 0, .plain "i64.ne", .plain "i64.extend_i32_u"
+        ] } }
+  | .near =>
       { name := mapContainsName,
         params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "k", type := .i64 }],
         results := #[.i64],
@@ -238,18 +266,15 @@ def appendNestedKey2Insns : Array Insn :=
 
 def mapReadNestedFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := .near) : Func :=
   match bridge with
-  | .soroban =>
-      let extend : Array Insn :=
-        match vt with
-        | .u64 => #[.plain "i64.extend_i32_u"]
-        | _ => #[]
+  | .soroban | .cosmWasm =>
       { name := mapReadNestedName vt,
         params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 },
                     { name := "k1", type := .i64 }, { name := "k2", type := .i64 }],
         results := #[wasmTypeOf vt],
         body := { insns := #[
           .localGet "pp", .localGet "pl", .localGet "k1", .call mapBuildkeyName
-        ] ++ appendNestedKey2Insns ++ mapStorageReadHostInsns 16 .soroban ++ extend } }
+        ] ++ appendNestedKey2Insns ++ mapStorageReadHostInsns 16 bridge ++
+          mapRegisterlessReadCoerce bridge vt } }
   | _ =>
       { name := mapReadNestedName vt,
         params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 },
@@ -268,7 +293,7 @@ def mapReadNestedFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge :=
 
 def mapWriteNestedFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := .near) : Func :=
   match bridge with
-  | .soroban =>
+  | .soroban | .cosmWasm =>
       { name := mapWriteNestedName vt,
         params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 },
                     { name := "k1", type := .i64 }, { name := "k2", type := .i64 },
@@ -278,7 +303,7 @@ def mapWriteNestedFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge :
           .localGet "pp", .localGet "pl", .localGet "k1", .call mapBuildkeyName
         ] ++ appendNestedKey2Insns ++ #[
           .i32Const KEY_BUF, .localGet "v", .store (storeOpFor vt) 0
-        ] ++ mapStorageWriteHostInsns 16 (scalarWidth vt) .soroban ++ #[
+        ] ++ mapStorageWriteHostInsns 16 (scalarWidth vt) bridge ++ #[
           .localGet "v"
         ] } }
   | _ =>
@@ -455,7 +480,7 @@ def mapBuildkeyHashFunc : Func :=
 
 def mapReadHashFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := .near) : Func :=
   match bridge with
-  | .soroban =>
+  | .soroban | .cosmWasm =>
       if vt == .hash then
         { name := mapReadHashName vt,
           params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "kp", type := .i32 }],
@@ -465,16 +490,12 @@ def mapReadHashFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := .
             .i32Const ZERO_HASH_BUF
           ] } }
       else
-        let extend : Array Insn :=
-          match vt with
-          | .u64 => #[.plain "i64.extend_i32_u"]
-          | _ => #[]
         { name := mapReadHashName vt,
           params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "kp", type := .i32 }],
           results := #[wasmTypeOf vt],
           body := { insns := #[
             .localGet "pp", .localGet "pl", .localGet "kp", .call mapBuildkeyHashName
-          ] ++ mapStorageReadHostInsns 32 .soroban ++ extend } }
+          ] ++ mapStorageReadHostInsns 32 bridge ++ mapRegisterlessReadCoerce bridge vt } }
   | _ =>
       if vt == .hash then
         { name := mapReadHashName vt,
@@ -507,7 +528,7 @@ def mapReadHashFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := .
 
 def mapWriteHashFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := .near) : Func :=
   match bridge with
-  | .soroban =>
+  | .soroban | .cosmWasm =>
       if vt == .hash then
         { name := mapWriteHashName vt,
           params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 },
@@ -516,7 +537,7 @@ def mapWriteHashFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := 
           body := { insns := #[
             .localGet "pp", .localGet "pl", .localGet "kp", .call mapBuildkeyHashName,
             .i32Const KEY_BUF, .localGet "v", .i32Const 32, .call memcpyName
-          ] ++ mapStorageWriteHostInsns 32 32 .soroban ++ #[
+          ] ++ mapStorageWriteHostInsns 32 32 bridge ++ #[
             .i32Const ZERO_HASH_BUF
           ] } }
       else
@@ -527,7 +548,7 @@ def mapWriteHashFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := 
           body := { insns := #[
             .localGet "pp", .localGet "pl", .localGet "kp", .call mapBuildkeyHashName,
             .i32Const KEY_BUF, .localGet "v", .store (storeOpFor vt) 0
-          ] ++ mapStorageWriteHostInsns 32 (scalarWidth vt) .soroban ++ #[
+          ] ++ mapStorageWriteHostInsns 32 (scalarWidth vt) bridge ++ #[
             .localGet "v"
           ] } }
   | _ =>
@@ -577,7 +598,16 @@ def mapContainsHashFunc (bridge : ProofForge.Target.HostBridge := .near) : Func 
           .i32Const MAPKEY_BUF, .localGet "pl", .i32Const 32, .plain "i32.add", .call "_get",
           .plain "i64.extend_i32_u", .i64Const 0, .plain "i64.ne", .plain "i64.extend_i32_u"
         ] } }
-  | _ =>
+  | .cosmWasm =>
+      { name := mapContainsHashName,
+        params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "kp", type := .i32 }],
+        results := #[.i64],
+        body := { insns := #[
+          .localGet "pp", .localGet "pl", .localGet "kp", .call mapBuildkeyHashName,
+          .i32Const MAPKEY_BUF, .localGet "pl", .i32Const 32, .plain "i32.add", .call "db_read",
+          .i64Const 0, .plain "i64.ne", .plain "i64.extend_i32_u"
+        ] } }
+  | .near =>
       { name := mapContainsHashName,
         params := #[{ name := "pp", type := .i32 }, { name := "pl", type := .i32 }, { name := "kp", type := .i32 }],
         results := #[.i64],

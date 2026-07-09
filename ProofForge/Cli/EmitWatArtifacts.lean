@@ -1,5 +1,4 @@
 import Lean.Util.Path
-import ProofForge.Backend.WasmHost.CosmWasm.EmitWat
 import ProofForge.Backend.WasmHost
 import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.Cli.Artifact
@@ -309,25 +308,14 @@ def compileEmitWat (opts : CliOptions) (name : String) (mod : ProofForge.IR.Modu
     | throw <| IO.userError "emitwat mode requires -o output directory"
   let bridge := emitWatBridge opts
   let peerMap := emitWatPeerMap opts
-  let mod := ProofForge.Target.PeerMap.applyToModule mod peerMap
-  let renderResult : Except String String :=
-    match bridge with
-    | .cosmWasm =>
-        match ProofForge.Backend.WasmHost.CosmWasm.EmitWat.renderModule mod with
-        | .ok wat => .ok wat
-        | .error e => .error e.message
-    | .soroban | .near =>
-        match ProofForge.Backend.WasmHost.EmitWat.renderModule mod bridge
-            ProofForge.Target.PeerMap.identity with
-        | .ok wat => .ok wat
-        | .error e => .error e.message
-  match renderResult with
+  -- Unified entry: WasmHost.EmitWat routes near / soroban / cosmWasm.
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule mod bridge peerMap with
   | .ok wat =>
       let (watPath, wasmPath?) ← writeWatPackage output name wat
       writeEmitWatArtifactMetadata opts (emitWatTargetId opts) name "portable-ir" mod output watPath wasmPath?
       return 0
-  | .error msg =>
-      throw <| IO.userError msg
+  | .error e =>
+      throw <| IO.userError e.message
 
 def compileEmitWatWithPlan
     (opts : CliOptions)
@@ -338,20 +326,14 @@ def compileEmitWatWithPlan
     | throw <| IO.userError "emitwat mode requires -o output directory"
   let bridge := emitWatBridge opts
   let peerMap := emitWatPeerMap opts
-  let mod := ProofForge.Target.PeerMap.applyToModule mod peerMap
-  match bridge with
-  | .cosmWasm =>
-      throw <| IO.userError "contract-source EmitWat with plan is not used for CosmWasm"
-  | .soroban | .near =>
-      match ProofForge.Backend.WasmHost.EmitWat.renderModuleWithPlan mod plan bridge
-          ProofForge.Target.PeerMap.identity with
-      | .ok wat =>
-          let (watPath, wasmPath?) ← writeWatPackage output name wat
-          writeEmitWatArtifactMetadata opts (emitWatTargetId opts) name "contract-sdk" mod
-            output watPath wasmPath?
-          return 0
-      | .error err =>
-          throw <| IO.userError err.message
+  match ProofForge.Backend.WasmHost.EmitWat.renderModuleWithPlan mod plan bridge peerMap with
+  | .ok wat =>
+      let (watPath, wasmPath?) ← writeWatPackage output name wat
+      writeEmitWatArtifactMetadata opts (emitWatTargetId opts) name "contract-sdk" mod
+        output watPath wasmPath?
+      return 0
+  | .error err =>
+      throw <| IO.userError err.message
 
 def compileCounterEmitWat (opts : CliOptions) : IO UInt32 := compileEmitWat opts "counter" ProofForge.IR.Examples.Counter.module
 def compileErrorRefEmitWat (opts : CliOptions) : IO UInt32 := compileEmitWat opts "error-ref" ProofForge.IR.Examples.ErrorRefProbe.module

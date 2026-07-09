@@ -15,6 +15,7 @@ import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.Backend.WasmHost.PortableCrosscall
 import ProofForge.Backend.WasmHost.CosmWasm.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.Backend.Psy.IR
 import ProofForge.Target.CrosscallMaterialize
 import ProofForge.Target.Preflight

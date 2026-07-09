@@ -95,10 +95,23 @@ def readFuncSoroban (vt : ValueType) : Func :=
     results := #[wasmTypeOf vt],
     body := { insns := #[.localGet "kp", .localGet "kl", .call "_get"] ++ extend } }
 
+/-- CosmWasm host ABI: `db_read(key_ptr, key_len) → i64` (le scalar word). -/
+def readFuncCosmWasm (vt : ValueType) : Func :=
+  let narrow : Array Insn :=
+    match vt with
+    | .u64 => #[]
+    | .u32 | .bool => #[.plain "i32.wrap_i64"]
+    | _ => #[]
+  { name := readName vt,
+    params := #[{ name := "kp", type := .i32 }, { name := "kl", type := .i32 }],
+    results := #[wasmTypeOf vt],
+    body := { insns := #[.localGet "kp", .localGet "kl", .call "db_read"] ++ narrow } }
+
 def readFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := .near) : Func :=
   match bridge with
   | .soroban => readFuncSoroban vt
-  | _ => readFuncNear vt
+  | .cosmWasm => readFuncCosmWasm vt
+  | .near => readFuncNear vt
 
 def writeFuncNear (vt : ValueType) : Func :=
   { name := writeName vt,
@@ -119,10 +132,21 @@ def writeFuncSoroban (vt : ValueType) : Func :=
       .localGet "kp", .localGet "kl", .i32Const KEY_BUF, .i32Const (scalarWidth vt),
       .call "_put" ] } }
 
+/-- CosmWasm host ABI: stage value, `db_write(key_ptr, key_len, val_ptr, val_len)`. -/
+def writeFuncCosmWasm (vt : ValueType) : Func :=
+  { name := writeName vt,
+    params := #[{ name := "kp", type := .i32 }, { name := "kl", type := .i32 }, { name := "v", type := wasmTypeOf vt }],
+    results := #[],
+    body := { insns := #[
+      .i32Const KEY_BUF, .localGet "v", .store (storeOpFor vt) 0,
+      .localGet "kp", .localGet "kl", .i32Const KEY_BUF, .i32Const (scalarWidth vt),
+      .call "db_write" ] } }
+
 def writeFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := .near) : Func :=
   match bridge with
   | .soroban => writeFuncSoroban vt
-  | _ => writeFuncNear vt
+  | .cosmWasm => writeFuncCosmWasm vt
+  | .near => writeFuncNear vt
 
 def returnU64Func : Func :=
   { name := returnU64Name, params := #[{ name := "v", type := .i64 }],

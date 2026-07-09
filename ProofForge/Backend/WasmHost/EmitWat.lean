@@ -12,7 +12,7 @@ parameterized by `ProofForge.Target.HostBridge`:
 |--------|----------------------------|-------------------------------------|
 | `.near` | `wasm-near` | `storage_*` / `promise_create` |
 | `.soroban` | `wasm-stellar-soroban` | `_get`/`_put` / `invoke_contract` |
-| `.cosmWasm` | (separate CosmWasm EmitWat path today) | host-specific |
+| `.cosmWasm` | `wasm-cosmwasm` | `db_read`/`db_write` (+ Counter spike exports) |
 
 Historical package name was `Backend.WasmNear` (NEAR-first). Prefer
 `Backend.WasmHost`. Target id `wasm-near` remains the NEAR product target.
@@ -29,6 +29,7 @@ import ProofForge.Backend.WasmHost.ArrayHeap
 import ProofForge.Backend.WasmHost.Capabilities
 import ProofForge.Backend.WasmHost.Common
 import ProofForge.Backend.WasmHost.Context
+import ProofForge.Backend.WasmHost.CosmWasm.EmitWat
 import ProofForge.Backend.WasmHost.Crosscall
 import ProofForge.Backend.WasmHost.Diagnostics
 import ProofForge.Backend.WasmHost.Event
@@ -445,7 +446,7 @@ mutual
     match ctx.bridge with
     | .soroban => lowerSorobanInvoke ctx env target method args
     | .cosmWasm =>
-        err "EmitWat: CosmWasm portable crosscall is deferred; use Backend.WasmHost.CosmWasm.EmitWat for that adapter"
+        err "EmitWat: CosmWasm portable crosscall is deferred (HostBridge.cosmWasm message ABI TBD)"
     | .near => lowerNearPromiseCreate ctx env target method args deposit
 
   partial def lowerNearPromiseThen (ctx : Ctx) (env : LocalTypes) (parentPromise callbackMethod : Expr)
@@ -1045,13 +1046,11 @@ def lowerModule (mod : ProofForge.IR.Module)
     Except EmitError ProofForge.Compiler.Wasm.Module := do
   -- C.6: deploy-time logical peer → host identity (before layout / string pool).
   let mod := ProofForge.Target.PeerMap.applyToModule mod peerMap
-  if bridge == ProofForge.Target.HostBridge.cosmWasm then
-    err "EmitWat: CosmWasm bridge lowering is implemented in Backend.WasmHost.CosmWasm.EmitWat; use that module for wasm-cosmwasm"
-  if mod.allocator.isCosmWasmRegion then
-    err "EmitWat: alloc.cosmwasm_region is for the CosmWasm adapter, not wasm-near EmitWat"
-  -- Soroban: NEAR Promise host-extension constructors never lower.
-  -- Portable crosscall.invoke → invoke_contract (threaded via ctx.bridge).
-  if bridge == ProofForge.Target.HostBridge.soroban then
+  if mod.allocator.isCosmWasmRegion && bridge != ProofForge.Target.HostBridge.cosmWasm then
+    err "EmitWat: alloc.cosmwasm_region requires HostBridge.cosmWasm"
+  -- Non-NEAR hosts: NEAR Promise host-extension constructors never lower.
+  if bridge == ProofForge.Target.HostBridge.soroban ||
+      bridge == ProofForge.Target.HostBridge.cosmWasm then
     if ProofForge.Backend.WasmHost.PortableCrosscall.moduleUsesPromiseExtension mod then
       err sorobanNearPromiseUnsupportedMessage
   let modulePlan ←
@@ -1072,12 +1071,26 @@ def renderCheckedModule (mod : ProofForge.IR.Module)
   let m ← lowerModule mod bridge peerMap
   .ok (Printer.render m)
 
+/-- Unified Wasm-family render entry.
+
+* `.near` / `.soroban` — shared IR → WAT lowering.
+* `.cosmWasm` — CosmWasm **Counter spike** adapter (`WasmHost.CosmWasm.EmitWat`)
+  so `cosmwasm-check` exports remain valid; full IR lower is available via
+  `lowerModule` / `renderCheckedModule` for interpreter work.
+-/
 def renderModule (mod : ProofForge.IR.Module)
     (bridge : ProofForge.Target.HostBridge := .near)
     (peerMap : ProofForge.Target.PeerMap.Map := ProofForge.Target.PeerMap.identity) :
     Except EmitError String := do
-  checkCapabilities mod
-  renderCheckedModule mod bridge peerMap
+  match bridge with
+  | .cosmWasm =>
+      let mod := ProofForge.Target.PeerMap.applyToModule mod peerMap
+      match ProofForge.Backend.WasmHost.CosmWasm.EmitWat.renderModule mod with
+      | .ok wat => .ok wat
+      | .error e => err e.message
+  | .near | .soroban =>
+      checkCapabilities mod
+      renderCheckedModule mod bridge peerMap
 
 def renderModuleWithPlan
     (mod : ProofForge.IR.Module)
@@ -1085,8 +1098,13 @@ def renderModuleWithPlan
     (bridge : ProofForge.Target.HostBridge := .near)
     (peerMap : ProofForge.Target.PeerMap.Map := ProofForge.Target.PeerMap.identity) :
     Except EmitError String := do
-  checkTargetPlan plan
-  renderCheckedModule mod bridge peerMap
+  match bridge with
+  | .cosmWasm =>
+      -- CosmWasm Counter spike ignores CapabilityPlan shape for now.
+      renderModule mod bridge peerMap
+  | .near | .soroban =>
+      checkTargetPlan plan
+      renderCheckedModule mod bridge peerMap
 
 
 end ProofForge.Backend.WasmHost.EmitWat

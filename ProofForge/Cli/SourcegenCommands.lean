@@ -1,6 +1,7 @@
 import Lean.Util.Path
 import ProofForge.Backend.Aleo.IR
-import ProofForge.Backend.WasmHost.CosmWasm.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
+import ProofForge.Target.HostBridge
 import ProofForge.Backend.Move.Aptos
 import ProofForge.Backend.Move.Sui
 import ProofForge.Cli.Artifact
@@ -40,7 +41,9 @@ def compilePureMathIrLeo (opts : CliOptions) : IO UInt32 := do
 
 def compileCounterIrCosmWasm (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/cosmwasm/Counter.wat")
-  match ProofForge.Backend.WasmHost.CosmWasm.EmitWat.renderModule ProofForge.IR.Examples.Counter.module with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule
+      ProofForge.IR.Examples.Counter.module
+      ProofForge.Target.HostBridge.cosmWasm with
   | .ok source =>
       writeTextFile output source
       IO.println s!"wrote {output}"

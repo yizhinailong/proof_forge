@@ -152,6 +152,20 @@ def sorobanPutImport : Import :=
 def sorobanRequireAuthImport : Import :=
   hostImport "require_auth_for_args" #[.i32, .i32] #[.i32]
 
+/-- CosmWasm host storage (matches WasmInterpreter / CosmWasmHost arity).
+`db_read(key_ptr, key_len) → i64` le-word; `db_write(key_ptr, key_len, val_ptr, val_len)`. -/
+def cosmWasmDbReadImport : Import :=
+  hostImport "db_read" #[.i32, .i32] #[.i64]
+
+def cosmWasmDbWriteImport : Import :=
+  hostImport "db_write" #[.i32, .i32, .i32, .i32] #[]
+
+def cosmWasmSetReturnDataImport : Import :=
+  hostImport "set_return_data" #[.i32, .i32] #[]
+
+def cosmWasmLogImport : Import :=
+  hostImport "log" #[.i32, .i32] #[]
+
 def importsForModulePlan
     (plan : ModulePlan) (cfg : ProofForge.IR.AllocatorConfig) (hasPanic : Bool)
     (bridge : ProofForge.Target.HostBridge := .near) : Array Import :=
@@ -192,6 +206,26 @@ def importsForModulePlan
         if plan.usesPromiseCreate then withAuth.push sorobanInvokeContractImport
         else withAuth
       dedupeImports withInvoke
-  | _ => dedupeImports nearFamily
+  | .cosmWasm =>
+      -- CosmWasm: db_read/db_write (no NEAR storage_* / promise_*).
+      let withoutPromise := stripNearPromiseImports nearFamily
+      let withoutNearStorage := stripNearStorageImports withoutPromise
+      -- Drop NEAR input / value_return / log_utf8 when CosmWasm-shaped.
+      let stripped := withoutNearStorage.filter fun import_ =>
+        match import_.name with
+        | "input" | "value_return" | "log_utf8" | "read_register"
+        | "signer_account_id" | "predecessor_account_id" | "current_account_id"
+        | "block_timestamp" | "block_index" | "epoch_height" | "random_seed"
+        | "attached_deposit" | "sha256" => false
+        | _ => true
+      let withStorage :=
+        let acc := stripped
+        let acc := if plan.usesStorageRead then acc.push cosmWasmDbReadImport else acc
+        let acc := if plan.usesStorageWrite then acc.push cosmWasmDbWriteImport else acc
+        let acc := if plan.usesEventApi then acc.push cosmWasmLogImport else acc
+        if plan.returnTypes.isEmpty then acc
+        else acc.push cosmWasmSetReturnDataImport
+      dedupeImports withStorage
+  | .near => dedupeImports nearFamily
 
 end ProofForge.Backend.WasmHost.Imports

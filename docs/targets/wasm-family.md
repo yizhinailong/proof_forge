@@ -70,7 +70,11 @@ ProofForge/Backend/WasmHost/          # one Wasm-family package
 | Registry `wasm-stellar-soroban` | Product target id for **Soroban only** |
 | Registry `wasm-cosmwasm` | Product target id for **CosmWasm only** |
 | Registry `wasm-cloudflare-workers` | Off-chain Wasm host (TS/Workers path; not EmitWat core) |
-| `Backend.WasmNear` / `Backend.CosmWasm` | Deprecated shims → `WasmHost` / `WasmHost.CosmWasm` |
+
+**Single entry:** `WasmHost.EmitWat.renderModule mod bridge` for all three
+on-chain Wasm targets. CosmWasm still uses an in-package Counter **spike**
+adapter (`WasmHost.CosmWasm.EmitWat`) for `cosmwasm-check` exports; full IR
+lower for CosmWasm uses `HostBridge.cosmWasm` + `db_read`/`db_write` helpers.
 
 **Per-chain layer (the only thing that differs between NEAR / CosmWasm / Soroban / ICP):**
 
