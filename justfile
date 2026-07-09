@@ -19,6 +19,11 @@ target-backend:
 # PF-P1-02: machine-readable TargetProfile support matrix.
 target-support:
     lake env lean --run Tests/TargetSupport.lean
+    python3 scripts/docs/generate-backend-status.py --check
+
+# Regenerate docs/generated/backend-status.md from --list-targets --json.
+backend-status-gen:
+    python3 scripts/docs/generate-backend-status.py
 
 # Check target-neutral ContractSpec JSON schema output.
 contract-spec-json:

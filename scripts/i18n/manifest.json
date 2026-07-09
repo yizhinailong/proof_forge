@@ -1,9 +1,9 @@
 {
   "README.md": {
-    "sha256": "239b47ce0889b97ec44b54fda047842932b8e53b3e458056d888eeb4e98cdd3b",
+    "sha256": "f0e9ad7169b997a9846e03f1ee65c4b60b7a7da4d5037f904d1920b867cad036",
     "zh": "docs/zh/README-root.zh.md",
     "model": "manual-zh",
-    "note": "manually synced for PF-P0-05 (README/capability registry honesty)"
+    "note": "manually synced for PF-P1-02 (backend-status generated table pointer)"
   },
   "CONTRIBUTING.md": {
     "sha256": "b47c1fcaf0d003718e5487575f74486b403ed4bbfb88dc7fc1891cbe23cc7b64",

@@ -24,6 +24,12 @@ ProofForge 的目标是：一份经过验证的 Lean 合约代码库，可以在
 
 ## 后端状态
 
+机器可读的支持矩阵（maturity、input modes、commands、output stages、validation
+level）由 `proof-forge --list-targets --json` 生成到
+[`docs/generated/backend-status.md`](../generated/backend-status.md)
+（`just target-support` / `just backend-status-gen`）。下表仍是管线与本地验证
+的人读总览；生成表是 PF-P1-02 合同。
+
 所有后端都在 `main` 上（"链"是目录和 target id，不是分支）。生命周期阶段见
 [docs/targets/README.md](../targets/README.md)。
 主三链完成规约 (D-045) 已关闭，`evm`、`solana-sbpf-asm` 和 `wasm-near`

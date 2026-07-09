@@ -28,6 +28,13 @@ Start here:
 
 ## Backend Status
 
+The machine-readable support matrix (maturity, input modes, commands, output
+stages, validation level) is generated from `proof-forge --list-targets --json`
+into [`docs/generated/backend-status.md`](docs/generated/backend-status.md)
+(`just target-support` / `just backend-status-gen`). The narrative table below
+remains the human overview of pipelines and local validation; the generated
+table is the PF-P1-02 contract.
+
 All backends live on `main` (chains are directories and target ids, not
 branches). Lifecycle stages follow [docs/targets/README.md](docs/targets/README.md).
 The primary-chain completion covenant (D-045) is closed and all P0 SDK
