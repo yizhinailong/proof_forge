@@ -8,8 +8,7 @@ Status: **Active**
 Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
 
-Baseline: Wave 0–P1-03 done; PF-P1-04 preflight L0+L1+L2 via TargetBackend fragment
-validators; Wave 1 complete after ledger; next Wave 2 PF-P1-05.
+Baseline: Wave 1 complete (PF-P1-01..04). Next: Wave 2 PF-P1-05 authoring DSL diagnostic boundary.
 
 ---
 
@@ -112,7 +111,7 @@ implementation SHA is only known after the implementation commit exists.
 | 1 | PF-P1-01 | done: verified@885b1ae6; just target-backend; just cli-check; just check-l2-parity; just product; just check | all Wave 0 tasks done |
 | 1 | PF-P1-02 | done: verified@3ece05d8; just target-support; just product; just docs-check | all Wave 0 tasks done; coordinate with PF-P1-01 |
 | 1 | PF-P1-03 | done: verified@3021cb13; just artifact-bundle; just solana-source-elf; just product; just check | PF-P1-01 and PF-P1-02 done |
-| 1 | PF-P1-04 | in_progress: L2 in Preflight + check codes; pending ledger done@ after impl SHA | PF-P1-01 through PF-P1-03 done |
+| 1 | PF-P1-04 | done: verified@4cae7f88; just preflight-l2; just check-l2-parity; just product; just check | PF-P1-01 through PF-P1-03 done |
 | 2 | PF-P1-05 | pending | Wave 1 done |
 | 2 | PF-P1-06 | pending | Wave 1 done |
 | 3 | PF-P2-01 | pending | Waves 1 and 2 done |
