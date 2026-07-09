@@ -123,6 +123,30 @@ def splTokenTransferCheckedCall (name source mint destination authority amountSo
   ]
 }
 
+/-- SPL Token `InitializeMint` (ix 0). `mintAuthority` is an account binding
+name (pubkey copied into ix data). Optional `freezeAuthority?` account; omit for
+COption::None (common TokenSpec bootstrap). -/
+def splTokenInitializeMintCall (name mint mintAuthority : String) (decimals : Nat)
+    (tokenProgram : String := splTokenProgram)
+    (freezeAuthority? : Option String := none)
+    (rentSysvar : String := "rent_sysvar") : CpiCall := {
+  name := name
+  program := tokenProgram
+  instruction := "initialize_mint"
+  accounts := #[
+    writableAccount mint,
+    readonlyAccount rentSysvar
+  ]
+  dataLayout? := some "spl-token.initialize_mint"
+  extraMetadata := tokenMetadata tokenProgram ++ #[
+    kv "solana.cpi.decimals" (toString decimals),
+    kv "solana.cpi.mint_authority" mintAuthority
+  ] ++
+    (match freezeAuthority? with
+    | some freeze => #[kv "solana.cpi.freeze_authority" freeze]
+    | none => #[])
+}
+
 def splToken2022InitializeTransferFeeConfigCall
     (name mint transferFeeConfigAuthority withdrawWithheldAuthority basisPointsSource
       maximumFeeSource : String) : CpiCall := {

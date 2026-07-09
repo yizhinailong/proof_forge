@@ -171,12 +171,26 @@ def validateCpiValueSources (valueBindings : Array CpiValueBinding) (cpi : CpiIn
         else if (cpiValueBinding? valueBindings source).isNone then
           throw s!"Solana CPI `{cpi.name}`: value source `{source}` ({key}) is not bound (declare it as an entry param)"
 
+/-- Protocol CPI must declare a supported `dataLayout` so we never pack empty
+instruction data (silent no-op invoke). Portable peer crosscall does not use
+this path — it goes through `PortableCrosscall` with its own ix packing. -/
+def validateCpiDataLayout (cpi : CpiInvoke) : Except String Unit := do
+  match cpi.dataLayout? with
+  | none =>
+      throw s!"Solana CPI `{cpi.name}`: missing solana.cpi.data_layout (protocol CPI requires a supported layout; portable peer calls use crosscall.invoke → PortableCrosscall)"
+  | some layout =>
+      if isSupportedCpiDataLayout layout then
+        pure ()
+      else
+        throw s!"Solana CPI `{cpi.name}`: unsupported data_layout `{layout}` (no sBPF packing; refuse silent empty CPI)"
+
 def validateProgramExtensionBindings (accountBindings : Array CpiAccountBinding)
     (valueBindings : Array CpiValueBinding) (extensions : ProgramExtensions) :
     Except String Unit := do
   for pda in extensions.pdas do
     validatePdaSeedBindings accountBindings valueBindings pda
   for cpi in extensions.cpis do
+    validateCpiDataLayout cpi
     validateCpiSignerSeedBindings accountBindings valueBindings cpi
     validateCpiValueSources valueBindings cpi
 

@@ -93,7 +93,46 @@ def tokenParamAmountSpec : ProofForge.Contract.ContractSpec :=
         9
       effect (storageScalarWrite "nonce" (localVar "amount"))
 
+/-- Protocol CPI: InitializeMint (TokenSpec create path / vault bootstrap). -/
+def initializeMintSpec : ProofForge.Contract.ContractSpec :=
+  build "SolanaInitializeMintCpi" do
+    scalarState "nonce" .u64
+
+    splTokenInitializeMint
+      "init_mint"
+      "mint"
+      "mint_authority"
+      6
+
+    entrySelector "initialize" "04" do
+      invokeSplTokenInitializeMint
+        "init_mint"
+        "mint"
+        "mint_authority"
+        6
+      effect (storageScalarWrite "nonce" (u64 1))
+
 def main : IO UInt32 := do
+  match ProofForge.Backend.Solana.Package.renderPackageForSpec "init-mint-cpi" initializeMintSpec with
+  | .ok pkg =>
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw <| IO.userError "init-mint package missing sBPF assembly"
+      let asm := asmFile.contents
+      require (contains asm "solana.cpi.data spl-token.initialize_mint:")
+        "assembly missing initialize_mint data packing marker"
+      require (contains asm "stb [r8+0], 0")
+        "assembly missing InitializeMint instruction tag 0"
+      require (contains asm "stb [r8+1], 6")
+        "assembly missing initialize_mint decimals store"
+      require (contains asm "solana.cpi.value mint_authority")
+        "assembly missing mint_authority pubkey packing"
+      require (contains asm "freeze_authority option=none")
+        "assembly missing freeze_authority COption::None"
+      require (contains asm "call sol_invoke_signed_c")
+        "assembly missing CPI invoke for initialize_mint"
+  | .error err =>
+      throw <| IO.userError s!"Solana initialize_mint CPI packing render failed: {err.render}"
+
   match ProofForge.Backend.Solana.Package.renderPackageForSpec "system-cpi" systemTransferSpec with
   | .ok pkg =>
       let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)

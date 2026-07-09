@@ -595,6 +595,39 @@ def lowerSplTokenAmountData (valueBindings : Array CpiValueBinding)
   else
     #[])
 
+/-- SPL Token `InitializeMint` (instruction 0): decimals + mint_authority +
+optional freeze_authority (COption). Freeze defaults to None when metadata is
+absent — the common mint-init shape for TokenSpec / vault bootstrap. -/
+def lowerSplTokenInitializeMintData
+    (accountBindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
+  let decimals := cpiDecimals cpi
+  #[
+    .comment s!"solana.cpi.data spl-token.initialize_mint: u8 instruction=0, u8 decimals={decimals}, pubkey mint_authority, COption freeze_authority"
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    storeImm .stb .r8 0 0,
+    storeImm .stb .r8 1 decimals
+  ] ++
+  lowerCpiPubkeyField accountBindings cpi "solana.cpi.mint_authority" "mint_authority" 2 ++
+  match cpiMetadataValue? cpi "solana.cpi.freeze_authority" with
+  | some source =>
+      #[
+        .comment s!"solana.cpi.value freeze_authority option=some source={source}",
+        storeImm .stb .r8 34 1
+      ] ++
+      lowerCpiPubkeyField accountBindings cpi "solana.cpi.freeze_authority" "freeze_authority" 35
+  | none =>
+      #[
+        .comment "solana.cpi.value freeze_authority option=none",
+        storeImm .stb .r8 34 0
+      ]
+
+/-- Data length for `spl-token.initialize_mint` (35 without freeze, 67 with). -/
+def splTokenInitializeMintDataLen (cpi : CpiInvoke) : Nat :=
+  match cpiMetadataValue? cpi "solana.cpi.freeze_authority" with
+  | some _ => 67
+  | none => 35
+
 def lowerSplTokenRevokeData : Array AstNode :=
   #[
     .comment "solana.cpi.data spl-token.revoke: u8 instruction=5"
@@ -898,6 +931,36 @@ def lowerAssociatedTokenCreateData (layout : String) (tag : Nat) : Array AstNode
     storeImm .stb .r8 0 tag
   ]
 
+/-- Protocol CPI layouts with real sBPF instruction-data packing.
+Portable peer `crosscall.invoke` uses `PortableCrosscall` (separate path) and
+does not require a protocol `dataLayout`. -/
+def isSupportedCpiDataLayout (layout : String) : Bool :=
+  match layout with
+  | "system.transfer" | "system.create_account"
+  | "spl-token.initialize_mint"
+  | "spl-token.transfer_checked" | "spl-token.mint_to" | "spl-token.burn"
+  | "spl-token.approve" | "spl-token.revoke" | "spl-token.close_account"
+  | "spl-token.set_authority"
+  | "associated-token.create" | "associated-token.create_idempotent"
+  | "token-2022.initialize_transfer_fee_config"
+  | "token-2022.transfer_checked_with_fee"
+  | "token-2022.withdraw_withheld_tokens_from_mint"
+  | "token-2022.withdraw_withheld_tokens_from_accounts"
+  | "token-2022.harvest_withheld_tokens_to_mint"
+  | "token-2022.set_transfer_fee"
+  | "token-2022.initialize_non_transferable_mint"
+  | "token-2022.initialize_metadata_pointer"
+  | "token-2022.initialize_default_account_state"
+  | "token-2022.initialize_immutable_owner"
+  | "token-2022.initialize_permanent_delegate"
+  | "token-2022.initialize_interest_bearing_mint"
+  | "token-2022.enable_required_memo_transfers"
+  | "token-2022.initialize_transfer_hook"
+  | "token-2022.initialize_pausable_config"
+  | "token-2022.pause" | "token-2022.resume"
+  | "memo.memo" => true
+  | _ => false
+
 def lowerCpiInstructionData (accountBindings : Array CpiAccountBinding)
     (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Array AstNode × Nat :=
   match cpi.dataLayout? with
@@ -905,6 +968,8 @@ def lowerCpiInstructionData (accountBindings : Array CpiAccountBinding)
       (lowerSystemTransferData valueBindings cpi, 12)
   | some "system.create_account" =>
       (lowerSystemCreateAccountData accountBindings valueBindings cpi, 52)
+  | some "spl-token.initialize_mint" =>
+      (lowerSplTokenInitializeMintData accountBindings cpi, splTokenInitializeMintDataLen cpi)
   | some "spl-token.transfer_checked" =>
       (lowerSplTokenAmountData valueBindings cpi "spl-token.transfer_checked" 12 10 true, 10)
   | some "spl-token.mint_to" =>
@@ -960,22 +1025,16 @@ def lowerCpiInstructionData (accountBindings : Array CpiAccountBinding)
   | some "memo.memo" =>
       (lowerMemoData valueBindings cpi, 8)
   | some dl =>
-      -- Known plan-scaffolded but unlowered Token-2022 extensions: fail at
-      -- runtime with a logged error instead of silently emitting zero-data
-      -- CPI (which would produce a no-op call). These dataLayouts have plan
-      -- metadata in Token.lean but no sBPF instruction-data lowering yet.
-      if dl == "token-2022.initialize_confidential_transfer_mint"
-         ∨ dl == "token-2022.initialize_memo_transfer" then
-        (#[.comment s!"UNSUPPORTED CPI dataLayout `{dl}`: plan scaffolded but sBPF lowering pending — runtime abort",
-          .instruction { opcode := .mov64, dst := some .r0, imm := some (.num 1) },
-          .instruction { opcode := .exit }], 0)
-      else
-        (#[
-          .comment s!"generic CPI instruction data empty for `{dl}`; protocol-specific ABI packing pending"
-        ], 0)
-  | none =>
+      -- Defense in depth: preflight should reject first; never pack empty ix data.
       (#[
-        .comment "generic CPI instruction data empty (no dataLayout); protocol-specific ABI packing pending"
+        .comment s!"UNSUPPORTED CPI dataLayout `{dl}` (reject)",
+        .instruction { opcode := .ja, off := some (.sym "error_cpi") }
+      ], 0)
+  | none =>
+      -- Protocol CPI must declare a layout; empty data would be a silent no-op.
+      (#[
+        .comment "solana.cpi.data_layout missing (reject)",
+        .instruction { opcode := .ja, off := some (.sym "error_cpi") }
       ], 0)
 
 def lowerCpiInstructionRecord (cpi : CpiInvoke) (dataLen : Nat) : Array AstNode :=

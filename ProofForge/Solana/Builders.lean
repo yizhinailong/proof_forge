@@ -636,6 +636,24 @@ def invokeSplTokenTransferChecked (name source mint destination authority amount
   cpiEntry (splTokenTransferCheckedCall name source mint destination authority amountSource decimals
     (tokenProgram := tokenProgram) (signerSeeds := signerSeeds))
 
+def splTokenInitializeMint (name mint mintAuthority : String) (decimals : Nat)
+    (tokenProgram : String := splTokenProgram)
+    (freezeAuthority? : Option String := none)
+    (rentSysvar : String := "rent_sysvar") :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splTokenInitializeMintCall name mint mintAuthority decimals
+    (tokenProgram := tokenProgram) (freezeAuthority? := freezeAuthority?)
+    (rentSysvar := rentSysvar))
+
+def invokeSplTokenInitializeMint (name mint mintAuthority : String) (decimals : Nat)
+    (tokenProgram : String := splTokenProgram)
+    (freezeAuthority? : Option String := none)
+    (rentSysvar : String := "rent_sysvar") :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splTokenInitializeMintCall name mint mintAuthority decimals
+    (tokenProgram := tokenProgram) (freezeAuthority? := freezeAuthority?)
+    (rentSysvar := rentSysvar))
+
 def splToken2022InitializeTransferFeeConfig
     (name mint transferFeeConfigAuthority withdrawWithheldAuthority basisPointsSource
       maximumFeeSource : String) : ProofForge.Contract.Builder.ModuleM Unit :=
