@@ -695,6 +695,11 @@ portable-auth-materialize:
     lake env lean --run Tests/PortableAuthMaterialize.lean
 
 # T3.4: assertionId catalogue parity across EVM · Solana · NEAR clients + sdk-schema + EmitWat PF.
+# U6.4: entrypoint names + assertionId catalogue parity across EVM · Solana · NEAR clients/SDK.
+client-schema-parity:
+    lake build Examples.Product.Counter ProofForge.Contract.Client ProofForge.Contract.SdkSchema ProofForge.Backend.Solana.Client ProofForge.Backend.Solana.Idl ProofForge.IR.Examples.ErrorRefProbe
+    lake env lean --run Tests/ClientSchemaParity.lean
+
 portable-error-catalog:
     lake env lean --run Tests/PortableErrorCatalog.lean
 

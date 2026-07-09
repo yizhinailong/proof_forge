@@ -183,7 +183,7 @@ Follow detailed steps in [FV-9 plan](2026-07-08-fv9-universal-compiler-correctne
 | **U6.1** | Versioning RFC 0012 enforcement | IR major.minor + artifact schemaVersion checks in emit | Doc + smoke | M | **done** (`just versioning-policy`) |
 | **U6.2** | CLI M4 plan (no delete yet) | Inventory remaining legacy flags; deprecation window | Inventory md + `just cli-target-first` | S | **done** (`docs/cli-m4-legacy-inventory.md`) |
 | **U6.3** | CLI M4 delete | Remove aliases after window | CI green; docs | L | U6.2 | pending |
-| **U6.4** | Unified client schema gaps | Align method names / error ids three hosts | client-schema tests | M | pending |
+| **U6.4** | Unified client schema gaps | Align method names / error ids three hosts | client-schema tests | M | **done** (`just client-schema-parity`) |
 | **U6.5** | Upgrade/signing boundary docs | RFC 0013 operational notes for CI keys | Docs only | S | **done** (`docs/upgrade-signing-ops.md`) |
 
 ---
