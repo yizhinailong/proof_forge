@@ -25,8 +25,18 @@ open ProofForge.Backend.Solana.CounterSbpfRefinement
 #check counterSbpfCore_canonical_safe_trace_simulates
 #check counterTraceSafe_initialize_get_increment_get
 
+/-! ## FV-9.3 Solana cap: the structural `∀ (m : Module)` sBPF fragment-refines
+
+The Solana-first replication of FV-9.3: `solanaSbpf_fragment_refines_all`
+quantifies over every module `m` in the supported fragment, with the sBPF
+core-tail as the target machine and `CounterSbpfRel` as the simulation
+relation. Proved via `moduleIrStep m = irStep` (`rfl`) + the existing
+`counterSbpfCore_trace_simulates_from_obligations`. -/
+
+#check solanaSbpf_fragment_refines_all
+
 end ProofForge.Tests.SolanaCounterSbpfRegression
 
 def main : IO UInt32 := do
-  IO.println "solana-counter-sbpf-regression: Counter exec + refinement anchors checked"
+  IO.println "solana-counter-sbpf-regression: Counter exec + refinement anchors + FV-9.3 solanaSbpf_fragment_refines_all (∀ m ∈ supported fragment) checked"
   return 0
