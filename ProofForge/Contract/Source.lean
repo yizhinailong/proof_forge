@@ -995,6 +995,11 @@ def caller : ProofForge.IR.Expr :=
 def callerHash : ProofForge.IR.Expr :=
   ProofForge.Contract.Surface.callerHash
 
+/-- This contract / program id (`address(this)` · program_id · current_account).
+Portable triad after HostEnv U1.2 (Solana: sha256(program_id) limb0). -/
+def contractId : ProofForge.IR.Expr :=
+  ProofForge.Contract.Surface.contractId
+
 def nativeValue : ProofForge.IR.Expr :=
   ProofForge.Contract.Surface.nativeValue
 

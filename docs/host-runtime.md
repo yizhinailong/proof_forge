@@ -142,6 +142,22 @@ Triad snapshot (context / `nativeValue` paths):
 | `blockHash` | ok | reject | reject |
 | `randomness` | ok | reject | ok |
 
+### Permanent / deferred HostEnv policy (U1.3–U1.5)
+
+| Term | Policy | Rationale |
+|------|--------|-----------|
+| Solana `randomness` | **Permanent reject** (until SlotHashes HostEnv lower) | No portable VRF; SlotHashes not wired as context path |
+| Solana `epoch` | **Permanent reject** (until Clock.epoch context lower) | Clock has epoch field; not product-blocking; keep honest reject |
+| EVM `epoch` | Permanent reject | No EVM epoch-height opcode |
+| NEAR / Solana `chainId` | Permanent reject | No EIP-155 chain id; must not alias block height |
+| NEAR / Solana `gasOrComputeBudgetLeft` | Permanent reject as HostEnv | EVM-only context path; Solana CU stays extension (`sol_remaining_compute_units`) until U1.4 |
+| NEAR `blockHash` | Permanent reject | Use `randomness` / `random_seed` when needed |
+| Solana `blockTime` / `selfAddress` | **Wired** (U1.1–U1.2) | Clock.unix_timestamp; program_id sha256 limb0 |
+
+Product Shared path (`Examples/Product`) should only use triad-safe env
+(`caller`, `timestamp`, `checkpointId`, `contractId`, `nativeValue` / attached
+value). See `Examples/Product/HostEnvProbe.lean` (U1.6).
+
 API (in `ProofForge.Target.HostRuntime`):
 
 - `HostEnv` / `HostEnvBucket` / `allHostEnvs`

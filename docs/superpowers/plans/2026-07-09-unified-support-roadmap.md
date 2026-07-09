@@ -93,10 +93,10 @@ U7  Secondary hosts discipline (spike freeze / optional)     [LOW]
 |----|------|------|------------|------|------|--------|
 | **U1.1** | Solana `blockTime` | Lower `contextRead .timestamp` via `sol_get_clock_sysvar` → `Clock.unix_timestamp` (i64 at offset in clock buffer); `materializeEnv .blockTime "solana-sbpf-asm" = .ok`; HostRuntime tests | `lake env lean --run Tests/HostRuntime.lean`; Solana fixture/smoke that reads timestamp; `just product` | M | — | **done** (`ac12d18d`) |
 | **U1.2** | Solana `selfAddress` | Lower `contextRead .contractId` to program id (32-byte / limb0 Hash policy matching OwnableHash); materializeEnv ok; honesty tests | Same gates + identity note in `docs/host-runtime.md` | M | U1.1 optional | **done** (`83ed411b`) |
-| **U1.3** | Solana `randomness` / `epoch` decision | Either wire SlotHashes / Clock.epoch **or** permanent reject + author doc | Decision row §Open decisions + tests match | S | — | pending |
+| **U1.3** | Solana `randomness` / `epoch` decision | Either wire SlotHashes / Clock.epoch **or** permanent reject + author doc | Decision row §Open decisions + tests match | S | — | **done** (permanent reject + host-runtime §) |
 | **U1.4** | Gas/compute HostEnv path | Document EVM-only vs extension-only CU; optional Solana `gasOrComputeBudgetLeft` via `sol_remaining_compute_units` **as HostEnv** (not only extension) | materializeEnv matrix + one smoke or permanent reject | M | U1.1 | pending |
-| **U1.5** | NEAR HostEnv holes | Confirm prepaid_gas / chainId permanent reject; wire only if real host import exists | Docs + `Tests/HostRuntime.lean` | S | — | pending |
-| **U1.6** | Product example using triad HostEnv | Shared Product example (e.g. time-gated pause or self-check) × three targets | `just portable-*` or new smoke | M | U1.1–U1.2 | pending |
+| **U1.5** | NEAR HostEnv holes | Confirm prepaid_gas / chainId permanent reject; wire only if real host import exists | Docs + `Tests/HostRuntime.lean` | S | — | **done** (permanent reject confirmed) |
+| **U1.6** | Product example using triad HostEnv | Shared Product example (e.g. time-gated pause or self-check) × three targets | `just portable-*` or new smoke | M | U1.1–U1.2 | **done** |
 
 #### Task U1.1 detail (first executable slice)
 
@@ -256,9 +256,9 @@ U7 anytime (docs)
 
 | ID | Decision | Options | Default until decided |
 |----|----------|---------|------------------------|
-| **D-U1-Random** | Solana portable randomness | Wire SlotHashes vs permanent reject | permanent reject + doc |
-| **D-U1-Gas** | Portable gas/CU left | HostEnv on Solana/NEAR vs EVM-only | EVM-only HostEnv; CU stays extension until U1.4 |
-| **D-U1-TimeUnit** | Solana timestamp unit | seconds (Clock) vs ns (NEAR-like) | **seconds** + note NEAR ns |
+| **D-U1-Random** | Solana portable randomness | Wire SlotHashes vs permanent reject | **Decided:** permanent reject + doc until SlotHashes HostEnv lower |
+| **D-U1-Gas** | Portable gas/CU left | HostEnv on Solana/NEAR vs EVM-only | **Decided for now:** EVM-only HostEnv; CU stays extension until U1.4 |
+| **D-U1-TimeUnit** | Solana timestamp unit | seconds (Clock) vs ns (NEAR-like) | **Decided:** **seconds** (Clock.unix_timestamp) + note NEAR ns |
 | **D-U2-Oracle** | IR real peer later? | Design-only vs implement mock | design-only in this roadmap |
 | **D-U4-721** | onERC721Received | implement vs permanent skip | permanent skip until product asks |
 | **D-U7-G1** | CosmWasm/Aptos M3 | schedule vs freeze | **freeze** |
@@ -271,6 +271,7 @@ U7 anytime (docs)
 |------|------|
 | 2026-07-09 | Roadmap created from full project audit + completed portable-sdk waves. First execution target: U0 then U1.1 Solana `blockTime`. HEAD baseline: `4ffa1f1f` honesty/CPI green `just check`. |
 | 2026-07-09 | **U0 complete:** INDEX link; portable-sdk plan → Complete; `just product` green locally (`product: ok (matrix · counter · remote)`). Next: **PR-U1a** = U1.1 Solana HostEnv `blockTime`. |
+| 2026-07-09 | **U1.3/U1.5/U1.6 done:** permanent HostEnv rejects documented; HostEnvProbe Shared example + product-matrix; Source.contractId export; `just product` green.
 | 2026-07-09 | **U1.2 done (`83ed411b`):** Solana `contextRead.contractId` → sha256(program_id) limb0; HostEnv.selfAddress + Identity.self triad; HostRuntime/IRPortability/ChainAgnosticRoute green; `just product` ok. Next: U1.3 decision + U1.6 product example.
 | 2026-07-09 | **U1.1 done (`ac12d18d`):** Solana `contextRead.timestamp` → `Clock.unix_timestamp`; `materializeEnv` triad `blockTime`; HostRuntime lower smoke; `isPortableEnv` derives triad (timestamp now portable-core). `lake build` + `just product` green. Next: **U1.2** Solana `selfAddress`. |
 

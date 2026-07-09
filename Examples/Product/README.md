@@ -48,6 +48,7 @@ Full narrative: [docs/tutorials/portable-shared-path.md](../../docs/tutorials/po
 | [ERC4626Vault.lean](ERC4626Vault.lean) | deployable ERC-4626 vault body (stdlib pro-rata; **product v1 frozen**) |
 | [AuthRemoteCall.lean](AuthRemoteCall.lean) | caller + debit + remote |
 | [ArrayExample.lean](ArrayExample.lean) | arrays |
+| [HostEnvProbe.lean](HostEnvProbe.lean) | triad HostEnv (`timestamp`/`checkpointId`/`contractId`/`caller`) |
 | [Ownable.lean](Ownable.lean) | owner policy |
 | [OwnableHash.lean](OwnableHash.lean) | hash-width owner |
 | [Pausable.lean](Pausable.lean) | pause policy |

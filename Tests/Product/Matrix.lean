@@ -15,6 +15,7 @@ import Examples.Product.AccessControl
 import Examples.Product.ArrayExample
 import Examples.Product.AuthRemoteCall
 import Examples.Product.Counter
+import Examples.Product.HostEnvProbe
 import Examples.Product.ExternalTokenTransfer
 import Examples.Product.FeeToken
 import Examples.Product.FungibleToken
@@ -104,6 +105,16 @@ def testCounterSingleSource : IO Unit := do
     "Product Counter must be name-only (no author selectors)"
   assertAutoPortablePrimary "Counter" product
   assertFourHost "Counter" product
+  assertFourHost "HostEnvProbe" Examples.Product.HostEnvProbe.module
+  assertAutoPortablePrimary "HostEnvProbe" Examples.Product.HostEnvProbe.module
+  -- Triad HostEnv fields must lower on Solana (U1.1–U1.2).
+  match ProofForge.Backend.Solana.SbpfAsm.renderModule Examples.Product.HostEnvProbe.module with
+  | .error e => throw (IO.userError s!"HostEnvProbe Solana: {e.message}")
+  | .ok src =>
+      require (contains src "Clock.unix_timestamp" || contains src "sol_get_clock_sysvar")
+        "HostEnvProbe Solana must lower timestamp via Clock"
+      require (contains src "program_id" || contains src "contractId")
+        "HostEnvProbe Solana must lower contractId / program_id"
 
 def testPolicies : IO Unit := do
   for (label, m) in #[
