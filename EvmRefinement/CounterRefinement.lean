@@ -1,6 +1,8 @@
 import EvmRefinement.PowdrExec
 import ProofForge.Backend.Evm.Plan.Storage
 import ProofForge.Backend.Refinement.CounterUniversal
+import ProofForge.IR.SemanticsFuel
+import ProofForge.Backend.Refinement.ConstructorCoverage
 
 /-! Counter IR/powdr-EVM storage relation.
 
@@ -13309,5 +13311,33 @@ theorem counterCompiledPowdr_safe_trace_simulates_from_state_safe_prepared_stora
   counterCompiledPowdr_safe_trace_simulates_from_state_safe_obligations
     (counterCompiledPowdrSafeEntrypointObligationsOfPreparedStorageModels models)
     calls hrel hsafe
+
+/-! ### FV-9.3 EVM cap: the structural `∀ (m : Module)` EVM/powdr fragment-refines
+
+The EVM replication of FV-9.3: the compiler-correctness theorem quantified
+over every module `m` in the supported fragment, with the powdr-EVM compiled
+target as the target machine and `CounterStorageRel` as the simulation relation. -/
+
+open ProofForge.Backend.Refinement.CounterUniversal
+open ProofForge.Backend.Refinement.ConstructorCoverage
+
+theorem evmCompiledPowdr_fragment_refines_all
+    (m : Module) (hm : isCounterModule m = true)
+    (hcovered : moduleInCoveredFragment m = true)
+    (obligations : CounterCompiledPowdrEntrypointObligations)
+    (calls : List CounterCall) {irState : IRState} {evmState : EvmState}
+    (hrel : CounterStorageRel irState evmState) :
+    ∃ finalIr finalEvm observables,
+      ProofForge.IR.StepSemantics.runTraceListGen (moduleIrStep m) calls irState =
+        .ok (finalIr, observables) ∧
+      ProofForge.IR.StepSemantics.runTraceListGen
+          (counterPowdrTraceStep counterCompiledPowdrConfig) calls evmState =
+        .ok (finalEvm, observables) ∧
+      CounterStorageRel finalIr finalEvm ∧
+      ProofForge.IR.StepSemantics.IRTraceMatches (moduleIrStep m) irState calls observables ∧
+      ProofForge.IR.StepSemantics.IRTraceMatches
+        (counterPowdrTraceStep counterCompiledPowdrConfig) evmState calls observables := by
+  rw [show moduleIrStep m = irStep from rfl]
+  exact counterPowdr_trace_simulates_from_obligations counterCompiledPowdrConfig obligations calls hrel
 
 end ProofForge.Backend.Evm.CounterRefinement

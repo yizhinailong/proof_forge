@@ -4,6 +4,8 @@ import ProofForge.Backend.WasmHost.NearHost
 import ProofForge.Backend.WasmHost.WasmExec
 import ProofForge.IR.CounterSemantics
 import ProofForge.IR.StepSemantics
+import ProofForge.IR.SemanticsFuel
+import ProofForge.Backend.Refinement.ConstructorCoverage
 
 /-! ## Counter IR ↔ Wasm core-tail universal refinement (WASM-3/4).
 
@@ -522,5 +524,33 @@ theorem counterWasmCore_canonical_safe_trace_simulates :
       [.get, .increment, .get] State.empty { storage := #[], returnValue := #[] }
       counterTraceSafe_initialize_get_increment_get
   exact ⟨finalIr, finalCore, observables, hirTrace, hcoreTrace, hrelFinal⟩
+
+/-! ### FV-9.3 Wasm cap: the structural `∀ (m : Module)` Wasm core fragment-refines
+
+The Wasm host target's `∀ (m : Module)` theorem. This is the Wasm replication
+of FV-9.3: the compiler-correctness theorem quantified over every module `m`
+in the supported fragment, with the Wasm core-tail as the target machine and
+`CounterWasmRel` as the simulation relation.
+
+The proof reduces to the existing `counterWasmCore_trace_simulates_from_obligations`
+via `moduleIrStep m = irStep` (`rfl`), because the Wasm refinement already uses
+`counterIRStep` (an alias of the canonical `irStep`) and `CounterWasmRel`.
+-/
+
+open ProofForge.Backend.Refinement.ConstructorCoverage
+
+theorem wasmCore_fragment_refines_all
+    (m : Module) (hm : isCounterModule m = true)
+    (hcovered : moduleInCoveredFragment m = true)
+    (calls : List CounterCall) {irState : IRState} {core : CounterWasmCoreState}
+    (hrel : CounterWasmRel irState core) :
+    ∃ finalIr finalCore observables,
+      runTraceListGen (moduleIrStep m) calls irState = .ok (finalIr, observables) ∧
+      runTraceListGen counterWasmCoreTraceStep calls core = .ok (finalCore, observables) ∧
+      CounterWasmRel finalIr finalCore ∧
+      IRTraceMatches (moduleIrStep m) irState calls observables ∧
+      IRTraceMatches counterWasmCoreTraceStep core calls observables := by
+  rw [show moduleIrStep m = irStep from rfl]
+  exact counterWasmCore_trace_simulates_from_obligations counterWasmCoreObligations calls hrel
 
 end ProofForge.Backend.WasmHost.CounterWasmRefinement
