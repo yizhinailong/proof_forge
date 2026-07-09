@@ -63,7 +63,8 @@ Install `just` from [casey/just](https://github.com/casey/just); the root
 ```sh
 just --list        # all recipes
 just build         # lake build
-just check         # fast static gates (Lean + EVM plan + Solana-light + NEAR + Psy static + testkit + Quint)
+just product       # product-first: Examples/Product multi-target matrix (required CI)
+just check         # product + backend static gates (Lean + Solana-light + NEAR + Psy + testkit + …)
 just evm-all       # full EVM gates: examples, Foundry smoke, Anvil deploy
 just portable-counter-four-target-sdk  # Counter SDK layout for EVM, Solana, NEAR, Sui
 just sui-counter-smoke                 # local Sui Move Counter build/test
