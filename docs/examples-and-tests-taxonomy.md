@@ -50,6 +50,15 @@ Backend probes: `just backend` (solana-lean subset) or `solana-light` / `emitwat
 
 Full engineering suite remains `just check` (product + backend + formal).
 
+## CI (Phase 5)
+
+| Host | Product-first | Full suite |
+|------|---------------|------------|
+| GitHub Actions | job **`product`** (required) | job **`build-test`** with `needs: [product]` |
+| Codeberg Woodpecker | step **`proof-forge-product`** (`just product`) | step **`proof-forge-check`** (`just check`) |
+
+Authoring / portable regressions fail in `product` before backend probe suites run.
+
 ## Single Counter author source (Phase 2)
 
 | Module | Role |

@@ -10,9 +10,9 @@ sources to portable IR and target artifacts. Implemented backends live on `main`
 (Phase 4 ZK lane, Road 1 Leo sourcegen), plus research spike
 `wasm-cloudflare-workers`. The formal-verification target `quint` is CLI-only
 (not in `--list-targets`). See README "Backend Status" for the full stage table.
-Default CI runs the EVM, Solana-light, NEAR, Psy static, Soroban host, and Aleo
-codegen gates; Solana live-network/Pinocchio gates and `just psy-all` need extra
-tools (see below).
+CI is **product-first**: required `just product` (business sources × multi-target)
+before backend-heavy suites. Solana live-network/Pinocchio and `just psy-all` need
+extra tools (see below).
 
 ### Registry vs CLI-only targets
 
@@ -21,11 +21,13 @@ tools (see below).
 | `proof-forge --list-targets` / `ProofForge.Target.knownIds` | `evm`, `solana-sbpf-asm`, `wasm-near`, `wasm-cosmwasm`, `wasm-cloudflare-workers`, `wasm-stellar-soroban`, `move-aptos`, `move-sui`, `psy-dpn`, `aleo-leo` |
 | `proof-forge emit --target …` (fixture whitelist) | above plus `quint` (verification; CLI-only). `wasm-stellar-soroban` uses EmitWat + `HostBridge.soroban` (not a separate codegen core). |
 
-### `just check` vs GitHub `build-test`
+### Product vs backend CI
 
-| In `just check` (Woodpecker default) | In GitHub `build-test` only |
-|--------------------------------------|-----------------------------|
-| `build`, `target-registry`, `sdk-schema`, `cli-deploy`, `cli-check`, EVM plan/semantic plan, `solana-light`, NEAR target-first + Wasm-NEAR plan gates, Psy static gates, Quint gates, `testkit`, portable Counter multi-target | `psy-golden-sources`, full `evm-ir-smokes` + Foundry + Anvil, formal semantics anchors (`Evm.Refinement`, `NearWasmFormal`, `IROwnership`), `emitwat-ci-smoke`, NEAR diagnostic/IR coverage manifests, portable RoleGatedToken + StakingVault |
+| Gate | Command | CI |
+|------|---------|-----|
+| **Product** (required, fail-fast) | `just product` | GitHub job `product`; Woodpecker step `proof-forge-product` |
+| Full static baseline | `just check` (= `build` + `product` + backend) | Woodpecker `proof-forge-check`; local pre-push |
+| Backend-heavy | `build-test` after `product` | GitHub `build-test` (`needs: product`): solana-light, EmitWat, Foundry/Anvil, Psy, Quint, RoleGatedToken/StakingVault, … |
 
 Optional GitHub jobs (continue-on-error): `aleo-smoke`, `cloudflare-smoke`,
 `cosmwasm-smoke`, `aptos-smoke`, `solana-pinocchio-live`. Sui gates (`just sui-*`)
@@ -44,16 +46,17 @@ are local-only (need `sui` CLI).
 ### Codeberg remote and CI
 - Git remote: `git@codeberg.org:davirain/proof_forge.git` (`codeberg`).
 - Hosted CI uses Codeberg Woodpecker (`ci.codeberg.org`); pipeline config is `.woodpecker.yml`
-  and runs `just check` after `scripts/ci/woodpecker-setup.sh`. Enable the repo once at
-  https://ci.codeberg.org/repos/add after Woodpecker access is approved.
+  and runs **`just product` then `just check`** after `scripts/ci/woodpecker-setup.sh`.
+  Enable the repo once at https://ci.codeberg.org/repos/add after Woodpecker access is approved.
 
 ### Build / lint / test / run
 The root `justfile` is the canonical command catalog (`just --list`). It is also the CI
 entrypoint (see `.woodpecker.yml` on Codeberg and `.github/workflows/ci.yml` on GitHub). Key commands:
 - Build: `just build` (`lake build`).
-- Fast baseline (Lean + EVM + Solana-light + NEAR + Psy static gates + testkit + docs
-  + SDK schema + CLI gates): `just check`. This is the closest local mirror of the
-  GitHub `build-test` job's static subset.
+- **Product gate (primary):** `just product` — `Examples/Product` multi-target matrix +
+  Counter/Remote CLI smokes. Run this first when changing authoring/portable paths.
+- Full static baseline (`product` + EVM/Solana-light/NEAR/Psy/testkit/docs/CLI):
+  `just check`.
 - Full EVM gates (compile examples, Foundry runtime smoke, live Anvil deploy,
   dynamic constructor Anvil, broadcast gas flags): `just evm-all`.
 - `just ci` is a local CI-flavored aggregate, not a strict subset of the GitHub

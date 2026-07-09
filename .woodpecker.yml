@@ -6,15 +6,26 @@
 #   3. Enable this repo at https://ci.codeberg.org/repos/add
 #
 # Triggers: push and pull_request (all branches).
-# Gate: `just check` — the fast static baseline tracked by the project.
+# Gates (product-first):
+#   1. `just product` — business sources × multi-target (fail fast)
+#   2. `just check` — full static baseline (includes product again + backend)
 
 when:
   - event: [push, pull_request]
 
 steps:
+  - name: proof-forge-product
+    image: ubuntu:24.04
+    commands:
+      - export PATH="$HOME/.elan/bin:$HOME/.cargo/bin:$HOME/.foundry/bin:$HOME/.local/share/solana/install/active_release/bin:/usr/local/bin:$PATH"
+      - scripts/ci/woodpecker-setup.sh
+      - just product
+
   - name: proof-forge-check
     image: ubuntu:24.04
     commands:
       - export PATH="$HOME/.elan/bin:$HOME/.cargo/bin:$HOME/.foundry/bin:$HOME/.local/share/solana/install/active_release/bin:/usr/local/bin:$PATH"
+      # Setup already ran in product step on the same workspace when sequential;
+      # re-run setup for isolated step images.
       - scripts/ci/woodpecker-setup.sh
       - just check
