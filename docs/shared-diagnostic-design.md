@@ -30,8 +30,8 @@ presentation concern and is intentionally out of scope for this stub.
 | Solana plan | `Solana.Plan.PlanError` (`Backend/Solana/Plan.lean`) | `message : String` | `err.message` | Yes |
 | Psy lowering | `Psy.IR.LowerError` (`Backend/Psy/IR.lean`) | `message : String` | `err.message` | Yes |
 | Psy plan | `Psy.Plan.PlanError` (`Backend/Psy/Plan.lean`) | `message : String` | `err.message` | Yes |
-| CosmWasm lowering | `CosmWasm.IR.LowerError` (`Backend/CosmWasm/IR.lean`) | `message : String` | `err.message` | Yes |
-| CosmWasm emit | `CosmWasm.EmitWat.EmitError` (`Backend/CosmWasm/EmitWat.lean`) | `message : String` | `err.message` (via `err` helper) | Yes |
+| CosmWasm lowering | `CosmWasm.IR.LowerError` (`Backend/WasmHost/CosmWasm/IR.lean`) | `message : String` | `err.message` | Yes |
+| CosmWasm emit | `CosmWasm.EmitWat.EmitError` (`Backend/WasmHost/CosmWasm/EmitWat.lean`) | `message : String` | `err.message` (via `err` helper) | Yes |
 | Aleo lowering | `Aleo.IR.LowerError` (`Backend/Aleo/IR.lean`) | `message : String` | `err.message` | Yes |
 | Move (Sui) emit | `Move.Sui.EmitError` (`Backend/Move/Sui.lean`) | `message : String` | `err.message` (via `err` helper) | Yes |
 | Move (Aptos) emit | `Move.Aptos.EmitError` (`Backend/Move/Aptos.lean`) | `message : String` | `err.message` (via `err` helper) | Yes |

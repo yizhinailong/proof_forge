@@ -1,5 +1,5 @@
 import Lean.Util.Path
-import ProofForge.Backend.CosmWasm.EmitWat
+import ProofForge.Backend.WasmHost.CosmWasm.EmitWat
 import ProofForge.Backend.WasmHost
 import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.Cli.Artifact
@@ -313,7 +313,7 @@ def compileEmitWat (opts : CliOptions) (name : String) (mod : ProofForge.IR.Modu
   let renderResult : Except String String :=
     match bridge with
     | .cosmWasm =>
-        match ProofForge.Backend.CosmWasm.EmitWat.renderModule mod with
+        match ProofForge.Backend.WasmHost.CosmWasm.EmitWat.renderModule mod with
         | .ok wat => .ok wat
         | .error e => .error e.message
     | .soroban | .near =>

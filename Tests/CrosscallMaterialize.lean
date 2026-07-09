@@ -14,7 +14,7 @@ import ProofForge.Backend.Solana.PortableCrosscall
 import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.Backend.WasmHost.PortableCrosscall
-import ProofForge.Backend.CosmWasm.EmitWat
+import ProofForge.Backend.WasmHost.CosmWasm.EmitWat
 import ProofForge.Backend.Psy.IR
 import ProofForge.Target.CrosscallMaterialize
 import ProofForge.Target.Preflight
@@ -115,7 +115,7 @@ def main : IO Unit := do
 
   -- CosmWasm Counter spike: honest capability reject for portable crosscall.
   require ((forProfile wasmCosmWasm).nativeForm == NativeForm.cosmWasmMsg) "CosmWasm form"
-  match ProofForge.Backend.CosmWasm.EmitWat.checkCapabilities solProbe with
+  match ProofForge.Backend.WasmHost.CosmWasm.EmitWat.checkCapabilities solProbe with
   | .ok _ => throw (IO.userError "CosmWasm spike must reject crosscall.invoke capability")
   | .error e =>
       require (e.message.contains "not supported" || e.message.contains "crosscall")

@@ -191,5 +191,6 @@ Update this table when recipes are renamed.
 | 2026-07-09 | **PR-A/B:** T1.1–T1.3, T1.5 — Pausable four-host smoke; `OwnablePausable`; Reentrancy lock-state boundary. **PR-C/D partial:** T2.0, T2.1 (two-step NEAR body), T2.3, T2.5. Remaining: T1.4 AccessControl, T2.2 EVM feature policy, T2.4 docs, Wave 3+. |
 | 2026-07-09 | **T1.4:** nested map EmitWat fix (`__pf_map_*_nested_*`); Soroban map helpers use `_get`/`_put`; AccessControl + RoleGatedToken wat2wasm-valid on NEAR·Soroban; Shared facade + PortableAuthMaterialize. |
 | 2026-07-09 | **Rename:** `Backend.WasmNear` → `Backend.WasmHost` (Wasm-family EmitWat core + `HostBridge`); registry target ids `wasm-near` / `wasm-stellar-soroban` unchanged; `Backend.WasmNear` remains a deprecation re-export. |
+| 2026-07-09 | **Wasm family unify:** move CosmWasm Counter adapter under `Backend.WasmHost.CosmWasm`; top-level `Backend.CosmWasm` is a re-export shim; document package tree in `docs/targets/wasm-family.md`. |
 
 When a task completes: set Status to `done`, add commit hash or PR note in changelog.

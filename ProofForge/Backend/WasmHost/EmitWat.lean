@@ -445,7 +445,7 @@ mutual
     match ctx.bridge with
     | .soroban => lowerSorobanInvoke ctx env target method args
     | .cosmWasm =>
-        err "EmitWat: CosmWasm portable crosscall is deferred; use Backend.CosmWasm.EmitWat for that adapter"
+        err "EmitWat: CosmWasm portable crosscall is deferred; use Backend.WasmHost.CosmWasm.EmitWat for that adapter"
     | .near => lowerNearPromiseCreate ctx env target method args deposit
 
   partial def lowerNearPromiseThen (ctx : Ctx) (env : LocalTypes) (parentPromise callbackMethod : Expr)
@@ -1046,7 +1046,7 @@ def lowerModule (mod : ProofForge.IR.Module)
   -- C.6: deploy-time logical peer → host identity (before layout / string pool).
   let mod := ProofForge.Target.PeerMap.applyToModule mod peerMap
   if bridge == ProofForge.Target.HostBridge.cosmWasm then
-    err "EmitWat: CosmWasm bridge lowering is implemented in Backend.CosmWasm.EmitWat; use that module for wasm-cosmwasm"
+    err "EmitWat: CosmWasm bridge lowering is implemented in Backend.WasmHost.CosmWasm.EmitWat; use that module for wasm-cosmwasm"
   if mod.allocator.isCosmWasmRegion then
     err "EmitWat: alloc.cosmwasm_region is for the CosmWasm adapter, not wasm-near EmitWat"
   -- Soroban: NEAR Promise host-extension constructors never lower.

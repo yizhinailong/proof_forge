@@ -4,7 +4,7 @@ import ProofForge.IR.Contract
 import ProofForge.Target.Check
 import ProofForge.Target.Registry
 
-namespace ProofForge.Backend.CosmWasm.IR
+namespace ProofForge.Backend.WasmHost.CosmWasm.IR
 
 open ProofForge.IR
 open ProofForge.Target
@@ -25,4 +25,4 @@ def validateCapabilities (module : Module) : Except LowerError Unit :=
   | .ok () => .ok ()
   | .error err => .error (capabilityError err)
 
-end ProofForge.Backend.CosmWasm.IR
+end ProofForge.Backend.WasmHost.CosmWasm.IR

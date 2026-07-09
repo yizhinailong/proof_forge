@@ -2,14 +2,13 @@
 Copyright (c) 2026 DaviRain. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
-CosmWasm Counter spike (M1).
+CosmWasm Counter spike (M1) — **Wasm-family host adapter**.
 
-This is intentionally a Counter-specific emitter for the Tier-1a spike. It emits
-a WAT module that passes `cosmwasm-check` and implements the Counter lifecycle
-via CosmWasm's standard exports (`instantiate`, `execute`, `query`).
-
-Generalization to other fixtures is deferred until the shared Wasm-family
-abstraction is extracted.
+Package path: `ProofForge.Backend.WasmHost.CosmWasm` (not a top-level backend
+next to Evm/Solana). Shared EmitWat core for NEAR/Soroban is
+`WasmHost.EmitWat` + `HostBridge`; CosmWasm currently uses a Counter-specific
+static WAT emitter that passes `cosmwasm-check` (`instantiate` / `execute` /
+`query`). Full IR→EmitWat unification with `HostBridge.cosmWasm` is follow-on.
 -/
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
@@ -17,9 +16,9 @@ import ProofForge.IR.Contract
 import ProofForge.IR.Ownership
 import ProofForge.Target.Check
 import ProofForge.Target.Registry
-import ProofForge.Backend.CosmWasm.IR
+import ProofForge.Backend.WasmHost.CosmWasm.IR
 
-namespace ProofForge.Backend.CosmWasm.EmitWat
+namespace ProofForge.Backend.WasmHost.CosmWasm.EmitWat
 
 open ProofForge.IR
 open ProofForge.Target
@@ -164,4 +163,4 @@ def renderModule (mod : ProofForge.IR.Module) : Except EmitError String := do
     err "CosmWasm Counter spike: entrypoints with parameters are not supported"
   pure (counterWat mod.name)
 
-end ProofForge.Backend.CosmWasm.EmitWat
+end ProofForge.Backend.WasmHost.CosmWasm.EmitWat

@@ -8,9 +8,16 @@ Portable IR → EmitWat → Wasm AST → WAT → `wat2wasm`, driven by
 `HostBridge` (NEAR · Soroban · …).
 
 **Not** the same as the registry target id `wasm-near` (one product chain).
-This package is the shared Wasm host backend for every Wasm-family target
-that reuses EmitWat. Former name: `ProofForge.Backend.WasmNear` (compat shim
-still imports this module).
+This package is the Wasm-family backend tree:
+
+| Submodule | Role |
+|-----------|------|
+| `WasmHost.EmitWat` | Shared IR→WAT for `HostBridge.near` / `.soroban` |
+| `WasmHost.CosmWasm.*` | CosmWasm Counter-spike adapter (`HostBridge.cosmWasm`) |
+| `WasmHost.NearHost` / `SorobanHost` / `CosmWasmHost` | Interpreter hosts |
+
+Former top-level names: `Backend.WasmNear` (core), `Backend.CosmWasm` (adapter)
+— both kept as deprecation re-exports.
 -/
 import ProofForge.Backend.WasmHost.Aggregate
 import ProofForge.Backend.WasmHost.Assert
@@ -41,3 +48,4 @@ import ProofForge.Backend.WasmHost.Scalar
 import ProofForge.Backend.WasmHost.Statement
 import ProofForge.Backend.WasmHost.Struct
 import ProofForge.Backend.WasmHost.Types
+import ProofForge.Backend.WasmHost.CosmWasm

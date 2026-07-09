@@ -49,15 +49,28 @@ Portable IR (Module)
 - WAT module scaffolding: memory, type/import/export sections, and the
   `wat2wasm` invocation + artifact metadata.
 
-**Naming (2026-07-09):**
+**Package tree (2026-07-09 — unified Wasm family):**
+
+```text
+ProofForge/Backend/WasmHost/          # one Wasm-family package
+  EmitWat.lean                        # IR → WAT core (HostBridge.near / .soroban)
+  NearHost.lean · SorobanHost.lean    # interpreter hosts
+  CosmWasmHost.lean
+  CosmWasm/                           # CosmWasm host adapter (Counter spike)
+    EmitWat.lean · IR.lean
+```
 
 | Name | Meaning |
 |------|---------|
-| `Backend.WasmHost` | Shared EmitWat package (Wasm family) |
-| `HostBridge.near` / `.soroban` | Host import materialization |
+| `Backend.WasmHost` | **Wasm-family package** (EmitWat + host adapters) |
+| `WasmHost.EmitWat` | Shared lowering for NEAR + Soroban via `HostBridge` |
+| `WasmHost.CosmWasm.*` | CosmWasm Counter-spike adapter (message exports) |
+| `HostBridge.near` / `.soroban` / `.cosmWasm` | Host import materialization enum |
 | Registry `wasm-near` | Product target id for **NEAR only** |
-| Registry `wasm-stellar-soroban` | Product target id for Soroban |
-| `Backend.WasmNear` | Deprecated import alias → re-exports `WasmHost` |
+| Registry `wasm-stellar-soroban` | Product target id for **Soroban only** |
+| Registry `wasm-cosmwasm` | Product target id for **CosmWasm only** |
+| Registry `wasm-cloudflare-workers` | Off-chain Wasm host (TS/Workers path; not EmitWat core) |
+| `Backend.WasmNear` / `Backend.CosmWasm` | Deprecated shims → `WasmHost` / `WasmHost.CosmWasm` |
 
 **Per-chain layer (the only thing that differs between NEAR / CosmWasm / Soroban / ICP):**
 
