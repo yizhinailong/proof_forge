@@ -59,6 +59,8 @@ Editable hand-drawn-style diagrams for presentations and onboarding — open on
 - [RFC 0004: EVM semantic plan and Yul AST boundary](rfcs/0004-evm-semantic-plan.md): target-semantic EVM plan layer between portable IR and low-level Yul syntax.
 - [Capability registry](capability-registry.md): canonical capability ids.
 - [Host · Protocols · Stdlib (A/B/C)](protocols-layer.md): chain runtime vs on-chain program clients vs deployable stdlib.
+- [Product / SDK gap plan (2026-07)](product-sdk-gap-plan-2026-07.md): what’s wrong for authors, ordered waves α–ε.
+
 - [Host runtime abstraction](host-runtime.md): portable HostEffect → EVM opcode / Solana syscall / NEAR host import.
 - [Agent goal prompt](agent-goal-prompt.md): durable continuous-work charter for A/B/C.
 - [Shared scenario: Counter](shared-scenario.md): cross-target acceptance test.

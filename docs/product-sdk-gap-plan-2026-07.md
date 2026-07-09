@@ -1,0 +1,186 @@
+# Product / SDK gap plan (2026-07)
+
+Status: **Active product backlog**  
+Audience: product + compiler  
+North star: authors write **business intent only**; `--target` selects chain;
+**encoding/layout is always plan → materialize** (authors never pack JSON/ABI/ix).
+
+Related: [product-authoring-architecture](product-authoring-architecture.md),
+[protocols-layer](protocols-layer.md), [host-runtime](host-runtime.md),
+[portable-sdk-unification plan](superpowers/plans/2026-07-09-portable-sdk-unification.md),
+[sdk-ecosystem-gaps](sdk-ecosystem-gaps-2026-07.md).
+
+---
+
+## 1. Product shape (what “done” means for the SDK)
+
+```text
+  Developer
+    · contract_source / TokenSpec / policies / remote intent
+    · proof-forge build|check|deploy --target <id>
+    · clients / artifacts / testkit
+         │
+         ▼
+  Platform (invisible)
+    · IR + CapabilityPlan + Token/Module plan
+    · HostRuntime honesty
+    · Pack layers (internal only):
+        NEAR: JsonEncode (+ Borsh for *own* entry params)
+        EVM:  AbiEncode
+        Solana: CPI dataLayout / account schema
+    · Emit · manifest · SDK schema · deploy
+```
+
+**Author never chooses:** layout, Borsh vs JSON vs ABI, account metas, PDA seeds
+(except pure business seed literals via policy), TokenStandard.
+
+---
+
+## 2. What is already in good shape
+
+| Area | Status | Notes |
+|------|--------|--------|
+| Portable default + Product examples | ✅ | `just portable-default`; Counter → Ownable → Token → Remote path |
+| Multi-target Counter / Ownable / Remote | ✅ | EVM · Solana · NEAR (+ Soroban remote) |
+| TokenSpec features-only | ✅ | `planForTarget`; matrix + honest rejects |
+| Preflight L0/L1 + HostRuntime honesty | ✅ | n/a bindings fail resolve with clear text |
+| Pack layer **existence** | ✅ | JsonEncode · AbiEncode · CPI layouts (internal) |
+| Layer A/B/C naming | ✅ | Host · Protocols · Stdlib documented |
+| Policy stdlib multi-host | ✅ | Ownable/Pausable/Reentrancy/AccessControl waves largely done |
+| Error id catalog | ✅ | `portable-error-catalog` |
+
+---
+
+## 3. Where the product is still wrong or incomplete
+
+### P0 — Breaks the north star (“I only pick --target”)
+
+| # | Gap | Why it hurts | Desired |
+|---|-----|--------------|---------|
+| **P0.1** | **Two author surfaces** | Product path vs `Source.Solana` / Backend fixtures / Protocols Builder APIs look like “the SDK”. Easy to teach the wrong thing. | One default: Product. Chain DSL = fixture-only; CLI/docs never lead with it. |
+| **P0.2** | **Token → Solana still plan-heavy** | Fungible TokenSpec produces plans/CPI *intent*; end-to-end “mint/transfer as user” often needs harness or extra steps, not one `build --target solana` mental model. | Single CLI: TokenSpec + target → deployable artifact + client smoke path. |
+| **P0.3** | **Token → NEAR still two-step** | Plan + Stdlib body composition is real but not one button. | `build --target wasm-near --token` (or documented one-command alias) emits full FT. |
+| **P0.4** | **“Call ecosystem token” not portable-intent** | IERC20 / SPL / NEP-141 peer clients exist as Layer B, but authors must still pick Protocols APIs or Backend fixtures—not `remote token.transfer` style intent. | Portable **protocol intent** (e.g. `token_transfer peer amount`) → plan picks IERC20 / SPL / NEP-141 packing. |
+
+### P1 — Incomplete materialize of internal pack layers
+
+| # | Gap | Desired |
+|---|-----|---------|
+| **P1.1** | AbiEncode `Plan` not yet → Yul `mstore` / CALL payload | Multicall Call[] becomes real bytecode, not layout-only. |
+| **P1.2** | Solana CPI still hand-written per layout | Optional `BinaryLayout`/`IxEncode` DSL (le_u8/u64/pubkey) so new layouts aren’t copy-paste stores—**still internal**. |
+| **P1.3** | Portable remote = scalar ABI only | Extend intentional types; or honest reject richer shapes. |
+| **P1.4** | Solana account auto-fill incomplete for all product examples | Every Product example builds Solana without Surface. |
+
+### P2 — SDK completeness / ecosystem
+
+| # | Gap | Desired |
+|---|-----|---------|
+| **P2.1** | EVM: ERC-4626, permit, batch 1155, upgrade policy product story | Pick 1–2 P1 items from ecosystem gaps |
+| **P2.2** | Client gen parity (TS/Rust) across three hosts | Same assertion ids + method names |
+| **P2.3** | CLI legacy flags vs target-first | Finish M3/M4 migration narrative |
+| **P2.4** | Docs: too many entry points | One “Product SDK” index page that links A/B/C as *engine*, not author menu |
+
+### Conceptual traps (correct in code, wrong in messaging)
+
+1. **Protocols ≠ product authoring** — Layer B is “how the platform calls Tokenkeg/IERC20”, not “please import Multicall.lean to ship”.  
+2. **NEAR Borsh ≠ NEAR promise JSON** — entry params Borsh; FT peer args JSON.  
+3. **Solana dataLayout ≠ general Borsh** — per-program ix bytes.  
+4. **Pack layers are not author APIs** — JsonEncode / AbiEncode / CPI are compiler internals.
+
+---
+
+## 4. Recommended work plan (ordered)
+
+### Wave α — Product clarity (docs + gates, small code)
+
+**Goal:** One mental model; no new features.
+
+1. **Product SDK index** — single doc: author path → CLI → what platform does (plan/encode).  
+2. **Taxonomy hard line** — Product vs Backend vs Protocols in README / Examples.  
+3. **CLI help / `proof-forge init` copy** — only portable path; chain DSL not in welcome.  
+4. **Assert** Product examples still pass multi-target aggregate.
+
+*Exit:* New contributor reads one page and never opens Cpi.lean.
+
+### Wave β — Close the Token three-host product loop
+
+**Goal:** Same TokenSpec → usable artifact on EVM · Solana · NEAR with one teaching path.
+
+1. Unify NEAR token build to one documented command (alias ok).  
+2. Solana token: define “done” = plan + package + one harness smoke (or honest “plan-only” label in CLI).  
+3. Tutorial: one FungibleToken chapter, three targets, no layout words.
+
+*Exit:* `just product` (or named token trio) green and teachable in 15 minutes.
+
+### Wave γ — Protocol intent on the portable path
+
+**Goal:** Authors express “transfer external token” without Protocols import.
+
+1. Portable IR / Surface: minimal **protocol intent** nodes or sugar (token transfer / approve).  
+2. Materialize:  
+   - EVM → IERC20 selector + AbiEncode words  
+   - Solana → SPL transfer_checked plan/CPI  
+   - NEAR → NEP-141 JsonEncode object  
+3. Product example + multi-target smoke.  
+4. Keep Layer B clients as **implementation** of that materialize (not dual author API).
+
+*Exit:* Shared example with no `Protocols.*` import; three hosts encode correctly.
+
+### Wave δ — Finish pack materialize
+
+**Goal:** Internal pack layers fully drive emit.
+
+1. AbiEncode.Plan → Yul memory + CALL (Multicall real).  
+2. Solana BinaryLayout helper for new CPI layouts (optional hygiene).  
+3. Permit2 / richer remote only if product-intent needs them.
+
+### Wave ε — Ecosystem depth (selective)
+
+Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of ERC-4626 / permit / upgrade story)—not a full Solidity clone.
+
+---
+
+## 5. Explicit non-goals (now)
+
+- New chain backends  
+- Unifying all packs into Borsh  
+- Authors writing dataLayout / ABI / JSON by hand  
+- Infinite DeFi catalog (AMM, flash loan, …) until α–γ closed  
+
+---
+
+## 6. Suggested next execution slice
+
+**Start Wave α + first item of Wave β:**
+
+| ID | Task | Size |
+|----|------|------|
+| α.1 | Write/refresh Product SDK index + messaging | S |
+| α.2 | Tighten Examples/README + CLI init messaging | S |
+| β.1 | One-command NEAR TokenSpec story + smoke alias | M |
+
+Then **γ.1** protocol-intent design (small RFC/note) before large code.
+
+---
+
+## 7. Success metrics
+
+| Metric | Target |
+|--------|--------|
+| Author must open Solana CPI docs to ship Product | Never |
+| “How do I encode for Solana?” in product tutorial | Zero mentions of layout |
+| Token three-host health command | 1 command, green |
+| Unsupported feature | Reject with plan/target name, not empty artifact |
+| New contributor time to first multi-target Counter | ≤ 30 min with only Product docs |
+
+---
+
+## 8. Decision log (this review)
+
+| Decision | Choice |
+|----------|--------|
+| Author vs pack layers | Pack = internal; plan-driven only |
+| Borsh unify all chains | **No** |
+| Solana CPI dataLayout | Keep; later BinaryLayout hygiene optional |
+| Next code after this plan | α clarity → β token loop → γ portable protocol intent |
+-/
