@@ -459,7 +459,7 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 | C.7 | Promote `wasm-stellar-soroban` to `Registry.all` | ✅ in `knownIds` / `--list-targets`; full Stellar CLI/spec still follow-on |
 | P1b | **`remote name "peer" "method";` DSL** | ✅ contract_source binds `RemoteRef` |
 | P1c | **NEAR TokenSpec NEP-141 plan lane** | ✅ core features plan; extensions reject; token-intent-smoke step 9 |
-| P1d | **OwnableHash (hash owner / callerHash)** | ✅ NEAR product path; Solana triad keeps u64 Ownable |
+| P1d | **OwnableHash (hash owner / callerHash)** | ✅ NEAR · EVM (`hashWord(caller)`) · Solana (limb0 + `hash4` zero); triad Ownable remains u64 |
 | P1e | **CLI Soroban RemoteCall multi-target** | ✅ `--target wasm-stellar-soroban` + wat2wasm; no promise_* |
 | C.8 | EmitWat storage remap off NEAR `storage_*` | ✅ Soroban bridge: scalar read/write → `_get`/`_put` |
 | C.9 | Soroban `require_auth` for caller entrypoints | ✅ prologue `require_auth_for_args` when entry uses `callerSender` |

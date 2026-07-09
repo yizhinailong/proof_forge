@@ -8,6 +8,7 @@ NEAR · Soroban without chain DSL in source.
 import Examples.Shared.Ownable
 import Examples.Shared.OwnableHash
 import Examples.Shared.RemoteCall
+import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Evm.Plan
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.Materialize
@@ -134,12 +135,34 @@ def main : IO Unit := do
       require r.readyToMaterialize
         s!"preflight should be ready for {r.targetId} on {mod.name}: {r.note}"
 
-  -- Hash-width Ownable: product path for NEAR (callerHash). Solana still needs
-  -- hash-literal/param support before full OwnableHash emit; u64 Ownable remains
-  -- the Solana triad path with full-pubkey digest handle.
+  -- Hash-width Ownable: callerHash / requireOwnerHash on NEAR · EVM · Solana.
   let ownableHash := Examples.Shared.OwnableHash.module
   require (ownableHash.state.any (fun s => s.id == "owner" && s.type == .hash))
     "OwnableHash stores owner as Hash"
+
+  -- EVM selectors (cast keccak of ABI sigs) so full IR lower can dispatch.
+  let ownableHashEvm : ProofForge.IR.Module := {
+    ownableHash with
+    entrypoints := ownableHash.entrypoints.map fun ep =>
+      match ep.name with
+      | "owner" => { ep with selector? := some "8da5cb5b" }
+      | "renounceOwnership" => { ep with selector? := some "715018a6" }
+      | "init" => { ep with selector? := some "e1c7392a" }
+      | _ => ep
+  }
+  match ProofForge.Backend.Evm.Plan.buildModulePlan ownableHashEvm with
+  | .error e => throw (IO.userError s!"EVM OwnableHash plan: {e.message}")
+  | .ok _ => pure ()
+  match ProofForge.Backend.Evm.IR.renderModule ownableHashEvm with
+  | .error e => throw (IO.userError s!"EVM OwnableHash Yul: {e.message}")
+  | .ok yul =>
+      require (yul.contains "__proof_forge_hash_word(caller())")
+        "EVM OwnableHash userIdHash lowers as hashWord(caller)"
+      require (yul.contains "keccak256")
+        "EVM OwnableHash hashWord helper uses keccak256"
+      require (yul.contains "sload" && yul.contains "sstore")
+        "EVM OwnableHash stores hash owner in scalar slot"
+
   match ProofForge.Backend.WasmNear.EmitWat.renderModule ownableHash with
   | .error e => throw (IO.userError s!"NEAR OwnableHash: {e.message}")
   | .ok wat =>
@@ -147,5 +170,15 @@ def main : IO Unit := do
         "OwnableHash NEAR should assert"
       require (wat.contains "sha256" || wat.contains "predecessor")
         "OwnableHash NEAR uses host identity path"
+
+  match ProofForge.Backend.Solana.SbpfAsm.renderModule ownableHash with
+  | .error e => throw (IO.userError s!"Solana OwnableHash lower: {e.message}")
+  | .ok src =>
+      require (src.contains "hash4" || src.contains "limb0")
+        "Solana OwnableHash should lower hash4 zero literal"
+      require (src.contains "sol_sha256")
+        "Solana OwnableHash callerHash uses full-pubkey sha256"
+      require (src.contains "assert" || src.contains "assert_eq" || src.contains "assert_fail")
+        "Solana OwnableHash requireOwnerHash materializes as assert"
 
   IO.println "portable-auth-materialize: ok (Ownable·OwnableHash + RemoteCall · EVM·Solana·NEAR·Soroban)"

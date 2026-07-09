@@ -267,8 +267,10 @@ def requireOwner (ownerSlot : ScalarRef) (message : String := "not owner") : Ent
   requireEq caller (read ownerSlot) message
 
 /-- Hash-width owner check: compare `callerHash` to a `.hash` owner slot.
-Prefer for NEAR account-id identity; Solana lowers `userIdHash` as full-pubkey
-digest. EVM does not support `userIdHash` yet — use `requireOwner` (u64) there. -/
+- NEAR: full predecessor account id → sha256 Hash
+- Solana: sha256(account[0] pubkey) limb0 handle (Phase-1 Hash)
+- EVM: `keccak256` of 32-byte zero-padded `caller` (`hashWord(caller)`)
+Use `requireOwner` (u64 triad) when address-width handles are preferred. -/
 def requireOwnerHash (ownerSlot : ScalarRef) (message : String := "not owner") : EntryM Unit :=
   requireEq callerHash (read ownerSlot) message
 

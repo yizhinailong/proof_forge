@@ -19,11 +19,17 @@ namespace ProofForge.Backend.Evm.ToYul
 open ProofForge.IR
 open ProofForge.Backend.Evm.Plan
 
+/-- EVM `userIdHash`: identity-width digest of `msg.sender`.
+Uses the existing `hashWord` helper (`mstore(0, value); keccak256(0, 32)`), so
+the value is a true Hash word distinct from raw address-width `caller`. -/
+def userIdHashYulExpr : Lean.Compiler.Yul.Expr :=
+  helperCall Helper.hashWord #[Lean.Compiler.Yul.builtin "caller" #[]]
+
 def contextFieldExpr
     (lowerExpr : Expr → Except String Lean.Compiler.Yul.Expr) :
     ContextField → Except String Lean.Compiler.Yul.Expr
   | .userId => .ok (Lean.Compiler.Yul.builtin "caller" #[])
-  | .userIdHash => .error "EVM context read `userIdHash` is not supported; NEAR-only full predecessor account hash"
+  | .userIdHash => .ok userIdHashYulExpr
   | .contractId => .ok (Lean.Compiler.Yul.builtin "address" #[])
   | .checkpointId => .ok (Lean.Compiler.Yul.builtin "number" #[])
   | .timestamp => .ok (Lean.Compiler.Yul.builtin "timestamp" #[])
@@ -44,6 +50,7 @@ partial def contextExprPlan
     (lowerPlanExpr : ExprPlan → Except ε Lean.Compiler.Yul.Expr) :
     ContextExprPlan → Except ε Lean.Compiler.Yul.Expr
   | .userId => .ok (Lean.Compiler.Yul.builtin "caller" #[])
+  | .userIdHash => .ok userIdHashYulExpr
   | .contractId => .ok (Lean.Compiler.Yul.builtin "address" #[])
   | .checkpointId => .ok (Lean.Compiler.Yul.builtin "number" #[])
   | .timestamp => .ok (Lean.Compiler.Yul.builtin "timestamp" #[])

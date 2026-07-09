@@ -5,10 +5,13 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Portable **hash-width** Ownable mixin — owner stored as `.hash`, checks use
 `callerHash` / `requireOwnerHash`.
 
-Product path for identity-heavy chains (NEAR account ids; Solana full-pubkey
-digest). **Not** multi-target with EVM yet (`userIdHash` unsupported on EVM);
-use `Stdlib.Ownable` (u64 handle) for EVM·Solana·NEAR triad, or this mixin
-when targeting wasm-near / Solana hash identity.
+Product path for identity-width owner:
+- NEAR: predecessor account id → sha256 Hash
+- EVM: `keccak256` of zero-padded `msg.sender` (`hashWord(caller)`)
+- Solana: sha256(full authority pubkey) limb0 handle + `hash4` zero for renounce
+
+Prefer `Stdlib.Ownable` (u64 handle) when the triad only needs address-width
+handles without hashing.
 -/
 import ProofForge.Contract.Source
 

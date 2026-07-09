@@ -289,7 +289,7 @@ mutual
       (module : Module) : ContextExprPlan → Except LowerError (Array CrosscallHelperSpec)
     | .blockHash blockNumber =>
         crosscallHelperSpecsFromExprPlan module blockNumber
-    | .userId | .contractId | .checkpointId | .timestamp | .chainId
+    | .userId | .userIdHash | .contractId | .checkpointId | .timestamp | .chainId
     | .gasPrice | .gasLeft | .baseFee | .prevRandao | .origin | .coinbase =>
         .ok #[]
 
@@ -691,7 +691,7 @@ mutual
   partial def createHelperSpecsFromContextExprPlan : ContextExprPlan → Array CreateHelperSpec
     | .blockHash blockNumber =>
         createHelperSpecsFromExprPlan blockNumber
-    | .userId | .contractId | .checkpointId | .timestamp | .chainId
+    | .userId | .userIdHash | .contractId | .checkpointId | .timestamp | .chainId
     | .gasPrice | .gasLeft | .baseFee | .prevRandao | .origin | .coinbase =>
         #[]
 

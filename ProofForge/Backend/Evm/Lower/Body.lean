@@ -1197,8 +1197,8 @@ mutual
       (env : TypeEnv) :
       ContextField → Except LowerError ContextExprPlan
     | .userId => .ok .userId
-    | .userIdHash =>
-        .error { message := "EVM context read `userIdHash` is not supported; use `origin` or account hash parameters on EVM" }
+    -- Identity-width caller: `hashWord(caller)` → keccak256 of 32-byte padded address.
+    | .userIdHash => .ok .userIdHash
     | .contractId => .ok .contractId
     | .checkpointId => .ok .checkpointId
     | .timestamp => .ok .timestamp

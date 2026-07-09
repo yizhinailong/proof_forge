@@ -321,8 +321,7 @@ mutual
         .error { message := "storage.path.write is a statement effect, not an expression" }
     | .storagePathAssignOp _ _ _ _ =>
         .error { message := "storage.path.assign_op is a statement effect, not an expression" }
-    | .contextRead .userIdHash =>
-        .error { message := "EVM context read `userIdHash` is not supported; NEAR-only full predecessor account hash" }
+    | .contextRead .userIdHash => .ok .hash
     | .contextRead .origin => .ok .hash
     | .contextRead .randomSeed => .ok .hash
     | .contextRead .coinbase => .ok .hash

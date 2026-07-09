@@ -35,6 +35,10 @@ each plan node. -/
 mutual
   inductive ContextExprPlan where
     | userId
+    /-- Identity-width caller digest: `keccak256` of the 32-byte zero-padded
+    `caller` word (`hashWord(caller)`). Product path for OwnableHash /
+    `callerHash` on EVM — distinct from raw address-width `userId`. -/
+    | userIdHash
     | contractId
     | checkpointId
     | timestamp

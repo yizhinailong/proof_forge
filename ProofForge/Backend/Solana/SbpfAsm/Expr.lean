@@ -146,6 +146,15 @@ partial def lowerExpr (ctx : LowerCtx) (expr : IR.Expr) : Except LowerError (Arr
       .comment s!"portable address handle → u64 account index {n}",
       .instruction (res .mov64 (imm := some (.num n)))
     ], ctx)
+  -- Hash literal: Phase-1 product path uses limb0 (word `a`) as the portable
+  -- Hash handle, matching userIdHash / storageScalarRead limb0 convention.
+  -- Full four-limb stack buffer materialization is deferred; zero-hash
+  -- (`hash4 0 0 0 0`) for OwnableHash renounce/init is the primary consumer.
+  | .literal (.hash4 a _b _c _d) =>
+    .ok (#[
+      .comment s!"hash4 literal → limb0 handle {a} (Phase-1 Hash as u64-le word0)",
+      .instruction (res .mov64 (imm := some (.num a)))
+    ], ctx)
   | .literal _ => .error { message := "unsupported literal type in Phase 1" }
   | .local name =>
     match ctx.localInfo? name with
