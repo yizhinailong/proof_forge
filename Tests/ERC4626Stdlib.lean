@@ -21,7 +21,10 @@ def main : IO UInt32 := do
   require (convertToAssets s0 50 == 50) "empty convert assets"
   require (entryFeeShares 1000 0 == 0) "fee zero"
   require (entryFeeShares 1000 100 == 10) "fee 1%"
-  require (netAfterEntryFee 1000 100 == 990) "net after 1%"
+  require (netAfterEntryFee 1000 100 == 990) "net after entry 1%"
+  require (netAfterExitFee 1000 100 == 990) "net after exit 1%"
+  require (grossSharesForNet 990 100 == some 1000) "gross for net mint"
+  require (grossSharesForNet 100 0 == some 100) "gross identity"
   match deposit? s0 100 0 with
   | none => throw (IO.userError "deposit should succeed")
   | some (s1, shares1) =>
@@ -29,12 +32,12 @@ def main : IO UInt32 := do
       require (s1.totalAssets == 100 && s1.totalSupply == 100) "deposit amounts"
       -- still 1:1 after first deposit
       require (convertToShares s1 40 == 40) "post-deposit convert"
-      match withdraw? s1 40 with
+      match withdraw? s1 40 0 with
       | none => throw (IO.userError "withdraw should succeed")
       | some (s2, burned) =>
           require (burned == 40) "withdraw burns 1:1 shares"
           require (s2.totalAssets == 60 && s2.totalSupply == 60) "withdraw remaining"
-      match withdraw? s1 200 with
+      match withdraw? s1 200 0 with
       | some _ => throw (IO.userError "over-withdraw must fail")
       | none => pure ()
       -- pro-rata after donation: assets grow without minting shares
@@ -54,6 +57,12 @@ def main : IO UInt32 := do
       | some (sFee, userSh) =>
           require (userSh == 990) "user net after 1% fee"
           require (sFee.totalSupply == 1000 && sFee.totalAssets == 1000) "gross supply"
+          -- exit fee: redeem all supply-equivalent path via Spec
+          match redeem? sFee 1000 100 with
+          | none => throw (IO.userError "redeem with exit fee should succeed")
+          | some (sOut, userAssets) =>
+              require (userAssets == 990) "user net assets after 1% exit fee"
+              require (sOut.totalAssets == 0 && sOut.totalSupply == 0) "emptied"
       match deposit? s1 0 0 with
       | some _ => throw (IO.userError "zero deposit must fail")
       | none => pure ()
@@ -82,7 +91,7 @@ def main : IO UInt32 := do
       require (e.message.contains "nearCrosscallStrings" || e.message.contains "crosscall")
         s!"NEAR honesty diagnostic, got: {e.message}"
 
-  IO.println "erc4626-stdlib: ok (pro-rata Spec·EVM·Solana; NEAR honest reject)"
+  IO.println "erc4626-stdlib: ok (pro-rata·entry/exit fee·EVM·Solana; NEAR honest reject)"
   pure 0
 
 end ProofForge.Tests.ERC4626Stdlib

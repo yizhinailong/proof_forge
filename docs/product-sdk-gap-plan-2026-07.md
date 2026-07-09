@@ -180,9 +180,9 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 | ε.10 | ERC-4626 `preview*` + IERC4626 preview client selectors | **done** |
 | ε.11 | ERC-4626 entry `feeBps` / `feeRecipient` on deposit·mint | **done** |
 | ε.12 | Compile-time Call[] IR auto-lower (`crosscallAbiPacked`) | **done** |
+| ε.13 | ERC-4626 exit fee + mint net shares / preview symmetry | **done** |
 
-**Honesty still open:** fee-on-transfer assets / exit fees / asymmetric
-mint-preview rounding; **runtime-unknown** Call[] lengths.
+**Honesty still open:** fee-on-transfer assets; **runtime-unknown** Call[] lengths.
 
 ---
 

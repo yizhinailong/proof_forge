@@ -6,9 +6,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 You *are* the vault (stdlib mixin). Honest bounds: **pro-rata** exchange rate
 (`shares = assets * totalSupply / totalAssets`, empty vault 1:1, floor),
-optional **entry feeBps** (fee shares → `feeRecipient`), IERC20 transferFrom
-pull / transfer push, `vaultSelf` init (portable `address(this)`). For *calling*
-a peer vault use `external_vault` instead.
+optional **entry+exit feeBps** (entry fee shares / exit fee assets →
+`feeRecipient`; `mint` takes **net** shares), IERC20 pull/push, `vaultSelf`
+init. For *calling* a peer vault use `external_vault` instead.
 
 ```bash
 just product-erc4626-vault

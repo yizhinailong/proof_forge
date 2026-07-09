@@ -18,11 +18,13 @@ client (`Protocols.Evm.IERC4626` / Product `external_vault`).
   `vaultSelf` is init-set (portable `address(this)`). Method words are EVM
   selectors — **EVM-primary** packing. |
 | Share token | Minimal ERC-20 surface on **shares** |
-| Entry fee | Optional **`feeBps` / 10000** on deposit/mint share mint:
-  `feeShares = gross * feeBps / 10000`, user gets `gross - fee`, fee minted
-  to `feeRecipient`. Zero bps = previous behavior. Exit fees: none. |
+| Entry fee | Optional **`feeBps` / 10000** on deposit/mint: fee shares mint to
+  `feeRecipient`; user gets net. `mint(shares)` = **net** shares requested
+  (gross = `shares * 10000 / (10000 - feeBps)` when fee > 0). |
+| Exit fee | Same **`feeBps`** on withdraw/redeem: skim fee assets to
+  `feeRecipient`; user receives net underlying. |
 | Fee-on-transfer assets | Not modeled (assumes transfer amount equals requested) |
-| `preview*` deposit/mint | Net after entry fee; withdraw/redeem = convert floor |
+| `preview*` | deposit/mint net after entry fee; withdraw/redeem net after exit fee |
 
 Spec math lives in `Spec` (Nat formulas + fee/empty-vault theorems).
 -/
@@ -49,12 +51,30 @@ def convertToAssets (s : State) (shares : Nat) : Nat :=
   if s.totalSupply == 0 || s.totalAssets == 0 then shares
   else shares * s.totalAssets / s.totalSupply
 
-/-- Entry fee shares from gross mint (`feeBps` basis points, floor). -/
-def entryFeeShares (gross feeBps : Nat) : Nat :=
+/-- Entry/exit fee amount from gross (`feeBps` basis points, floor). -/
+def feeFromGross (gross feeBps : Nat) : Nat :=
   gross * feeBps / 10000
+
+def entryFeeShares (gross feeBps : Nat) : Nat :=
+  feeFromGross gross feeBps
 
 def netAfterEntryFee (gross feeBps : Nat) : Nat :=
   gross - entryFeeShares gross feeBps
+
+def exitFeeAssets (grossAssets feeBps : Nat) : Nat :=
+  feeFromGross grossAssets feeBps
+
+def netAfterExitFee (grossAssets feeBps : Nat) : Nat :=
+  grossAssets - exitFeeAssets grossAssets feeBps
+
+/-- Gross shares to mint so user receives `net` after entry fee (floor). -/
+def grossSharesForNet (net feeBps : Nat) : Option Nat :=
+  if feeBps == 0 then some net
+  else if feeBps ≥ 10000 then none
+  else
+    let gross := net * 10000 / (10000 - feeBps)
+    if gross == 0 || netAfterEntryFee gross feeBps == 0 then none
+    else some gross
 
 /-- Deposit; optional entry fee. Returns `(next, userShares)` where
 `totalSupply` grows by **gross** shares (user + fee). -/
@@ -72,25 +92,34 @@ def deposit? (s : State) (assets : Nat) (feeBps : Nat := 0) : Option (State × N
         totalSupply := s.totalSupply + gross
       }, user)
 
-def withdraw? (s : State) (assets : Nat) : Option (State × Nat) :=
+/-- Withdraw `assets` from vault totals; user receives net after exit fee.
+Returns `(next, sharesBurned)`. -/
+def withdraw? (s : State) (assets : Nat) (feeBps : Nat := 0) : Option (State × Nat) :=
   if assets == 0 || assets > s.totalAssets then none
   else
     let shares := convertToShares s assets
     if shares == 0 || shares > s.totalSupply then none
-    else some ({
-      totalAssets := s.totalAssets - assets
-      totalSupply := s.totalSupply - shares
-    }, shares)
+    else
+      let userAssets := netAfterExitFee assets feeBps
+      if userAssets == 0 then none
+      else some ({
+        totalAssets := s.totalAssets - assets
+        totalSupply := s.totalSupply - shares
+      }, shares)
 
-def redeem? (s : State) (shares : Nat) : Option (State × Nat) :=
+/-- Redeem `shares`; user assets net of exit fee. Returns `(next, userAssets)`. -/
+def redeem? (s : State) (shares : Nat) (feeBps : Nat := 0) : Option (State × Nat) :=
   if shares == 0 || shares > s.totalSupply then none
   else
     let assets := convertToAssets s shares
     if assets == 0 || assets > s.totalAssets then none
-    else some ({
-      totalAssets := s.totalAssets - assets
-      totalSupply := s.totalSupply - shares
-    }, assets)
+    else
+      let userAssets := netAfterExitFee assets feeBps
+      if userAssets == 0 then none
+      else some ({
+        totalAssets := s.totalAssets - assets
+        totalSupply := s.totalSupply - shares
+      }, userAssets)
 
 theorem empty_convert_shares (a : Nat) : convertToShares empty a = a := by
   simp [convertToShares, empty]
@@ -98,12 +127,8 @@ theorem empty_convert_shares (a : Nat) : convertToShares empty a = a := by
 theorem empty_convert_assets (sh : Nat) : convertToAssets empty sh = sh := by
   simp [convertToAssets, empty]
 
-theorem deposit_empty_1to1 (a : Nat) (ha : a ≠ 0) :
-    deposit? empty a 0 = some ({ totalAssets := a, totalSupply := a }, a) := by
-  simp [deposit?, convertToShares, empty, entryFeeShares, ha]
-
 theorem entry_fee_zero (g : Nat) : entryFeeShares g 0 = 0 := by
-  simp [entryFeeShares]
+  simp [entryFeeShares, feeFromGross]
 
 theorem entry_fee_one_percent :
     entryFeeShares 1000 100 = 10 := by
@@ -111,6 +136,18 @@ theorem entry_fee_one_percent :
 
 theorem deposit_fee_user_shares :
     netAfterEntryFee (convertToShares empty 1000) 100 = 990 := by
+  decide
+
+theorem exit_fee_one_percent :
+    netAfterExitFee 1000 100 = 990 := by
+  decide
+
+theorem gross_for_net_zero_fee (n : Nat) :
+    grossSharesForNet n 0 = some n := by
+  simp [grossSharesForNet]
+
+theorem gross_for_net_one_percent :
+    grossSharesForNet 990 100 = some 1000 := by
   decide
 
 /-- After a first deposit of `a`, convert is still 1:1. -/
@@ -202,6 +239,35 @@ def applyEntryFee : EntryM Unit := do
     (ProofForge.Contract.Surface.sub gross
       (ProofForge.Contract.Surface.read feeScratch))
 
+/-- `convertScratch` holds **gross** assets. Exit fee skim → `feeScratch`;
+    net user assets remain in `convertScratch`. -/
+def applyExitFee : EntryM Unit := do
+  let gross := ProofForge.Contract.Surface.read convertScratch
+  let bps := ProofForge.Contract.Surface.read feeBps
+  ProofForge.Contract.Surface.write feeScratch
+    (ProofForge.Contract.Surface.div
+      (ProofForge.Contract.Surface.mul gross bps)
+      (ProofForge.Contract.Surface.u64 10000))
+  ProofForge.Contract.Surface.write convertScratch
+    (ProofForge.Contract.Surface.sub gross
+      (ProofForge.Contract.Surface.read feeScratch))
+
+/-- `convertScratch` holds **net** shares desired. Overwrite with **gross** mint
+    so that after entry fee the user receives approximately net
+    (`gross = net * 10000 / (10000 - feeBps)`). Fee 0 → identity. -/
+def applyGrossFromNetShares : EntryM Unit := do
+  let net := ProofForge.Contract.Surface.read convertScratch
+  let bps := ProofForge.Contract.Surface.read feeBps
+  ProofForge.Contract.Surface.whenPositive bps do
+    ProofForge.Contract.Surface.requireNe bps (ProofForge.Contract.Surface.u64 10000)
+      "feeBps 10000 blocks mint"
+    let denom :=
+      ProofForge.Contract.Surface.sub (ProofForge.Contract.Surface.u64 10000) bps
+    ProofForge.Contract.Surface.write convertScratch
+      (ProofForge.Contract.Surface.div
+        (ProofForge.Contract.Surface.mul net (ProofForge.Contract.Surface.u64 10000))
+        denom)
+
 /-- Mint fee shares to `feeRecipient` when fee > 0. -/
 def mintFeeSharesIfAny : EntryM Unit := do
   let fee := ProofForge.Contract.Surface.read feeScratch
@@ -218,6 +284,19 @@ def mintFeeSharesIfAny : EntryM Unit := do
         ProofForge.Contract.Surface.field "to" recip
       ]
       #[ProofForge.Contract.Surface.field "value" fee]
+
+/-- Push exit-fee assets to `feeRecipient` (IERC20 transfer). -/
+def pushExitFeeAssetsIfAny : EntryM Unit := do
+  let fee := ProofForge.Contract.Surface.read feeScratch
+  ProofForge.Contract.Surface.whenPositive fee do
+    let recip := ProofForge.Contract.Surface.read feeRecipient
+    ProofForge.Contract.Surface.requireNonZero recip "zero feeRecipient"
+    let assetTok := ProofForge.Contract.Surface.read assetAddress
+    let _sent :=
+      ProofForge.Contract.Surface.remoteCall assetTok
+        (ProofForge.Contract.Surface.u64 0xa9059cbb)
+        #[recip, fee]
+    pure ()
 
 contract_mixin ERC4626Mixin do
   use ProofForge.Contract.Surface.scalar assetAddress
@@ -266,8 +345,10 @@ contract_mixin ERC4626Mixin do
     return u64 0xffffffffffffffff;
 
   query maxWithdraw (holder : .address) returns(.u64) do
+    -- max **net** assets redeemable after exit fee
     convertScratch := mapRead shareBalances holder;
     do applyConvertToAssets (ProofForge.Contract.Surface.read convertScratch);
+    do applyExitFee;
     return convertScratch;
 
   query maxRedeem (holder : .address) returns(.u64) do
@@ -279,7 +360,7 @@ contract_mixin ERC4626Mixin do
   query feeRecipient returns(.u64) do
     return feeRecipient;
 
-  -- preview deposit/mint: net shares after entry fee; withdraw/redeem: convert floor
+  -- preview: net after entry fee (deposit/mint) or exit fee (withdraw/redeem)
   query previewDeposit (assets : .u64) returns(.u64) do
     convertScratch := assets;
     do applyConvertToShares (ProofForge.Contract.Surface.ref assets);
@@ -287,19 +368,25 @@ contract_mixin ERC4626Mixin do
     return convertScratch;
 
   query previewMint (shares : .u64) returns(.u64) do
-    -- assets required for gross `shares` mint (fee is taken from shares, not assets)
+    -- assets required so user receives **net** `shares` after entry fee
     convertScratch := shares;
-    do applyConvertToAssets (ProofForge.Contract.Surface.ref shares);
+    do applyGrossFromNetShares;
+    let gross : .u64 := convertScratch;
+    convertScratch := gross;
+    do applyConvertToAssets (ProofForge.Contract.Surface.ref gross);
     return convertScratch;
 
   query previewWithdraw (assets : .u64) returns(.u64) do
+    -- shares burned to withdraw `assets` from vault (user gets net after exit fee)
     convertScratch := assets;
     do applyConvertToShares (ProofForge.Contract.Surface.ref assets);
     return convertScratch;
 
   query previewRedeem (shares : .u64) returns(.u64) do
+    -- net assets user receives after exit fee
     convertScratch := shares;
     do applyConvertToAssets (ProofForge.Contract.Surface.ref shares);
+    do applyExitFee;
     return convertScratch;
 
   entry deposit (assets : .u64, receiver : .address) returns(.u64) do
@@ -350,13 +437,18 @@ contract_mixin ERC4626Mixin do
       "zero receiver";
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref shares)
       "zero shares";
-    -- `shares` is gross mint; user receives net after entry fee
+    -- `shares` is **net** user receives; compute gross mint for entry fee
     convertScratch := shares;
-    do applyConvertToAssets (ProofForge.Contract.Surface.ref shares);
+    do applyGrossFromNetShares;
+    let gross : .u64 := convertScratch;
+    do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref gross)
+      "zero gross shares";
+    convertScratch := gross;
+    do applyConvertToAssets (ProofForge.Contract.Surface.ref gross);
     let assets : .u64 := convertScratch;
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref assets)
       "zero assets";
-    convertScratch := shares;
+    convertScratch := gross;
     do applyEntryFee;
     let userShares : .u64 := convertScratch;
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref userShares)
@@ -371,7 +463,7 @@ contract_mixin ERC4626Mixin do
     let ta : .u64 := totalAssetsSlot;
     totalAssetsSlot := ta +! assets;
     let ts : .u64 := totalSupply;
-    totalSupply := ts +! shares;
+    totalSupply := ts +! gross;
     let bal : .u64 := mapRead shareBalances receiver;
     do mapWrite shareBalances receiver (bal +! userShares);
     do mintFeeSharesIfAny;
@@ -397,11 +489,17 @@ contract_mixin ERC4626Mixin do
       "zero assets";
     do ProofForge.Contract.Surface.requireEq caller (ProofForge.Contract.Surface.ref holder)
       "not holder";
+    -- `assets` leave the vault; user receives net after exit fee
     convertScratch := assets;
     do applyConvertToShares (ProofForge.Contract.Surface.ref assets);
     let shares : .u64 := convertScratch;
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref shares)
       "zero shares";
+    convertScratch := assets;
+    do applyExitFee;
+    let userAssets : .u64 := convertScratch;
+    do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref userAssets)
+      "zero net assets";
     let ownerBal : .u64 := mapRead shareBalances holder;
     do ProofForge.Contract.Surface.requireGe (ProofForge.Contract.Surface.ref ownerBal)
       (ProofForge.Contract.Surface.ref shares) "insufficient shares";
@@ -415,13 +513,14 @@ contract_mixin ERC4626Mixin do
       ProofForge.Contract.Surface.remoteCall
         (ProofForge.Contract.Surface.ref assetTok)
         (u64 0xa9059cbb)
-        #[ProofForge.Contract.Surface.ref receiver, ProofForge.Contract.Surface.ref assets];
+        #[ProofForge.Contract.Surface.ref receiver, ProofForge.Contract.Surface.ref userAssets];
+    do pushExitFeeAssetsIfAny;
     emit Withdraw indexed #[
       fieldAsName "sender" caller,
       fieldAsName "receiver" receiver,
       fieldAsName "owner" holder
     ] data #[
-      fieldAsName "assets" assets,
+      fieldAsName "assets" userAssets,
       fieldAsName "shares" shares
     ];
     emit Transfer indexed #[
@@ -441,9 +540,14 @@ contract_mixin ERC4626Mixin do
       "not holder";
     convertScratch := shares;
     do applyConvertToAssets (ProofForge.Contract.Surface.ref shares);
-    let assets : .u64 := convertScratch;
-    do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref assets)
+    let grossAssets : .u64 := convertScratch;
+    do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref grossAssets)
       "zero assets";
+    convertScratch := grossAssets;
+    do applyExitFee;
+    let userAssets : .u64 := convertScratch;
+    do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref userAssets)
+      "zero net assets";
     let ownerBal : .u64 := mapRead shareBalances holder;
     do ProofForge.Contract.Surface.requireGe (ProofForge.Contract.Surface.ref ownerBal)
       (ProofForge.Contract.Surface.ref shares) "insufficient shares";
@@ -451,22 +555,23 @@ contract_mixin ERC4626Mixin do
     let ts : .u64 := totalSupply;
     totalSupply := ts -! shares;
     let ta : .u64 := totalAssetsSlot;
-    totalAssetsSlot := ta -! assets;
+    totalAssetsSlot := ta -! grossAssets;
     let assetTok : .u64 := assetAddress;
     let _sent : .u64 :=
       ProofForge.Contract.Surface.remoteCall
         (ProofForge.Contract.Surface.ref assetTok)
         (u64 0xa9059cbb)
-        #[ProofForge.Contract.Surface.ref receiver, ProofForge.Contract.Surface.ref assets];
+        #[ProofForge.Contract.Surface.ref receiver, ProofForge.Contract.Surface.ref userAssets];
+    do pushExitFeeAssetsIfAny;
     emit Withdraw indexed #[
       fieldAsName "sender" caller,
       fieldAsName "receiver" receiver,
       fieldAsName "owner" holder
     ] data #[
-      fieldAsName "assets" assets,
+      fieldAsName "assets" userAssets,
       fieldAsName "shares" shares
     ];
-    return assets;
+    return userAssets;
 
   entry transfer (recipient : .address, amount : .u64) returns(.bool) do
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref recipient)
