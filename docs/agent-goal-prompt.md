@@ -35,27 +35,30 @@ Wasm adapters). Keep Layer **A Host / B Protocols / C Stdlib** honest.
 - [x] `HostRuntime` catalog (EVM opcode / Solana syscall / NEAR host_import)
 - [x] Reject/diagnose when a capability is claimed but HostEffect has `n/a` for target
       (`requireHostRuntimeHonesty` in `requireCapabilityPlan` / `resolveSpec`)
-- [ ] Wire more lowerers to *reference* catalog symbols in comments/diagnostics
-- [ ] Extend catalog for Soroban / CosmWasm host effects already partially lowered
+- [x] Wire lowerers to *reference* catalog symbols in comments (`catalogRefComment`
+      on Solana `eventEmit` → `HostRuntime host.log.emit → syscall:sol_log_64_`)
+- [x] Extend catalog for Soroban / CosmWasm host effects already partially lowered
+      (`adapterBindings` / `adapterTargetIds`)
 
 ### B — Protocols
 
 - [x] Solana Programs facade + vault token-account path
 - [x] EVM IERC20 + IERC721 clients + fixtures
 - [x] NEAR FT peer client + fixture
-- [ ] EVM Multicall / Permit2 thin clients (optional)
-- [ ] NEAR deeper JSON/Borsh arg packing honesty
-- [ ] Solana: only high-value remaining layouts (no confidential pretence)
+- [x] EVM Multicall + Permit2 thin clients (`Protocols.Evm.Multicall` / `Permit2` + fixtures)
+- [x] NEAR deeper JSON/Borsh arg packing honesty (`argPackingBound` / `requireArgPackingHonest`)
+- [x] Solana confidential/crypto-hard layouts remain compile-reject
+      (`rejectedLayoutExamples` + `isSupportedCpiDataLayout = false`)
 
 ### C — Stdlib / product
 
-- [ ] Keep portable product path free of chain DSL (`just portable-default`)
-- [ ] TokenSpec feature → standard routing gaps only when user-visible
+- [x] Keep portable product path free of chain DSL (`just portable-default`)
+- [x] TokenSpec feature → standard routing gaps honest (`token-feature-matrix` / no silent drop)
 
 ### Hygiene
 
-- [ ] Keep `docs/protocols-layer.md` + `docs/host-runtime.md` in sync with code
-- [ ] Prefer extending `Tests/ProtocolsLayer.lean` / `Tests/HostRuntime.lean`
+- [x] Keep `docs/protocols-layer.md` + `docs/host-runtime.md` in sync with code
+- [x] Prefer extending `Tests/ProtocolsLayer.lean` / `Tests/HostRuntime.lean`
 
 ## Definition of done for one loop
 
@@ -71,6 +74,7 @@ Wasm adapters). Keep Layer **A Host / B Protocols / C Stdlib** honest.
 - Live network gates requiring missing tools  
 - Force-push / production deploy  
 - Rewriting Solana packing into a new package tree  
+- Full nested Multicall Call[] / Permit2 struct ABI packing  
 
 ## One-liner restart
 

@@ -83,8 +83,25 @@ a materializer that honors the same `HostEffect` / Capability surface.
 - Layer **B** (Protocols) is *programs/interfaces*, not host syscalls.
 - Layer **C** (Stdlib) is *your* contract body.
 
-## 6. Tests
+## 6. Wasm adapters (Soroban · CosmWasm)
 
-`Tests/HostRuntime.lean` — catalog shape, primary targets present, support counts,
-`requireHostRuntimeHonesty` + `resolveSpec` PDA-on-NEAR reject.
+Rows live in `HostEffect.adapterBindings` for targets
+`wasm-stellar-soroban` and `wasm-cosmwasm`. Real symbols where the host bridge
+already lowers them (`env._get`/`_put`, `invoke_contract`, `execute_msg`,
+`db_read`/`db_write`); explicit `n/a` elsewhere (PDA, compute, …).
+
+## 7. Lowerer catalog reference
+
+Solana sBPF event lowering emits a comment from `catalogRefComment .logEmit`:
+
+```text
+; HostRuntime host.log.emit → syscall:sol_log_64_
+```
+
+Smokes assert this string appears in real `SbpfAsm.renderModule` output.
+
+## 8. Tests
+
+`Tests/HostRuntime.lean` — catalog shape, primary + adapter targets, support counts,
+`requireHostRuntimeHonesty` + `resolveSpec` PDA-on-NEAR reject, catalog-ref on EventProbe.
 -/

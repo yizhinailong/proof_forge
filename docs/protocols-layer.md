@@ -94,7 +94,8 @@ Facades: `ProofForge.Protocols.Evm.IERC20` · `IERC721`
 | IERC20 client fixture | `pushTokens` / `readBalance` / `readSupply` | ✅ `Examples/Backend/Evm/Contracts/Ierc20Client` |
 | IERC721 ownerOf / transferFrom / safeTransferFrom / balanceOf / … | CALL + selectors | ✅ thin client |
 | IERC721 client fixture | `moveToken` / `safeMoveToken` / `readOwner` | ✅ `Examples/Backend/Evm/Contracts/Ierc721Client` |
-| Multicall / Permit2 | — | ⬜ later |
+| Multicall3 | `aggregate` / `tryAggregate` / `aggregate3` selectors | ✅ `Protocols.Evm.Multicall` + fixture (scalar-bounded) |
+| Permit2 | `allowance` / `approve` / `transferFrom` / `permitTransferFrom` | ✅ `Protocols.Evm.Permit2` + fixture (scalar-bounded) |
 | OpenZeppelin **as deployable mixin** | — | → **Layer C** (`Stdlib.ERC20` / `ERC721`, …) |
 
 EVM has no single “official ERC-20/721 program”. B-layer is **interface client**;
@@ -110,6 +111,7 @@ Facade: `ProofForge.Protocols.Near.FungibleToken`
 | `ft_transfer` / `ft_transfer_call` / `ft_balance_of` / `ft_total_supply` | promise remote with NEP-141 method names | ✅ thin client |
 | `ft_metadata` / `storage_deposit` | NEP-148 / NEP-145 method names | ✅ declare helpers |
 | FT peer fixture | `pay` / `pay_with_callback` / `query_*` | ✅ `Examples/Backend/WasmNear/FtPeerClient` |
+| Arg packing honesty | `portable_scalars_only` / max 8 scalars | ✅ `requireArgPackingHonest` (no full JSON claim) |
 | NEP-141 **as your FT contract** | — | → **Layer C** (`Stdlib.NearFungibleToken`) |
 
 ### 3.2 Module map
@@ -119,7 +121,9 @@ ProofForge/Protocols.lean                    -- root re-export
 ProofForge/Protocols/Solana.lean             -- B Solana facade + layout inventory
 ProofForge/Protocols/Evm/IERC20.lean         -- B IERC20 external CALL client
 ProofForge/Protocols/Evm/IERC721.lean        -- B IERC721 external CALL client
-ProofForge/Protocols/Near/FungibleToken.lean -- B NEP-141 peer client
+ProofForge/Protocols/Evm/Multicall.lean      -- B Multicall3 (scalar-bounded)
+ProofForge/Protocols/Evm/Permit2.lean        -- B Permit2 (scalar-bounded)
+ProofForge/Protocols/Near/FungibleToken.lean -- B NEP-141 peer client + packing honesty
 ```
 
 **No big-bang move** of Solana packing out of `Backend/Solana` or
@@ -152,7 +156,7 @@ helpers**. Packing stays where lowering already lives.
 3. ✅ Minimal EVM IERC20 + NEAR FT **clients** (B)
 4. ✅ Solana vault token-account e2e + EVM IERC20 client example
 5. ✅ NEAR FT peer example · EVM IERC721 client/example · Solana layout inventory export
-6. ⬜ Multicall / Permit2; deeper NEAR JSON arg packing; CosmWasm WasmMsg depth (A)
+6. ✅ Multicall + Permit2 clients · NEAR packing honesty · Soroban/CosmWasm HostRuntime rows · catalog-ref lowerer
 
 ## 7. Honesty rules
 
