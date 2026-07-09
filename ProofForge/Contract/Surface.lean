@@ -385,7 +385,22 @@ def declareRemoteUnit (peerId methodId : String) : ModuleM Unit := do
   let _ ← declareRemote peerId methodId
   pure ()
 
-/-- Sugar: `remoteCall` through a `RemoteRef` from `declareRemote`. -/
+/-- Sugar: `remoteCall` through a `RemoteRef` from `declareRemote`.
+
+## Portable scalar ABI (T3.1)
+
+`args` are portable IR expressions. Primary product types for multi-target
+remote:
+
+| IR type | EVM (Yul) | Solana CPI ix data | NEAR promise | Soroban invoke |
+|---------|-----------|--------------------|--------------|----------------|
+| `.u64` literal / expr | CALL arg word | LE u64 in ix data | serialized in args | args buffer |
+| `.bool` | 0/1 word | LE u64 0/1 | same | same |
+| `.hash` | 32-byte word | limb packing / host | host hash ptr | host hash |
+
+Authors pass `#[u64 42, u64 7]` etc. Host encoding is materialization; do not
+hand-write selectors or CPI account metas in Shared. See
+`Examples/Shared/RemoteCall.lean` (`call_with_args`). -/
 def remoteCallRef (remote : RemoteRef) (args : Array ProofForge.IR.Expr) :
     ProofForge.IR.Expr :=
   remoteCall remote.target remote.method args

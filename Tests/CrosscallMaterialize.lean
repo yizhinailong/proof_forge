@@ -8,6 +8,7 @@ import ProofForge.IR.Examples.CrosscallProbe
 import ProofForge.IR.Examples.NearCrosscallProbe
 import ProofForge.IR.Examples.Counter
 import Examples.Shared.RemoteCall
+import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Evm.Plan
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.PortableCrosscall
@@ -15,7 +16,6 @@ import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.Backend.WasmHost.PortableCrosscall
 import ProofForge.Backend.WasmHost.CosmWasm.EmitWat
-import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.Backend.Psy.IR
 import ProofForge.Target.CrosscallMaterialize
 import ProofForge.Target.Preflight
@@ -213,6 +213,23 @@ def main : IO Unit := do
   match ProofForge.Backend.Evm.Plan.buildModulePlan shared with
   | .error e => throw (IO.userError s!"EVM plan Shared.RemoteCall failed: {e.message}")
   | .ok _ => pure ()
+  -- T3.1: Shared.RemoteCall.call_with_args passes portable u64 literals.
+  require (shared.entrypoints.any (fun ep => ep.name == "call_with_args"))
+    "Shared.RemoteCall exposes call_with_args"
+  match ProofForge.Backend.Evm.IR.renderModule {
+    shared with
+    entrypoints := shared.entrypoints.map fun ep =>
+      match ep.name with
+      | "initialize" => { ep with selector? := some "8129fc1c" }
+      | "call_remote" => { ep with selector? := some "e8902e74" }
+      | "call_with_args" => { ep with selector? := some "728f8748" }
+      | _ => ep
+  } with
+  | .error e => throw (IO.userError s!"EVM Yul Shared.RemoteCall: {e.message}")
+  | .ok yul =>
+      require (yul.contains "__proof_forge_crosscall_2(0, 1, 42, 7)" ||
+          (yul.contains "42" && yul.contains "7" && yul.contains "crosscall"))
+        "EVM remote scalar ABI materializes u64 args 42 and 7"
   match ProofForge.Target.resolveModule solanaSbpfAsm shared with
   | .error e => throw (IO.userError s!"Solana resolve Shared.RemoteCall: {e.render}")
   | .ok _ => pure ()
@@ -225,5 +242,18 @@ def main : IO Unit := do
   match ProofForge.Backend.WasmHost.EmitWat.renderModule nearPortable with
   | .error e => throw (IO.userError s!"NEAR portable path for multi-target failed: {e.message}")
   | .ok wat => require (wat.contains "promise_create") "NEAR multi-target promise_create"
+  -- Shared RemoteCall NEAR + Soroban: scalar args in host crosscall path.
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule shared with
+  | .error e => throw (IO.userError s!"NEAR Shared.RemoteCall: {e.message}")
+  | .ok wat =>
+      require (wat.contains "promise_create") "Shared.RemoteCall NEAR promise"
+      require (wat.contains "i64.const 42")
+        "NEAR remote scalar ABI embeds u64 arg 42"
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule shared .soroban with
+  | .error e => throw (IO.userError s!"Soroban Shared.RemoteCall: {e.message}")
+  | .ok wat =>
+      require (wat.contains "invoke_contract") "Shared.RemoteCall Soroban invoke"
+      require (wat.contains "i64.const 42")
+        "Soroban remote scalar ABI embeds u64 arg 42"
 
-  IO.println "crosscall-materialize: ok (evm·solana·near + soroban-invoke + shared RemoteCall)"
+  IO.println "crosscall-materialize: ok (evm·solana·near + soroban-invoke + shared RemoteCall + scalar args)"

@@ -134,11 +134,20 @@ def TokenSpec.needsToken2022 (spec : TokenSpec) : Bool :=
   spec.hasFeature .defaultAccountState ||
   spec.hasFeature .immutableOwner
 
-/-- Features not yet materializable as ERC-20 contract logic in the EVM TokenSpec
-lane. Rejected with a capability-style diagnostic (no silent drop). -/
+/-- Features that the EVM TokenSpec lane **permanently rejects** (no silent drop).
+
+Product policy (T2.2 / D-W2-EvmFee): Solana Token-2022-shaped extensions and
+EIP-2612 `permit` are **not** lowered into the generated ERC-20 contract.
+
+* Use `--target solana-sbpf-asm` for `transfer_fee` / `non_transferable` / other
+  Token-2022 extensions.
+* `permit` stays portable intent only until a dedicated EIP-2612 materializer
+  ships; until then reject on `evm` like other non-lowered features.
+
+Core ERC-20 lane on EVM remains: mintable / burnable / capped / pausable. -/
 def TokenSpec.evmUnsupportedFeatures (spec : TokenSpec) : Array TokenFeature :=
   #[.transferFee, .nonTransferable, .confidentialTransfer, .transferHook,
-    .metadataPointer, .defaultAccountState, .immutableOwner].filter spec.hasFeature
+    .metadataPointer, .defaultAccountState, .immutableOwner, .permit].filter spec.hasFeature
 
 inductive TokenArtifactKind where
   | evmErc20Contract
@@ -234,13 +243,13 @@ def baseErc20Operations : Array String := #[
   "erc20.events"
 ]
 
+/-- Plan ops for materializable EVM features only (`permit` rejected, not listed). -/
 def evmFeatureOperations (spec : TokenSpec) : Array String :=
   #[] ++
   (if spec.hasFeature .mintable then #["erc20.mint"] else #[]) ++
   (if spec.hasFeature .burnable then #["erc20.burn"] else #[]) ++
   (if spec.hasFeature .capped then #["erc20.cap"] else #[]) ++
-  (if spec.hasFeature .pausable then #["erc20.pause"] else #[]) ++
-  (if spec.hasFeature .permit then #["erc20.permit"] else #[])
+  (if spec.hasFeature .pausable then #["erc20.pause"] else #[])
 
 def evmErc20Plan (target : TargetProfile) (spec : TokenSpec) : TokenPlan := {
   targetId := target.id
@@ -320,10 +329,11 @@ def validateEvmTokenFeatures (spec : TokenSpec) : Except String Unit :=
   | feature :: rest =>
       let ids := (feature :: rest).map TokenFeature.id
       .error <|
-        "target `evm` does not yet lower TokenSpec feature(s) " ++
+        "target `evm` TokenSpec product policy rejects feature(s) " ++
         String.intercalate ", " (ids.map (fun id => s!"`{id}`")) ++
-        "; keep the intent portable and build with a target that materializes them " ++
-        "(e.g. `solana-sbpf-asm` for transfer_fee / non_transferable), or drop the feature"
+        "; ERC-20 lane materializes mintable/burnable/capped/pausable only. " ++
+        "Use `--target solana-sbpf-asm` for Token-2022-shaped extensions " ++
+        "(`transfer_fee`, `non_transferable`, …), or drop the feature"
 
 /-- NEAR NEP-141 plan lane: core fungible features only (mintable/burnable/capped/
 pausable/permit). Token-2022-shaped extension features reject honestly. -/
@@ -851,14 +861,20 @@ def FeatureSupport.id : FeatureSupport → String
   | .reject => "reject"
   | .noLane => "no-lane"
 
-/-- Core portable features shared by EVM ERC-20 and Solana SPL base plans. -/
+/-- Core portable features materializable on EVM ERC-20 **and** Solana SPL base
+plans (and NEAR NEP-141 plan). `permit` is **not** core: EVM rejects it until
+EIP-2612 ships; Solana/NEAR may still plan it as metadata. -/
 def corePortableFeatures : Array TokenFeature :=
-  #[.mintable, .burnable, .capped, .pausable, .permit]
+  #[.mintable, .burnable, .capped, .pausable]
 
 /-- Solana-first extension features (Token-2022 when present). -/
 def solanaExtensionFeatures : Array TokenFeature :=
   #[.transferFee, .nonTransferable, .confidentialTransfer, .transferHook,
     .metadataPointer, .defaultAccountState, .immutableOwner]
+
+/-- Features rejected on EVM ERC-20 lane (permanent product policy T2.2). -/
+def evmRejectedPortableFeatures : Array TokenFeature :=
+  #[.permit] ++ solanaExtensionFeatures
 
 /-- Look up support for one feature on a registry target id. -/
 def featureSupportOnTarget (targetId : String) (feature : TokenFeature) : FeatureSupport :=
@@ -872,14 +888,15 @@ def featureSupportOnTarget (targetId : String) (feature : TokenFeature) : Featur
       else
         .reject
   | "solana-sbpf-asm" =>
-      if corePortableFeatures.contains feature || solanaExtensionFeatures.contains feature then
+      if corePortableFeatures.contains feature || solanaExtensionFeatures.contains feature ||
+          feature == .permit then
         .full
       else
         .reject
   | "wasm-near" =>
       if solanaExtensionFeatures.contains feature then
         .reject
-      else if corePortableFeatures.contains feature then
+      else if corePortableFeatures.contains feature || feature == .permit then
         .full
       else
         .reject

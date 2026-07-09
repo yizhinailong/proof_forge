@@ -90,7 +90,7 @@ Soroban token explicitly unsupported.
 |----|------|------|------------|------|------|--------|
 | **T2.0** | Token target matrix boundary | Document + enforce: Soroban/Move have no TokenSpec lane; CLI `--token` on those targets fails clearly | `just token-feature-matrix`; clear error string | S | — | **done** (CLI reject + `noTokenLaneMessage`) |
 | **T2.1** | NEAR NEP-141 plan → emit | Beyond `near-token-plan.json`: core features → IR and/or EmitWat (or staged plan-only milestone if blocked) | `build --target wasm-near --token` produces `.wat` (or documented two-step); smoke step checks `ft_*` / storage symbols | L | T2.0 | **done** (two-step: TokenSpec plan + `NearFungibleToken` body; smoke step 10) |
-| **T2.2** | EVM extended features policy | For `transfer_fee` / `non_transferable` / `permit`: (A) implement in-contract or (B) keep reject with pointer to Solana; land at least one feature’s permanent policy + tests | `validateEvmTokenFeatures` + smoke/docs agree | M–L | T2.0 | pending (reject path already tested) |
+| **T2.2** | EVM extended features policy | For `transfer_fee` / `non_transferable` / `permit`: (A) implement in-contract or (B) keep reject with pointer to Solana; land at least one feature’s permanent policy + tests | `validateEvmTokenFeatures` + smoke/docs agree | M–L | T2.0 | **done** (permanent reject + Solana pointer; permit rejected on EVM) |
 | **T2.3** | Feature matrix productization | Human-readable matrix from `featureSupportOnTarget`; wire `just token-feature-matrix` / portable aggregate as appropriate | One command lists EVM/Solana/NEAR support per feature | S | existing matrix fn | **done** (`just token-feature-matrix` + tests) |
 | **T2.4** | Shared Fungible multi-target docs | Document single health path for three-host token (intent smoke + EVM vm smoke) | `Examples/Shared/README` or tutorial step | S | T2.1 | **done** |
 | **T2.5** | Portable token author entry | Clarify TokenSpec as portable entry; ERC-20 as EVM materialization (facade or docs only — no hard rename required) | Shared README + `Token.lean` header | S | — | **done** (Token.lean header table) |
@@ -103,7 +103,7 @@ Soroban token explicitly unsupported.
 
 | ID | Task | Work | Acceptance | Size | Deps | Status |
 |----|------|------|------------|------|------|--------|
-| **T3.1** | Remote scalar ABI MVP | Portable args (u64/bool/hash) encoding table across four hosts; extend Shared RemoteCall | Multi-target smoke with one parameterized remote | L | RemoteCall baseline | pending |
+| **T3.1** | Remote scalar ABI MVP | Portable args (u64/bool/hash) encoding table across four hosts; extend Shared RemoteCall | Multi-target smoke with one parameterized remote | L | RemoteCall baseline | **done** (`call_with_args` + Surface ABI table + CrosscallMaterialize asserts) |
 | **T3.2** | Solana account auto-fill | Extend `ensurePortableAuthAccounts` pattern for transfer/remote intents; reduce Source.Solana need | Named Shared example emits without Solana Surface | L | T3.1 optional | pending |
 | **T3.3** | Identity docs + Solana Hash bound | Ownable vs OwnableHash chooser table; limb0 = Phase-1 product contract | Architecture + Surface comments; tests agree | S | OwnableHash landed | **done** (architecture table) |
 | **T3.4** | Error id → clients | Map assertion_id across EVM revert / Solana custom / NEAR panic into sdk-schema | Same id in three-host artifacts | M | — | pending |
@@ -146,7 +146,7 @@ Wave 4:  after W1/W2 progress; can interleave docs
 |----------|---------|------------------------|
 | **D-W1-Roles** | Nested AccessControl portable on all hosts vs EVM-first | **Decided:** portable nested role maps on four hosts (T1.4) |
 | **D-W1-Reentrancy** | Full lock on Wasm/Solana vs EVM-only policy | **Decided:** lock-state materializes on four hosts; EVM is primary reentrancy meaning (T1.5 done) |
-| **D-W2-EvmFee** | Implement fee-on-transfer on EVM vs permanent reject→Solana | Reject + diagnostic until T2.2 chooses A |
+| **D-W2-EvmFee** | Implement fee-on-transfer on EVM vs permanent reject→Solana | **Decided (B):** permanent reject on EVM → use Solana Token-2022; also reject `permit` until EIP-2612 |
 | **D-W2-SorobanToken** | Ever add TokenSpec lane? | **No** in this plan (CLI + matrix enforce no-lane) |
 | **D-W3-SolanaHash** | limb0 permanent vs full 32-byte OwnableHash | limb0 Phase-1; full 32B follow-up outside W1 |
 
@@ -193,5 +193,6 @@ Update this table when recipes are renamed.
 | 2026-07-09 | **Rename:** `Backend.WasmNear` → `Backend.WasmHost` (Wasm-family EmitWat core + `HostBridge`); registry target ids `wasm-near` / `wasm-stellar-soroban` unchanged; `Backend.WasmNear` remains a deprecation re-export. |
 | 2026-07-09 | **Wasm family unify:** move CosmWasm Counter adapter under `Backend.WasmHost.CosmWasm`; document package tree in `docs/targets/wasm-family.md`. |
 | 2026-07-09 | **CosmWasm into EmitWat:** `HostBridge.cosmWasm` storage (`db_read`/`db_write`) in Scalar/Map/Imports; unified `EmitWat.renderModule` for all bridges; remove top-level `Backend.WasmNear` / `Backend.CosmWasm` shims. |
+| 2026-07-09 | **T2.2 + T3.1:** EVM TokenSpec permanent reject policy (fee/soulbound/permit); remote u64 scalar ABI locked in CrosscallMaterialize + Surface docs. CosmWasm product path still deferred. |
 
 When a task completes: set Status to `done`, add commit hash or PR note in changelog.

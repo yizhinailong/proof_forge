@@ -18,7 +18,7 @@ def main : IO Unit := do
   require (rows.size == primaryTokenTargetIds.size * knownFeatureIds.size)
     s!"matrix size {rows.size}"
 
-  -- EVM: core full; extension features reject (no silent drop).
+  -- EVM: core full; extension features + permit reject (T2.2 permanent policy).
   for f in corePortableFeatures do
     require (featureSupportOnTarget "evm" f == .full)
       s!"evm should fully support {f.id}"
@@ -29,6 +29,19 @@ def main : IO Unit := do
       s!"evm should reject {f.id}"
     require (!planSucceedsForFeature evm f)
       s!"evm planForTarget must fail for {f.id}"
+  require (featureSupportOnTarget "evm" .permit == .reject)
+    "evm permanently rejects permit until EIP-2612 materializer"
+  require (!planSucceedsForFeature evm .permit)
+    "evm planForTarget must fail for permit"
+  match planForTarget evm {
+    name := "Fee", symbol := "FEE", decimals := 9, features := #[.transferFee]
+  } with
+  | .ok _ => throw (IO.userError "EVM must reject transfer_fee permanently")
+  | .error msg =>
+      require (msg.contains "product policy" || msg.contains "rejects")
+        s!"EVM reject should state product policy, got: {msg}"
+      require (msg.contains "solana-sbpf-asm")
+        s!"EVM reject should point to Solana: {msg}"
 
   -- Solana: core + extension full (Token-2022 when needed).
   for f in corePortableFeatures do
