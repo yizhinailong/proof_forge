@@ -48,10 +48,10 @@ The portable IR EVM backend (`portable-ir-v0`) supports:
 Baseline EVM gates (all wired in `just check` / `just ci`):
 
 - Build: `lake build`.
-- Plan smoke: `just evm-plan` → `Tests/EvmPlan.lean`.
-- Semantic plan smoke: `just evm-semantic-plan` → `Tests/EvmSemanticPlan.lean`.
+- Plan smoke: `just evm-plan` → `Tests/Backend/Evm/EvmPlan.lean`.
+- Semantic plan smoke: `just evm-semantic-plan` → `Tests/Backend/Evm/EvmSemanticPlan.lean`.
 - Diagnostic smoke: `scripts/evm/diagnostic-smoke.sh` (58 Lean cases + CLI constructor cases).
-- Coverage manifest: `scripts/evm/check-ir-coverage-manifest.py` over `Tests/EvmCoverage.tsv`.
+- Coverage manifest: `scripts/evm/check-ir-coverage-manifest.py` over `Tests/Backend/Evm/EvmCoverage.tsv`.
 - IR smokes: `scripts/evm/*-ir-smoke.sh` (22 fixtures covering scalar ABI, assignment, assign-op, conditionals, loops, context, events, crosscalls, expressions, hash, maps, typed maps, storage arrays, typed storage, storage structs, array values, struct values, struct-array values, ABI aggregates, and the counter smoke).
 - SDK examples: `scripts/evm/build-examples.sh` with golden Yul diffs.
 - Foundry runtime: `scripts/evm/foundry-smoke.sh`.
@@ -186,7 +186,7 @@ The roadmap is split into **six phases**, each 2–10 engineering days, sequence
 **Goals**
 
 - Make the EVM backend easier to extend by hardening the semantic-plan → Yul boundary and tightening the diagnostic/coverage machinery.
-- Ensure every unsupported gap added in later phases fails explicitly and is recorded in `Tests/EvmCoverage.tsv`.
+- Ensure every unsupported gap added in later phases fails explicitly and is recorded in `Tests/Backend/Evm/EvmCoverage.tsv`.
 
 **Concrete deliverables**
 
@@ -208,7 +208,7 @@ The roadmap is split into **six phases**, each 2–10 engineering days, sequence
 - `ProofForge/Backend/Evm/Plan.lean` — add `ContextPlan`/`contextOps` scaffolding.
 - `ProofForge/Backend/Evm/Validate.lean` — diagnostic code enum.
 - `ProofForge/Backend/Evm/ToYul.lean` — route all storage slots through plan.
-- `Tests/EvmCoverage.tsv` — classification updates.
+- `Tests/Backend/Evm/EvmCoverage.tsv` — classification updates.
 - `scripts/evm/run-ir-smoke.sh` (new) and existing `*-ir-smoke.sh`.
 
 **Main risks**
@@ -241,8 +241,8 @@ The roadmap is split into **six phases**, each 2–10 engineering days, sequence
 **Success criteria / new or modified CI gates**
 
 - `just evm-smoke context-extended` (new) passes golden Yul, solc, Foundry.
-- `Tests/EvmCoverage.tsv` marks the new `ContextField` constructors as `validated`.
-- `Tests/EvmDiagnostics.lean` has cases for statement-position misuse and unsupported combinations.
+- `Tests/Backend/Evm/EvmCoverage.tsv` marks the new `ContextField` constructors as `validated`.
+- `Tests/Backend/Evm/EvmDiagnostics.lean` has cases for statement-position misuse and unsupported combinations.
 - `ProofForge/Backend/Evm/Refinement.lean` adds a trace obligation for the new probe.
 
 **Key files/modules to touch**
@@ -471,9 +471,9 @@ The roadmap is split into **six phases**, each 2–10 engineering days, sequence
 
 Every phase that adds `ValueType`, `ContextField`, `Expr`, `Effect`, `Statement`, `Entrypoint`, or `StateKind` constructors must:
 
-1. Update `Tests/EvmCoverage.tsv` with `validated`, `lowered`, `unsupported`, or `structural`.
+1. Update `Tests/Backend/Evm/EvmCoverage.tsv` with `validated`, `lowered`, `unsupported`, or `structural`.
 2. Add explicit diagnostics in `ProofForge.Backend.Evm.Validate` for unsupported shapes.
-3. Add a Lean test case in `Tests/EvmDiagnostics.lean` locking the diagnostic text or code.
+3. Add a Lean test case in `Tests/Backend/Evm/EvmDiagnostics.lean` locking the diagnostic text or code.
 4. Extend the semantic model in `ProofForge/IR/Semantics.lean` if the new construct affects observable traces.
 5. Extend the executable Yul model in `ProofForge/Backend/Evm/YulSemantics.lean` before claiming refinement obligations.
 
@@ -493,7 +493,7 @@ Every phase that adds `ValueType`, `ContextField`, `Expr`, `Effect`, `Statement`
 ### 4.3 Diagnostic coverage
 
 - Maintain the invariant that **any portable IR shape the EVM backend cannot lower must fail before Yul generation** with a stable message.
-- New diagnostics must be added to `Tests/EvmDiagnostics.lean` and, where CLI-facing, to `scripts/evm/diagnostic-smoke.sh`.
+- New diagnostics must be added to `Tests/Backend/Evm/EvmDiagnostics.lean` and, where CLI-facing, to `scripts/evm/diagnostic-smoke.sh`.
 - Prefer diagnostic codes over prose for programmatic consumers.
 
 ### 4.4 Golden-Yul / Foundry / Anvil gate patterns
@@ -545,7 +545,7 @@ After Phase 0, the suggested order is **Phase 1 → Phase 2 → Phase 5 → Phas
 | Yul generation | `ProofForge/Backend/Evm/IR.lean`, `ProofForge/Backend/Evm/ToYul.lean`, `ProofForge/Compiler/Yul/AST.lean`, `ProofForge/Compiler/Yul/Printer.lean` |
 | Metadata / deploy | `ProofForge/Backend/Evm/Metadata.lean`, `ProofForge/Cli.lean`, `scripts/evm/validate-artifact-metadata.py`, `scripts/evm/validate-deploy-manifest.py`, `scripts/evm/validate-deploy-run.py` |
 | Formal model / refinement | `ProofForge/Backend/Evm/YulSemantics.lean`, `ProofForge/Backend/Evm/Refinement.lean` |
-| Tests & coverage | `Tests/EvmDiagnostics.lean`, `Tests/EvmPlan.lean`, `Tests/EvmSemanticPlan.lean`, `Tests/EvmCoverage.tsv` |
+| Tests & coverage | `Tests/Backend/Evm/EvmDiagnostics.lean`, `Tests/Backend/Evm/EvmPlan.lean`, `Tests/Backend/Evm/EvmSemanticPlan.lean`, `Tests/Backend/Evm/EvmCoverage.tsv` |
 | CI / smokes | `justfile`, `scripts/evm/*-ir-smoke.sh`, `scripts/evm/diagnostic-smoke.sh`, `scripts/evm/build-examples.sh`, `scripts/evm/foundry-smoke.sh`, `scripts/evm/anvil-deploy-smoke.sh` |
 | Examples / golden fixtures | `Examples/Backend/Evm/*.golden.yul`, `ProofForge/IR/Examples/*.lean` |
 | Docs / registry | `docs/targets/evm.md`, `docs/capability-registry.md`, `docs/target-roadmap.md`, `docs/implementation-backlog.md`, `docs/gate-status.md` |

@@ -98,12 +98,12 @@ sui-client-ts-smoke:
 # Check the EVM semantic plan smoke.
 evm-plan:
     lake build ProofForge.Backend.Evm.Plan
-    lake env lean --run Tests/EvmPlan.lean
+    lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 
 # Check the EVM semantic plan (entrypoints, events, metadata) smoke.
 evm-semantic-plan:
     lake build ProofForge.Backend.Evm.IR ProofForge.IR.Examples.Counter ProofForge.IR.Examples.EvmMapProbe ProofForge.IR.Examples.EvmStorageArrayProbe ProofForge.IR.Examples.EvmStorageStructProbe ProofForge.IR.Examples.EventProbe
-    lake env lean --run Tests/EvmSemanticPlan.lean
+    lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 
 # Check the RFC 0014 Phase 1 shared validate subset (identifiers, return-path predicate, type-check helpers).
 shared-validate-smoke:
@@ -168,21 +168,21 @@ target-semantics-instances-smoke:
 # Generic Wasm stack/state helper lemmas - active WASM C-proof surface.
 wasm-exec-smoke:
     lake build ProofForge.Backend.WasmHost.WasmExec
-    lake env lean --run Tests/WasmExec.lean
+    lake env lean --run Tests/Backend/Wasm/WasmExec.lean
 
 # NEAR host-model lemmas over the generic Wasm host-call hook.
 wasm-near-host-smoke:
     lake build ProofForge.Backend.WasmHost.NearHost
-    lake env lean --run Tests/WasmNearHost.lean
+    lake env lean --run Tests/Backend/Wasm/WasmNearHost.lean
 
 wasm-cosmwasm-host-smoke:
     lake build ProofForge.Backend.WasmHost.CosmWasmHost
-    lake env lean --run Tests/WasmCosmWasmHost.lean
+    lake env lean --run Tests/Backend/Wasm/WasmCosmWasmHost.lean
 
 # Phase 4 WASM host family: Soroban host dispatch (3rd WASM host adapter).
 wasm-soroban-host-smoke:
     lake build ProofForge.Backend.WasmHost.SorobanHost ProofForge.Backend.WasmHost.CounterSorobanRefinement
-    lake env lean --run Tests/WasmSorobanHost.lean
+    lake env lean --run Tests/Backend/Wasm/WasmSorobanHost.lean
 
 # Phase 4 ZK lane: Aleo/Leo registry entry + Counter Leo codegen (Road 1 sourcegen).
 aleo-leo-codegen-smoke:
@@ -197,12 +197,12 @@ value-vault-wasm-refinement-smoke:
 # WASM-5b chain-axis: Counter reuses the SAME host-agnostic core on CosmWasm.
 wasm-cosmwasm-refinement-smoke:
     lake build ProofForge.Backend.WasmHost.CounterCosmWasmRefinement
-    lake env lean --run Tests/WasmCosmWasmRefinementSmoke.lean
+    lake env lean --run Tests/Backend/Wasm/WasmCosmWasmRefinementSmoke.lean
 
 # Check the Phase 6b EVM bytecode-semantics seam for the preferred powdr target.
 evm-bytecode-semantics-smoke:
     lake build ProofForge.Backend.Evm.EvmBytecodeSemantics
-    lake env lean --run Tests/EvmBytecodeSemantics.lean
+    lake env lean --run Tests/Backend/Evm/EvmBytecodeSemantics.lean
 
 # Check the opt-in powdr/mathlib EVM refinement adapter target.
 evm-powdr-adapter:
@@ -232,23 +232,23 @@ cli-target-first:
 solana-sbpf-exec-smoke:
     lake build ProofForge.Backend.Solana.SbpfExec
     lake build ProofForge.Backend.Solana.SbpfExecSmoke
-    lake env lean --run Tests/SolanaSbpfExec.lean
+    lake env lean --run Tests/Backend/Solana/SolanaSbpfExec.lean
 
 # Second-contract genericity smoke for the reusable sBPF execution layer.
 solana-sbpf-genericity-smoke:
     lake build ProofForge.Backend.Solana.ValueVaultSbpfExec
-    lake env lean --run Tests/SolanaValueVaultSbpfExec.lean
+    lake env lean --run Tests/Backend/Solana/SolanaValueVaultSbpfExec.lean
 
 # Counter core-tail + IR↔sBPF refinement regression (frozen spike; do not expand).
 solana-counter-sbpf-regression:
     lake build ProofForge.Backend.Solana.CounterSbpfExec
     lake build ProofForge.Backend.Solana.CounterSbpfRefinement
-    lake env lean --run Tests/SolanaCounterSbpfRegression.lean
+    lake env lean --run Tests/Backend/Solana/SolanaCounterSbpfRegression.lean
 
 # Check the Solana sBPF refinement anchor (Counter IR trace + artifact surface).
 solana-refinement-smoke:
     lake build ProofForge.Backend.Solana.Refinement
-    lake env lean --run Tests/SolanaRefinement.lean
+    lake env lean --run Tests/Backend/Solana/SolanaRefinement.lean
 
 # Check contract_source target capability diagnostics through the CLI.
 contract-source-diagnostics:
@@ -260,27 +260,27 @@ solana-lean:
     lake build ProofForge.Contract.Token
     lake build ProofForge.Contract.Examples.Counter
     lake build ProofForge.Solana.Examples
-    lake env lean --run Tests/SolanaDiagnostics.lean
-    lake env lean --run Tests/SolanaSdk.lean
-    lake env lean --run Tests/SolanaSdkManifest.lean
-    lake env lean --run Tests/SolanaAccountConstraints.lean
-    lake env lean --run Tests/SolanaAccountRealloc.lean
-    lake env lean --run Tests/SolanaCpiPacking.lean
-    lake env lean --run Tests/SolanaLogs.lean
-    lake env lean --run Tests/SolanaSysvars.lean
-    lake env lean --run Tests/SolanaMemory.lean
-    lake env lean --run Tests/SolanaCrypto.lean
-    lake env lean --run Tests/SolanaReturnDataCompute.lean
-    lake env lean --run Tests/SolanaComputeBudgetInstruction.lean
-    lake env lean --run Tests/SolanaPdaSeeds.lean
-    lake env lean --run Tests/SolanaLoop.lean
-    lake env lean --run Tests/SolanaStorageArray.lean
-    lake env lean --run Tests/SolanaStorageArrayStruct.lean
-    lake env lean --run Tests/SolanaStorageStructField.lean
-    lake env lean --run Tests/SolanaFixedArrayStruct.lean
-    lake env lean --run Tests/SolanaHash.lean
-    lake env lean --run Tests/SolanaMemoryArray.lean
-    lake env lean --run Tests/SolanaMapContextSafety.lean
+    lake env lean --run Tests/Backend/Solana/SolanaDiagnostics.lean
+    lake env lean --run Tests/Backend/Solana/SolanaSdk.lean
+    lake env lean --run Tests/Backend/Solana/SolanaSdkManifest.lean
+    lake env lean --run Tests/Backend/Solana/SolanaAccountConstraints.lean
+    lake env lean --run Tests/Backend/Solana/SolanaAccountRealloc.lean
+    lake env lean --run Tests/Backend/Solana/SolanaCpiPacking.lean
+    lake env lean --run Tests/Backend/Solana/SolanaLogs.lean
+    lake env lean --run Tests/Backend/Solana/SolanaSysvars.lean
+    lake env lean --run Tests/Backend/Solana/SolanaMemory.lean
+    lake env lean --run Tests/Backend/Solana/SolanaCrypto.lean
+    lake env lean --run Tests/Backend/Solana/SolanaReturnDataCompute.lean
+    lake env lean --run Tests/Backend/Solana/SolanaComputeBudgetInstruction.lean
+    lake env lean --run Tests/Backend/Solana/SolanaPdaSeeds.lean
+    lake env lean --run Tests/Backend/Solana/SolanaLoop.lean
+    lake env lean --run Tests/Backend/Solana/SolanaStorageArray.lean
+    lake env lean --run Tests/Backend/Solana/SolanaStorageArrayStruct.lean
+    lake env lean --run Tests/Backend/Solana/SolanaStorageStructField.lean
+    lake env lean --run Tests/Backend/Solana/SolanaFixedArrayStruct.lean
+    lake env lean --run Tests/Backend/Solana/SolanaHash.lean
+    lake env lean --run Tests/Backend/Solana/SolanaMemoryArray.lean
+    lake env lean --run Tests/Backend/Solana/SolanaMapContextSafety.lean
     lake env lean --run Tests/LearnSource.lean
     lake env lean --run Tests/SharedContractSource.lean
     lake env lean --run Tests/LearnDiagnostics.lean
@@ -349,7 +349,7 @@ near-target-first:
 # first so stale oleans cannot turn this gate into a Lean segfault.
 wasm-near-plan:
     lake build proof-forge ProofForge.IR.Examples.NearCrosscallProbe
-    lake env lean --run Tests/WasmNearPlan.lean
+    lake env lean --run Tests/Backend/Wasm/WasmNearPlan.lean
 
 # Run the NearModulePlan golden + dual-path parity smoke (Tier B gate, Step B).
 # Builds the plan, diffs against golden, and asserts plan-driven WAT == inline WAT.
@@ -359,7 +359,7 @@ near-plan-smoke:
 # Check NEAR NEP-141 ft_transfer_call promise chain Plan + EmitWat smoke.
 wasm-near-ft-transfer-call:
     lake build proof-forge ProofForge.Contract.Stdlib.NearFungibleToken
-    lake env lean --run Tests/WasmNearFtTransferCall.lean
+    lake env lean --run Tests/Backend/Wasm/WasmNearFtTransferCall.lean
 
 # Run NEAR NEP-141 ft_transfer_call through the offline host promise callback path.
 wasm-near-ft-transfer-call-e2e:
@@ -663,7 +663,7 @@ portable-default:
 # Phase B.2: portable IR → Solana accounts without Source.Solana authoring.
 solana-auto-materialize:
     lake build ProofForge.Backend.Solana.Materialize Examples.Product.Counter Examples.Product.ValueVault ProofForge.Solana.Examples.Vault
-    lake env lean --run Tests/SolanaAutoMaterialize.lean
+    lake env lean --run Tests/Product/SolanaMaterialize.lean
 
 # All implemented registry targets: materialization + crosscall map for Shared Counter.
 primary-materialize:
@@ -691,7 +691,12 @@ portable-error-catalog:
 # T3.2: Solana transfer/remote/nativeValue account auto-fill without Source.Solana.
 portable-solana-accounts:
     lake build Examples.Product.AuthRemoteCall Examples.Product.Ownable Examples.Product.RemoteCall Examples.Product.RoleGatedToken Examples.Product.StakingVault ProofForge.Backend.Solana.Manifest ProofForge.Backend.Solana.Materialize ProofForge.Backend.Solana.SbpfAsm
-    lake env lean --run Tests/SolanaPortableAccounts.lean
+    lake env lean --run Tests/Product/Accounts.lean
+
+# Backend compiler probes (Solana / EmitWat / Evm unit tests). Not product API.
+# Subsets: solana-lean, emitwat-ci-smoke, evm-plan, wasm-*-host-smoke, …
+backend: solana-lean
+    @echo "backend: solana-lean ok (use solana-light / emitwat-ci-smoke / evm-* for more)"
 
 # Primary product gate: Product sources × multi-target materialize matrix.
 # Docs: docs/examples-and-tests-taxonomy.md · Examples/Product/README.md
@@ -989,7 +994,7 @@ github-build-test:
     just docs-check
     scripts/near/diagnostic-smoke.sh
     scripts/near/check-ir-coverage-manifest.py
-    scripts/near/check-ir-coverage-manifest.py --manifest Tests/EmitWatCoverage.tsv --label emitwat-ir-coverage
+    scripts/near/check-ir-coverage-manifest.py --manifest Tests/Backend/Wasm/EmitWatCoverage.tsv --label emitwat-ir-coverage
     lake env lean --run Tests/IROwnership.lean
     just ir-counter-semantics-smoke
     just counter-universal-refinement-smoke

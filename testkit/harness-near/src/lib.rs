@@ -127,7 +127,7 @@ fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<NearFixtureArt
             } else {
                 emit_wat_fixture(
                     repo_root,
-                    "Tests/EmitWatSmoke.lean",
+                    "Tests/Backend/Wasm/EmitWatSmoke.lean",
                     "Counter",
                     "build/wasm-near/emitwat-counter.wat",
                     None,
@@ -149,7 +149,7 @@ fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<NearFixtureArt
             } else {
                 emit_wat_fixture(
                     repo_root,
-                    "Tests/EmitWatValueVault.lean",
+                    "Tests/Backend/Wasm/EmitWatValueVault.lean",
                     "ValueVault",
                     "build/wasm-near/emitwat-value-vault.wat",
                     None,
@@ -159,7 +159,7 @@ fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<NearFixtureArt
         }
         "alloc-release" => emit_wat_fixture(
             repo_root,
-            "Tests/EmitWatAlloc.lean",
+            "Tests/Backend/Wasm/EmitWatAlloc.lean",
             "ArrayProbe",
             "build/wasm-near/emitwat-release-external.wat",
             None,
@@ -167,7 +167,7 @@ fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<NearFixtureArt
         ),
         "error-ref" => emit_wat_fixture(
             repo_root,
-            "Tests/EmitWatErrorRef.lean",
+            "Tests/Backend/Wasm/EmitWatErrorRef.lean",
             "ErrorRefProbe",
             "build/wasm-near/emitwat-error-ref.wat",
             Some("build/wasm-near/emitwat-error-ref.contract-spec.json"),

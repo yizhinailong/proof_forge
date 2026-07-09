@@ -80,7 +80,7 @@ than Solana's `LowerCtx` split.
    *deterministic functions of the module* — exactly the kind of fact a plan should own.
    There is no mutable per-entrypoint state to split out.
 4. **WAT golden churn risk is bounded.** EmitWat already has a `wasm-near-plan` smoke
-   (`Tests/WasmNearPlan.lean`) that asserts host-import/helper pruning. The frozen
+   (`Tests/Backend/Wasm/WasmNearPlan.lean`) that asserts host-import/helper pruning. The frozen
    WAT golden (`Examples/Backend/WasmNear/Counter.golden.wat`, `ValueVault.golden.wat`) pins
    byte-stable output. The migration can land behind the same feature-flag strategy
    Solana uses.
@@ -146,7 +146,7 @@ adds the "data-layout" surface. This mirrors how `SolanaModulePlan` carries both
 ### 5.1 Top-level type (proposed extension)
 
 The existing `ModulePlan` is kept (it is already consumed by EmitWat and tested by
-`Tests/WasmNearPlan.lean`). A new `NearModulePlan` wraps it and adds the layout fields:
+`Tests/Backend/Wasm/WasmNearPlan.lean`). A new `NearModulePlan` wraps it and adds the layout fields:
 
 ```lean
 -- proposed: ProofForge/Backend/WasmHost/NearModulePlan.lean
@@ -527,7 +527,7 @@ paths cannot drift. The shared `lowerModuleCoreWithSeed` body is unchanged.
   the import graph one-directional (`Plan.lean` imports `SbpfAsm.lean`, not
   vice versa), mirroring how `NearModulePlan.Ctx.fromPlanSeed` delegates to
   `EmitWat.Ctx.fromPlanSeed`.
-- `Tests/SolanaModulePlan.lean` is converted from a golden-only check to a
+- `Tests/Backend/Solana/SolanaModulePlan.lean` is converted from a golden-only check to a
   single-path regression gate: the plan golden diff pins the semantic artifact
   and the `--render` flag renders the module via the plan-driven path
   (`Solana.Plan.renderModuleFromPlan`), surfacing the sBPF assembly char count
@@ -655,7 +655,7 @@ site bypasses the plan:
 | `ProofForge/Cli/Evm.lean:9` (`renderYul`) | `Evm.IR.renderModule` → `lowerModule` → `lowerModuleWithPlan` |
 | `ProofForge/Backend/Evm/Refinement.lean:390,434` (trace obligations) | `Evm.IR.lowerModule` → `lowerModuleWithPlan` |
 | `Tests/TokenEvm.lean:25` | `Evm.IR.lowerModule` → `lowerModuleWithPlan` |
-| `Tests/EvmDiagnostics.lean:560` (diagnostic smoke) | `Evm.IR.renderModule` (strict) — renders the diagnostic from `buildSemanticPlan`/lowering rather than best-effort, so the unsupported-shape diagnostic is surfaced |
+| `Tests/Backend/Evm/EvmDiagnostics.lean:560` (diagnostic smoke) | `Evm.IR.renderModule` (strict) — renders the diagnostic from `buildSemanticPlan`/lowering rather than best-effort, so the unsupported-shape diagnostic is surfaced |
 | `docs/tier-c-proof-feasibility.md`, `docs/rfcs/0004-evm-semantic-plan.md`, `docs/zh/rfcs/0004-evm-semantic-plan.zh.md` | documentation references only |
 
 `lowerModuleBestEffort` / `renderModuleBestEffort` have **no external call
@@ -676,8 +676,8 @@ have been busywork that risked the frozen EVM goldens for no gain.
 ### 14.6 Verification
 
 - `lake build` green (378 jobs, no errors; only pre-existing linter warnings).
-- `just evm-plan` passes (`Tests/EvmPlan.lean`).
-- `just evm-semantic-plan` passes (`Tests/EvmSemanticPlan.lean`).
+- `just evm-plan` passes (`Tests/Backend/Evm/EvmPlan.lean`).
+- `just evm-semantic-plan` passes (`Tests/Backend/Evm/EvmSemanticPlan.lean`).
 - `just evm-build-examples` passes — bytecode emitted for all examples
   (Counter, ValueVault, ReentrancyGuard, UUPSProxy, VerifiedVault, …);
   frozen EVM goldens (`Examples/Backend/Evm/*.golden.yul`) unchanged.
@@ -704,8 +704,8 @@ have been busywork that risked the frozen EVM goldens for no gain.
 - `ProofForge/Backend/Psy/Plan.lean` — `PsyModulePlan` (539 LOC, metadata-only).
 - `ProofForge/Backend/Psy/IR.lean` — `BuildContext` (41–43), plan-driven lowering.
 - `ProofForge/Backend/Move/Sui.lean` — Counter MVP template (200 LOC).
-- `Tests/WasmNearPlan.lean` — existing `wasm-near-plan` smoke (658 LOC).
-- `Tests/SolanaModulePlan.lean` + `scripts/solana/plan-smoke.sh` — the golden plan
+- `Tests/Backend/Wasm/WasmNearPlan.lean` — existing `wasm-near-plan` smoke (658 LOC).
+- `Tests/Backend/Solana/SolanaModulePlan.lean` + `scripts/solana/plan-smoke.sh` — the golden plan
   smoke template this step mirrors.
 - `Examples/Backend/Solana/Counter/golden/plan.txt` — the golden plan format.
 - `ProofForge/IR/Examples/Counter.lean` — the `Counter.module` fixture.

@@ -137,7 +137,7 @@ Concretely, in code:
 
 ## Validation
 
-- Unit: `Tests/EmitWatAlloc.lean` already covers the Wasm strategies; add
+- Unit: `Tests/Backend/Wasm/EmitWatAlloc.lean` already covers the Wasm strategies; add
   the equivalent Solana binding test (heap metadata → IDL → asm constants)
   and an EVM binding test (documented offsets match emitted Yul).
 - Behavioral: one testkit scenario (RFC 0007) that allocates aggregates in
@@ -153,7 +153,7 @@ Concretely, in code:
    `decisions.md`.
 2. **M2:** fold Solana `RuntimeAllocator` into the model; IDL and
    `solana.allocator.*` metadata read/write the shared type;
-   `Tests/SolanaAllocator.lean` updated.
+   `Tests/Backend/Solana/SolanaAllocator.lean` updated.
 3. **M3:** explicit EVM binding + docs; decide `release` = rejection → noop
    transition criteria (blocked on FV-3).
 4. **M4:** allocator testkit scenario across the three harnesses.

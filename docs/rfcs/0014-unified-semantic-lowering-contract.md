@@ -179,8 +179,8 @@ remains a non-goal.
   executable Yul subset (Counter, ValueVault, Map/TypedStorage/StorageStruct/
   AbiAggregate/Conditional/Loop/Event probes).
 
-CI: `just evm-plan` (`Tests/EvmPlan.lean`), `just evm-semantic-plan`
-(`Tests/EvmSemanticPlan.lean`), and `lake build ProofForge.Backend.Evm.Refinement`
+CI: `just evm-plan` (`Tests/Backend/Evm/EvmPlan.lean`), `just evm-semantic-plan`
+(`Tests/Backend/Evm/EvmSemanticPlan.lean`), and `lake build ProofForge.Backend.Evm.Refinement`
 (theorems are `#check`-anchored from `Tests/NearWasmFormal.lean`).
 
 **EVM audit (2026-07-07, RFC 0014 Tier B reference backend).** A mirror audit
@@ -462,7 +462,7 @@ does not block it.
   sub-plans above.
 - Refactor `SbpfAsm.lowerModuleCore` so `LowerCtx` is **derived from the plan**,
   not built inline. Keep `lowerModuleWithPlan` for `CapabilityPlan` extensions.
-- Add `Tests/SolanaSemanticPlan.lean` and `just solana-semantic-plan`,
+- Add `Tests/Backend/Solana/SolanaSemanticPlan.lean` and `just solana-semantic-plan`,
   mirroring `evm-plan` (layout + entrypoint + manifest + CPI/account schema
   consistency).
 - Step C (switch default) — **LANDED (2026-07-07).** The plan-driven path is the
@@ -475,7 +475,7 @@ does not block it.
   it, keeping the import graph one-directional). The shared
   `lowerModuleCoreWithSeed` body is unchanged. The dual-path parity check that
   landed in Phase 2 is retired (there is no second path to agree with);
-  `Tests/SolanaModulePlan.lean` is now a single-path regression gate (plan
+  `Tests/Backend/Solana/SolanaModulePlan.lean` is now a single-path regression gate (plan
   golden diff + `--render` confirms the plan-driven lowering still emits sBPF
   assembly, char count surfaced in CI logs). `scripts/solana/plan-smoke.sh`
   switches to `--render`. All `SbpfAsm.lowerModule`/`renderModule`/
@@ -628,7 +628,7 @@ unifying the per-backend validation rules. Both remain follow-ups.
 Move-Sui) corrected the earlier "No `WasmNear/Plan.lean`" claim: `WasmNear.Plan.lean`
 already exists and defines `ModulePlan` + `buildModulePlan` + `ModuleSurface`, and
 `EmitWat.lowerModule` already consumes it to drive host imports and helper-function
-pruning (gated by `Tests/WasmNearPlan.lean` / `just wasm-near-plan`). The remaining gap
+pruning (gated by `Tests/Backend/Wasm/WasmNearPlan.lean` / `just wasm-near-plan`). The remaining gap
 is narrower than Solana's was: the data-layout `Ctx` (scalar key pointers, map prefix
 pointers, string pool, panic pool, crosscall string pool) is still built inline at the
 top of `EmitWat.lowerModule` rather than plan-derived. The full audit, per-backend

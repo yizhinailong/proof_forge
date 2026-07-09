@@ -324,7 +324,7 @@ def renderOfflineHostArgs (irModule : IR.Module) (trace : ITF.Trace)
 The wrapping Lean test (`Tests/Quint/CounterNearReplay.lean`, future) would:
 
 1. emit the Quint model, run `quint run --mbt --out-itf`;
-2. emit the WAT (`Tests/EmitWatSmoke.lean` path or `proof-forge emit --target
+2. emit the WAT (`Tests/Backend/Wasm/EmitWatSmoke.lean` path or `proof-forge emit --target
    wasm-near`);
 3. call `NearReplay.renderOfflineHostArgs` to get the arg list;
 4. spawn `cargo run --manifest-path runtime/offline-host/Cargo.toml -- <args>`;

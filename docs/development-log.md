@@ -310,7 +310,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 scripts/evm/struct-array-value-ir-smoke.sh
 ```
@@ -348,7 +348,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 scripts/evm/array-value-ir-smoke.sh
 ```
@@ -386,7 +386,7 @@ Validation run:
 ```sh
 ! rg -n "crosscallArgWordPlanExprs|crosscallExprPlanExpr|crosscallAggregateReturnAssignmentPlanStatement|localCrosscallWords|lowerLocalCrosscallWords|lowerStorageCrosscallWords|lowerCrosscallArgWordPlanExprs|lowerCrosscallArgWordsMany" ProofForge Tests
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-all
 ```
@@ -461,7 +461,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 ```
 
@@ -503,7 +503,7 @@ Validation run:
 ```sh
 ! rg -n "storagePathWriteEffectStmtPlanStatements|storagePathWriteEffectPlanStatements|storagePathAssignOpEffectStmtPlanStatements|storagePathAssignOpEffectPlanStatements|lowerStoragePathWriteStmt\\b|lowerStoragePathAssignOpStmt\\b|lowerStoragePathWriteTarget\\b|lowerStoragePathAssignOpTargetStatement|lowerStoragePathWriteStmtPlanOrFallback|lowerStoragePathAssignOpStmtPlanOrFallback" ProofForge Tests
 lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.ToYul
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-plan
 just evm-semantic-plan
 just evm-all
@@ -548,9 +548,9 @@ Summary:
 Validation run:
 
 ```sh
-! rg -n "dynamicArrayPushEffect|dynamicArrayPopEffect|dynamicArrayTargetPlan\\?|lowerDynamicArrayPushStmt\\b" ProofForge/Backend/Evm Tests/EvmSemanticPlan.lean
+! rg -n "dynamicArrayPushEffect|dynamicArrayPopEffect|dynamicArrayTargetPlan\\?|lowerDynamicArrayPushStmt\\b" ProofForge/Backend/Evm Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-plan
 just evm-semantic-plan
 just evm-all
@@ -589,9 +589,9 @@ Summary:
 Validation run:
 
 ```sh
-rg -n "\blowerScalarStorageWriteStmt\b|\blowerMapSetReturnExpr\b|\blowerDynamicArrayWriteStmt\b|\blowerDynamicArrayPopStmt\b" ProofForge/Backend/Evm/IR.lean Tests/EvmSemanticPlan.lean docs/implementation-backlog.md docs/zh/implementation-backlog.zh.md docs/development-log.md
+rg -n "\blowerScalarStorageWriteStmt\b|\blowerMapSetReturnExpr\b|\blowerDynamicArrayWriteStmt\b|\blowerDynamicArrayPopStmt\b" ProofForge/Backend/Evm/IR.lean Tests/Backend/Evm/EvmSemanticPlan.lean docs/implementation-backlog.md docs/zh/implementation-backlog.zh.md docs/development-log.md
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
 scripts/i18n/check-sync.sh
 git diff --check
@@ -628,9 +628,9 @@ Summary:
 Validation run:
 
 ```sh
-rg -n "\blowerStoragePathReadExpr\b|\blowerStoragePathReadExprTarget\b" ProofForge/Backend/Evm/IR.lean Tests/EvmSemanticPlan.lean docs/implementation-backlog.md docs/zh/implementation-backlog.zh.md docs/development-log.md
+rg -n "\blowerStoragePathReadExpr\b|\blowerStoragePathReadExprTarget\b" ProofForge/Backend/Evm/IR.lean Tests/Backend/Evm/EvmSemanticPlan.lean docs/implementation-backlog.md docs/zh/implementation-backlog.zh.md docs/development-log.md
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
 scripts/i18n/check-sync.sh
 git diff --check
@@ -668,9 +668,9 @@ Summary:
 Validation run:
 
 ```sh
-rg -n "lowerMapGetExpr|lowerMapContainsExpr|lowerArrayReadExpr|lowerDynamicArrayReadExpr|lowerStructArrayFieldReadExpr|lowerMapSlotExpr" ProofForge/Backend/Evm/IR.lean Tests/EvmSemanticPlan.lean docs/implementation-backlog.md docs/zh/implementation-backlog.zh.md docs/development-log.md
+rg -n "lowerMapGetExpr|lowerMapContainsExpr|lowerArrayReadExpr|lowerDynamicArrayReadExpr|lowerStructArrayFieldReadExpr|lowerMapSlotExpr" ProofForge/Backend/Evm/IR.lean Tests/Backend/Evm/EvmSemanticPlan.lean docs/implementation-backlog.md docs/zh/implementation-backlog.zh.md docs/development-log.md
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
 scripts/i18n/check-sync.sh
 git diff --check
@@ -707,9 +707,9 @@ Summary:
 Validation run:
 
 ```sh
-rg -n "lowerMapPathReadExpr" ProofForge/Backend/Evm/IR.lean Tests/EvmSemanticPlan.lean docs/implementation-backlog.md docs/zh/implementation-backlog.zh.md
+rg -n "lowerMapPathReadExpr" ProofForge/Backend/Evm/IR.lean Tests/Backend/Evm/EvmSemanticPlan.lean docs/implementation-backlog.md docs/zh/implementation-backlog.zh.md
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
 scripts/i18n/check-sync.sh
 git diff --check
@@ -745,9 +745,9 @@ Summary:
 Validation run:
 
 ```sh
-rg -n "lowerMapPathWriteStmt" ProofForge/Backend/Evm/IR.lean Tests/EvmSemanticPlan.lean docs/implementation-backlog.md docs/zh/implementation-backlog.zh.md
+rg -n "lowerMapPathWriteStmt" ProofForge/Backend/Evm/IR.lean Tests/Backend/Evm/EvmSemanticPlan.lean docs/implementation-backlog.md docs/zh/implementation-backlog.zh.md
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
 scripts/i18n/check-sync.sh
 git diff --check
@@ -787,7 +787,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
 scripts/i18n/check-sync.sh
 git diff --check
@@ -827,7 +827,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
 scripts/i18n/check-sync.sh
 git diff --check
@@ -870,7 +870,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
 scripts/i18n/check-sync.sh
 git diff --check
@@ -912,7 +912,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
 scripts/i18n/check-sync.sh
 git diff --check
@@ -953,7 +953,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
 scripts/i18n/check-sync.sh
 git diff --check
@@ -995,7 +995,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
 scripts/i18n/check-sync.sh
 git diff --check
@@ -1043,7 +1043,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
 scripts/i18n/check-sync.sh
 git diff --check
@@ -1087,8 +1087,8 @@ python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 git diff --check
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build
 just evm-diagnostics
 just evm-smoke crosscall
@@ -1132,8 +1132,8 @@ python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 git diff --check
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build
 just evm-diagnostics
 just evm-smoke crosscall
@@ -1179,8 +1179,8 @@ python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 git diff --check
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build
 just evm-diagnostics
 just evm-smoke crosscall
@@ -1223,8 +1223,8 @@ python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 git diff --check
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build
 just evm-diagnostics
 just evm-smoke crosscall
@@ -1268,8 +1268,8 @@ python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 git diff --check
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build
 just evm-diagnostics
 just evm-smoke crosscall
@@ -1317,8 +1317,8 @@ python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 git diff --check
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build
 just evm-diagnostics
 just evm-smoke crosscall
@@ -1419,8 +1419,8 @@ Validation run:
 
 ```sh
 lake build
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -1468,8 +1468,8 @@ Validation run:
 
 ```sh
 lake build
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -1515,8 +1515,8 @@ Validation run:
 
 ```sh
 lake build
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -1562,8 +1562,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -1610,8 +1610,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -1658,8 +1658,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -1705,8 +1705,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -1750,8 +1750,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -1797,8 +1797,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -1841,8 +1841,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -1888,8 +1888,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -1935,8 +1935,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -1981,8 +1981,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2027,8 +2027,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2076,8 +2076,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2123,8 +2123,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2172,8 +2172,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2217,8 +2217,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2265,8 +2265,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2313,8 +2313,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2358,8 +2358,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2402,8 +2402,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2444,8 +2444,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2487,8 +2487,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2530,8 +2530,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2573,8 +2573,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2616,8 +2616,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2657,8 +2657,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2697,8 +2697,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2740,8 +2740,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2782,8 +2782,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2822,8 +2822,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -2867,8 +2867,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/errors-ir-smoke.sh
 scripts/evm/assert-ir-smoke.sh
@@ -2910,8 +2910,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/ir-counter-smoke.sh
 scripts/evm/expression-ir-smoke.sh
@@ -2958,8 +2958,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/crosscall-ir-smoke.sh
 scripts/evm/abi-aggregate-ir-smoke.sh
@@ -3007,8 +3007,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/crosscall-ir-smoke.sh
 scripts/evm/abi-aggregate-ir-smoke.sh
@@ -3058,8 +3058,8 @@ Validation run:
 ```sh
 lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
 lake build proof-forge
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/abi-aggregate-ir-smoke.sh
 scripts/evm/array-abi-ir-smoke.sh
 scripts/evm/event-ir-smoke.sh
@@ -3113,8 +3113,8 @@ Validation run:
 ```sh
 lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
 lake build proof-forge
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/abi-aggregate-ir-smoke.sh
 scripts/evm/array-abi-ir-smoke.sh
 scripts/evm/event-ir-smoke.sh
@@ -3162,8 +3162,8 @@ Validation run:
 
 ```sh
 lake build proof-forge
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/i18n/check-sync.sh
 python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 git diff --check
@@ -3212,8 +3212,8 @@ Validation run:
 
 ```sh
 lake build proof-forge
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/i18n/check-sync.sh
 python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 git diff --check
@@ -3259,8 +3259,8 @@ Validation run:
 
 ```sh
 lake build proof-forge
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 test -z "$(rg -n "storageCrosscallWords" ProofForge/Backend/Evm/Lower.lean || true)"
 scripts/i18n/check-sync.sh
 python3 -m json.tool scripts/i18n/manifest.json >/dev/null
@@ -3307,8 +3307,8 @@ Validation run:
 
 ```sh
 lake build proof-forge
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/i18n/check-sync.sh
 python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 git diff --check
@@ -3352,8 +3352,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/crosscall-ir-smoke.sh
 just evm-diagnostics
 lake build proof-forge
@@ -3398,8 +3398,8 @@ Validation run:
 ```sh
 test -z "$(rg -n "lowerCrosscallStructArgWords|lowerCrosscallStructArrayArgWords|lowerCrosscallFixedArrayArgWords|lowerCrosscallArgWords\\b" ProofForge/Backend/Evm/IR.lean ProofForge/Backend/Evm/Lower.lean Tests || true)"
 lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/crosscall-ir-smoke.sh
 just evm-diagnostics
 lake build proof-forge
@@ -3443,8 +3443,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/crosscall-ir-smoke.sh
 just evm-diagnostics
 lake build proof-forge
@@ -3486,8 +3486,8 @@ Validation run:
 ```sh
 test -z "$(rg -n "bytes/string returns in IR EVM v0 support local references only|Non-local dynamic returns still use the compatibility fallback|非本地动态返回仍走兼容 fallback" ProofForge/Backend/Evm/IR.lean docs/implementation-backlog.md docs/zh/implementation-backlog.zh.md || true)"
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/dynamic-abi-ir-smoke.sh
 just evm-diagnostics
 lake build proof-forge
@@ -3530,8 +3530,8 @@ Validation run:
 ```sh
 test -z "$(rg -n "lowerStructArrayReturnWords|lowerFixedArrayReturnWords|lowerStructReturnWords" ProofForge/Backend/Evm/IR.lean || true)"
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/abi-aggregate-ir-smoke.sh
 scripts/evm/storage-array-ir-smoke.sh
 scripts/evm/storage-struct-ir-smoke.sh
@@ -3575,8 +3575,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/expression-ir-smoke.sh
 just evm-diagnostics
 lake build proof-forge
@@ -3616,8 +3616,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/dynamic-abi-ir-smoke.sh
 just evm-diagnostics
 lake build proof-forge
@@ -3660,8 +3660,8 @@ Validation run:
 ```sh
 test -z "$(rg -n "localArrayGetLengthsExpr|localArrayGetLengthsEffect|localArrayGetLengthsStatement|localArrayGetLengthsForDynamicExprTarget|nestedLocalArrayGetShapesExpr|nestedLocalArrayGetShapesEffect|nestedLocalArrayGetShapesStatement|nestedLocalArrayGetShapesForDynamicExprTarget|mergeNatSets|mergeNatArraySets|arrayNatEq" ProofForge/Backend/Evm/IR.lean || true)"
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/array-value-ir-smoke.sh
 scripts/evm/struct-array-value-ir-smoke.sh
 just evm-diagnostics
@@ -3703,8 +3703,8 @@ Validation run:
 ```sh
 lake build ProofForge.Backend.Evm.IR
 test -z "$(rg -n "createHelperSpecsExpr|createHelperSpecsEffect|createHelperSpecsStatement|pushCreateHelperSpecIfMissing|mergeCreateHelperSpecs|createHelperSpecsStoragePathSegment" ProofForge/Backend/Evm/IR.lean || true)"
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/crosscall-ir-smoke.sh
 just evm-diagnostics
 lake build proof-forge
@@ -3744,8 +3744,8 @@ Validation run:
 ```sh
 test -z "$(rg -n "crosscallHelperSpecsExpr|crosscallHelperSpecsEffect|crosscallHelperSpecsStatement|pushCrosscallHelperSpecIfMissing|mergeCrosscallHelperSpecs|crosscallArgName|crosscallFunctionParams|crosscallReturnGuardStatements|def crosscallHelperFunction \\(" ProofForge/Backend/Evm/IR.lean || true)"
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/crosscall-ir-smoke.sh
 just evm-diagnostics
 lake build proof-forge
@@ -3791,8 +3791,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/storage-array-ir-smoke.sh
 scripts/evm/storage-struct-ir-smoke.sh
 scripts/evm/abi-aggregate-ir-smoke.sh
@@ -3840,8 +3840,8 @@ Validation run:
 ```sh
 lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/event-ir-smoke.sh
 just evm-diagnostics
 lake build proof-forge
@@ -3884,8 +3884,8 @@ Validation run:
 ```sh
 rg -n "lowerEvent(Struct|FixedArray|DataWords)|testLocalAggregateEventDataWordsToYul" ProofForge Tests
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/event-ir-smoke.sh
 just evm-diagnostics
 lake build proof-forge
@@ -3925,8 +3925,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/event-ir-smoke.sh
 just evm-diagnostics
 lake build proof-forge
@@ -3967,8 +3967,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/event-ir-smoke.sh
 just evm-diagnostics
 lake build proof-forge
@@ -4008,8 +4008,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/event-ir-smoke.sh
 just evm-diagnostics
 lake build proof-forge
@@ -4049,8 +4049,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmPlan.lean
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-diagnostics
 scripts/evm/event-ir-smoke.sh
 lake build proof-forge
@@ -4086,8 +4086,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 just evm-diagnostics
 lake build proof-forge
 git diff --check
@@ -4115,7 +4115,7 @@ Summary:
 - Removed the duplicate planned scalar event field helper implementations from
   `IR.lean`; the compatibility facade now only supplies the `ExprPlan` lowering
   callback.
-- Extended `Tests/EvmSemanticPlan.lean` with direct coverage for the new
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` with direct coverage for the new
   `EventFieldPlan -> ToYul` helpers and kept the existing scalar event
   integration checks.
 
@@ -4123,8 +4123,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 just evm-diagnostics
 lake build proof-forge
 git diff --check
@@ -4159,8 +4159,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Validate ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Cli
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 just evm-diagnostics
 lake build proof-forge
 git diff --check
@@ -4193,8 +4193,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Validate ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 just evm-diagnostics
 lake build proof-forge
 git diff --check
@@ -4231,8 +4231,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Refinement
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 just evm-diagnostics
 lake build proof-forge
 git diff --check
@@ -4266,8 +4266,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 just evm-diagnostics
 lake build proof-forge
 git diff --check
@@ -4301,8 +4301,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 just evm-diagnostics
 lake build proof-forge
 git diff --check
@@ -4339,8 +4339,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 just evm-diagnostics
 lake build proof-forge
 git diff --check
@@ -4376,8 +4376,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 just evm-diagnostics
 lake build proof-forge
 git diff --check
@@ -4411,8 +4411,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 just evm-diagnostics
 lake build proof-forge
 git diff --check
@@ -4453,8 +4453,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 just evm-diagnostics
 lake build proof-forge
 git diff --check
@@ -4494,8 +4494,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/array-value-ir-smoke.sh
 scripts/evm/struct-array-value-ir-smoke.sh
@@ -4535,8 +4535,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/map-ir-smoke.sh
 scripts/evm/storage-struct-ir-smoke.sh
 just evm-diagnostics
@@ -4575,8 +4575,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/storage-array-ir-smoke.sh
 scripts/evm/storage-struct-ir-smoke.sh
 scripts/evm/dynamic-array-ir-smoke.sh
@@ -4616,8 +4616,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/hash-ir-smoke.sh
 just evm-diagnostics
 git diff --check
@@ -4655,8 +4655,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/expression-ir-smoke.sh
 scripts/evm/assign-op-ir-smoke.sh
 scripts/evm/context-ir-smoke.sh
@@ -4696,8 +4696,8 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 just evm-diagnostics
 scripts/evm/context-ir-smoke.sh
 git diff --check
@@ -4739,8 +4739,8 @@ Validation run:
 
 ```sh
 lake build
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/map-ir-smoke.sh
@@ -4781,7 +4781,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 git diff --check -- ProofForge/Backend/Evm/IR.lean
 ```
@@ -4820,7 +4820,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/map-ir-smoke.sh
@@ -4864,7 +4864,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/map-ir-smoke.sh
@@ -4908,7 +4908,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/storage-struct-ir-smoke.sh
@@ -4950,7 +4950,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/storage-struct-ir-smoke.sh
@@ -4991,7 +4991,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/storage-struct-ir-smoke.sh
@@ -5031,7 +5031,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/storage-struct-ir-smoke.sh
@@ -5072,7 +5072,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/storage-array-ir-smoke.sh
@@ -5114,7 +5114,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/storage-array-ir-smoke.sh
@@ -5157,7 +5157,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/map-ir-smoke.sh
@@ -5197,7 +5197,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/ir-counter-smoke.sh
@@ -5241,7 +5241,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/ir-counter-smoke.sh
@@ -5278,7 +5278,7 @@ Summary:
 - Routed scalar-body support and statement-position storage-path write lowering
   through the planned target variants while keeping the older callback helpers
   available for compatibility paths.
-- Extended `Tests/EvmSemanticPlan.lean` with `Lower -> Plan` assertions and
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` with `Lower -> Plan` assertions and
   direct planned-target `ToYul` helper coverage for array storage path writes
   and assign-ops.
 
@@ -5286,7 +5286,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/storage-array-ir-smoke.sh
@@ -5325,14 +5325,14 @@ Summary:
 - Replaced the `IR.lean` storage-path read `match` with a thin
   `Plan.storagePathReadSlotPlan -> ToYul.storagePathReadExprFromPlan`
   compatibility facade.
-- Extended `Tests/EvmSemanticPlan.lean` with direct read-slot plan coverage for
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` with direct read-slot plan coverage for
   map, array, struct field, struct-array field, and nested-map storage paths.
 
 Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-diagnostics
 just evm-build-examples
 just evm-foundry
@@ -5370,14 +5370,14 @@ Summary:
 - Replaced the `IR.lean` storage-path write-target `match` with a thin
   `Plan.storagePathWriteTargetPlan -> ToYul.storagePathWriteTargetFromPlan`
   compatibility facade.
-- Extended `Tests/EvmSemanticPlan.lean` with direct target-plan coverage for
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` with direct target-plan coverage for
   map, array, struct field, struct-array field, and nested-map storage paths.
 
 Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-build-examples
 just evm-diagnostics
 just evm-foundry
@@ -5455,7 +5455,7 @@ Summary:
 - Added `ToYul.returnValueWordPlanAssignments` so final multi-word return
   assignment frames are owned by `ToYul`, while unsupported return shapes keep
   using the existing compatibility fallback.
-- Extended `Tests/EvmSemanticPlan.lean` with direct `ToYul` coverage plus
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` with direct `ToYul` coverage plus
   `Lower -> IR facade -> ToYul` integration checks for local struct and
   fixed-array return plans.
 - Added the missing `DynamicConstructorProbe.golden.yul` fixture so
@@ -5466,7 +5466,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-build-examples
 ```
 
@@ -5489,7 +5489,7 @@ Commit: this commit
 
 Summary:
 
-- Updated `Tests/WasmNearDiagnostics.lean` so the diagnostic baseline matches
+- Updated `Tests/Backend/Wasm/WasmNearDiagnostics.lean` so the diagnostic baseline matches
   the current `wasm-near` target profile: capability-gated cases that now reach
   Rust sourcegen assert the backend-specific unsupported diagnostics instead of
   stale target-profile errors.
@@ -5504,7 +5504,7 @@ Summary:
 Validation run:
 
 ```sh
-lake env lean --run Tests/WasmNearDiagnostics.lean
+lake env lean --run Tests/Backend/Wasm/WasmNearDiagnostics.lean
 scripts/near/diagnostic-smoke.sh
 lake build ProofForge.Target ProofForge.Backend.WasmHost.IR
 just testkit
@@ -5835,7 +5835,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 ```
 
 Known limitations:
@@ -5877,7 +5877,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 ```
 
 Known limitations:
@@ -5915,7 +5915,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/crosscall-ir-smoke.sh
@@ -5959,7 +5959,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/crosscall-ir-smoke.sh
@@ -6000,7 +6000,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/crosscall-ir-smoke.sh
@@ -6040,7 +6040,7 @@ Summary:
 - Kept `IR.abiReturnName`, `IR.abiReturnNames`, and
   `IR.abiReturnTypedNames` as compatibility aliases around the planned return
   path.
-- Extended `Tests/EvmSemanticPlan.lean` to cover planned return local names and
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover planned return local names and
   direct `ReturnPlan -> TypedName` lowering.
 
 Validation run:
@@ -6085,7 +6085,7 @@ Summary:
   lowering consumes the same planned entrypoints used by dispatch lowering.
 - Preserved diagnostic priority by falling back to compatibility lowering when
   best-effort diagnostic plans do not contain a complete entrypoint list.
-- Extended `Tests/EvmSemanticPlan.lean` to cover planned dynamic parameter
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover planned dynamic parameter
   local names, typed params, and direct entrypoint function shell output.
 
 Validation run:
@@ -6124,7 +6124,7 @@ Summary:
 - Kept `IR.yulFunctionName` as a compatibility alias while routing planned
   dispatcher call expression construction through `ToYul`.
 - Added a plan-name consistency check in `IR.entrypointCallExprWithPlan`.
-- Extended `Tests/EvmSemanticPlan.lean` to cover direct planned entrypoint call
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover direct planned entrypoint call
   expression generation for the dynamic ABI probe.
 
 Validation run:
@@ -6167,7 +6167,7 @@ Summary:
 - Removed the temporary `IR.lean` `AbiParamLayout` path; the compatibility
   facade now obtains parameter plans and delegates call-arg/decode generation
   to `ToYul`.
-- Extended `Tests/EvmSemanticPlan.lean` to check head-word indices, direct
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to check head-word indices, direct
   planned call args, and dynamic `bytes` decode statement shape.
 
 Validation run:
@@ -6208,7 +6208,7 @@ Summary:
 - Routed `lowerModuleWithPlan` through `IR.dispatchBlockWithPlan`, so module
   lowering consumes `plan.dispatch` instead of re-selecting proxy/default
   behavior from the raw IR module.
-- Extended `Tests/EvmSemanticPlan.lean` to cover Counter dispatch defaults,
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover Counter dispatch defaults,
   direct `DispatchPlan -> Yul` output, and UUPS proxy fallback dispatch output.
 
 Validation run:
@@ -6251,7 +6251,7 @@ Summary:
   block helper.
 - Kept ABI validation/decode statements, function-call argument assembly, and
   proxy fallback selection in the compatibility facade.
-- Extended `Tests/EvmSemanticPlan.lean` to cover direct static and dynamic
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover direct static and dynamic
   dispatch-block helper output plus the integrated Counter and dynamic ABI
   dispatch block shapes.
 
@@ -6292,7 +6292,7 @@ Summary:
 - Kept ABI validation/decode statements, function-call argument assembly,
   dynamic-param free-memory-pointer initialization, and proxy fallback behavior
   in the compatibility facade.
-- Extended `Tests/EvmSemanticPlan.lean` to cover direct dynamic return helper
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover direct dynamic return helper
   output and the integrated dynamic ABI dispatch block shape.
 
 Validation run:
@@ -6331,7 +6331,7 @@ Summary:
   assembly, dynamic `bytes`/`string` return encoding, dynamic-param memory
   initialization, and proxy fallback behavior in the compatibility facade.
 - Removed the old duplicate dispatcher result-name helper from `IR.lean`.
-- Extended `Tests/EvmSemanticPlan.lean` to cover direct unit and static
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover direct unit and static
   ABI-word return helper output plus the integrated Counter dispatch path.
 
 Validation run:
@@ -6370,7 +6370,7 @@ Summary:
   preserving the existing ABI validation, function-call argument assembly,
   return encoding, dynamic-parameter memory initialization, and proxy fallback
   behavior.
-- Extended `Tests/EvmSemanticPlan.lean` to cover direct dispatch-case helper
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover direct dispatch-case helper
   output and the integrated Counter dispatch switch shape.
 
 Validation run:
@@ -6408,7 +6408,7 @@ Summary:
   `mstore` placement, and final `log1`-`log4` selection behind that helper.
 - Kept event field expression evaluation, aggregate flattening, and indexed
   aggregate topic word derivation in the `IR.lean` compatibility facade.
-- Extended `Tests/EvmSemanticPlan.lean` to cover direct helper output and the
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover direct helper output and the
   integrated `lowerEventEmitCoreStmt` path.
 
 Validation run:
@@ -6450,7 +6450,7 @@ Summary:
 - Kept branch/loop body lowering and environment sequencing in the `IR.lean`
   compatibility facade; the helpers own the final Yul `switch` and `for`
   frames.
-- Extended `Tests/EvmSemanticPlan.lean` to cover direct helper output and the
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover direct helper output and the
   integrated `lowerStatement` path.
 
 Validation run:
@@ -6491,7 +6491,7 @@ Summary:
 - Kept struct metadata lookup, source validation, and field source expansion in
   the `IR.lean` compatibility facade, while `ToYul` owns the final snapshot
   temp declarations and field-slot `sstore` block.
-- Extended `Tests/EvmSemanticPlan.lean` to cover direct helper output and the
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover direct helper output and the
   integrated `lowerEffectStmt` path for struct-literal whole-struct writes.
 
 Validation run:
@@ -6531,7 +6531,7 @@ Summary:
 - Reused the IR facade storage-path target selection from the
   `storagePathWrite` slice, so path slot computation and path-shape diagnostics
   remain in `IR.lean` while `ToYul` owns the final compound-update assembly.
-- Extended `Tests/EvmSemanticPlan.lean` to cover direct helper output and the
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover direct helper output and the
   integrated `lowerEffectStmt` path for direct map, array, struct field,
   struct-array field, and nested-map storage paths.
 
@@ -6575,7 +6575,7 @@ Summary:
 - Kept path slot computation and path-shape diagnostics in the `IR.lean`
   compatibility facade, with `ToYul` owning the final helper call,
   `sstore(slot, value)`, or nested-map value/presence block assembly.
-- Extended `Tests/EvmSemanticPlan.lean` to cover direct helper output and the
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover direct helper output and the
   integrated `lowerEffectStmt` path for array and nested-map storage paths.
 
 Validation run:
@@ -6617,7 +6617,7 @@ Summary:
 - Kept direct struct field slot lookup and struct-array field slot metadata in
   the `IR.lean` compatibility facade, while the helper owns the final
   `sstore(slot, value)` assembly.
-- Extended `Tests/EvmSemanticPlan.lean` to cover direct helper output and the
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover direct helper output and the
   integrated `lowerEffectStmt` path for both struct field write shapes.
 
 Validation run:
@@ -6652,7 +6652,7 @@ Summary:
 - Kept array state root slot and length lookup in the `IR.lean` compatibility
   facade, with the final slot expression still assembled through the existing
   array slot helper boundary.
-- Extended `Tests/EvmSemanticPlan.lean` to cover direct `StmtPlan.effect`
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover direct `StmtPlan.effect`
   helper output, planned array index lowering, planned value lowering, and the
   integrated `lowerEffectStmt` path.
 
@@ -6687,7 +6687,7 @@ Summary:
   value are in the supported scalar plan subset.
 - Kept map root slot lookup, expression-position set-return map writes, and
   storage-path map writes in the `IR.lean` compatibility facade.
-- Extended `Tests/EvmSemanticPlan.lean` to cover direct `StmtPlan.effect`
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover direct `StmtPlan.effect`
   helper output and the integrated `lowerEffectStmt` path.
 
 Validation run:
@@ -6722,7 +6722,7 @@ Summary:
   supported scalar plan subset.
 - Kept state-layout slot resolution and struct storage writes in the `IR.lean`
   compatibility facade.
-- Extended `Tests/EvmSemanticPlan.lean` to cover direct `StmtPlan.effect`
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover direct `StmtPlan.effect`
   helper output and the integrated `lowerEffectStmt` path.
 
 Validation run:
@@ -6755,7 +6755,7 @@ Summary:
   helper when the RHS is in the supported scalar plan subset.
 - Kept aggregate locals, static/dynamic array element targets, struct fields,
   and other assignable path forms on the compatibility facade.
-- Extended `Tests/EvmSemanticPlan.lean` to cover direct helper output and the
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover direct helper output and the
   integrated `lowerAssignStmt` / `lowerAssignOpStmt` paths.
 
 Validation run:
@@ -6789,7 +6789,7 @@ Summary:
   scalar plan subset.
 - Kept return ABI name selection and aggregate/dynamic return handling in the
   `IR.lean` compatibility facade.
-- Extended `Tests/EvmSemanticPlan.lean` to cover direct helper output, returned
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover direct helper output, returned
   storage reads, and `leaveAfterReturn` appending a Yul `leave`.
 
 Validation run:
@@ -6824,7 +6824,7 @@ Summary:
 - Routed scalar `assert` and `assertEq` statements through the helper when their
   operands are in the supported scalar plan subset; unsupported aggregate or
   field shapes remain on the compatibility path.
-- Extended `Tests/EvmSemanticPlan.lean` to cover both direct helper output and
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to cover both direct helper output and
   integrated `lowerStatement` output for `assert` and `assertEq`.
 
 Validation run:
@@ -6857,7 +6857,7 @@ Summary:
   supported scalar initializer expressions.
 - Kept unsupported aggregate or field initializer shapes on the compatibility
   facade until broader `StmtPlan -> Yul` lowering exists.
-- Extended `Tests/EvmSemanticPlan.lean` to assert both the direct helper output
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to assert both the direct helper output
   and the integrated `lowerStatement` path for checked arithmetic and
   storage-read initializers.
 
@@ -6889,7 +6889,7 @@ Summary:
   `ExprPlan -> ToYul` for supported scalar field expressions.
 - Preserved the existing field temporary snapshot before storage writes, so
   self-referential struct storage rewrites keep their current behavior.
-- Extended `Tests/EvmSemanticPlan.lean` to assert plan-lowered checked
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to assert plan-lowered checked
   arithmetic and storage-read field values for whole-struct storage writes.
 
 Validation run:
@@ -6922,7 +6922,7 @@ Summary:
   consecutive-`mapKey` paths.
 - Kept path slot assembly on the existing direct slot helpers and
   `StorageSlotPlan -> ToYul` boundary.
-- Extended `Tests/EvmSemanticPlan.lean` to assert plan-lowered checked
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to assert plan-lowered checked
   arithmetic and storage-read RHS expressions across the storage-path write
   and assign-op branches.
 
@@ -6957,7 +6957,7 @@ Summary:
 - Routed `storageArrayStructFieldWrite` value lowering through the same
   boundary while keeping struct-array slot assembly on `StorageSlotPlan ->
   ToYul`.
-- Extended `Tests/EvmSemanticPlan.lean` to assert plan-lowered checked
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to assert plan-lowered checked
   arithmetic values for scalar struct fields and storage-read values for
   struct-array fields.
 - Updated `just evm-semantic-plan` to prebuild `EvmStorageStructProbe` for
@@ -6989,7 +6989,7 @@ Summary:
 - Routed `storageArrayWrite` value lowering through `ExprPlan -> ToYul` for
   supported scalar write values.
 - Kept array slot assembly on the existing `StorageSlotPlan -> ToYul` boundary.
-- Extended `Tests/EvmSemanticPlan.lean` to assert plan-lowered checked
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to assert plan-lowered checked
   arithmetic values and storage-read values for array writes.
 - Updated `just evm-semantic-plan` to prebuild `EvmStorageArrayProbe` for clean
   checkout reliability.
@@ -7022,7 +7022,7 @@ Summary:
   the EVM map write helper.
 - Routed return-old-value map writes through the same boundary before calling
   the EVM map set-return helper.
-- Extended `Tests/EvmSemanticPlan.lean` to assert plan-lowered checked
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to assert plan-lowered checked
   arithmetic keys, storage-read values, and checked arithmetic set-return
   values.
 - Updated `just evm-semantic-plan` to prebuild `EvmMapProbe` for clean
@@ -7094,7 +7094,7 @@ Summary:
   `ExprPlan -> ToYul` for supported scalar RHS expressions.
 - Routed scalar `storageScalarAssignOp` RHS lowering through the same boundary
   before applying the existing checked arithmetic assignment operator.
-- Extended `Tests/EvmSemanticPlan.lean` to assert Yul AST shapes for
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to assert Yul AST shapes for
   plan-driven scalar storage writes and storage compound assignments.
 
 Validation run:
@@ -7131,7 +7131,7 @@ Summary:
 - Routed indexed event topic lowering through `EventFieldPlan -> ToYul`, while
   preserving the compatibility facade for field expression evaluation and
   aggregate flattening.
-- Extended `Tests/EvmSemanticPlan.lean` to assert scalar indexed-topic and
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to assert scalar indexed-topic and
   aggregate indexed-topic Yul statement shapes.
 
 Validation run:
@@ -7159,7 +7159,7 @@ Commit: this commit
 
 Summary:
 
-- Added explicit `Tests/EmitWatCoverage.tsv` entries for the expanded
+- Added explicit `Tests/Backend/Wasm/EmitWatCoverage.tsv` entries for the expanded
   `ContextField` constructors that direct EmitWat does not lower today.
 - Classified the EVM-only block/gas/origin/coinbase/block-hash context reads
   as `unsupported` for EmitWat, preserving the existing direct-WAT host surface
@@ -7168,7 +7168,7 @@ Summary:
 Validation run:
 
 ```sh
-scripts/near/check-ir-coverage-manifest.py --manifest Tests/EmitWatCoverage.tsv --label emitwat-ir-coverage
+scripts/near/check-ir-coverage-manifest.py --manifest Tests/Backend/Wasm/EmitWatCoverage.tsv --label emitwat-ir-coverage
 ```
 
 Known limitations:
@@ -7193,7 +7193,7 @@ Summary:
 - Kept compatibility wrappers for existing `IR.packedUtf8Words`,
   `IR.eventSignatureTopicStatements`, `IR.eventIndexedTopicName`, and
   `IR.eventLogBuiltinName` callers.
-- Extended `Tests/EvmSemanticPlan.lean` to assert the plan-to-Yul topic0 and
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to assert the plan-to-Yul topic0 and
   indexed log statement shapes.
 
 Validation run:
@@ -7227,7 +7227,7 @@ Summary:
   `ExprPlan -> ToYul` expression boundary.
 - Routed scalar indexed event topic lowering through the same boundary before
   emitting the existing `log1`-`log4` Yul shape.
-- Extended `Tests/EvmSemanticPlan.lean` to lock Yul AST shapes for plan-driven
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to lock Yul AST shapes for plan-driven
   event data expressions and indexed storage-backed topic expressions.
 
 Validation run:
@@ -7263,7 +7263,7 @@ Summary:
   `switch` shape.
 - Routed synthesized `boundedFor` loop guards through the same expression
   boundary by building the scalar predicate `index < stopExclusive`.
-- Extended `Tests/EvmSemanticPlan.lean` to lock Yul AST shapes for plan-driven
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to lock Yul AST shapes for plan-driven
   conditional and loop guard expressions.
 
 Validation run:
@@ -7298,7 +7298,7 @@ Summary:
   `ExprPlan -> ToYul` expression boundary.
 - Routed direct scalar `assignOp` RHS lowering through the same boundary before
   applying the existing checked arithmetic / bitwise assignment operator.
-- Extended `Tests/EvmSemanticPlan.lean` to lock Yul AST shapes for scalar
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to lock Yul AST shapes for scalar
   assignment and compound-assignment RHS expressions.
 
 Validation run:
@@ -7334,7 +7334,7 @@ Summary:
   `Hash` through the supported scalar `ExprPlan -> ToYul` expression boundary.
 - Kept aggregate return flattening and aggregate crosscall return helper
   assignment on the existing compatibility paths for later plan-level slices.
-- Extended `Tests/EvmSemanticPlan.lean` to lock scalar return assignment Yul AST
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to lock scalar return assignment Yul AST
   shapes for checked arithmetic returns and scalar storage reads.
 
 Validation run:
@@ -7368,7 +7368,7 @@ Summary:
   IR `assert` and `assertEq` guard expressions.
 - Renamed the scalar plan support predicate and lowering helper to reflect
   their broader use beyond local-binding initializers.
-- Extended `Tests/EvmSemanticPlan.lean` to lock the Yul AST shape for scalar
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to lock the Yul AST shape for scalar
   assertion guards lowered through the plan-to-Yul path.
 - Fixed `just evm-semantic-plan` to build the imported Counter and EventProbe
   example modules before `lean --run`, removing the gate's dependence on
@@ -7409,7 +7409,7 @@ Summary:
   that supported scalar subset.
 - Added an explicit `IR.lean` compatibility boundary from the existing
   `TypeEnv`/`LowerError` facade types to the newer `Validate`/`Lower` types.
-- Extended `Tests/EvmSemanticPlan.lean` to lock Counter scalar storage reads
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to lock Counter scalar storage reads
   and checked addition through the plan-to-Yul path.
 
 Validation run:
@@ -7447,7 +7447,7 @@ Summary:
   `ProofForge.Backend.Evm.Lower`.
 - `Lower.buildEntrypointPlan` now validates and stores each entrypoint body in
   `EntrypointPlan.body` instead of leaving the body empty.
-- Extended `Tests/EvmSemanticPlan.lean` to lock Counter's planned
+- Extended `Tests/Backend/Evm/EvmSemanticPlan.lean` to lock Counter's planned
   `initialize`, `increment`, and `get` bodies, including storage scalar
   effects and checked addition.
 
@@ -7485,14 +7485,14 @@ Summary:
   `__proof_forge_struct_array_slot` helper calls.
 - Routed `IR.lean` storage array and struct-array field slot lowering through
   the plan-to-Yul boundary while keeping compatibility facade functions.
-- Extended `Tests/EvmPlan.lean` to lock the new slot plans, helper
+- Extended `Tests/Backend/Evm/EvmPlan.lean` to lock the new slot plans, helper
   requirements, and rendered Yul expressions.
 
 Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Plan ProofForge.Backend.Evm.ToYul
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build ProofForge.Backend.Evm.IR
 scripts/evm/storage-array-ir-smoke.sh
 scripts/evm/storage-struct-ir-smoke.sh
@@ -8031,7 +8031,7 @@ lake build ProofForge.Cli ProofForge.Cli.Fixture ProofForge.Solana.Examples.SplT
 lake build proof-forge
 lake env proof-forge check --target solana-sbpf-asm --fixture spl-token-2022-cpi --format s
 lake env proof-forge check --target solana-sbpf-asm --fixture spl-token-2022-cpi --format elf
-lake env lean --run Tests/SolanaCpiPacking.lean
+lake env lean --run Tests/Backend/Solana/SolanaCpiPacking.lean
 node --check Tests/solana/spl_token_2022_cpi_web3_smoke.mjs
 just solana-spl-token-2022-cpi-web3
 git diff --check
@@ -8058,7 +8058,7 @@ Summary:
 - Made `just solana-lean` explicitly build `ProofForge.Solana.Examples`
   before running tests that import individual Solana example modules.
 - This fixes clean CI caches where `lake env lean --run
-  Tests/SolanaAccountRealloc.lean` could fail before the imported
+  Tests/Backend/Solana/SolanaAccountRealloc.lean` could fail before the imported
   `ProofForge.Solana.Examples.AccountRealloc` `.olean` existed.
 
 Validation run:
@@ -8095,7 +8095,7 @@ Summary:
 - Extended Solana manifest and IDL metadata with fee source, transfer-fee
   authorities, basis points, maximum fee, and withheld-account count fields.
 - Added `ProofForge.Solana.Examples.SplToken2022Cpi` and expanded
-  `Tests/SolanaCpiPacking.lean` to check Token-2022 tags, data lengths,
+  `Tests/Backend/Solana/SolanaCpiPacking.lean` to check Token-2022 tags, data lengths,
   value bindings, program id packing, manifest fields, IDL fields, and
   entrypoint helper calls.
 
@@ -8103,7 +8103,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Solana ProofForge.Solana.Surface ProofForge.Backend.Solana.Extension ProofForge.Backend.Solana.Manifest ProofForge.Backend.Solana.Idl ProofForge.Solana.Examples.SplToken2022Cpi
-lake env lean --run Tests/SolanaCpiPacking.lean
+lake env lean --run Tests/Backend/Solana/SolanaCpiPacking.lean
 scripts/i18n/check-sync.sh
 just solana-lean
 just solana-light
@@ -8142,13 +8142,13 @@ Summary:
   `current_data_len + MAX_PERMITTED_DATA_INCREASE >= new_size` and writes the
   serialized account `data_len` field, with a dedicated `error_realloc` path.
 - Added `ProofForge.Solana.Examples.AccountRealloc` and
-  `Tests/SolanaAccountRealloc.lean`, wired into `just solana-lean`.
+  `Tests/Backend/Solana/SolanaAccountRealloc.lean`, wired into `just solana-lean`.
 
 Validation run:
 
 ```sh
 lake build ProofForge.Solana ProofForge.Solana.Surface ProofForge.Contract.Source ProofForge.Backend.Solana.Extension ProofForge.Backend.Solana.Manifest ProofForge.Backend.Solana.Idl ProofForge.Solana.Examples.AccountRealloc
-lake env lean --run Tests/SolanaAccountRealloc.lean
+lake env lean --run Tests/Backend/Solana/SolanaAccountRealloc.lean
 ```
 
 Known limitations:
@@ -8186,7 +8186,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Solana ProofForge.Solana.Surface ProofForge.Contract.Source ProofForge.Contract.Learn ProofForge.Backend.Solana.SbpfAsm ProofForge.Solana.Examples.SplTokenCloseAccountCpi
-lake env lean --run Tests/SolanaCpiPacking.lean
+lake env lean --run Tests/Backend/Solana/SolanaCpiPacking.lean
 lake env lean --run Tests/LearnSource.lean
 lake env proof-forge emit --target solana-sbpf-asm --fixture spl-token-close-account-cpi --format s -o /tmp/proof-forge-spl-token-close-account.s --artifact-output /tmp/proof-forge-spl-token-close-account.json
 ```
@@ -8217,14 +8217,14 @@ Summary:
   target account owner pubkey against that owner account key.
 - Added an explicit lowering diagnostic for unknown owner-account references
   instead of silently skipping the check.
-- Added `Tests/SolanaAccountConstraints.lean` and wired it into
+- Added `Tests/Backend/Solana/SolanaAccountConstraints.lean` and wired it into
   `just solana-lean`.
 
 Validation run:
 
 ```sh
 lake build ProofForge.Backend.Solana.SbpfAsm
-lake env lean --run Tests/SolanaAccountConstraints.lean
+lake env lean --run Tests/Backend/Solana/SolanaAccountConstraints.lean
 ```
 
 Known limitations:
@@ -8252,14 +8252,14 @@ Summary:
 - Added generated client helpers that prepend `ComputeBudgetProgram`
   instructions before the ProofForge program instruction for the selected
   entrypoint.
-- Added `Tests/SolanaComputeBudgetInstruction.lean` and wired it into
+- Added `Tests/Backend/Solana/SolanaComputeBudgetInstruction.lean` and wired it into
   `just solana-lean`.
 
 Validation run:
 
 ```sh
 lake build ProofForge.Backend.Solana.Extension ProofForge.Backend.Solana.Manifest ProofForge.Backend.Solana.Idl ProofForge.Backend.Solana.Client ProofForge.Solana
-lake env lean --run Tests/SolanaComputeBudgetInstruction.lean
+lake env lean --run Tests/Backend/Solana/SolanaComputeBudgetInstruction.lean
 ```
 
 Known limitations:
@@ -9552,7 +9552,7 @@ Summary:
 Validation run:
 
 ```sh
-lake env lean --run Tests/EmitWatValueVault.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatValueVault.lean
 cargo fmt --manifest-path testkit/Cargo.toml --all -- --check
 cargo test --manifest-path testkit/Cargo.toml --workspace
 cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --target wasm-near
@@ -9591,7 +9591,7 @@ Summary:
 Validation run:
 
 ```sh
-lake env lean --run Tests/EmitWatSmoke.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatSmoke.lean
 cargo fmt --manifest-path testkit/Cargo.toml --all -- --check
 cargo test --manifest-path testkit/Cargo.toml --workspace
 cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario counter --target wasm-near
@@ -9896,7 +9896,7 @@ Summary:
 - Added `testkit/scenarios/value-vault.toml` covering
   `initialize -> deposit -> charge_fee -> release -> snapshot` plus balance
   and net-value queries.
-- Wired ValueVault into `wasm-near` through `Tests/EmitWatValueVault.lean`,
+- Wired ValueVault into `wasm-near` through `Tests/Backend/Wasm/EmitWatValueVault.lean`,
   into `solana-sbpf-asm` through the existing ValueVault sBPF emitter plus
   Mollusk, and into `evm` through the revm harness when Foundry `cast` is
   available for selector hydration.
@@ -9904,7 +9904,7 @@ Summary:
 Validation run:
 
 ```sh
-lake env lean --run Tests/EmitWatValueVault.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatValueVault.lean
 cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
 cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --target wasm-near
 cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault --target evm
@@ -10134,7 +10134,7 @@ Summary:
 - Added `lowerModuleWithPlan` in the EVM backend. The public `lowerModule`
   path now builds an EVM module plan first, then renders through the existing
   Yul AST path.
-- Extended `Tests/EvmPlan.lean` to verify target id, supported and unsupported
+- Extended `Tests/Backend/Evm/EvmPlan.lean` to verify target id, supported and unsupported
   capabilities, helper requirements, storage layout, map assign-op helper
   requirements, and explicit rejection of a non-EVM target plan.
 
@@ -10143,7 +10143,7 @@ Validation run:
 ```sh
 lake build ProofForge.Backend.Evm.Plan
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 ```
 
 Known limitations:
@@ -10210,7 +10210,7 @@ Summary:
 - Modeled storage layout entries, scalar storage slot plans, map value slot
   plans, nested map value slot plans, map presence slot plans, and helper
   requirements without changing generated Yul output.
-- Added `Tests/EvmPlan.lean` to lock scalar/map/nested-map slot planning
+- Added `Tests/Backend/Evm/EvmPlan.lean` to lock scalar/map/nested-map slot planning
   against the existing `EvmMapProbe` and `EvmTypedMapProbe` fixtures.
 - Added `just evm-plan` and a GitHub Actions step so the plan slice is checked
   independently before broader EVM smokes.
@@ -12464,7 +12464,7 @@ Summary:
   `native_value()` with attached value and verifies the returned word.
 - Updated EVM artifact metadata validation to require `value.native` and the
   `native_value:f0eba40f` entrypoint.
-- Moved `Expr.nativeValue` in `Tests/EvmCoverage.tsv` from unsupported to
+- Moved `Expr.nativeValue` in `Tests/Backend/Evm/EvmCoverage.tsv` from unsupported to
   validated and removed the old unsupported diagnostic case.
 
 Validation run:
@@ -13379,12 +13379,12 @@ Commit: feature commit for EVM IR coverage and diagnostics
 
 Summary:
 
-- Added `Tests/EvmCoverage.tsv`, tracking every portable IR constructor as
+- Added `Tests/Backend/Evm/EvmCoverage.tsv`, tracking every portable IR constructor as
   `lowered`, `validated`, `unsupported`, or `structural` for the current EVM
   IR backend.
 - Added `scripts/evm/check-ir-coverage-manifest.py` so new portable IR nodes
   must be classified for EVM before CI passes.
-- Added `Tests/EvmDiagnostics.lean` and `scripts/evm/diagnostic-smoke.sh`,
+- Added `Tests/Backend/Evm/EvmDiagnostics.lean` and `scripts/evm/diagnostic-smoke.sh`,
   covering explicit diagnostics for missing selectors, unsupported ABI
   parameters, missing returns, unsupported aggregate/control/storage/context
   surfaces, events, crosscalls, native value, and Hash expressions.
@@ -16137,7 +16137,7 @@ Summary:
   target-neutral ContractSpec error schema.
 - Exported `ERRORS`, `errorByAssertionId`, and `errorBySolanaCustomCode` from
   the generated Solana TypeScript client.
-- Extended `Tests/SolanaSdkManifest.lean` so package IDL/client output exposes
+- Extended `Tests/Backend/Solana/SolanaSdkManifest.lean` so package IDL/client output exposes
   empty error catalogues for contracts without `ErrorRef`, and ErrorRefProbe
   exposes the two portable assertion errors.
 - Marked Workstream 33 M4 implemented at the client-schema/sketch boundary.
@@ -16146,7 +16146,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Solana.Idl ProofForge.Backend.Solana.Client
-lake env lean --run Tests/SolanaSdkManifest.lean
+lake env lean --run Tests/Backend/Solana/SolanaSdkManifest.lean
 ```
 
 Result:
@@ -16530,7 +16530,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 ```
 
 Result:
@@ -16560,7 +16560,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 scripts/i18n/check-sync.sh
 python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 git diff --check
@@ -16598,7 +16598,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 scripts/i18n/check-sync.sh
 python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 git diff --check
@@ -16637,7 +16637,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 scripts/i18n/check-sync.sh
 python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 git diff --check
@@ -16676,7 +16676,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 scripts/i18n/check-sync.sh
 python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 git diff --check
@@ -16716,7 +16716,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 scripts/i18n/check-sync.sh
 python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 git diff --check
@@ -16759,7 +16759,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 ```
 
 Result:
@@ -16790,7 +16790,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 ```
 
 Result:
@@ -16820,7 +16820,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 ```
 
 Result:
@@ -16849,7 +16849,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.ToYul ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 ```
 
 Result:
@@ -16879,7 +16879,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
 just evm-semantic-plan
 just evm-diagnostics
@@ -16918,7 +16918,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
 just evm-semantic-plan
 just evm-diagnostics
@@ -16986,7 +16986,7 @@ Summary:
 Validation run:
 
 ```sh
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
 just evm-semantic-plan
 just evm-diagnostics
@@ -17022,7 +17022,7 @@ Summary:
 Validation run:
 
 ```sh
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build ProofForge.Backend.Evm.IR ProofForge.Backend.Evm.Lower ProofForge.Backend.Evm.ToYul
 just evm-semantic-plan
 just evm-diagnostics
@@ -17059,7 +17059,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/crosscall-ir-smoke.sh
@@ -17095,7 +17095,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/crosscall-ir-smoke.sh
@@ -17131,7 +17131,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/map-ir-smoke.sh
@@ -17165,7 +17165,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/storage-array-ir-smoke.sh
@@ -17202,7 +17202,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/storage-struct-ir-smoke.sh
@@ -17238,7 +17238,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/storage-struct-ir-smoke.sh
@@ -17276,7 +17276,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 just evm-semantic-plan
 just evm-diagnostics
 scripts/evm/array-value-ir-smoke.sh
@@ -17350,10 +17350,10 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -17404,8 +17404,8 @@ python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 git diff --check
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build
 just evm-diagnostics
 just evm-smoke crosscall
@@ -17448,8 +17448,8 @@ python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 git diff --check
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build
 just evm-diagnostics
 just evm-smoke storage-struct
@@ -17494,8 +17494,8 @@ python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 git diff --check
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build
 just evm-diagnostics
 just evm-smoke struct-value
@@ -17543,8 +17543,8 @@ python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 git diff --check
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build
 just evm-diagnostics
 just evm-smoke crosscall
@@ -17593,8 +17593,8 @@ python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 git diff --check
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build
 just evm-diagnostics
 just evm-smoke crosscall
@@ -17633,10 +17633,10 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -17680,10 +17680,10 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -17726,10 +17726,10 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -17773,10 +17773,10 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -17817,10 +17817,10 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build proof-forge
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
@@ -17863,11 +17863,11 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 lake build
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/event-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
 just evm-diagnostics
@@ -17904,7 +17904,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 git diff --check
@@ -17942,9 +17942,9 @@ Validation run:
 python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 scripts/evm/event-ir-smoke.sh
 just evm-diagnostics
 git diff --check
@@ -17986,9 +17986,9 @@ Validation run:
 python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 just evm-diagnostics
 just evm-smoke crosscall
 git diff --check
@@ -18029,9 +18029,9 @@ Validation run:
 python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 just evm-diagnostics
 just evm-smoke crosscall
 git diff --check
@@ -18071,9 +18071,9 @@ Validation run:
 python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
 lake build
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 just evm-diagnostics
 just evm-smoke crosscall
 git diff --check
@@ -18113,8 +18113,8 @@ Validation run:
 python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build
 just evm-diagnostics
 just evm-smoke crosscall
@@ -18162,8 +18162,8 @@ python3 -m json.tool scripts/i18n/manifest.json >/dev/null
 scripts/i18n/check-sync.sh
 git diff --check
 lake build ProofForge.Backend.Evm.IR
-lake env lean --run Tests/EvmSemanticPlan.lean
-lake env lean --run Tests/EvmPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+lake env lean --run Tests/Backend/Evm/EvmPlan.lean
 lake build
 just evm-diagnostics
 just evm-smoke crosscall

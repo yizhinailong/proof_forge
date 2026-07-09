@@ -33,7 +33,7 @@ It deliberately does **not** test:
   * `checkOwnership` — opt-in hook; NEAR/CosmWasm already cover it via
     `Tests/IROwnership.lean`.
 
-Mirrors the harness style of `Tests/IROwnership.lean` and `Tests/EvmPlan.lean`.
+Mirrors the harness style of `Tests/IROwnership.lean` and `Tests/Backend/Evm/EvmPlan.lean`.
 -/
 
 import ProofForge.Backend.Diagnostic

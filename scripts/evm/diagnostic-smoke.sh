@@ -8,7 +8,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 cd "$ROOT"
 lake build proof-forge Examples.Product.Counter >/dev/null
-lake env lean --run Tests/EvmDiagnostics.lean
+lake env lean --run Tests/Backend/Evm/EvmDiagnostics.lean
 
 run_cli_diagnostic() {
   local name="$1"

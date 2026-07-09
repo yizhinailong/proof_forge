@@ -9,4 +9,4 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 cd "$ROOT"
 lake build proof-forge >/dev/null
-lake env lean --run Tests/WasmNearDiagnostics.lean
+lake env lean --run Tests/Backend/Wasm/WasmNearDiagnostics.lean

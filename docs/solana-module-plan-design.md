@@ -437,7 +437,7 @@ lowerToAst module plan                 -- new (plan-driven; replaces inline emis
 ## 8. Smoke gate proposal — `just solana-semantic-plan`
 
 Mirror of `just evm-plan` / `just evm-semantic-plan`. A new test module
-`Tests/SolanaSemanticPlan.lean` asserts:
+`Tests/Backend/Solana/SolanaSemanticPlan.lean` asserts:
 
 1. **Plan consistency.**
    - Every state field in `IR.Module.stateDecls` has an entry in
@@ -460,7 +460,7 @@ Mirror of `just evm-plan` / `just evm-semantic-plan`. A new test module
 Sketch (illustrative):
 
 ```lean
--- Tests/SolanaSemanticPlan.lean (illustrative shape)
+-- Tests/Backend/Solana/SolanaSemanticPlan.lean (illustrative shape)
 #eval assertPlanConsistency Counter.module Counter.expectedPlan
 #eval assertManifestAsmAgreement Counter.module
 #eval assertByteStabilityV2 Counter.module   -- runs both paths, diffs asm

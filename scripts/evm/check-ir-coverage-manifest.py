@@ -99,7 +99,7 @@ def read_manifest(path: Path) -> tuple[set[tuple[str, str]], list[str]]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--ir", default="ProofForge/IR/Contract.lean")
-    parser.add_argument("--manifest", default="Tests/EvmCoverage.tsv")
+    parser.add_argument("--manifest", default="Tests/Backend/Evm/EvmCoverage.tsv")
     args = parser.parse_args()
 
     ir_path = Path(args.ir)

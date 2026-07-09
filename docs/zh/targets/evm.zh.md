@@ -259,9 +259,9 @@ scripts/evm/abi-aggregate-ir-smoke.sh
 scripts/evm/ir-counter-smoke.sh
 ```
 
-`Tests/EvmCoverage.tsv` 记录每个 portable IR constructor 在 EVM 上是 `lowered`、`validated`、`unsupported` 还是 `structural`。新增 portable IR 节点必须更新该清单，否则 CI 不应通过。
+`Tests/Backend/Evm/EvmCoverage.tsv` 记录每个 portable IR constructor 在 EVM 上是 `lowered`、`validated`、`unsupported` 还是 `structural`。新增 portable IR 节点必须更新该清单，否则 CI 不应通过。
 
-`Tests/EvmDiagnostics.lean` 固定当前 unsupported surface 的行为，确保不支持的 EVM IR 形态在 Yul 生成前失败，而不是静默遗漏行为。
+`Tests/Backend/Evm/EvmDiagnostics.lean` 固定当前 unsupported surface 的行为，确保不支持的 EVM IR 形态在 Yul 生成前失败，而不是静默遗漏行为。
 
 `scripts/evm/diagnostic-smoke.sh` 也会固定 EVM constructor CLI 在 artifact 边界上的诊断，包括不支持的 dynamic constructor ABI type、缺失或重复的 typed value、typed/raw constructor argument source 混用、整数溢出，以及 address 过短等格式错误的 static-word value。
 

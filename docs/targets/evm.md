@@ -345,11 +345,11 @@ scripts/evm/ir-counter-smoke.sh
 scripts/evm/dynamic-abi-ir-smoke.sh
 ```
 
-`Tests/EvmCoverage.tsv` records every portable IR constructor as `lowered`,
+`Tests/Backend/Evm/EvmCoverage.tsv` records every portable IR constructor as `lowered`,
 `validated`, `unsupported`, or `structural` for EVM. New portable IR nodes must
 update this manifest before CI passes.
 
-`Tests/EvmDiagnostics.lean` locks the current unsupported-surface behavior so
+`Tests/Backend/Evm/EvmDiagnostics.lean` locks the current unsupported-surface behavior so
 unsupported EVM IR shapes fail before Yul generation instead of silently
 omitting behavior.
 

@@ -55,7 +55,7 @@ for fixture in "${FIXTURES[@]}"; do
   fi
 
   echo "[${step}/${total}] generating ${fixture} SolanaModulePlan + render check..."
-  if ! lake env lean --run Tests/SolanaModulePlan.lean "$fixture" "$OUTPUT" --render; then
+  if ! lake env lean --run Tests/Backend/Solana/SolanaModulePlan.lean "$fixture" "$OUTPUT" --render; then
     echo "FAIL: plan generation / render failed for ${fixture}" >&2
     fail=$((fail + 1))
     continue

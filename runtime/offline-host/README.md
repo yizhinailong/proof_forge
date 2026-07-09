@@ -28,7 +28,7 @@ only provides the NEAR-style environment imports. See
 Generate allocator WAT fixtures:
 
 ```sh
-lake env lean --run Tests/EmitWatAlloc.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatAlloc.lean
 ```
 
 Run the wasm-internal `minimalMalloc` fixture:

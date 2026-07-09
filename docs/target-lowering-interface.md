@@ -326,14 +326,14 @@ does not replace capability checking (V-GATE-SOLANA-05 stays).
 Mirror EVM's twin gates on every aligned backend. EVM today:
 
 ```text
-just evm-plan            # lake build ProofForge.Backend.Evm.Plan + Tests/EvmPlan.lean
-just evm-semantic-plan   # Tests/EvmSemanticPlan.lean — entrypoints, events, body plans
+just evm-plan            # lake build ProofForge.Backend.Evm.Plan + Tests/Backend/Evm/EvmPlan.lean
+just evm-semantic-plan   # Tests/Backend/Evm/EvmSemanticPlan.lean — entrypoints, events, body plans
 ```
 
 (from the `justfile`: `evm-plan` builds `ProofForge.Backend.Evm.Plan` and
-runs `Tests/EvmPlan.lean`; `evm-semantic-plan` builds
+runs `Tests/Backend/Evm/EvmPlan.lean`; `evm-semantic-plan` builds
 `ProofForge.Backend.Evm.IR` plus the IR example probes and runs
-`Tests/EvmSemanticPlan.lean`).
+`Tests/Backend/Evm/EvmSemanticPlan.lean`).
 
 Future recipes once each phase lands:
 
@@ -347,7 +347,7 @@ just semantic-plan-matrix   # opt-in reviewer entry: runs all four
 ### `just solana-semantic-plan` (Phase 2)
 
 Should build `ProofForge.Backend.Solana.Plan` and run a new
-`Tests/SolanaSemanticPlan.lean` that asserts:
+`Tests/Backend/Solana/SolanaSemanticPlan.lean` that asserts:
 
 - **Plan consistency:** `SolanaModulePlan.StorageAccountPlan` matches the
   account layout produced by `StateLayout.computeInputLayoutWithReallocFlags`

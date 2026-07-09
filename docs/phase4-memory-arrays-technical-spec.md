@@ -214,8 +214,8 @@ Bounds checking is exercised by the Yul helper revert path when index >= length.
 
 ## 10. Coverage / i18n
 
-- `Tests/EvmCoverage.tsv`: updated entries for `ValueType.array`, `Effect.memoryArraySet`, `Statement.letBind`, and `Statement.letMutBind`.
-- `Tests/WasmNearCoverage.tsv`, `Tests/PsyCoverage.tsv`, `Tests/EmitWatCoverage.tsv`: `ValueType.array` already unsupported; added explicit `memoryArray*` unsupported rows.
+- `Tests/Backend/Evm/EvmCoverage.tsv`: updated entries for `ValueType.array`, `Effect.memoryArraySet`, `Statement.letBind`, and `Statement.letMutBind`.
+- `Tests/Backend/Wasm/WasmNearCoverage.tsv`, `Tests/PsyCoverage.tsv`, `Tests/Backend/Wasm/EmitWatCoverage.tsv`: `ValueType.array` already unsupported; added explicit `memoryArray*` unsupported rows.
 - `scripts/i18n/manifest.json`: no update required because `docs/targets/evm.md` did not change.
 
 ## Acceptance Criteria
@@ -224,4 +224,4 @@ Bounds checking is exercised by the Yul helper revert path when index >= length.
 - [x] `just evm-ir-smokes` passes with updated golden Yul.
 - [x] New Foundry tests for memory arrays pass.
 - [x] `scripts/i18n/check-sync.sh` passes.
-- [x] `Tests/EvmCoverage.tsv` updated.
+- [x] `Tests/Backend/Evm/EvmCoverage.tsv` updated.

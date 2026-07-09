@@ -241,7 +241,7 @@ proof-forge emit --target wasm-near --fixture map --format wat -o build/wasm-nea
 | `ProofForge/Backend/WasmHost/EmitWat.lean` | Core EmitWat lowering：IR → Wasm AST（scalars、maps 含 `Map<Hash,T>`、hash、context、events、params、returns、`.pow`） |
 | `ProofForge/Backend/WasmHost/IR.lean` | Wasm AST → WAT text + printer wiring |
 | `ProofForge/Compiler/Wasm/AST.lean` / `Printer.lean` | Wasm AST + WAT printer |
-| `Tests/EmitWat{Smoke,Features,Map,Hash,Context,Params,Event,Hashmap,Arith}.lean` | Per-probe renderers |
+| `Tests/Backend/Wasm/EmitWat{Smoke,Features,Map,Hash,Context,Params,Event,Hashmap,Arith}.lean` | Per-probe renderers |
 | `scripts/near/emitwat-ci-smoke.sh` / `runtime/offline-host` | Rust offline-host 执行与 Borsh 解码回归门禁 |
 | `ProofForge/Cli.lean` | `emit --target wasm-near --fixture ... --format wat` routing、`writeWatPackage`、`compileEmitWat` |
 
@@ -272,7 +272,7 @@ lake env proof-forge emit --target wasm-near --fixture counter --format wat -o b
 cd build/wasm-near/Counter && cargo build --target wasm32-unknown-unknown --release
 
 # Run diagnostics
-lake env lean --run Tests/WasmNearDiagnostics.lean
+lake env lean --run Tests/Backend/Wasm/WasmNearDiagnostics.lean
 ```
 
 ## Open Questions

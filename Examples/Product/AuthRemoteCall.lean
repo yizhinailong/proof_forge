@@ -13,7 +13,7 @@ for the remote CPI. No Solana Surface / account DSL import.
     Examples/Product/AuthRemoteCall.lean
 
 Also builds on EVM / NEAR / Soroban (remote materializes as CALL / promise /
-invoke_contract). See `Tests/SolanaPortableAccounts.lean` and
+invoke_contract). See `Tests/Product/Accounts.lean` and
 `just portable-solana-accounts`.
 -/
 import ProofForge.Contract.Source

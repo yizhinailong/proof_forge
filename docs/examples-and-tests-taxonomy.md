@@ -19,7 +19,7 @@ Platform does:  chain materialization (ABI, accounts, CPI, host, token standard)
 | **`Examples/Product/`** | Portable business contracts + TokenSpec intents | Application authors, product CI |
 | **`Examples/Backend/`** | Chain probes, goldens, Source.Solana/NEAR fixtures, research spikes | Compiler / backend engineers |
 | **`Tests/Product/`** | Multi-target materialize matrix on Product sources | Primary product gate (`just product`) |
-| **`Tests/Backend/`** (phased) | Solana/EmitWat/Evm unit probes | Backend depth gates |
+| **`Tests/Backend/`** | Solana / EmitWat / Wasm host / Evm plan probes | Backend depth (`just backend`, `solana-light`, …) |
 | **`Tests/*` (IR/Cli/Sdk)** | Compiler internals, formal, CLI | Engineering CI |
 | **`ProofForge/IR/Examples/`** | IR fixtures for semantics (not author tutorials) | Formal / IR tests |
 
@@ -45,6 +45,8 @@ Runs:
 1. `portable-default` (Product sources stay business-only)
 2. `product-matrix` — `Tests/Product/Matrix.lean` (every Product module × EVM · Solana · NEAR · Soroban; TokenSpec honesty)
 3. Multi-target CLI smokes (Counter, RemoteCall)
+
+Backend probes: `just backend` (solana-lean subset) or `solana-light` / `emitwat-ci-smoke`.
 
 Full engineering suite remains `just check` (product + backend + formal).
 

@@ -1468,14 +1468,14 @@ partial progress is visible before the full acceptance criteria close:
       CI-runnable `scripts/solana/build-examples.sh` that emits and diffs.
 - [x] Capability checker rejects unsupported capability/target combinations
       with a clear diagnostic citing target id and capability id. Basis for
-      V-GATE-SOLANA-05; exercised by `Tests/SolanaDiagnostics.lean` and
+      V-GATE-SOLANA-05; exercised by `Tests/Backend/Solana/SolanaDiagnostics.lean` and
       `scripts/solana/diagnostic-smoke.sh`.
 - [x] Solana SDK target extensions route `ProofForge.Solana` PDA/CPI APIs
       through capability plan metadata, emit `manifest.toml` extension
       definitions plus entrypoint action sections, and inject handler-level
       helper calls (`sol_pda_derive_<name>`, `sol_cpi_<name>`) before the IR
       body while preserving the Solana input pointer in `r1`. Covered by
-      `Tests/SolanaSdk.lean`, `Tests/SolanaSdkManifest.lean`, and
+      `Tests/Backend/Solana/SolanaSdk.lean`, `Tests/Backend/Solana/SolanaSdkManifest.lean`, and
       `scripts/solana/sdk-smoke.sh` with `sbpf build` when available.
 - [x] Surfpool/Rust live deployment smoke (V-GATE-SOLANA-04). The optional
       `scripts/solana/counter-live-smoke.sh` gate builds the Counter ELF,
@@ -1491,7 +1491,7 @@ partial progress is visible before the full acceptance criteria close:
 - [x] PDA helper runtime packing now emits static ASCII seed byte buffers, Solana
       `Slice { ptr, len }` seed tables, dynamic program-id pointer calculation,
       and a 32-byte PDA result buffer before calling `sol_create_program_address`.
-      Covered by `Tests/SolanaSdkManifest.lean` and
+      Covered by `Tests/Backend/Solana/SolanaSdkManifest.lean` and
       `scripts/solana/sdk-smoke.sh`.
 - [x] PDA typed seed lowering now keeps the compatibility `seeds` field while
       adding target-facing typed descriptors for literal/UTF-8 bytes, account
@@ -1499,8 +1499,8 @@ partial progress is visible before the full acceptance criteria close:
       extension consumes those descriptors, appends `bump?` to the effective
       syscall seed list, emits `typed_seeds`/`typedSeeds` in manifest/artifact
       metadata, and validates the derived PDA pubkey against the declared
-      account when `account?` is present. Covered by `Tests/SolanaSdk.lean`,
-      `Tests/SolanaSdkManifest.lean`, `Tests/SolanaPdaSeeds.lean`,
+      account when `account?` is present. Covered by `Tests/Backend/Solana/SolanaSdk.lean`,
+      `Tests/Backend/Solana/SolanaSdkManifest.lean`, `Tests/Backend/Solana/SolanaPdaSeeds.lean`,
       `scripts/solana/sdk-smoke.sh`, and
       `scripts/solana/pda-rust-smoke.sh`.
 - [x] Standard Solana protocol SDK helpers now cover System Program
@@ -1509,8 +1509,8 @@ partial progress is visible before the full acceptance criteria close:
       metadata with
       `solana.cpi.protocol`, canonical `data_layout`, account metas, signer
       seeds, and instruction-data source names, and are included in the
-      generated manifest plus artifact JSON. Covered by `Tests/SolanaSdk.lean`,
-      `Tests/SolanaSdkManifest.lean`, `Tests/SolanaCpiPacking.lean`, and
+      generated manifest plus artifact JSON. Covered by `Tests/Backend/Solana/SolanaSdk.lean`,
+      `Tests/Backend/Solana/SolanaSdkManifest.lean`, `Tests/Backend/Solana/SolanaCpiPacking.lean`, and
       `scripts/solana/sdk-smoke.sh`.
 - [x] Runtime allocator target extension now models Solana's default
       downward-bump allocator (`heap_start = "0x300000000"`,
@@ -1518,8 +1518,8 @@ partial progress is visible before the full acceptance criteria close:
       with Pinocchio-style no-heap entrypoints. The selected allocator routes
       through `runtime.allocator` capability metadata and appears in
       `manifest.toml`, `proof-forge-artifact.json`, and assembly metadata.
-      Covered by `Tests/SolanaAllocator.lean`, `Tests/SolanaSdk.lean`,
-      `Tests/SolanaSdkManifest.lean`, and `scripts/solana/sdk-smoke.sh`.
+      Covered by `Tests/Backend/Solana/SolanaAllocator.lean`, `Tests/Backend/Solana/SolanaSdk.lean`,
+      `Tests/Backend/Solana/SolanaSdkManifest.lean`, and `scripts/solana/sdk-smoke.sh`.
 - [x] Runtime memory target extension now routes Solana-only SDK actions through
       `runtime.memory` capability metadata and lowers entrypoint actions to
       `sol_memcpy_`, `sol_memcmp_`, and `sol_memset_` helpers over generated
@@ -1527,7 +1527,7 @@ partial progress is visible before the full acceptance criteria close:
       `[[solana.entrypoint_memory]]` / `memoryActions`; the Rust live RPC
       harness verifies copied bytes, moved bytes, compare result, and fill
       pattern on a program-owned account.
-      Covered by `Tests/SolanaMemory.lean` and
+      Covered by `Tests/Backend/Solana/SolanaMemory.lean` and
       `scripts/solana/memory-live-smoke.sh`.
 - [x] Return-data and compute-budget target extensions now route Solana-only
       SDK actions through `runtime.return_data` and `runtime.compute_units`
@@ -1539,7 +1539,7 @@ partial progress is visible before the full acceptance criteria close:
       `sol_log_compute_units_`. The generated manifest records
       `[[solana.entrypoint_return_data]]` and
       `[[solana.entrypoint_compute_units]]`. Covered by
-      `Tests/SolanaReturnDataCompute.lean`.
+      `Tests/Backend/Solana/SolanaReturnDataCompute.lean`.
 - [x] Generated Solana SDK instruction schemas now use a module-wide
       multi-account account list instead of the old single-account manifest.
       The schema includes the state account, PDA accounts, CPI accounts, and
@@ -1547,8 +1547,8 @@ partial progress is visible before the full acceptance criteria close:
       `INSTRUCTION_DATA` offsets from that same schema. The generated prologue
       validates signer/writable constraints and program-owned accounts from the
       schema. The account list is emitted in both `manifest.toml` and
-      `proof-forge-artifact.json`. Covered by `Tests/SolanaSdkManifest.lean`,
-      `Tests/SolanaCpiPacking.lean`, and `scripts/solana/sdk-smoke.sh`.
+      `proof-forge-artifact.json`. Covered by `Tests/Backend/Solana/SolanaSdkManifest.lean`,
+      `Tests/Backend/Solana/SolanaCpiPacking.lean`, and `scripts/solana/sdk-smoke.sh`.
 - [x] System Program transfer/create-account and SPL Token CPI instruction-data
       packing emit the standard instruction bytes into the C `SolInstruction`
       payload. System transfer/create-account use bincode-style `u32`
@@ -1563,7 +1563,7 @@ partial progress is visible before the full acceptance criteria close:
       bytes, C `SolAccountMeta[]`,
       `SolAccountInfo[]` entries bound to the generated multi-account input
       layout, signer seed tables, and syscall register setup. Covered by
-      `Tests/SolanaCpiPacking.lean`, `Tests/SolanaSdkManifest.lean`, and
+      `Tests/Backend/Solana/SolanaCpiPacking.lean`, `Tests/Backend/Solana/SolanaSdkManifest.lean`, and
       `scripts/solana/sdk-smoke.sh`.
 - [x] System Program transfer CPI now has a live Surfpool/Rust behavior
       gate. `ProofForge.Solana.Examples.SystemCpi` builds a generated
@@ -1606,8 +1606,8 @@ partial progress is visible before the full acceptance criteria close:
       payloads with `error_instruction_data`, and exposes the same fixed input
       offsets to CPI value bindings, so SDK calls such as SPL Token
       `transfer_checked` can source `amount` from a user instruction parameter
-      instead of a placeholder. Covered by `Tests/SolanaCpiPacking.lean`,
-      `Tests/SolanaSdkManifest.lean`, and `scripts/solana/sdk-smoke.sh`.
+      instead of a placeholder. Covered by `Tests/Backend/Solana/SolanaCpiPacking.lean`,
+      `Tests/Backend/Solana/SolanaSdkManifest.lean`, and `scripts/solana/sdk-smoke.sh`.
 
 ### Solana SDK completion roadmap
 
@@ -1728,7 +1728,7 @@ Completed alpha slices:
   `sol_memcmp_`, and `sol_memset_` effects by reading copied value, moved
   value, compare result, and fill bytes from program-owned state.
 - Return-data/compute-units SDK fixture:
-  `Tests/SolanaReturnDataCompute.lean` proves `runtime.return_data` and
+  `Tests/Backend/Solana/SolanaReturnDataCompute.lean` proves `runtime.return_data` and
   `runtime.compute_units` route through Solana-only capability metadata, rejects
   on EVM, and render manifest sections plus sBPF helper calls for
   `sol_set_return_data`, `sol_get_return_data`, feature-gated
@@ -2022,7 +2022,7 @@ Completed developer-surface slices:
   `cpi ... spl_token_close_account(...) signer_seeds [...]` and
   `invoke ... spl_token_close_account(...) signer_seeds [...]` forms.
   `ProofForge.Solana.Examples.SplTokenCloseAccountCpi` uses those forms in a
-  Lean `.lean` fixture; `Tests/SolanaCpiPacking.lean` validates manifest account
+  Lean `.lean` fixture; `Tests/Backend/Solana/SolanaCpiPacking.lean` validates manifest account
   schemas, `spl-token.close_account` metadata, instruction tag `9`, one-byte
   CPI data length, and the generated CPI helper call. The fixture is available
   through target-first CLI as `emit --target solana-sbpf-asm --fixture
@@ -3031,7 +3031,7 @@ Tasks:
 - M2: fold Solana's `RuntimeAllocator` (`Backend/Solana/Extension.lean`)
   into the shared model — `solana.allocator.*` metadata keys stay as the
   Solana configuration syntax but populate the shared type; IDL renders from
-  it; `Tests/SolanaAllocator.lean` updated.
+  it; `Tests/Backend/Solana/SolanaAllocator.lean` updated.
 - M3: add the explicit EVM binding (bump over call-scratch memory; documents
   what EmitYul/EVM plan already do); define the criteria for moving EVM
   `release` from rejection to checked no-op (blocked on FV-3 ownership
@@ -3195,7 +3195,7 @@ starts as an RFC, not code; sequencing hooks are listed in the gap doc.
     `parseProofForgePanic`); Solana IDL/client output embeds the same error
     catalogue and exposes assertion-id/custom-error lookup helpers. Guards:
     `Tests/ContractSpecJson.lean`, `Tests/ContractClient.lean`, and
-    `Tests/SolanaSdkManifest.lean`. Deeper production client ergonomics moves
+    `Tests/Backend/Solana/SolanaSdkManifest.lean`. Deeper production client ergonomics moves
     to the SDK ecosystem completeness backlog.
 
 ## Workstream 34: Contract Source Productization (unified authoring layer)
@@ -3510,7 +3510,7 @@ land in `contract_source` / Token SDK syntax, not Builder fixtures.
 - ✅ P0: SPL Token close-account CPI now has builder helpers, typed
   `contract_source` syntax, legacy Learn syntax, manifest/artifact metadata,
   and sBPF instruction-data packing for tag `9`, covered by
-  `Tests/SolanaCpiPacking.lean`, `Tests/LearnSource.lean`, and
+  `Tests/Backend/Solana/SolanaCpiPacking.lean`, `Tests/LearnSource.lean`, and
   `Tests/CliTargetFirst.lean`. `just solana-spl-token-close-account-cpi-web3`
   now covers the live Surfpool/Rust validation path for closing an empty SPL
   Token account through CPI, destination rent lamport recovery, and marker

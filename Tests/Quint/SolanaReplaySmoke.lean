@@ -88,7 +88,7 @@ def valueVaultTrace : ITF.Trace := {
 
 /-- Map-state sub-module: only `set_balance`/`read_balance` entrypoints (the two
 map lowering paths the Solana backend supports in Phase 1), mirroring
-`Tests/SolanaModulePlan.lean`'s `mapSubModule`. The full `EvmMapProbe.module`
+`Tests/Backend/Solana/SolanaModulePlan.lean`'s `mapSubModule`. The full `EvmMapProbe.module`
 also uses `storagePath*`, which Phase 1 does not lower. -/
 def mapSubModule : ProofForge.IR.Module := {
   name := "EvmMapProbe"

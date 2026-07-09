@@ -1,5 +1,5 @@
 # inductive	constructor	status	evidence
-ValueType	unit	validated	valueTypeName emits () for Unit returns; validateEntrypointParameters rejects Unit parameters and validateState rejects scalar Unit storage; Tests/WasmNearDiagnostics.lean covers Unit parameter and Unit scalar state rejection.
+ValueType	unit	validated	valueTypeName emits () for Unit returns; validateEntrypointParameters rejects Unit parameters and validateState rejects scalar Unit storage; Tests/Backend/Wasm/WasmNearDiagnostics.lean covers Unit parameter and Unit scalar state rejection.
 ValueType	bool	lowered	valueTypeName emits bool, literal emits true/false, and predicates/assertions lower to Rust; bool scalar storage and bool map values are accepted by validateState.
 ValueType	u32	lowered	valueTypeName emits u32, literal emits Nu32, and U32 ABI parameters / locals / map values lower with the u32 codec helpers; cast/assignOp tests cover U32 numeric use.
 ValueType	u64	lowered	valueTypeName emits u64, literal emits Nu64, and U64 scalar/map storage, ABI parameters, returns, and arithmetic lower directly; Counter, Ledger, and Accum fixtures cover it.
@@ -12,7 +12,7 @@ ValueType	string	unsupported	wasm-near IR v0 rejects data.dynamic_bytes; valueTy
 ValueType	u8	lowered	wasm-near IR v0 lowers U8 as i32 (same as U32); literal emits {value}u32; U8 ABI parameters/locals/returns/event fields/storage lower with the u32 codec helpers; pattern match exhaustiveness verified.
 ValueType	u128	unsupported	wasm-near IR v0 rejects U128; valueTypeName returns error "wasm-near IR v0 does not support U128" and validateEntrypointParameters/Return reject U128 parameters and returns.
 StateKind	scalar	lowered	scalar state lowers to a pub struct field read/written via self.<id>; U32/U64/Bool/Hash scalar shapes are accepted by validateState and Counter covers U64 scalar storage.
-StateKind	map	validated	validateState accepts only Map<U64|Hash, U32|U64|Bool|Hash, N>; Ledger covers Map<U64, U64, 16> and Tests/WasmNearDiagnostics.lean covers zero-capacity and U32-key map rejection.
+StateKind	map	validated	validateState accepts only Map<U64|Hash, U32|U64|Bool|Hash, N>; Ledger covers Map<U64, U64, 16> and Tests/Backend/Wasm/WasmNearDiagnostics.lean covers zero-capacity and U32-key map rejection.
 StateKind	array	unsupported	The wasm-near target profile advertises storage.array for the EmitWat path, but Rust sourcegen v0 rejects array state during validateState.
 Literal	u32	lowered	literal emits Nu32 and is covered by cast/assignOp diagnostics and U32 codec helpers.
 Literal	u64	lowered	literal emits Nu64 and is covered by Counter, Ledger, Hasher, and Accum fixtures plus arithmetic/return diagnostics.
@@ -77,7 +77,7 @@ Expr	hashValue	lowered	lowerExpr emits [a, b, c, d] dynamic four-limb constructi
 Expr	hash	lowered	lowerExpr emits __pf_hash(preimage) and moduleHelpers emits the sha256-backed helper when cryptoHash is used; Hasher fixture covers it.
 Expr	hashTwoToOne	lowered	lowerExpr emits __pf_hash_two_to_one(lhs, rhs) and moduleHelpers emits the sha256-backed helper when cryptoHash is used.
 Expr	effect	lowered	lowerExpr delegates to lowerEffectExpr, which validates expression-only effects and rejects statement-only effects; fixtures and diagnostics cover the split.
-Expr	nativeValue	lowered	inferExprType types nativeValue as U64 and Rust sourcegen lowers it to env::attached_deposit(); Tests/WasmNearDiagnostics.lean covers the rendered expression.
+Expr	nativeValue	lowered	inferExprType types nativeValue as U64 and Rust sourcegen lowers it to env::attached_deposit(); Tests/Backend/Wasm/WasmNearDiagnostics.lean covers the rendered expression.
 Expr	crosscallInvoke	lowered	EmitWat lowers crosscallInvoke to promise_create/promise_return using module.nearCrosscallStrings address literals; wasm-near target profile admits crosscall.invoke for the canonical EmitWat path while Rust sourcegen remains frozen.
 Expr	crosscallInvokeTyped	unsupported	EmitWat rejects typed cross-contract calls with an explicit NEAR diagnostic; use untyped crosscallInvoke / nearCrosscallInvokePool with string-pool literals.
 Expr	crosscallInvokeValueTyped	unsupported	EmitWat rejects value-bearing typed cross-contract calls; NEAR value transfer is modeled on nearCrosscallInvokePool/crosscallInvoke deposit operands.

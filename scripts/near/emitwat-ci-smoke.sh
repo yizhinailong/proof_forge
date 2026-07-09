@@ -7,25 +7,25 @@ cd "$ROOT"
 cargo --version >/dev/null
 mkdir -p build/wasm-near
 
-lake env lean --run Tests/EmitWatSmoke.lean
-lake env lean --run Tests/EmitWatScalar.lean
-lake env lean --run Tests/EmitWatFeatures.lean
-lake env lean --run Tests/EmitWatArith.lean
-lake env lean --run Tests/EmitWatHash.lean
-lake env lean --run Tests/EmitWatContext.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatSmoke.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatScalar.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatFeatures.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatArith.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatHash.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatContext.lean
 lake build ProofForge.IR.Examples.NearCrosscallProbe
-lake env lean --run Tests/WasmNearPlan.lean
-lake env lean --run Tests/EmitWatMap.lean
-lake env lean --run Tests/EmitWatHashmap.lean
-lake env lean --run Tests/EmitWatPath.lean
-lake env lean --run Tests/EmitWatEvent.lean
-lake env lean --run Tests/EmitWatParams.lean
-lake env lean --run Tests/EmitWatControl.lean
-lake env lean --run Tests/EmitWatArray.lean
-lake env lean --run Tests/EmitWatStruct.lean
-lake env lean --run Tests/EmitWatAlloc.lean
-lake env lean --run Tests/EmitWatOwnership.lean
-lake env lean --run Tests/EmitWatValueVault.lean
+lake env lean --run Tests/Backend/Wasm/WasmNearPlan.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatMap.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatHashmap.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatPath.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatEvent.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatParams.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatControl.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatArray.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatStruct.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatAlloc.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatOwnership.lean
+lake env lean --run Tests/Backend/Wasm/EmitWatValueVault.lean
 
 HOST=(cargo run --quiet --manifest-path runtime/offline-host/Cargo.toml -- run)
 
