@@ -10,6 +10,7 @@ import ProofForge.Backend.WasmHost.Diagnostics
 import ProofForge.Backend.WasmHost.Memory
 import ProofForge.Backend.WasmHost.Struct
 import ProofForge.Backend.WasmHost.Types
+import ProofForge.Target.HostBridge
 
 namespace ProofForge.Backend.WasmHost.Params
 
@@ -24,19 +25,24 @@ open ProofForge.Backend.WasmHost.Types
 
 /-! Entrypoint parameter decoding helpers for EmitWat. -/
 
-/-- Build the Borsh input prologue: env.input -> INPUT_BUF, then load each
-    param at its cumulative Borsh offset into a local. Entrypoint params have
-    no wasm-level params; they are decoded from input and held in locals.
+/-- NEAR Borsh input prologue: `env.input` → register → INPUT_BUF. -/
+def nearInputPrologue : Array Insn :=
+  #[.i64Const 0, .call "input", .i64Const 0, .i64Const INPUT_BUF, .call "read_register"]
 
-    Scalar types (u32/u64/bool) load directly. Hash loads 32 bytes into a
-    param hash slot. Fixed arrays of scalars and flat structs are decoded
-    from Borsh (fields/elements laid out sequentially) into heap-allocated
-    memory, with the local holding an i32 pointer. -/
+/-- Build the Borsh input prologue and load each param into a local.
+    NEAR: decode from `env.input` register buffer.
+    CosmWasm / Soroban: no NEAR input ABI yet — empty prologue when no params;
+    reject non-empty params until host-specific decoding lands. -/
 def loadParams (structs : Array ProofForge.IR.StructDecl)
     (params : Array (String × ValueType))
+    (bridge : ProofForge.Target.HostBridge := .near)
     : Except EmitError (Array Insn × Array Local) := do
-  let prologue : Array Insn :=
-    #[.i64Const 0, .call "input", .i64Const 0, .i64Const INPUT_BUF, .call "read_register"]
+  if params.isEmpty then
+    .ok (#[], #[])
+  else if bridge != .near then
+    err "EmitWat: entrypoint parameters are not yet lowered on HostBridge.soroban/cosmWasm (NEAR Borsh input only)"
+  else
+  let prologue : Array Insn := nearInputPrologue
   let result ← params.foldlM (init := (prologue, (#[] : Array Local), 0, 0))
     fun (insns, locals, offset, hslot) p =>
       let (name, vt) := p

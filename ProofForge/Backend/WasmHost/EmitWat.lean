@@ -1006,7 +1006,7 @@ def sorobanAuthPrologue (ctx : Ctx) (ep : Entrypoint) : Array Insn :=
 
 def lowerEntrypoint (ctx : Ctx) (ep : Entrypoint) : Except EmitError Func := do
   let bodyLocals ← collectLocals ep.body
-  let (paramPrologue, paramLocals) ← loadParams ctx.structs ep.params
+  let (paramPrologue, paramLocals) ← loadParams ctx.structs ep.params ctx.bridge
   let allLocalTypes : LocalTypes :=
     (ep.params.map (fun (n, t) => { name := n, vt := t : LBind })) ++ bodyLocals
   let locals := paramLocals ++ bodyLocals.map (fun b => { name := b.name, type := wasmTypeOf b.vt : Local })
@@ -1015,7 +1015,12 @@ def lowerEntrypoint (ctx : Ctx) (ep : Entrypoint) : Except EmitError Func := do
     if ctx.allocator.usesEntryReset then
       #[.i32Const ctx.allocator.heapBase, .globalSet arrPtrGlobal]
     else #[]
-  let authPrefix := sorobanAuthPrologue ctx ep
+  -- require_auth is Soroban-only.
+  let authPrefix :=
+    if ctx.bridge == ProofForge.Target.HostBridge.soroban then
+      sorobanAuthPrologue ctx ep
+    else
+      #[]
   .ok {
     name := ep.name
     locals := locals
