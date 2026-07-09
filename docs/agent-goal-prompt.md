@@ -8,8 +8,8 @@ Status: **Active**
 Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
 
-Baseline: Wave 0 complete (PF-P0-01..08 done). Wave 1: PF-P1-01 TargetBackend driver for
-primary triad done; next PF-P1-02 TargetProfile support matrix.
+Baseline: Wave 0 complete; PF-P1-01 done; PF-P1-02 support matrix fields + `--list-targets
+--json` landed; remaining: generate README Backend Status from matrix (zero-diff gate).
 
 ---
 
@@ -110,7 +110,7 @@ implementation SHA is only known after the implementation commit exists.
 | 0 | PF-P0-07 | done: verified@0334cbaa; just check-l2-parity | immediately |
 | 0 | PF-P0-08 | done: verified@0334cbaa; just wat2wasm-fail-closed | immediately |
 | 1 | PF-P1-01 | done: verified@885b1ae6; just target-backend; just cli-check; just check-l2-parity; just product; just check | all Wave 0 tasks done |
-| 1 | PF-P1-02 | pending | all Wave 0 tasks done; coordinate with PF-P1-01 |
+| 1 | PF-P1-02 | in_progress: TargetSupport on profiles + `--list-targets --json`; next: generate Backend Status table zero-diff from matrix | all Wave 0 tasks done; coordinate with PF-P1-01 |
 | 1 | PF-P1-03 | pending | PF-P1-01 and PF-P1-02 done |
 | 1 | PF-P1-04 | pending | PF-P1-01 through PF-P1-03 done |
 | 2 | PF-P1-05 | pending | Wave 1 done |

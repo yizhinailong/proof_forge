@@ -319,7 +319,12 @@ unsafe def main (args : List String) : IO UInt32 := do
   | _ =>
     let parseResult : Except String ProofForge.Cli.CliOptions :=
       match args with
-      | "--list-targets" :: _ => Except.ok { cmd := ProofForge.Cli.Command.listTargets }
+      | "--list-targets" :: rest =>
+        let wantsJson := rest.any (fun a => a == "--json")
+        Except.ok {
+          cmd := ProofForge.Cli.Command.listTargets
+          reportFormat? := if wantsJson then some "json" else none
+        }
       | "--list-fixtures" :: _ => Except.ok { cmd := ProofForge.Cli.Command.listFixtures }
       | "build" :: rest =>
         match ProofForge.Cli.parseNewOptions rest {} with
@@ -381,7 +386,11 @@ unsafe def main (args : List String) : IO UInt32 := do
     | Except.ok opts => do
         match opts.cmd with
         | ProofForge.Cli.Command.listTargets =>
-          IO.println (String.intercalate "\n" ProofForge.Target.knownIds.toList)
+          -- Plain list: registry membership (PF-P0-02). JSON: full support matrix (PF-P1-02).
+          if opts.reportFormat? == some "json" then
+            IO.println ProofForge.Cli.listTargetsJson
+          else
+            IO.println (String.intercalate "\n" ProofForge.Target.knownIds.toList)
           return 0
         | ProofForge.Cli.Command.listFixtures =>
           IO.println (String.intercalate "\n" ProofForge.Cli.Fixture.ids.toList)

@@ -1,4 +1,5 @@
 import ProofForge.Target.Capability
+import ProofForge.Target.Support
 import ProofForge.Target.HostRuntime
 import ProofForge.Target.Identity
 import ProofForge.Target.PortableHonesty

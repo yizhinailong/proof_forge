@@ -10,6 +10,7 @@ def usage : String :=
     "  proof-forge build --target <id> --token …    # TokenSpec → chain-native token plan/artifact",
     "  proof-forge check --target <id> …",
     "  proof-forge --list-targets                  # registered targets with ≥1 CLI command",
+    "  proof-forge --list-targets --json           # machine-readable support matrix (PF-P1-02)",
     "",
     "  --list-targets membership means the id is registered and supports at least one",
     "  of build/emit/check (often fixture emit only). It is not a promise of Lean",
