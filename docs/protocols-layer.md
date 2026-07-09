@@ -89,6 +89,7 @@ Facade: `ProofForge.Protocols.Evm.IERC20`
 | Client | Meaning | Status |
 |--------|---------|--------|
 | IERC20 transfer / approve / transferFrom / balanceOf | CALL + 4-byte selector + ABI words | ✅ thin client |
+| IERC20 client fixture | `pushTokens` / `readBalance` / `readSupply` | ✅ `Examples/Backend/Evm/Contracts/Ierc20Client` |
 | IERC721 / Multicall / Permit2 | — | ⬜ next |
 | OpenZeppelin **as deployable mixin** | — | → **Layer C** (`Stdlib.ERC20`, Ownable, …) |
 
@@ -140,8 +141,9 @@ helpers**. Packing stays where lowering already lives.
 1. ✅ Document A/B/C + inventory (this file)
 2. ✅ Protocols module surface + Solana facade
 3. ✅ Minimal EVM IERC20 + NEAR FT **clients** (B)
-4. ⬜ Grow Solana remaining high-value layouts; EVM IERC721; NEAR storage staking client
-5. ⬜ Keep A gaps honest (e.g. real CosmWasm WasmMsg depth) without mixing into B catalogs
+4. ✅ Solana vault token-account e2e + EVM IERC20 client example
+5. ⬜ NEAR FT peer example symmetry; EVM IERC721; more Solana layouts
+6. ⬜ Keep A gaps honest (e.g. real CosmWasm WasmMsg depth) without mixing into B catalogs
 
 ## 7. Honesty rules
 

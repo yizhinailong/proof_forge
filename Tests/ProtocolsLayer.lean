@@ -1,11 +1,11 @@
 /-
-Layer B Protocols smoke: catalog surface + EVM IERC20 selector packing +
+Layer B Protocols smoke: catalog surface + EVM IERC20 example Yul +
 NEAR FT method registration + Solana facade export.
 -/
 import ProofForge.Protocols
 import ProofForge.Backend.Evm.IR
 import ProofForge.Contract.Builder
-import ProofForge.Contract.Surface
+import Examples.Backend.Evm.Contracts.Ierc20Client
 
 namespace ProofForge.Tests.ProtocolsLayer
 
@@ -18,15 +18,6 @@ def require (condition : Bool) (message : String) : IO Unit :=
 
 def contains (haystack needle : String) : Bool :=
   haystack.contains needle
-
-/-- Minimal contract that CALLs an external IERC20.transfer. -/
-def ierc20ClientSpec : ProofForge.Contract.ContractSpec :=
-  build "ProtocolsIerc20Client" do
-    scalarState "nonce" .u64
-    let token ← declareToken "token.peer"
-    entrySelector "pull" "01" do
-      letBind "_ok" .u64 (transfer token (u64 1) (u64 100))
-      effect (storageScalarWrite "nonce" (u64 1))
 
 /-- NEAR FT peer method registration (string pool). -/
 def nearFtClientSpec : ProofForge.Contract.ContractSpec :=
@@ -50,32 +41,41 @@ def main : IO UInt32 := do
   let _ := ProofForge.Protocols.Solana.splTokenInitializeAccount3Call
     "init" "acct" "mint" "owner"
 
-  match ProofForge.Backend.Evm.IR.renderModule {
-    ierc20ClientSpec.module with
-    entrypoints := ierc20ClientSpec.module.entrypoints.map fun ep =>
-      if ep.name == "pull" then { ep with selector? := some "01000000" } else ep
-  } with
-  | .error e => throw (IO.userError s!"EVM IERC20 client render failed: {e.message}")
+  -- Layer B example: IERC20 transfer / balanceOf / totalSupply → EVM Yul.
+  let ierc20 := Examples.Backend.Evm.Contracts.Ierc20Client.module
+  require (ierc20.entrypoints.any (·.name == "pushTokens")) "Ierc20Client has pushTokens"
+  require (ierc20.entrypoints.any (·.name == "readBalance")) "Ierc20Client has readBalance"
+  require (ierc20.nearCrosscallStrings.any (· == "token.peer"))
+    "Ierc20Client registers token.peer"
+  match ProofForge.Backend.Evm.IR.renderModule ierc20 with
+  | .error e => throw (IO.userError s!"EVM Ierc20Client render failed: {e.message}")
   | .ok yul =>
-      -- Selector is packed via shl(224, selector); accept hex or decimal form.
-      let selDec := toString selectorTransfer
+      let transferSel := toString selectorTransfer
+      let balanceSel := toString selectorBalanceOf
+      let supplySel := toString selectorTotalSupply
       require (
-          contains yul selDec ||
-          contains yul "2835717307" ||
-          contains yul "0xa9059cbb" ||
-          contains yul "a9059cbb"
-        ) s!"Yul missing IERC20 transfer selector (got fragment without {selDec})"
+          contains yul transferSel || contains yul "2835717307" ||
+          contains yul "a9059cbb" || contains yul "0xa9059cbb"
+        ) "Yul missing IERC20.transfer selector 0xa9059cbb"
+      require (
+          contains yul balanceSel || contains yul "70a08231" ||
+          contains yul "0x70a08231"
+        ) "Yul missing IERC20.balanceOf selector 0x70a08231"
+      require (
+          contains yul supplySel || contains yul "18160ddd" ||
+          contains yul "0x18160ddd"
+        ) "Yul missing IERC20.totalSupply selector 0x18160ddd"
       require (contains yul "crosscall" || contains yul "__proof_forge_crosscall")
-        "Yul missing crosscall helper for IERC20 transfer"
-      require (contains yul "100")
-        "Yul missing transfer amount arg"
+        "Yul missing crosscall helper for IERC20 client"
+      require (contains yul "case 0xa1b2c3d4" || contains yul "a1b2c3d4")
+        "Yul missing pushTokens entry selector"
 
   require (nearFtClientSpec.module.nearCrosscallStrings.any (· == "my_ft"))
     "NEAR FT client registers peer id"
   require (nearFtClientSpec.module.nearCrosscallStrings.any (· == "ft_transfer"))
     "NEAR FT client registers ft_transfer method"
 
-  IO.println "protocols-layer: ok (solana facade · evm ierc20 · near ft)"
+  IO.println "protocols-layer: ok (solana facade · evm ierc20 example · near ft)"
   pure 0
 
 end ProofForge.Tests.ProtocolsLayer
