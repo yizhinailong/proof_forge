@@ -58,6 +58,7 @@ Editable hand-drawn-style diagrams for presentations and onboarding — open on
 - [RFC 0003: Portable IR and runtime](rfcs/0003-portable-ir-and-runtime.md): detailed IR/capability/runtime draft.
 - [RFC 0004: EVM semantic plan and Yul AST boundary](rfcs/0004-evm-semantic-plan.md): target-semantic EVM plan layer between portable IR and low-level Yul syntax.
 - [Capability registry](capability-registry.md): canonical capability ids.
+- [Host · Protocols · Stdlib (A/B/C)](protocols-layer.md): chain runtime vs on-chain program clients vs deployable stdlib.
 - [Shared scenario: Counter](shared-scenario.md): cross-target acceptance test.
 - [Doc↔code sync audit (2026-07)](doc-code-sync-audit-2026-07.md): drift register and maintenance checklist.
 - [Tutorial: one module, three targets](tutorials/portable-contract-three-targets.md): portable `contract_source` walkthrough (CS-5.3).

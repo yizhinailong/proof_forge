@@ -54,6 +54,10 @@ are **L4 adapter outputs**, not author-facing languages.
 | TokenSpec features-only | ✅ | `planForTarget` / `resolveTokenStandard`; no author `TokenStandard` |
 | Shared portable-default | ✅ | `just portable-default`; no chain DSL in Shared |
 | Spec/Builder de-EVM names (partial) | ✅ | `ConstructorParam`, `constructorParams`, `abiWord?`, … |
+| A/B/C layer model (Host · Protocols · Stdlib) | ✅ | [protocols-layer](../../protocols-layer.md); `ProofForge.Protocols` facade |
+| Solana protocol CPI catalog (B) | ✅ | `Protocols.Solana` → Programs/Builders + Cpi packing |
+| EVM IERC20 external client (B) | ✅ | `Protocols.Evm.IERC20` (CALL + selectors) |
+| NEAR NEP-141 peer client (B) | ✅ | `Protocols.Near.FungibleToken` (`declareRemote` + method names) |
 
 Phase C rows in [product-authoring-architecture](../../product-authoring-architecture.md)
 (C.1–C.9, P0–P1e) are the baseline; this plan is the **next product backlog**.

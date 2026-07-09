@@ -124,6 +124,8 @@ require writing PDA/CPI.
 | Portable IR Expr | Chain-neutral | Still carries NEAR Promise + EVM create/static/delegate constructors |
 | Storage | Target-resolved (`StorageBinding`) | ✅ Landed (D-050) |
 | Context | Portable env vs EVM-only | ✅ Classified; Surface still exposes both |
+| **Protocols (Layer B)** | Clients for on-chain programs/interfaces (SPL, IERC20, NEP-141 peers) | ✅ Indexed in [protocols-layer](protocols-layer.md); Solana packing deep; EVM IERC20 + NEAR FT thin clients landed |
+| **Stdlib (Layer C)** | Deployable mixins (you *are* the ERC-20 / NEP-141) | ✅ `Contract/Stdlib/*`; must not be confused with Protocols clients |
 
 ## 5. Phased plan
 

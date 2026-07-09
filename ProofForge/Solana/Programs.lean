@@ -1,3 +1,9 @@
+/-
+Solana **Layer B** protocol call shapes (System / SPL / ATA / Memo / Token-2022).
+
+Product index: `ProofForge.Protocols.Solana` and `docs/protocols-layer.md`.
+sBPF packing: `ProofForge.Backend.Solana.Extension.Cpi`.
+-/
 import ProofForge.Solana.Metadata
 
 namespace ProofForge.Solana
