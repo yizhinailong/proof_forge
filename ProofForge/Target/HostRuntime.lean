@@ -117,8 +117,8 @@ def HostEffect.capability? : HostEffect → Option Capability
   | .computeRemaining => some .runtimeComputeUnits
   | .pda | .pdaFind => some .storagePda
 
-/-- Primary-triad native bindings for each portable host effect. -/
-def HostEffect.bindings : HostEffect → Array NativeBinding
+/-- Primary-triad (EVM · Solana · NEAR) native bindings. -/
+def HostEffect.primaryTriadBindings : HostEffect → Array NativeBinding
   | .storageRead => #[
       { targetId := "evm", kind := .opcode, symbol := "sload" },
       { targetId := "solana-sbpf-asm", kind := .syscall, symbol := "account_data_load",
@@ -225,6 +225,80 @@ def HostEffect.bindings : HostEffect → Array NativeBinding
       { targetId := "wasm-near", kind := .hostImport, symbol := "n/a" }
     ]
 
+/-- Already-partial Wasm host adapters (Soroban · CosmWasm). Explicit `n/a` where
+the host has no equivalent (PDA, compute budget, etc.). -/
+def HostEffect.adapterBindings : HostEffect → Array NativeBinding
+  | .storageRead => #[
+      { targetId := "wasm-stellar-soroban", kind := .hostImport, symbol := "env._get" },
+      { targetId := "wasm-cosmwasm", kind := .hostImport, symbol := "env.db_read" }
+    ]
+  | .storageWrite => #[
+      { targetId := "wasm-stellar-soroban", kind := .hostImport, symbol := "env._put" },
+      { targetId := "wasm-cosmwasm", kind := .hostImport, symbol := "env.db_write" }
+    ]
+  | .logEmit => #[
+      { targetId := "wasm-stellar-soroban", kind := .hostImport, symbol := "env.log_from_slice" },
+      { targetId := "wasm-cosmwasm", kind := .hostImport, symbol := "n/a",
+        note? := some "events via response; no env.log host import in bridge yet" }
+    ]
+  | .caller => #[
+      { targetId := "wasm-stellar-soroban", kind := .hostImport, symbol := "env.require_auth_for_args",
+        note? := some "auth surface; not a pure caller id import" },
+      { targetId := "wasm-cosmwasm", kind := .hostImport, symbol := "n/a",
+        note? := some "msg.sender via CosmWasm message envelope (not env import)" }
+    ]
+  | .valueNative => #[
+      { targetId := "wasm-stellar-soroban", kind := .hostImport, symbol := "n/a",
+        note? := some "no attached_deposit equivalent on Soroban bridge" },
+      { targetId := "wasm-cosmwasm", kind := .hostImport, symbol := "n/a",
+        note? := some "funds via BankMsg / info.funds (not env import)" }
+    ]
+  | .envBlock => #[
+      { targetId := "wasm-stellar-soroban", kind := .hostImport, symbol := "n/a" },
+      { targetId := "wasm-cosmwasm", kind := .hostImport, symbol := "n/a",
+        note? := some "env.block via CosmWasm Env (not HostBridge list)" }
+    ]
+  | .cryptoKeccak | .cryptoSha256 => #[
+      { targetId := "wasm-stellar-soroban", kind := .hostImport, symbol := "n/a" },
+      { targetId := "wasm-cosmwasm", kind := .hostImport, symbol := "n/a" }
+    ]
+  | .remoteInvoke | .remoteInvokeSigned => #[
+      { targetId := "wasm-stellar-soroban", kind := .hostImport, symbol := "env.invoke_contract" },
+      { targetId := "wasm-cosmwasm", kind := .hostImport, symbol := "env.execute_msg",
+        note? := some "spike WasmMsg-shaped execute; not full CosmWasm Querier" }
+    ]
+  | .assertFail => #[
+      { targetId := "wasm-stellar-soroban", kind := .hostImport, symbol := "n/a",
+        note? := some "trap / panic intrinsic" },
+      { targetId := "wasm-cosmwasm", kind := .hostImport, symbol := "n/a",
+        note? := some "ContractError return / trap" }
+    ]
+  | .memoryCopy | .memorySet => #[
+      { targetId := "wasm-stellar-soroban", kind := .hostImport, symbol := "memory.intrinsic" },
+      { targetId := "wasm-cosmwasm", kind := .hostImport, symbol := "memory.intrinsic" }
+    ]
+  | .returnDataGet => #[
+      { targetId := "wasm-stellar-soroban", kind := .hostImport, symbol := "n/a",
+        note? := some "invoke_contract result handle" },
+      { targetId := "wasm-cosmwasm", kind := .hostImport, symbol := "n/a" }
+    ]
+  | .returnDataSet => #[
+      { targetId := "wasm-stellar-soroban", kind := .hostImport, symbol := "n/a" },
+      { targetId := "wasm-cosmwasm", kind := .hostImport, symbol := "n/a" }
+    ]
+  | .computeRemaining => #[
+      { targetId := "wasm-stellar-soroban", kind := .hostImport, symbol := "n/a" },
+      { targetId := "wasm-cosmwasm", kind := .hostImport, symbol := "n/a" }
+    ]
+  | .pda | .pdaFind => #[
+      { targetId := "wasm-stellar-soroban", kind := .hostImport, symbol := "n/a" },
+      { targetId := "wasm-cosmwasm", kind := .hostImport, symbol := "n/a" }
+    ]
+
+/-- Full catalog: primary triad + Wasm host adapters. -/
+def HostEffect.bindings (e : HostEffect) : Array NativeBinding :=
+  e.primaryTriadBindings ++ e.adapterBindings
+
 /-- All catalogued portable host effects. -/
 def allEffects : Array HostEffect := #[
   .storageRead, .storageWrite, .logEmit, .caller, .valueNative, .envBlock,
@@ -235,6 +309,12 @@ def allEffects : Array HostEffect := #[
 
 def primaryTargetIds : Array String := #["evm", "solana-sbpf-asm", "wasm-near"]
 
+/-- Wasm host adapters already partially lowered (not full product triad). -/
+def adapterTargetIds : Array String := #["wasm-stellar-soroban", "wasm-cosmwasm"]
+
+/-- All targets with HostRuntime rows. -/
+def catalogTargetIds : Array String := primaryTargetIds ++ adapterTargetIds
+
 /-- Bindings for one target (may be empty if effect is n/a). -/
 def bindingsForTarget (effect : HostEffect) (targetId : String) : Array NativeBinding :=
   effect.bindings.filter (fun b => b.targetId == targetId)
@@ -242,6 +322,15 @@ def bindingsForTarget (effect : HostEffect) (targetId : String) : Array NativeBi
 /-- Primary binding row for a target (if any). -/
 def binding? (effect : HostEffect) (targetId : String) : Option NativeBinding :=
   (bindingsForTarget effect targetId)[0]?
+
+/-- Comment token for lowerers: links portable effect id to native symbol.
+Emitted in assembly/WAT comments so smokes can assert catalog linkage. -/
+def catalogRefComment (effect : HostEffect) (targetId : String) : String :=
+  match binding? effect targetId with
+  | some b =>
+      s!"HostRuntime {effect.id} → {NativeKind.id b.kind}:{b.symbol}"
+  | none =>
+      s!"HostRuntime {effect.id} → (no binding for {targetId})"
 
 /-- True when the binding is explicitly absent / not applicable. -/
 def isNaSymbol (symbol : String) : Bool :=

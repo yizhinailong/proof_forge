@@ -8,6 +8,7 @@ Lowering from portable IR statements to Solana sBPF assembly AST nodes.
 -/
 
 import ProofForge.Backend.Solana.SbpfAsm.Expr
+import ProofForge.Target.HostRuntime
 
 namespace ProofForge.Backend.Solana.SbpfAsm
 
@@ -18,6 +19,7 @@ open ProofForge.Backend.Solana.StateLayout
 open ProofForge.Backend.Solana.Manifest
 open ProofForge.Backend.Solana.Register
 open ProofForge.Backend.Solana.Syscalls
+open ProofForge.Target.HostRuntime
 
 -- ============================================================================
 -- IR statement → AST nodes
@@ -241,7 +243,10 @@ partial def lowerStmt (ctx : LowerCtx) (stmt : IR.Statement) : Except LowerError
       ], ctx')
     | none => .error { message := s!"unknown state: {stateId}" }
   | .effect (.eventEmit name fields) => do
-    let mut nodes := #[.comment s!"solana.event.emit {name}: sol_log_64_ scalar fields"]
+    let mut nodes := #[
+      .comment (catalogRefComment .logEmit "solana-sbpf-asm"),
+      .comment s!"solana.event.emit {name}: sol_log_64_ scalar fields"
+    ]
     let mut ctx := ctx
     let tag := stableEventTag name
     for field in fields, idx in [0:fields.size] do
@@ -267,7 +272,10 @@ partial def lowerStmt (ctx : LowerCtx) (stmt : IR.Statement) : Except LowerError
     -- indexed and data fields into a single ordered field list, same as
     -- non-indexed eventEmit. Indexed fields come first.
     let allFields := indexedFields ++ dataFields
-    let mut nodes := #[.comment s!"solana.event.emit_indexed {name}: sol_log_64_ ({indexedFields.size} indexed + {dataFields.size} data fields flattened)"]
+    let mut nodes := #[
+      .comment (catalogRefComment .logEmit "solana-sbpf-asm"),
+      .comment s!"solana.event.emit_indexed {name}: sol_log_64_ ({indexedFields.size} indexed + {dataFields.size} data fields flattened)"
+    ]
     let mut ctx := ctx
     let tag := stableEventTag name
     for field in allFields, idx in [0:allFields.size] do

@@ -8,6 +8,8 @@ import ProofForge.Target.Registry
 import ProofForge.Contract.Spec
 import ProofForge.Contract.Intent
 import ProofForge.IR.Contract
+import ProofForge.IR.Examples.EventProbe
+import ProofForge.Backend.Solana.SbpfAsm
 
 namespace ProofForge.Tests.HostRuntime
 
@@ -40,11 +42,14 @@ def main : IO UInt32 := do
   require (primaryTargetIds.contains "evm") "primary includes evm"
   require (primaryTargetIds.contains "solana-sbpf-asm") "primary includes solana"
   require (primaryTargetIds.contains "wasm-near") "primary includes near"
+  require (adapterTargetIds.contains "wasm-stellar-soroban") "adapter includes soroban"
+  require (adapterTargetIds.contains "wasm-cosmwasm") "adapter includes cosmwasm"
+  require (catalogTargetIds.size == 5) "catalog has 5 targets"
 
-  -- Every effect has three primary rows (even if symbol is n/a).
+  -- Every effect has primary triad + adapter rows (even if symbol is n/a).
   for e in allEffects do
-    require (e.bindings.size >= 3) s!"{e.id} should list ≥3 host bindings"
-    for tid in primaryTargetIds do
+    require (e.bindings.size >= 5) s!"{e.id} should list ≥5 host bindings (3+2)"
+    for tid in catalogTargetIds do
       require ((bindingsForTarget e tid).size == 1)
         s!"{e.id} should have exactly one binding row for {tid}"
 
@@ -96,6 +101,18 @@ def main : IO UInt32 := do
   let prom := bindingsForTarget .remoteInvoke "wasm-near"
   require (prom.any (fun b => b.symbol == "env.promise_create"))
     "near remote is promise_create"
+  -- Wasm adapter remote symbols.
+  require (supports .remoteInvoke "wasm-stellar-soroban") "soroban remote"
+  require (supports .remoteInvoke "wasm-cosmwasm") "cosmwasm remote"
+  require (supports .storageRead "wasm-stellar-soroban") "soroban storage read"
+  require (supports .storageRead "wasm-cosmwasm") "cosmwasm storage read"
+  require (!supports .pda "wasm-stellar-soroban") "soroban no PDA"
+  require (!supports .logEmit "wasm-cosmwasm")
+    "cosmwasm log is n/a in HostBridge inventory (honest)"
+  let ref := catalogRefComment .logEmit "solana-sbpf-asm"
+  require (contains ref "HostRuntime") "catalogRefComment names HostRuntime"
+  require (contains ref "host.log.emit") "catalogRefComment names effect id"
+  require (contains ref "sol_log_64_") "catalogRefComment names sol_log_64_"
 
   -- Pure honesty helper: NEAR + storage.pda → clear HostRuntime error.
   match requireHostRuntimeHonesty "wasm-near" #[.storagePda] with
@@ -145,11 +162,27 @@ def main : IO UInt32 := do
   let evmN := supportedCount "evm"
   let solN := supportedCount "solana-sbpf-asm"
   let nearN := supportedCount "wasm-near"
+  let sorobanN := supportedCount "wasm-stellar-soroban"
+  let cosmwasmN := supportedCount "wasm-cosmwasm"
   require (evmN >= 14) s!"evm support count low: {evmN}"
   require (solN >= 16) s!"solana support count low: {solN}"
   require (nearN >= 12) s!"near support count low: {nearN}"
+  require (sorobanN >= 4) s!"soroban support count low: {sorobanN}"
+  require (cosmwasmN >= 3) s!"cosmwasm support count low: {cosmwasmN}"
 
-  IO.println s!"host-runtime: ok (effects={allEffects.size} evm={evmN} solana={solN} near={nearN}; honesty wired)"
+  -- Shipped lowerer emits HostRuntime catalog comment on log path.
+  match ProofForge.Backend.Solana.SbpfAsm.renderModule
+      ProofForge.IR.Examples.EventProbe.module with
+  | .error e => throw (IO.userError s!"EventProbe Solana render failed: {e.message}")
+  | .ok asm =>
+      require (contains asm "HostRuntime host.log.emit")
+        "sBPF lowerer must emit HostRuntime catalog ref for logEmit"
+      require (contains asm "sol_log_64_")
+        "sBPF lowerer must still call sol_log_64_"
+      require (contains asm "syscall:sol_log_64_" || contains asm "sol_log_64_")
+        "catalog ref or syscall present"
+
+  IO.println s!"host-runtime: ok (effects={allEffects.size} evm={evmN} solana={solN} near={nearN} soroban={sorobanN} cosmwasm={cosmwasmN}; adapters+catalog-ref)"
   pure 0
 
 end ProofForge.Tests.HostRuntime
