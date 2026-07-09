@@ -263,7 +263,21 @@ use `proof-forge emit --target {profile.id} --fixture <id>` for the Counter spik
             next with
             validation := pushValidation next.validation "preflight" "passed"
           }
-          match ProofForge.Target.resolveSpec profile spec with
+          -- PF-P1-01: capability resolve goes through the registry-backed TargetBackend.
+          let backend ← match ProofForge.Target.findBackend? profile.id with
+          | some b => pure b
+          | none =>
+              return {
+                preflighted with
+                diagnostics := pushDiagnostic preflighted.diagnostics {
+                  severity := .error
+                  code := "target.unknown"
+                  message := s!"unknown target '{profile.id}': no TargetBackend is registered"
+                  file? := some input.toString
+                }
+                validation := pushValidation preflighted.validation "capabilities" "failed"
+              }
+          match backend.resolve spec with
           | .error diag =>
             return {
               preflighted with
@@ -271,8 +285,29 @@ use `proof-forge emit --target {profile.id} --fixture <id>` for the Counter spik
               validation := pushValidation preflighted.validation "capabilities" "failed"
             }
           | .ok plan =>
-            let resolved := { preflighted with validation := pushValidation preflighted.validation "capabilities" "passed" }
-            -- PF-P0-07: L2 adapter validation without emitting artifacts.
+            let mut resolved := { preflighted with validation := pushValidation preflighted.validation "capabilities" "passed" }
+            -- Primary triad: backend-owned validate + plan stages (PF-P1-01).
+            if backend.hasValidate then
+              match backend.validateModule spec.module with
+              | .error diag =>
+                return {
+                  resolved with
+                  diagnostics := pushDiagnostic resolved.diagnostics (diagnosticFromTarget diag "backend.validate" .error)
+                  validation := pushValidation resolved.validation "backendValidate" "failed"
+                }
+              | .ok () =>
+                  resolved := { resolved with validation := pushValidation resolved.validation "backendValidate" "passed" }
+            if backend.hasPlan then
+              match backend.ensurePlan spec.module with
+              | .error diag =>
+                return {
+                  resolved with
+                  diagnostics := pushDiagnostic resolved.diagnostics (diagnosticFromTarget diag "backend.plan" .error)
+                  validation := pushValidation resolved.validation "backendPlan" "failed"
+                }
+              | .ok () =>
+                  resolved := { resolved with validation := pushValidation resolved.validation "backendPlan" "passed" }
+            -- PF-P0-07: residual L2 package-path validation without writing artifacts.
             if profile.id == ProofForge.Target.wasmNear.id ||
                profile.id == ProofForge.Target.wasmStellarSoroban.id ||
                profile.id == ProofForge.Target.wasmCosmWasm.id then
@@ -307,8 +342,8 @@ use `proof-forge emit --target {profile.id} --fixture <id>` for the Counter spik
                   validation := pushValidation resolved.validation "lowering" "failed"
                 }
             else if profile.id == ProofForge.Target.evm.id then
-              -- EVM L2: capability resolve + preflight is the shared gate; Yul emission
-              -- needs full CLI ABI/constructor context and is validated by build smokes.
+              -- EVM: backend validate/plan above is the L2 surface; full Yul emission
+              -- still needs CLI ABI/constructor context and is covered by build smokes.
               return { resolved with validation := pushValidation resolved.validation "lowering" "passed" }
             else
               return { resolved with validation := pushValidation resolved.validation "contractSource" "passed" }
