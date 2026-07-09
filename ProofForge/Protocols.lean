@@ -14,6 +14,8 @@ See `docs/protocols-layer.md`.
 import ProofForge.Protocols.Solana
 import ProofForge.Protocols.Evm.IERC20
 import ProofForge.Protocols.Evm.IERC721
+import ProofForge.Protocols.Evm.Multicall
+import ProofForge.Protocols.Evm.Permit2
 import ProofForge.Protocols.Near.FungibleToken
 
 namespace ProofForge.Protocols

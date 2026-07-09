@@ -5,9 +5,13 @@ example + Solana facade inventory.
 import ProofForge.Protocols
 import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.WasmHost.EmitWat
+import ProofForge.Backend.Solana.Extension.Cpi
 import ProofForge.Contract.Builder
+import ProofForge.Contract.Surface
 import Examples.Backend.Evm.Contracts.Ierc20Client
 import Examples.Backend.Evm.Contracts.Ierc721Client
+import Examples.Backend.Evm.Contracts.MulticallClient
+import Examples.Backend.Evm.Contracts.Permit2Client
 import Examples.Backend.WasmNear.FtPeerClient
 
 namespace ProofForge.Tests.ProtocolsLayer
@@ -38,10 +42,35 @@ def main : IO UInt32 := do
   require (ProofForge.Protocols.Evm.IERC721.selectorOwnerOf == 0x6352211e) "ownerOf selector"
   require (ProofForge.Protocols.Evm.IERC721.selectorSafeTransferFrom == 0x42842e0e)
     "safeTransferFrom selector"
+  require (ProofForge.Protocols.Evm.Multicall.catalogId == "protocols.evm.multicall")
+    "multicall catalog"
+  require (ProofForge.Protocols.Evm.Multicall.selectorAggregate3 == 0x82ad56cb)
+    "multicall aggregate3 selector"
+  require (ProofForge.Protocols.Evm.Permit2.catalogId == "protocols.evm.permit2")
+    "permit2 catalog"
+  require (ProofForge.Protocols.Evm.Permit2.selectorTransferFrom == 0x36c78516)
+    "permit2 transferFrom selector"
   require (ProofForge.Protocols.Near.FungibleToken.methodFtTransfer == "ft_transfer")
     "ft_transfer method name"
   require (ProofForge.Protocols.Near.FungibleToken.methodStorageDeposit == "storage_deposit")
     "storage_deposit method name"
+  require (ProofForge.Protocols.Near.FungibleToken.argPackingBoundId == "portable_scalars_only")
+    "NEAR FT packing bound id"
+  match ProofForge.Protocols.Near.FungibleToken.requireArgPackingHonest 2 with
+  | .error e => throw (IO.userError s!"scalar args=2 should be honest: {e}")
+  | .ok () => pure ()
+  match ProofForge.Protocols.Near.FungibleToken.requireArgPackingHonest 99 with
+  | .ok () => throw (IO.userError "99 args must fail NEAR packing honesty")
+  | .error msg =>
+      require (contains msg "honesty") "NEAR packing reject names honesty"
+      require (contains msg "portable_scalars_only" || contains msg "scalar")
+        "NEAR packing reject names bound"
+  -- Confidential layouts must stay unsupported on the shipped CPI lowerer.
+  for layout in ProofForge.Protocols.Solana.rejectedLayoutExamples do
+    require (ProofForge.Protocols.Solana.isConfidentialOrZkLayout layout)
+      s!"rejected list item should classify confidential/zk: {layout}"
+    require (!ProofForge.Backend.Solana.Extension.isSupportedCpiDataLayout layout)
+      s!"confidential layout must not be supported by lowerer: {layout}"
   let _ := ProofForge.Protocols.Solana.splTokenInitializeAccount3Call
     "init" "acct" "mint" "owner"
   let _ := ProofForge.Protocols.Solana.splToken2022PauseCall "pause" "mint" "authority"
@@ -110,7 +139,33 @@ def main : IO UInt32 := do
       require (contains wat "ft_transfer" || contains wat "my_ft")
         "FtPeerClient WAT should embed FT peer/method pool data"
 
-  IO.println "protocols-layer: ok (solana inventory · evm ierc20/721 · near ft peer)"
+  -- Multicall3 client → Yul with aggregate selector.
+  let mc := Examples.Backend.Evm.Contracts.MulticallClient.module
+  require (mc.nearCrosscallStrings.any (· == "multicall.peer")) "MulticallClient peer"
+  match ProofForge.Backend.Evm.IR.renderModule mc with
+  | .error e => throw (IO.userError s!"MulticallClient render failed: {e.message}")
+  | .ok yul =>
+      let sel := toString ProofForge.Protocols.Evm.Multicall.selectorAggregate
+      require (
+          contains yul sel || contains yul "252dba42" || contains yul "0x252dba42"
+        ) "Yul missing Multicall.aggregate selector"
+      require (contains yul "crosscall" || contains yul "__proof_forge_crosscall")
+        "Yul missing crosscall for Multicall"
+
+  -- Permit2 client → Yul with transferFrom selector.
+  let p2 := Examples.Backend.Evm.Contracts.Permit2Client.module
+  require (p2.nearCrosscallStrings.any (· == "permit2.peer")) "Permit2Client peer"
+  match ProofForge.Backend.Evm.IR.renderModule p2 with
+  | .error e => throw (IO.userError s!"Permit2Client render failed: {e.message}")
+  | .ok yul =>
+      let sel := toString ProofForge.Protocols.Evm.Permit2.selectorTransferFrom
+      require (
+          contains yul sel || contains yul "36c78516" || contains yul "0x36c78516"
+        ) "Yul missing Permit2.transferFrom selector"
+      require (contains yul "crosscall" || contains yul "__proof_forge_crosscall")
+        "Yul missing crosscall for Permit2"
+
+  IO.println "protocols-layer: ok (solana · evm ierc20/721/multicall/permit2 · near ft honesty)"
   pure 0
 
 end ProofForge.Tests.ProtocolsLayer

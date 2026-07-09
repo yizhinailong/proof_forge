@@ -69,11 +69,22 @@ def supportedDataLayouts : Array String := #[
   "token-2022.resume"
 ]
 
-/-- Intentionally unsupported (compile-reject): confidential / crypto-hard layouts. -/
+/-- Intentionally unsupported (compile-reject): confidential / crypto-hard layouts.
+Must remain `isSupportedCpiDataLayout = false` — never pack empty CPI. -/
 def rejectedLayoutExamples : Array String := #[
   "spl-token.confidential_transfer",
-  "token-2022.confidential_transfer_init"
+  "spl-token.confidential_transfer_init",
+  "token-2022.confidential_transfer",
+  "token-2022.confidential_transfer_init",
+  "token-2022.zk_elgamal_proof"
 ]
+
+/-- Inventory helper: true when layout is listed as confidential/crypto-hard. -/
+def isConfidentialOrZkLayout (layout : String) : Bool :=
+  rejectedLayoutExamples.contains layout ||
+    layout.startsWith "spl-token.confidential" ||
+    layout.startsWith "token-2022.confidential" ||
+    layout.startsWith "token-2022.zk_"
 
 -- Re-export high-traffic builders (implementation stays in Solana.*).
 

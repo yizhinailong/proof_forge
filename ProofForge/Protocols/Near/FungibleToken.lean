@@ -56,9 +56,43 @@ def declareFtMetadata (peerId : String) : ModuleM FtMethod :=
 def declareStorageDeposit (peerId : String) : ModuleM FtMethod :=
   declareRemote peerId methodStorageDeposit
 
+/-- Portable scalar-arg packing bound for Layer B peer calls.
+
+Full NEP-141 JSON (`receiver_id` string, `memo`, nested objects) is **not**
+produced by this client. Host materialize currently embeds scalar words into
+the promise args buffer. Authors must not assume complete Borsh/JSON ABI. -/
+inductive ArgPackingBound where
+  /-- Only portable scalar IR words (`u64` / `bool` / handles). -/
+  | portableScalarsOnly
+  deriving BEq, Repr
+
+def argPackingBound : ArgPackingBound := .portableScalarsOnly
+
+def argPackingBoundId : String := "portable_scalars_only"
+
+def maxPortableScalarArgs : Nat := 8
+
+/-- Honesty gate: reject oversized scalar lists that would pretend to pack
+complex NEAR JSON. Returns error text naming the bound. -/
+def requireArgPackingHonest (argCount : Nat) : Except String Unit :=
+  if argCount > maxPortableScalarArgs then
+    .error s!"NEAR FT peer client: arg packing honesty — at most \
+{maxPortableScalarArgs} portable scalar args (bound `{argPackingBoundId}`); \
+got {argCount}. Full NEP-141 JSON/Borsh is not claimed by Protocols.Near.FungibleToken."
+  else
+    .ok ()
+
 /-- Invoke a bound FT method with portable scalar args (amount, receiver idx, …).
-Encoding of NEAR JSON args remains host materialize; this only names the method. -/
+Encoding of NEAR JSON args remains host materialize; this only names the method.
+Does **not** pack `receiver_id : string` / memo objects — see `argPackingBound`. -/
 def call (m : FtMethod) (args : Array ProofForge.IR.Expr) : ProofForge.IR.Expr :=
   remoteCallRef m args
+
+/-- Same as `call` but fails in Lean when arg count exceeds the honesty bound
+(for specs/builders that want compile-time gate). -/
+def callHonest (m : FtMethod) (args : Array ProofForge.IR.Expr) : Except String ProofForge.IR.Expr :=
+  match requireArgPackingHonest args.size with
+  | .error e => .error e
+  | .ok () => .ok (call m args)
 
 end ProofForge.Protocols.Near.FungibleToken
