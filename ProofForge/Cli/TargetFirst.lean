@@ -125,6 +125,11 @@ def isLeanSourceFile (input? : Option String) : Bool :=
   | some path => path.endsWith ".lean"
   | none => false
 
+/-- Stable diagnostic for fixture-only targets that must not silently lower Counter. -/
+def sourceInputUnsupported (target : String) : String :=
+  s!"proof-forge build --target {target}: source input is not supported; \
+use `proof-forge emit --target {target} --fixture <id>` for the Counter spike surface"
+
 def pathLooksLikeDirectory (path : String) : Bool :=
   (FilePath.mk path).extension.isNone
 
@@ -154,6 +159,7 @@ def targetFirstYulOutput? (target flag : String) (out? yulOut? : Option String) 
 def buildLegacyFlag (target : String) (input? : Option String) (fixture? : Option String := none) (format? : Option String := none) (token : Bool := false) : Except String String :=
   let isLearn := match input? with | some input => input.endsWith ".learn" | none => false
   let isLeanSource := isLeanSourceFile input?
+  let hasSourceInput := input?.isSome
   match target, isLearn, fixture?, format?, token with
   | "evm", true, _, some "yul", false => Except.ok "--learn-yul"
   | "evm", true, _, some "yul", true => Except.error "proof-forge build --target evm --token --format yul is not yet implemented"
@@ -220,7 +226,12 @@ use --target evm | solana-sbpf-asm | wasm-near (see `just token-feature-matrix`)
         Except.error "proof-forge build --target wasm-stellar-soroban requires a .lean contract_source module"
   | "wasm-cosmwasm", true, _, _, _ =>
       Except.error "proof-forge build --target wasm-cosmwasm from .learn source is not yet implemented"
-  | "wasm-cosmwasm", false, _, _, _ => Except.ok "--emit-counter-ir-cosmwasm"
+  | "wasm-cosmwasm", false, _, _, _ =>
+      -- Fixture-only Counter spike: never substitute Counter for a source path.
+      if hasSourceInput then
+        Except.error (sourceInputUnsupported "wasm-cosmwasm")
+      else
+        Except.ok "--emit-counter-ir-cosmwasm"
   | "solana-sbpf-asm", true, _, _, true => Except.ok "--learn-token"
   | "solana-sbpf-asm", true, _, _, false => Except.ok "--learn"
   | "solana-sbpf-asm", false, _, _, true =>
@@ -237,24 +248,45 @@ use --target evm | solana-sbpf-asm | wasm-near (see `just token-feature-matrix`)
         Except.error s!"proof-forge build --target solana-sbpf-asm does not support format '{format?.getD ""}' without a Lean contract source input"
   | "psy-dpn", true, _, _, _ =>
       Except.error "proof-forge build --target psy-dpn from .learn source is not yet implemented"
-  | "psy-dpn", false, _, _, _ => Except.ok "--emit-counter-ir-psy"
+  | "psy-dpn", false, _, _, _ =>
+      if hasSourceInput then
+        Except.error (sourceInputUnsupported "psy-dpn")
+      else
+        Except.ok "--emit-counter-ir-psy"
   | "aleo-leo", true, _, _, _ =>
       Except.error "proof-forge build --target aleo-leo from .learn source is not yet implemented"
-  | "aleo-leo", false, _, _, _ => Except.ok "--emit-counter-ir-leo"
+  | "aleo-leo", false, _, _, _ =>
+      if hasSourceInput then
+        Except.error (sourceInputUnsupported "aleo-leo")
+      else
+        Except.ok "--emit-counter-ir-leo"
   | "move-aptos", true, _, _, _ =>
       Except.error "proof-forge build --target move-aptos from .learn source is not yet implemented"
-  | "move-aptos", false, _, _, _ => Except.ok "--emit-counter-ir-aptos"
+  | "move-aptos", false, _, _, _ =>
+      if hasSourceInput then
+        Except.error (sourceInputUnsupported "move-aptos")
+      else
+        Except.ok "--emit-counter-ir-aptos"
   | "move-sui", true, _, _, _ =>
       Except.error "proof-forge build --target move-sui from .learn source is not yet implemented"
   | "move-sui", false, fixture?, _, _ =>
-      if isLeanSource then
-        Except.error "proof-forge build --target move-sui from source is out of scope for the Counter object MVP; use --fixture counter"
+      if hasSourceInput then
+        Except.error (sourceInputUnsupported "move-sui")
       else
         match fixture? with
         | some fixture =>
             if fixture == "counter" then Except.ok "--emit-counter-ir-sui"
             else Except.error s!"proof-forge build --target move-sui --fixture {fixture} is not yet implemented"
         | none => Except.ok "--emit-counter-ir-sui"
+  | "wasm-cloudflare-workers", true, _, _, _ =>
+      Except.error "proof-forge build --target wasm-cloudflare-workers from .learn source is not yet implemented"
+  | "wasm-cloudflare-workers", false, _, _, _ =>
+      if hasSourceInput then
+        Except.error (sourceInputUnsupported "wasm-cloudflare-workers")
+      else
+        Except.error
+          "proof-forge build --target wasm-cloudflare-workers is fixture-only; \
+use `proof-forge emit --target wasm-cloudflare-workers --fixture counter`"
   | other, _, _, _, _ => Except.error s!"unknown target '{other}'"
 
 def emitLegacyFlag (target fixture : String) (format? : Option String) : Except String String :=

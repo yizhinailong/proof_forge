@@ -159,7 +159,32 @@ def main : IO UInt32 := do
     #["move-sui", "value-vault", "not yet mapped"]
   requireErrorContains
     ["build", "--target", "move-sui", "--root", ".", "-o", "build/source-sdk/move-sui", "Examples/Product/Counter.lean"]
-    #["move-sui", "source", "out of scope"]
+    #["move-sui", "source input is not supported"]
+  -- PF-P0-01: fixture-only build routes must not accept Lean sources (no silent Counter).
+  requireErrorContains
+    ["build", "--target", "wasm-cosmwasm", "--root", ".", "-o", "build/source-sdk/cosmwasm.wat",
+      "Examples/Product/ValueVault.lean"]
+    #["wasm-cosmwasm", "source input is not supported"]
+  requireErrorContains
+    ["build", "--target", "psy-dpn", "--root", ".", "-o", "build/source-sdk/vault.psy",
+      "Examples/Product/ValueVault.lean"]
+    #["psy-dpn", "source input is not supported"]
+  requireErrorContains
+    ["build", "--target", "aleo-leo", "--root", ".", "-o", "build/source-sdk/vault.leo",
+      "Examples/Product/ValueVault.lean"]
+    #["aleo-leo", "source input is not supported"]
+  requireErrorContains
+    ["build", "--target", "move-aptos", "--root", ".", "-o", "build/source-sdk/move-aptos",
+      "Examples/Product/ValueVault.lean"]
+    #["move-aptos", "source input is not supported"]
+  requireErrorContains
+    ["build", "--target", "wasm-cloudflare-workers", "--root", ".", "-o", "build/source-sdk/workers",
+      "Examples/Product/ValueVault.lean"]
+    #["wasm-cloudflare-workers", "source input is not supported"]
+  -- Fixture emit remains the supported surface for Counter spikes.
+  requireLegacy
+    ["build", "--target", "wasm-cosmwasm", "-o", "build/cosmwasm/Counter.wat"]
+    ["--emit-counter-ir-cosmwasm", "-o", "build/cosmwasm/Counter.wat"]
   requireLegacy
     ["emit", "--target", "wasm-cloudflare-workers", "--fixture", "counter", "--format", "ts"]
     ["--emit-counter-ir-ts"]
