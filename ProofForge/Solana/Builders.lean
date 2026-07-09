@@ -654,6 +654,16 @@ def invokeSplTokenInitializeMint (name mint mintAuthority : String) (decimals : 
     (tokenProgram := tokenProgram) (freezeAuthority? := freezeAuthority?)
     (rentSysvar := rentSysvar))
 
+def splTokenInitializeAccount3 (name account mint owner : String)
+    (tokenProgram : String := splTokenProgram) :
+    ProofForge.Contract.Builder.ModuleM Unit :=
+  cpi (splTokenInitializeAccount3Call name account mint owner (tokenProgram := tokenProgram))
+
+def invokeSplTokenInitializeAccount3 (name account mint owner : String)
+    (tokenProgram : String := splTokenProgram) :
+    ProofForge.Contract.Builder.EntryM Unit :=
+  cpiEntry (splTokenInitializeAccount3Call name account mint owner (tokenProgram := tokenProgram))
+
 def splToken2022InitializeTransferFeeConfig
     (name mint transferFeeConfigAuthority withdrawWithheldAuthority basisPointsSource
       maximumFeeSource : String) : ProofForge.Contract.Builder.ModuleM Unit :=

@@ -668,6 +668,20 @@ def splTokenInitializeMintDataLen (cpi : CpiInvoke) : Nat :=
   | some _ => 67
   | none => 35
 
+/-- SPL Token `InitializeAccount3` (instruction 18): owner pubkey in ix data.
+Accounts are just `[writable account, mint]` — no rent sysvar (unlike
+InitializeAccount / InitializeAccount2). Preferred modern token-account init
+for vault PDA-owned accounts after `system.create_account`. -/
+def lowerSplTokenInitializeAccount3Data
+    (accountBindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
+  #[
+    .comment "solana.cpi.data spl-token.initialize_account3: u8 instruction=18, pubkey owner"
+  ] ++
+  stackPtr .r8 cpiInstructionDataOffset ++ #[
+    storeImm .stb .r8 0 18
+  ] ++
+  lowerCpiPubkeyField accountBindings cpi "solana.cpi.owner" "owner" 1
+
 def lowerSplTokenRevokeData : Array AstNode :=
   #[
     .comment "solana.cpi.data spl-token.revoke: u8 instruction=5"
@@ -977,7 +991,7 @@ does not require a protocol `dataLayout`. -/
 def isSupportedCpiDataLayout (layout : String) : Bool :=
   match layout with
   | "system.transfer" | "system.create_account"
-  | "spl-token.initialize_mint"
+  | "spl-token.initialize_mint" | "spl-token.initialize_account3"
   | "spl-token.transfer_checked" | "spl-token.mint_to" | "spl-token.burn"
   | "spl-token.approve" | "spl-token.revoke" | "spl-token.close_account"
   | "spl-token.set_authority"
@@ -1010,6 +1024,8 @@ def lowerCpiInstructionData (accountBindings : Array CpiAccountBinding)
       (lowerSystemCreateAccountData accountBindings valueBindings cpi, 52)
   | some "spl-token.initialize_mint" =>
       (lowerSplTokenInitializeMintData accountBindings cpi, splTokenInitializeMintDataLen cpi)
+  | some "spl-token.initialize_account3" =>
+      (lowerSplTokenInitializeAccount3Data accountBindings cpi, 33)
   | some "spl-token.transfer_checked" =>
       (lowerSplTokenAmountData valueBindings cpi "spl-token.transfer_checked" 12 10 true, 10)
   | some "spl-token.mint_to" =>

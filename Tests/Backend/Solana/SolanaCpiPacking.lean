@@ -97,6 +97,8 @@ def tokenParamAmountSpec : ProofForge.Contract.ContractSpec :=
 def initializeMintSpec : ProofForge.Contract.ContractSpec :=
   build "SolanaInitializeMintCpi" do
     scalarState "nonce" .u64
+    -- mint_authority is ix-data only (not a CPI account meta); still needs schema binding.
+    readonlyAccountConstraint "mint_authority"
 
     splTokenInitializeMint
       "init_mint"
@@ -112,6 +114,27 @@ def initializeMintSpec : ProofForge.Contract.ContractSpec :=
         6
       effect (storageScalarWrite "nonce" (u64 1))
 
+/-- Protocol CPI: InitializeAccount3 (PDA-owned token account after create_account). -/
+def initializeAccount3Spec : ProofForge.Contract.ContractSpec :=
+  build "SolanaInitializeAccount3Cpi" do
+    scalarState "nonce" .u64
+    -- owner is packed into ix data; must appear in the account schema.
+    readonlyAccountConstraint "owner"
+
+    splTokenInitializeAccount3
+      "init_token_account"
+      "token_account"
+      "mint"
+      "owner"
+
+    entrySelector "initialize" "05" do
+      invokeSplTokenInitializeAccount3
+        "init_token_account"
+        "token_account"
+        "mint"
+        "owner"
+      effect (storageScalarWrite "nonce" (u64 1))
+
 def main : IO UInt32 := do
   match ProofForge.Backend.Solana.Package.renderPackageForSpec "init-mint-cpi" initializeMintSpec with
   | .ok pkg =>
@@ -124,14 +147,34 @@ def main : IO UInt32 := do
         "assembly missing InitializeMint instruction tag 0"
       require (contains asm "stb [r8+1], 6")
         "assembly missing initialize_mint decimals store"
-      require (contains asm "solana.cpi.value mint_authority")
+      require (contains asm "solana.cpi.value mint_authority from account mint_authority")
         "assembly missing mint_authority pubkey packing"
+      require (!contains asm "mint_authority source=mint_authority missing")
+        "initialize_mint must not reject mint_authority binding"
       require (contains asm "freeze_authority option=none")
         "assembly missing freeze_authority COption::None"
       require (contains asm "call sol_invoke_signed_c")
         "assembly missing CPI invoke for initialize_mint"
   | .error err =>
       throw <| IO.userError s!"Solana initialize_mint CPI packing render failed: {err.render}"
+
+  match ProofForge.Backend.Solana.Package.renderPackageForSpec "init-account3-cpi" initializeAccount3Spec with
+  | .ok pkg =>
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw <| IO.userError "init-account3 package missing sBPF assembly"
+      let asm := asmFile.contents
+      require (contains asm "solana.cpi.data spl-token.initialize_account3:")
+        "assembly missing initialize_account3 data packing marker"
+      require (contains asm "stb [r8+0], 18")
+        "assembly missing InitializeAccount3 instruction tag 18"
+      require (contains asm "solana.cpi.value owner from account owner")
+        "assembly missing owner pubkey packing"
+      require (!contains asm "owner source=owner missing")
+        "initialize_account3 must not reject owner binding"
+      require (contains asm "call sol_invoke_signed_c")
+        "assembly missing CPI invoke for initialize_account3"
+  | .error err =>
+      throw <| IO.userError s!"Solana initialize_account3 CPI packing render failed: {err.render}"
 
   match ProofForge.Backend.Solana.Package.renderPackageForSpec "system-cpi" systemTransferSpec with
   | .ok pkg =>

@@ -147,6 +147,25 @@ def splTokenInitializeMintCall (name mint mintAuthority : String) (decimals : Na
     | none => #[])
 }
 
+/-- SPL Token `InitializeAccount3` (ix 18). `owner` is an account binding whose
+pubkey is packed into ix data. Accounts: `[writable token_account, mint]`.
+No rent sysvar — preferred after `system.create_account` for PDA-owned token
+accounts (ATA path still uses associated-token.create). -/
+def splTokenInitializeAccount3Call (name account mint owner : String)
+    (tokenProgram : String := splTokenProgram) : CpiCall := {
+  name := name
+  program := tokenProgram
+  instruction := "initialize_account3"
+  accounts := #[
+    writableAccount account,
+    readonlyAccount mint
+  ]
+  dataLayout? := some "spl-token.initialize_account3"
+  extraMetadata := tokenMetadata tokenProgram ++ #[
+    kv "solana.cpi.owner" owner
+  ]
+}
+
 def splToken2022InitializeTransferFeeConfigCall
     (name mint transferFeeConfigAuthority withdrawWithheldAuthority basisPointsSource
       maximumFeeSource : String) : CpiCall := {
