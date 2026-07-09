@@ -17,7 +17,12 @@ This module is the **single inventory** of those mappings for the primary
 triad. It does not replace backend lowering — it documents and gates “what
 native symbol stands for this portable effect”.
 
-See `docs/host-runtime.md` · `docs/protocols-layer.md` (Layer A).
+**HostEnv** (below) is the de-EVM environment vocabulary: three buckets
+(general / approximate / chainOnly) with `materializeEnv` honesty. IR
+`ContextField` maps through `toHostEnv`.
+
+See `docs/host-runtime.md` · `docs/protocols-layer.md` (Layer A) ·
+`docs/zh/chain-agnostic-gap-analysis.md` §(B).
 -/
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
@@ -380,5 +385,283 @@ def supportedCount (targetId : String) : Nat :=
 
 /-- Catalog id for docs / diagnostics. -/
 def catalogId : String := "host.runtime"
+
+/-! ### HostEnv — chain-agnostic environment vocabulary (gap-analysis step 1)
+
+Authors should think in portable **HostEnv** terms, not EVM opcodes
+(`gasprice`, `coinbase`, `prevrandao`, …). Three buckets:
+
+* **general** — every primary-triad chain has a direct native analogue
+* **approximate** — similar semantics, different name/units; materialize with notes
+* **chainOnly** — honest reject (or target opt-in) when the host has no concept
+
+See `docs/host-runtime.md` § HostEnv and
+`docs/zh/chain-agnostic-gap-analysis.md` §(B).
+IR `ContextField` maps onto this vocabulary via `ContextField.toHostEnv`.
+-/
+
+/-- Portability bucket for a host-environment term. -/
+inductive HostEnvBucket where
+  | general
+  | approximate
+  | chainOnly
+  deriving BEq, DecidableEq, Repr
+
+def HostEnvBucket.id : HostEnvBucket → String
+  | .general => "general"
+  | .approximate => "approximate"
+  | .chainOnly => "chainOnly"
+
+instance : ToString HostEnvBucket where
+  toString b := b.id
+
+/-- Portable host-environment vocabulary (de-EVM'd).
+
+General and approximate terms are chain-neutral names. Chain-only terms keep
+host-specific names on purpose so materialize can reject honestly. -/
+inductive HostEnv where
+  /-- Wall-clock / block time (`block.timestamp` · Clock.unix_timestamp · block_timestamp). -/
+  | blockTime
+  /-- Block / slot / height identity (`block.number` · Clock.slot · block_index). -/
+  | blockHeight
+  /-- Chain id. -/
+  | chainId
+  /-- Immediate caller / signer / predecessor (`msg.sender` · signer · predecessor). -/
+  | caller
+  /-- This contract's address / program id / account id. -/
+  | selfAddress
+  /-- Attached native value (`msg.value` · lamports · attached_deposit). -/
+  | attachedValue
+  /-- Epoch / epoch height (units differ; approximate). -/
+  | epoch
+  /-- Remaining compute budget (`gasleft` · remaining CU · prepaid_gas). -/
+  | gasOrComputeBudgetLeft
+  /-- Historical block / slot hash (approximate; availability varies). -/
+  | blockHash
+  /-- Host randomness (`prevrandao` · slot hashes · random_seed) — **untrusted**. -/
+  | randomness
+  /-- EVM `gasprice` only. -/
+  | gasPrice
+  /-- EVM `basefee` only. -/
+  | baseFee
+  /-- EVM `tx.origin` only. -/
+  | txOrigin
+  /-- EVM `coinbase` / fee recipient only. -/
+  | coinbase
+  /-- Solana rent / rent-exempt minimum (no EVM/NEAR analogue). -/
+  | solanaRent
+  /-- NEAR predecessor when distinct from signer (async receipt model). -/
+  | nearPredecessor
+  deriving BEq, DecidableEq, Repr
+
+def HostEnv.id : HostEnv → String
+  | .blockTime => "env.blockTime"
+  | .blockHeight => "env.blockHeight"
+  | .chainId => "env.chainId"
+  | .caller => "env.caller"
+  | .selfAddress => "env.selfAddress"
+  | .attachedValue => "env.attachedValue"
+  | .epoch => "env.epoch"
+  | .gasOrComputeBudgetLeft => "env.gasOrComputeBudgetLeft"
+  | .blockHash => "env.blockHash"
+  | .randomness => "env.randomness"
+  | .gasPrice => "env.gasPrice"
+  | .baseFee => "env.baseFee"
+  | .txOrigin => "env.txOrigin"
+  | .coinbase => "env.coinbase"
+  | .solanaRent => "env.solanaRent"
+  | .nearPredecessor => "env.nearPredecessor"
+
+instance : ToString HostEnv where
+  toString e := e.id
+
+/-- Bucket classification (gap-analysis three buckets). -/
+def HostEnv.bucket : HostEnv → HostEnvBucket
+  | .blockTime | .blockHeight | .chainId | .caller | .selfAddress | .attachedValue =>
+      .general
+  | .epoch | .gasOrComputeBudgetLeft | .blockHash | .randomness =>
+      .approximate
+  | .gasPrice | .baseFee | .txOrigin | .coinbase | .solanaRent | .nearPredecessor =>
+      .chainOnly
+
+/-- Full HostEnv catalog (for tests / enumeration). -/
+def allHostEnvs : Array HostEnv := #[
+  .blockTime, .blockHeight, .chainId, .caller, .selfAddress, .attachedValue,
+  .epoch, .gasOrComputeBudgetLeft, .blockHash, .randomness,
+  .gasPrice, .baseFee, .txOrigin, .coinbase, .solanaRent, .nearPredecessor
+]
+
+/-- Successful materialization of a HostEnv term on a target. -/
+structure HostEnvMaterialization where
+  /-- Native binding row (kind + symbol). -/
+  binding : NativeBinding
+  /-- Optional semantic note (units, untrusted randomness, weak analogue). -/
+  semanticsNote? : Option String := none
+  deriving Repr, BEq
+
+/-- Linked HostEffect when one exists (for catalog cross-ref). -/
+def HostEnv.hostEffect? : HostEnv → Option HostEffect
+  | .caller => some .caller
+  | .attachedValue => some .valueNative
+  | .blockTime | .blockHeight | .chainId | .epoch => some .envBlock
+  | .gasOrComputeBudgetLeft => some .computeRemaining
+  | .randomness | .blockHash => some .envBlock
+  | .selfAddress | .gasPrice | .baseFee | .txOrigin | .coinbase
+  | .solanaRent | .nearPredecessor => none
+
+/-- Diagnostic when a HostEnv term cannot materialize on `targetId`. -/
+def hostEnvReject (targetId : String) (env : HostEnv) (reason : String) : String :=
+  s!"HostEnv: target `{targetId}` cannot materialize `{env.id}` \
+({HostEnvBucket.id env.bucket}): {reason}"
+
+/-- Materialize a portable HostEnv term for `targetId`, or honest-reject.
+
+**Honesty rule:** `.ok` only when this target already has a real lower / host
+path for the term (or a documented native symbol used by that path). Never
+alias another field (e.g. `chainId` ↛ `block_index`) and never invent syscalls
+the lowerer does not emit. General-bucket membership is **portable intent**;
+triad coverage grows as lowers land — until then, reject.
+
+Primary triad matrix (context / nativeValue paths as of HostEnv step 1):
+* `blockTime` — EVM + NEAR; Solana reject (no `timestamp` context lower)
+* `blockHeight` — triad (EVM `number` · Solana `Clock.slot` · NEAR `block_index`)
+* `chainId` — EVM only (Solana/NEAR plan reject `contextRead.chainId`)
+* `caller` / `attachedValue` — triad
+* `selfAddress` — EVM + NEAR; Solana reject (no `contractId` context lower)
+* `epoch` — NEAR only (`epoch_height`); EVM/Solana reject
+* `gasOrComputeBudgetLeft` — EVM only (`gas`); Solana/NEAR context paths reject
+* `blockHash` — EVM only; Solana/NEAR reject
+* `randomness` — EVM `prevrandao` + NEAR `random_seed`; Solana reject
+-/
+def materializeEnv (targetId : String) (env : HostEnv) :
+    Except String HostEnvMaterialization :=
+  let mk (kind : NativeKind) (symbol : String) (note? : Option String := none)
+      (sem? : Option String := none) : HostEnvMaterialization :=
+    { binding := { targetId := targetId, kind := kind, symbol := symbol, note? := note? }
+      semanticsNote? := sem? }
+  match env, targetId with
+  -- ── general ──────────────────────────────────────────────────────────
+  | .blockTime, "evm" =>
+      .ok (mk .opcode "timestamp" none (some "block.timestamp (seconds)"))
+  | .blockTime, "wasm-near" =>
+      .ok (mk .hostImport "env.block_timestamp" none (some "nanoseconds; divide for seconds"))
+  | .blockTime, "solana-sbpf-asm" =>
+      .error (hostEnvReject targetId env
+        "no contextRead.timestamp lower; Clock.unix_timestamp not wired (use blockHeight/slot)")
+  | .blockHeight, "evm" =>
+      .ok (mk .opcode "number" none (some "block.number"))
+  | .blockHeight, "solana-sbpf-asm" =>
+      .ok (mk .syscall "sol_get_clock_sysvar" (some "Clock.slot via contextRead.checkpointId")
+        (some "slot, not EVM block number"))
+  | .blockHeight, "wasm-near" =>
+      .ok (mk .hostImport "env.block_index" none none)
+  | .chainId, "evm" =>
+      .ok (mk .opcode "chainid" none none)
+  | .chainId, "solana-sbpf-asm" =>
+      .error (hostEnvReject targetId env
+        "no chainId context lower; Solana has no EIP-155 chainid (cluster is off-chain)")
+  | .chainId, "wasm-near" =>
+      .error (hostEnvReject targetId env
+        "wasm-near plan rejects contextRead.chainId; no native chainId host import \
+(must not alias block-height host reads)")
+  | .caller, "evm" =>
+      .ok (mk .opcode "caller" none (some "msg.sender 20-byte"))
+  | .caller, "solana-sbpf-asm" =>
+      .ok (mk .syscall "tx_signer_account" (some "signer account key via contextRead.userId")
+        (some "32-byte pubkey; first signer"))
+  | .caller, "wasm-near" =>
+      .ok (mk .hostImport "env.predecessor_account_id" none
+        (some "predecessor (not always signer under async receipts)"))
+  | .selfAddress, "evm" =>
+      .ok (mk .opcode "address" none none)
+  | .selfAddress, "wasm-near" =>
+      .ok (mk .hostImport "env.current_account_id" none none)
+  | .selfAddress, "solana-sbpf-asm" =>
+      .error (hostEnvReject targetId env
+        "no contextRead.contractId lower; program id not yet a HostEnv context path")
+  | .attachedValue, "evm" =>
+      .ok (mk .opcode "callvalue" none none)
+  | .attachedValue, "solana-sbpf-asm" =>
+      .ok (mk .syscall "lamports_field" (some "nativeValue → account[0] lamports")
+        (some "weak analogue: account lamports, not msg.value"))
+  | .attachedValue, "wasm-near" =>
+      .ok (mk .hostImport "env.attached_deposit" none none)
+  -- ── approximate ──────────────────────────────────────────────────────
+  | .epoch, "wasm-near" =>
+      .ok (mk .hostImport "env.epoch_height" none none)
+  | .epoch, "evm" =>
+      .error (hostEnvReject targetId env
+        "EVM has no epoch-height opcode; contextRead.epochHeight rejects")
+  | .epoch, "solana-sbpf-asm" =>
+      .error (hostEnvReject targetId env
+        "no contextRead.epochHeight lower; Clock.epoch not wired")
+  | .gasOrComputeBudgetLeft, "evm" =>
+      .ok (mk .opcode "gas" none (some "gasleft()"))
+  | .gasOrComputeBudgetLeft, "solana-sbpf-asm" =>
+      .error (hostEnvReject targetId env
+        "contextRead.gasLeft not supported; sol_remaining_compute_units is extension-only \
+(not HostEnv context path yet)")
+  | .gasOrComputeBudgetLeft, "wasm-near" =>
+      .error (hostEnvReject targetId env
+        "wasm-near plan rejects contextRead.gasLeft; prepaid_gas not wired as HostEnv lower")
+  | .blockHash, "evm" =>
+      .ok (mk .opcode "blockhash" none (some "only last 256 blocks"))
+  | .blockHash, "solana-sbpf-asm" =>
+      .error (hostEnvReject targetId env
+        "no contextRead.blockHash lower; SlotHashes sysvar not wired as HostEnv")
+  | .blockHash, "wasm-near" =>
+      .error (hostEnvReject targetId env
+        "wasm-near plan rejects contextRead.blockHash; use env.randomness for random_seed")
+  | .randomness, "evm" =>
+      .ok (mk .opcode "prevrandao" none
+        (some "UNTRUSTED: prevrandao / difficulty legacy; not VRF"))
+  | .randomness, "wasm-near" =>
+      .ok (mk .hostImport "env.random_seed" none
+        (some "UNTRUSTED: host random_seed is not VRF"))
+  | .randomness, "solana-sbpf-asm" =>
+      .error (hostEnvReject targetId env
+        "no contextRead.randomness lower; SlotHashes not wired as HostEnv")
+  -- ── chainOnly ────────────────────────────────────────────────────────
+  | .gasPrice, "evm" =>
+      .ok (mk .opcode "gasprice" none none)
+  | .gasPrice, _ =>
+      .error (hostEnvReject targetId env "EVM-only gasprice; no portable analogue")
+  | .baseFee, "evm" =>
+      .ok (mk .opcode "basefee" none none)
+  | .baseFee, _ =>
+      .error (hostEnvReject targetId env "EVM-only basefee (EIP-1559)")
+  | .txOrigin, "evm" =>
+      .ok (mk .opcode "origin" none none)
+  | .txOrigin, _ =>
+      .error (hostEnvReject targetId env "EVM-only tx.origin; use env.caller")
+  | .coinbase, "evm" =>
+      .ok (mk .opcode "coinbase" none none)
+  | .coinbase, _ =>
+      .error (hostEnvReject targetId env "EVM-only coinbase / fee recipient")
+  | .solanaRent, "solana-sbpf-asm" =>
+      .ok (mk .syscall "sol_get_rent_sysvar" none
+        (some "syscall exists; not a portable ContextField"))
+  | .solanaRent, _ =>
+      .error (hostEnvReject targetId env "Solana-only rent sysvar")
+  | .nearPredecessor, "wasm-near" =>
+      .ok (mk .hostImport "env.predecessor_account_id" none
+        (some "distinct from signer under async; portable caller prefers predecessor"))
+  | .nearPredecessor, _ =>
+      .error (hostEnvReject targetId env
+        "NEAR-only predecessor≠signer distinction; use env.caller")
+  -- unknown target
+  | _, _ =>
+      .error (hostEnvReject targetId env s!"no HostEnv row for target `{targetId}`")
+
+/-- True when `materializeEnv` succeeds (real native symbol, not reject). -/
+def supportsHostEnv (targetId : String) (env : HostEnv) : Bool :=
+  match materializeEnv targetId env with
+  | .ok _ => true
+  | .error _ => false
+
+/-- Convenience: materialize or return the reject string. -/
+def requireHostEnv (targetId : String) (env : HostEnv) :
+    Except String HostEnvMaterialization :=
+  materializeEnv targetId env
 
 end ProofForge.Target.HostRuntime

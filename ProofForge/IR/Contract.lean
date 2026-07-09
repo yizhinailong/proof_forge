@@ -1,6 +1,7 @@
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
 import ProofForge.Target.Capability
+import ProofForge.Target.HostRuntime
 import ProofForge.IR.Allocator
 
 namespace ProofForge.IR
@@ -299,21 +300,34 @@ def ContextField.capability : ContextField → ProofForge.Target.Capability
   | .contractId => .accountExplicit
   | .checkpointId | .timestamp | .epochHeight | .chainId | .gasPrice | .gasLeft | .baseFee | .prevRandao | .randomSeed | .coinbase | .blockHash _ => .envBlock
 
-/-! ### Context field portability split (D-050 Slice 2)
+/-! ### Context field portability + HostEnv mapping (D-050 / gap-analysis step 1)
 
-Context fields split into two layers:
-
-* `isPortableEnv` — every primary target (EVM, Solana, NEAR, Move) has a
-  native analogue, so a portable module may read them without a family-only
-  finding. `checkpointId`/`timestamp`/`epochHeight`/`chainId` are
-  chain-neutral block/time identity; `userId`/`userIdHash`/`contractId` are
-  chain-neutral caller/self identity.
-
-* EVM-only fields (`gasPrice`/`gasLeft`/`baseFee`/`prevRandao`/`randomSeed`/
-  `coinbase`/`origin`/`blockHash`) carry EVM-specific economics or RANDAO
-  semantics with no portable analogue. They classify as
-  `targetFamilyOnly .evm` and are rejected when lowering for a different family.
+IR keeps `ContextField` constructors for source compatibility. The
+**chain-agnostic vocabulary** is `HostRuntime.HostEnv` (three buckets:
+general / approximate / chainOnly). Use `toHostEnv` + `materializeEnv`
+for materialize-or-reject; `isPortableEnv` remains the coarse family-shared
+gate used by IR portability checks (general core + shipped `epochHeight`).
 -/
+
+/-- Map an IR context field onto the portable HostEnv vocabulary. -/
+def ContextField.toHostEnv : ContextField → ProofForge.Target.HostRuntime.HostEnv
+  | .userId | .userIdHash => .caller
+  | .contractId => .selfAddress
+  | .checkpointId => .blockHeight
+  | .timestamp => .blockTime
+  | .epochHeight => .epoch
+  | .chainId => .chainId
+  | .gasPrice => .gasPrice
+  | .gasLeft => .gasOrComputeBudgetLeft
+  | .baseFee => .baseFee
+  | .prevRandao | .randomSeed => .randomness
+  | .origin => .txOrigin
+  | .coinbase => .coinbase
+  | .blockHash _ => .blockHash
+
+/-- Coarse portable-core gate (legacy D-050): family-shared fields that every
+primary target lowers today without a `targetFamilyOnly` finding.
+Fine-grained honesty uses `HostEnv.bucket` + `materializeEnv`. -/
 def ContextField.isPortableEnv : ContextField → Bool
   | .userId | .userIdHash | .contractId | .checkpointId | .timestamp
   | .epochHeight | .chainId => true

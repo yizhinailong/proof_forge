@@ -111,8 +111,57 @@ Solana sBPF event lowering emits a comment from `catalogRefComment .logEmit`:
 
 Smokes assert this string appears in real `SbpfAsm.renderModule` output.
 
-## 8. Tests
+## 8. HostEnv — de-EVM environment vocabulary (gap-analysis step 1)
+
+Authors and IR should not treat `gasprice` / `coinbase` / `prevrandao` as the
+portable surface. **`HostEnv`** is the chain-agnostic vocabulary; backends
+**materialize or honest-reject** via `materializeEnv targetId env`.
+
+| Bucket | Rule | Terms |
+|--------|------|--------|
+| **general** | Portable *intent* (not “already lowered everywhere”) | `blockTime`, `blockHeight`, `chainId`, `caller`, `selfAddress`, `attachedValue` |
+| **approximate** | Similar meaning, different name/units; notes on materialization | `epoch`, `gasOrComputeBudgetLeft`, `blockHash`, `randomness` (**untrusted**) |
+| **chainOnly** | Opt-in / reject off home host | EVM: `gasPrice`, `baseFee`, `txOrigin`, `coinbase`; Solana: `solanaRent`; NEAR: `nearPredecessor` |
+
+**Honesty rule for `materializeEnv`:** return `.ok` only when the target already
+has a real lower / host path for that term. Never invent syscalls and never
+alias another field (e.g. NEAR `chainId` must **not** map to `block_index`).
+General-bucket coverage grows as lowers land; until then, reject.
+
+Triad snapshot (context / `nativeValue` paths):
+
+| HostEnv | EVM | Solana | NEAR |
+|---------|-----|--------|------|
+| `blockTime` | ok | reject | ok |
+| `blockHeight` | ok | ok (`Clock.slot`) | ok |
+| `chainId` | ok | reject | reject |
+| `caller` / `attachedValue` | ok | ok | ok |
+| `selfAddress` | ok | reject | ok |
+| `epoch` | reject | reject | ok |
+| `gasOrComputeBudgetLeft` | ok | reject | reject |
+| `blockHash` | ok | reject | reject |
+| `randomness` | ok | reject | ok |
+
+API (in `ProofForge.Target.HostRuntime`):
+
+- `HostEnv` / `HostEnvBucket` / `allHostEnvs`
+- `HostEnv.bucket`
+- `materializeEnv` / `requireHostEnv` / `supportsHostEnv` → `Except String HostEnvMaterialization`
+- Reject strings always name `HostEnv`, the target id, and `env.*` term id
+
+IR bridge: `ContextField.toHostEnv` maps legacy IR field names onto HostEnv
+(`timestamp` → `blockTime`, `userId` → `caller`, `gasLeft` → `gasOrComputeBudgetLeft`,
+`origin` → `txOrigin`, `prevRandao`/`randomSeed` → `randomness`, …).
+`ContextField.isPortableEnv` remains the **coarse** family-shared gate used by
+portability checks; fine-grained honesty is `materializeEnv`.
+
+Cross-ref: [chain-agnostic gap analysis (zh)](zh/chain-agnostic-gap-analysis.md) §(B)
+and suggested route step 1 (HostEnv before Address / sync-crosscall / Token).
+
+## 9. Tests
 
 `Tests/HostRuntime.lean` — catalog shape, primary + adapter targets, support counts,
-`requireHostRuntimeHonesty` + `resolveSpec` PDA-on-NEAR reject, catalog-ref on EventProbe.
+`requireHostRuntimeHonesty` + `resolveSpec` PDA-on-NEAR reject, catalog-ref on
+EventProbe, **HostEnv bucket + materialize-or-reject triad** (general / approximate
+/ chainOnly) + `ContextField.toHostEnv` wiring.
 -/

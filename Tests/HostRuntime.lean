@@ -182,7 +182,153 @@ def main : IO UInt32 := do
       require (contains asm "syscall:sol_log_64_" || contains asm "sol_log_64_")
         "catalog ref or syscall present"
 
-  IO.println s!"host-runtime: ok (effects={allEffects.size} evm={evmN} solana={solN} near={nearN} soroban={sorobanN} cosmwasm={cosmwasmN}; adapters+catalog-ref)"
+  ---------------------------------------------------------------------------
+  -- HostEnv (gap-analysis step 1): buckets + materialize-or-reject triad
+  ---------------------------------------------------------------------------
+  require (allHostEnvs.size == 16) "HostEnv catalog size"
+  require (HostEnv.blockTime.bucket == .general) "blockTime general"
+  require (HostEnv.caller.bucket == .general) "caller general"
+  require (HostEnv.attachedValue.bucket == .general) "attachedValue general"
+  require (HostEnv.epoch.bucket == .approximate) "epoch approximate"
+  require (HostEnv.gasOrComputeBudgetLeft.bucket == .approximate)
+    "gasOrComputeBudgetLeft approximate"
+  require (HostEnv.randomness.bucket == .approximate) "randomness approximate"
+  require (HostEnv.blockHash.bucket == .approximate) "blockHash approximate"
+  require (HostEnv.gasPrice.bucket == .chainOnly) "gasPrice chainOnly"
+  require (HostEnv.baseFee.bucket == .chainOnly) "baseFee chainOnly"
+  require (HostEnv.txOrigin.bucket == .chainOnly) "txOrigin chainOnly"
+  require (HostEnv.coinbase.bucket == .chainOnly) "coinbase chainOnly"
+  require (HostEnv.solanaRent.bucket == .chainOnly) "solanaRent chainOnly"
+  require (HostEnv.nearPredecessor.bucket == .chainOnly) "nearPredecessor chainOnly"
+
+  -- General: honest per-target matrix (portable *intent*; only claim lowers that exist).
+  -- blockHeight / caller / attachedValue: full triad.
+  for env in #[HostEnv.blockHeight, .caller, .attachedValue] do
+    for tid in primaryTargetIds do
+      match materializeEnv tid env with
+      | .error msg =>
+          throw (IO.userError s!"general {env.id} must materialize on {tid}: {msg}")
+      | .ok m =>
+          require (!isNaSymbol m.binding.symbol)
+            s!"general {env.id}@{tid} symbol must not be n/a"
+          require (m.binding.targetId == tid)
+            s!"general {env.id} binding targetId"
+  -- blockTime: EVM + NEAR only (Solana has no timestamp context lower).
+  for tid in #["evm", "wasm-near"] do
+    match materializeEnv tid .blockTime with
+    | .error msg => throw (IO.userError s!"blockTime must materialize on {tid}: {msg}")
+    | .ok m => require (!isNaSymbol m.binding.symbol) s!"blockTime@{tid}"
+  match materializeEnv "solana-sbpf-asm" .blockTime with
+  | .ok _ => throw (IO.userError "Solana blockTime must honest-reject")
+  | .error msg =>
+      require (contains msg "HostEnv") "Solana blockTime names HostEnv"
+      require (contains msg "env.blockTime") "Solana blockTime names term"
+  -- selfAddress: EVM + NEAR; Solana reject.
+  for tid in #["evm", "wasm-near"] do
+    match materializeEnv tid .selfAddress with
+    | .error msg => throw (IO.userError s!"selfAddress must materialize on {tid}: {msg}")
+    | .ok m => require (!isNaSymbol m.binding.symbol) s!"selfAddress@{tid}"
+  match materializeEnv "solana-sbpf-asm" .selfAddress with
+  | .ok _ => throw (IO.userError "Solana selfAddress must honest-reject")
+  | .error msg => require (contains msg "HostEnv") "Solana selfAddress HostEnv"
+  -- chainId: EVM only — never alias block_index / invent sol_get_cluster.
+  match materializeEnv "evm" .chainId with
+  | .ok m => require (m.binding.symbol == "chainid") "evm chainId → chainid"
+  | .error msg => throw (IO.userError s!"evm chainId: {msg}")
+  for tid in #["solana-sbpf-asm", "wasm-near"] do
+    match materializeEnv tid .chainId with
+    | .ok m =>
+        -- Fail hard if catalog invents a silent wrong binding.
+        throw (IO.userError
+          s!"chainId must reject on {tid} (got symbol `{m.binding.symbol}`; \
+no silent wrong binding — especially not block_index / sol_get_cluster)")
+    | .error msg =>
+        require (contains msg "HostEnv") s!"chainId@{tid} names HostEnv"
+        require (contains msg tid) s!"chainId reject names {tid}"
+        require (contains msg "env.chainId") s!"chainId reject names term"
+        -- Reject path has no binding; supportsHostEnv must be false.
+        require (!supportsHostEnv tid .chainId)
+          s!"chainId must not be supportsHostEnv on {tid}"
+
+  -- Approximate: gas/compute EVM-only; NEAR/Solana honest-reject (plan rejects gasLeft).
+  match materializeEnv "evm" .gasOrComputeBudgetLeft with
+  | .ok m => require (m.binding.symbol == "gas") "evm gasOrComputeBudgetLeft → gas"
+  | .error msg => throw (IO.userError s!"evm gasOrComputeBudgetLeft: {msg}")
+  for tid in #["solana-sbpf-asm", "wasm-near"] do
+    match materializeEnv tid .gasOrComputeBudgetLeft with
+    | .ok m =>
+        throw (IO.userError
+          s!"gasOrComputeBudgetLeft must reject on {tid} until context lower exists (got {m.binding.symbol})")
+    | .error msg =>
+        require (contains msg "HostEnv") s!"gas budget@{tid} names HostEnv"
+        require (contains msg "env.gasOrComputeBudgetLeft") s!"gas budget@{tid} names term"
+  match materializeEnv "evm" .randomness with
+  | .ok m => require (m.binding.symbol == "prevrandao") "evm randomness → prevrandao"
+  | .error msg => throw (IO.userError s!"evm randomness: {msg}")
+  match materializeEnv "wasm-near" .randomness with
+  | .ok m => require (m.binding.symbol == "env.random_seed") "near randomness"
+  | .error msg => throw (IO.userError s!"near randomness: {msg}")
+  match materializeEnv "solana-sbpf-asm" .randomness with
+  | .ok _ => throw (IO.userError "Solana randomness must honest-reject")
+  | .error msg => require (contains msg "HostEnv") "Solana randomness HostEnv"
+  match materializeEnv "wasm-near" .blockHash with
+  | .ok _ => throw (IO.userError "NEAR blockHash must honest-reject")
+  | .error msg =>
+      require (contains msg "HostEnv") "blockHash reject names HostEnv"
+      require (contains msg "wasm-near") "blockHash reject names target"
+      require (contains msg "env.blockHash") "blockHash reject names term"
+  -- epoch: NEAR only.
+  match materializeEnv "wasm-near" .epoch with
+  | .ok m => require (m.binding.symbol == "env.epoch_height") "near epoch"
+  | .error msg => throw (IO.userError s!"near epoch: {msg}")
+  for tid in #["evm", "solana-sbpf-asm"] do
+    match materializeEnv tid .epoch with
+    | .ok _ => throw (IO.userError s!"epoch must reject on {tid}")
+    | .error msg => require (contains msg "HostEnv") s!"epoch@{tid} HostEnv"
+
+  -- Chain-only: EVM-only terms ok on EVM, reject on Solana/NEAR.
+  for env in #[HostEnv.gasPrice, .baseFee, .txOrigin, .coinbase] do
+    match materializeEnv "evm" env with
+    | .error msg => throw (IO.userError s!"EVM must materialize {env.id}: {msg}")
+    | .ok m => require (!isNaSymbol m.binding.symbol) s!"evm {env.id}"
+    for tid in #["solana-sbpf-asm", "wasm-near"] do
+      match materializeEnv tid env with
+      | .ok _ => throw (IO.userError s!"{env.id} must reject on {tid}")
+      | .error msg =>
+          require (contains msg "HostEnv") s!"{env.id}@{tid} names HostEnv"
+          require (contains msg tid) s!"{env.id} reject names {tid}"
+          require (contains msg env.id) s!"{env.id} reject names term"
+  match materializeEnv "solana-sbpf-asm" .solanaRent with
+  | .ok m => require (contains m.binding.symbol "rent") "solana rent symbol"
+  | .error msg => throw (IO.userError s!"solanaRent: {msg}")
+  match materializeEnv "evm" .solanaRent with
+  | .ok _ => throw (IO.userError "solanaRent must reject on evm")
+  | .error msg => require (contains msg "HostEnv") "solanaRent reject HostEnv"
+  match materializeEnv "wasm-near" .nearPredecessor with
+  | .ok m => require (contains m.binding.symbol "predecessor") "near predecessor"
+  | .error msg => throw (IO.userError s!"nearPredecessor: {msg}")
+  match materializeEnv "evm" .nearPredecessor with
+  | .ok _ => throw (IO.userError "nearPredecessor must reject on evm")
+  | .error msg => require (contains msg "HostEnv") "nearPredecessor reject"
+
+  -- ContextField → HostEnv wiring (IR surface stays; vocabulary is HostEnv).
+  require (ContextField.timestamp.toHostEnv == .blockTime) "timestamp→blockTime"
+  require (ContextField.checkpointId.toHostEnv == .blockHeight) "checkpointId→blockHeight"
+  require (ContextField.userId.toHostEnv == .caller) "userId→caller"
+  require (ContextField.contractId.toHostEnv == .selfAddress) "contractId→self"
+  require (ContextField.gasLeft.toHostEnv == .gasOrComputeBudgetLeft) "gasLeft→budget"
+  require (ContextField.origin.toHostEnv == .txOrigin) "origin→txOrigin"
+  require (ContextField.prevRandao.toHostEnv == .randomness) "prevRandao→randomness"
+  require (ContextField.randomSeed.toHostEnv == .randomness) "randomSeed→randomness"
+  require ((ContextField.blockHash (.literal (.u64 0))).toHostEnv == .blockHash)
+    "blockHash→blockHash"
+  -- Portable core still classifies as before (coarse gate).
+  require ContextField.timestamp.isPortableEnv "timestamp portable core"
+  require (!ContextField.baseFee.isPortableEnv) "baseFee still non-portable core"
+  require (!ContextField.gasLeft.isPortableEnv)
+    "gasLeft stays non-core (approximate HostEnv, not portable-core)"
+
+  IO.println s!"host-runtime: ok (effects={allEffects.size} hostEnvs={allHostEnvs.size} evm={evmN} solana={solN} near={nearN} soroban={sorobanN} cosmwasm={cosmwasmN}; adapters+catalog-ref+HostEnv)"
   pure 0
 
 end ProofForge.Tests.HostRuntime

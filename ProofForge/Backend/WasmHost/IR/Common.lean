@@ -413,6 +413,10 @@ mutual
         ensureType "hash_two_to_one left operand" .hash (← inferExprType module env lhs)
         ensureType "hash_two_to_one right operand" .hash (← inferExprType module env rhs)
         .ok .hash
+    | .ecrecover _ _ _ _ | .eip712PermitDigest _ _ _ _ _ _ =>
+        .error { message := "ecrecover / EIP-712 permit require crypto.ecrecover (EVM-only); not supported by wasm-near IR v0" }
+    | .crosscallAbiPacked _ _ _ _ _ _ _ _ _ =>
+        .error { message := "crosscallAbiPacked (compile-time ABI Call[]) is EVM-only; not supported by wasm-near IR v0" }
     | .nativeValue => .ok .u64
     | .crosscallInvoke _ _ _ => .ok .u64
     | .crosscallInvokeTyped _ _ _ returnType => .ok returnType
