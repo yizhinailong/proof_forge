@@ -101,7 +101,7 @@ implementation SHA is only known after the implementation commit exists.
 
 | Wave | Task | State | Eligibility |
 |---|---|---|---|
-| 0 | PF-P0-01 | pending | immediately |
+| 0 | PF-P0-01 | done: verified@0244e8d0; `just cli-target-first`; `just source-identity` | immediately |
 | 0 | PF-P0-02 | pending | immediately; prefer after PF-P0-01 |
 | 0 | PF-P0-03 | pending | immediately; prefer after PF-P0-02 |
 | 0 | PF-P0-04 | pending | immediately; prefer after PF-P0-03 |
