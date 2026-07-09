@@ -8,8 +8,7 @@ Status: **Active**
 Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
 
-Baseline: Wave 0–P1-02 done; PF-P1-03 ArtifactBundle on primary triad metadata
-writers (EVM/Solana/EmitWat); next PF-P1-04 preflight L2 readiness.
+Baseline: Wave 0–P1-03 done; next PF-P1-04 preflight L2 readiness with backend fragment validation.
 
 ---
 
@@ -111,7 +110,7 @@ implementation SHA is only known after the implementation commit exists.
 | 0 | PF-P0-08 | done: verified@0334cbaa; just wat2wasm-fail-closed | immediately |
 | 1 | PF-P1-01 | done: verified@885b1ae6; just target-backend; just cli-check; just check-l2-parity; just product; just check | all Wave 0 tasks done |
 | 1 | PF-P1-02 | done: verified@3ece05d8; just target-support; just product; just docs-check | all Wave 0 tasks done; coordinate with PF-P1-01 |
-| 1 | PF-P1-03 | in_progress: primary triad writers done; pending ledger done@ after impl SHA | PF-P1-01 and PF-P1-02 done |
+| 1 | PF-P1-03 | done: verified@3021cb13; just artifact-bundle; just solana-source-elf; just product; just check | PF-P1-01 and PF-P1-02 done |
 | 1 | PF-P1-04 | pending | PF-P1-01 through PF-P1-03 done |
 | 2 | PF-P1-05 | pending | Wave 1 done |
 | 2 | PF-P1-06 | pending | Wave 1 done |
