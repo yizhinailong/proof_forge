@@ -485,8 +485,18 @@ Gates: `just crosscall-materialize`, `just portable-remote-call-multi-target`,
 | Order | Slice | Status / why |
 |---|---|---|
 | 6 | Mark `Source.Solana` fixture-only; demote from product docs | ✅ Phase C.4 |
-| 7 | Stdlib portable policies → multi-target lowering | ✅ Phase C.2–C.3 |
+| 7 | Stdlib portable policies → multi-target lowering | ✅ Phase C.2–C.3 (Ownable); **next:** Pausable/Roles — see task plan below |
 | 8 | Spec/Builder de-EVM naming | ✅ partial: `ConstructorParam` / `constructorParams` / `ConstructorInit*` / `abiWord?` / `defaultParamAbiWords`; historical `Evm*` + CLI `--evm-constructor-*` kept as aliases / host flags |
+
+### Next backlog (task plan)
+
+Concrete multi-wave tasks (policy multi-target → Token three-host loop →
+remote/clients → author polish), acceptance criteria, and PR slices:
+
+**[docs/superpowers/plans/2026-07-09-portable-sdk-unification.md](superpowers/plans/2026-07-09-portable-sdk-unification.md)**
+
+Default execution order: **PR-A** (Pausable four-host) → PR-B → PR-C → PR-D
+(NEAR NEP-141 emit). No new chains in that plan.
 
 ## 8. Success metrics
 

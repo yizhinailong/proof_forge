@@ -90,6 +90,8 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - [Target portfolio roadmap](target-roadmap.md): tiered sequencing for the remaining research targets and the Bitcoin policy family (D-034).
 - [Platform gap analysis 2026-07](platform-gaps-2026-07.md): unplanned dimensions (CLI surface, versioning, budgets, upgrades/signing, error model, clients) and their sequencing hooks.
 - [Implementation backlog](implementation-backlog.md): staged tasks and acceptance criteria.
+- [Product authoring architecture](product-authoring-architecture.md): business-intent vs chain materialization; Phase A–C status.
+- [Portable SDK unification plan (2026-07-09)](superpowers/plans/2026-07-09-portable-sdk-unification.md): next multi-wave tasks (policy · Token · remote) for EVM · Solana · NEAR · Soroban only.
 - [Review checklist (English)](review-checklist.md)
 - [Target notes](targets/README.md): per-family research and spike plans.
   - [EVM](targets/evm.md)
