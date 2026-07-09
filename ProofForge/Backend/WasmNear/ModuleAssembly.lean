@@ -86,8 +86,9 @@ def helperFuncsForModulePlan (modulePlan : ModulePlan) (mod : ProofForge.IR.Modu
     evtHelperFuncsForModulePlan modulePlan ++ crosscallArgsHelperFuncsForModulePlan modulePlan ++
     promiseHelperFuncsForModulePlan modulePlan ++
     crosscallPoolHelperFuncs ctx.crosscallStrings ++
-    mapHelperFuncsForModulePlan modulePlan ++
-    mapHashHelperFuncsForModulePlan modulePlan ++ aggregateHelperFuncsForModulePlan modulePlan mod ++ entryFuncs
+    mapHelperFuncsForModulePlan modulePlan ctx.bridge ++
+    mapHashHelperFuncsForModulePlan modulePlan ctx.bridge ++
+    aggregateHelperFuncsForModulePlan modulePlan mod ++ entryFuncs
 
 def globalsForModulePlan (modulePlan : ModulePlan) (allocator : ProofForge.IR.AllocatorConfig) :
     Array Global :=

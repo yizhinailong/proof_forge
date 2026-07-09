@@ -5,12 +5,14 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Portable business checks (Ownable / Pausable / require*) materialize on
 EVM · Solana · NEAR · Soroban without chain DSL in source.
 -/
+import Examples.Shared.AccessControl
 import Examples.Shared.Ownable
 import Examples.Shared.OwnableHash
 import Examples.Shared.OwnablePausable
 import Examples.Shared.Pausable
 import Examples.Shared.ReentrancyGuard
 import Examples.Shared.RemoteCall
+import Examples.Shared.RoleGatedToken
 import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Evm.Plan
 import ProofForge.Backend.Solana.Manifest
@@ -271,11 +273,49 @@ def main : IO Unit := do
       require (wat.contains "_get" || wat.contains "_put")
         "Soroban ReentrancyGuard uses host storage for lock"
 
-  for mod in #[pausable, ownablePausable, reent] do
+  -- T1.4: AccessControl / roles — nested map path on four hosts.
+  let accessControl := Examples.Shared.AccessControl.module
+  match ProofForge.Backend.Evm.Plan.buildModulePlan accessControl with
+  | .error e => throw (IO.userError s!"EVM AccessControl plan: {e.message}")
+  | .ok _ => pure ()
+  match ProofForge.Backend.Solana.SbpfAsm.renderModule accessControl with
+  | .error e => throw (IO.userError s!"Solana AccessControl: {e.message}")
+  | .ok src =>
+      require (src.contains "assert" || src.contains "assert_eq" || src.contains "assert_fail")
+        "Solana AccessControl role guards assert"
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule accessControl with
+  | .error e => throw (IO.userError s!"NEAR AccessControl: {e.message}")
+  | .ok wat =>
+      require (wat.contains "__pf_map_read_nested" || wat.contains "map_read_nested" ||
+          wat.contains "__pf_map_write_nested")
+        "NEAR AccessControl uses nested map helpers for role membership"
+      require (wat.contains "unreachable" || wat.contains "panic")
+        "NEAR AccessControl guard_role fails closed"
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule accessControl .soroban with
+  | .error e => throw (IO.userError s!"Soroban AccessControl: {e.message}")
+  | .ok wat =>
+      require (wat.contains "_get" || wat.contains "_put")
+        "Soroban AccessControl map path uses host _get/_put (not NEAR storage_*)"
+      require (!wat.contains "storage_read" && !wat.contains "storage_write")
+        "Soroban AccessControl must not import NEAR storage_*"
+
+  let roleGated := Examples.Shared.RoleGatedToken.module
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule roleGated with
+  | .error e => throw (IO.userError s!"NEAR RoleGatedToken: {e.message}")
+  | .ok wat =>
+      require (wat.contains "__pf_map_read_nested" || wat.contains "__pf_map_write_nested")
+        "RoleGatedToken NEAR uses nested role map helpers"
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule roleGated .soroban with
+  | .error e => throw (IO.userError s!"Soroban RoleGatedToken: {e.message}")
+  | .ok wat =>
+      require (wat.contains "_get" || wat.contains "_put")
+        "RoleGatedToken Soroban maps via host storage"
+
+  for mod in #[pausable, ownablePausable, reent, accessControl, roleGated] do
     let reps := runPrimaryWithSoroban mod
     require (reps.size == 4) s!"preflight size for {mod.name}"
     for r in reps do
       require r.readyToMaterialize
         s!"preflight ready {r.targetId} on {mod.name}: {r.note}"
 
-  IO.println "portable-auth-materialize: ok (Ownable·OwnableHash·Pausable·OwnablePausable·Reentrancy + RemoteCall · EVM·Solana·NEAR·Soroban)"
+  IO.println "portable-auth-materialize: ok (policies·roles·OwnableHash + RemoteCall · EVM·Solana·NEAR·Soroban)"

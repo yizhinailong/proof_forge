@@ -11,7 +11,8 @@ changing only `--target`. These are the canonical application-facing examples:
 - `ArrayExample.lean`
 - `RemoteCall.lean` for portable cross-contract intent
 - `Ownable.lean`, `OwnableHash.lean`, `Pausable.lean`, `OwnablePausable.lean`,
-  and `ReentrancyGuard.lean` for portable stdlib / policy facades
+  `AccessControl.lean`, and `ReentrancyGuard.lean` for portable stdlib / policy
+  facades
 - `RoleGatedToken.lean`
 - `StakingVault.lean`
 - `ValueVault.lean`

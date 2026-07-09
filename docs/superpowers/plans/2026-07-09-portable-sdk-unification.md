@@ -73,7 +73,7 @@ documented.
 | **T1.1** | Expand policy smoke | Extend `Tests/PortableAuthMaterialize.lean` (or add `Tests/PortablePolicyMaterialize.lean`) for `Pausable` (+ Reentrancy if in-scope) on EVM plan/Yul, Solana SbpfAsm, NEAR/Soroban EmitWat | `lake env lean --run …` green; native fail shapes asserted | S | — | **done** |
 | **T1.2** | Pausable multi-target gaps | Fix lower/validate for `Examples/Shared/Pausable` / `Stdlib.Pausable` so all four hosts render; pause flag + `guard_not_paused` materialize | Four-host render + smoke checks | M | T1.1 (TDD ok) | **done** (already materializing; smoke locked) |
 | **T1.3** | Ownable + Pausable compose | Shared portable composition: only owner can pause/unpause | Shared source + multi-target smoke; no chain Surface import | M | T1.2 | **done** (`Stdlib.OwnablePausable` + Shared facade) |
-| **T1.4** | AccessControl / Roles MVP | Decide nested role map portable vs EVM-first; implement MVP or honest reject on non-EVM | Decision in this doc §6 + architecture note; EVM green; non-EVM reject or minimal lower | M–L | T1.2 | pending |
+| **T1.4** | AccessControl / Roles MVP | Decide nested role map portable vs EVM-first; implement MVP or honest reject on non-EVM | Decision in this doc §6 + architecture note; EVM green; non-EVM reject or minimal lower | M–L | T1.2 | **done** (portable nested maps; EmitWat compound key + Soroban map `_get`/`_put`) |
 | **T1.5** | ReentrancyGuard boundary | EVM full; Solana/NEAR/Soroban: reject, no-op+warn, or lock-state — pick one product rule | Docs + capability/diagnostic consistency; Shared does not claim false four-host parity | S | — | **done** (lock-state four-host; EVM primary semantics in stdlib header) |
 
 **Suggested PR slice:** PR-A = T1.1+T1.2 · PR-B = T1.3+T1.5 · T1.4 follow-on.
@@ -144,7 +144,7 @@ Wave 4:  after W1/W2 progress; can interleave docs
 
 | Decision | Options | Default until decided |
 |----------|---------|------------------------|
-| **D-W1-Roles** | Nested AccessControl portable on all hosts vs EVM-first | EVM-first + honest reject elsewhere until T1.4 |
+| **D-W1-Roles** | Nested AccessControl portable on all hosts vs EVM-first | **Decided:** portable nested role maps on four hosts (T1.4) |
 | **D-W1-Reentrancy** | Full lock on Wasm/Solana vs EVM-only policy | **Decided:** lock-state materializes on four hosts; EVM is primary reentrancy meaning (T1.5 done) |
 | **D-W2-EvmFee** | Implement fee-on-transfer on EVM vs permanent reject→Solana | Reject + diagnostic until T2.2 chooses A |
 | **D-W2-SorobanToken** | Ever add TokenSpec lane? | **No** in this plan (CLI + matrix enforce no-lane) |
@@ -189,5 +189,6 @@ Update this table when recipes are renamed.
 |------|------|
 | 2026-07-09 | Plan recorded from portable SDK gap review; baseline includes OwnableHash multi-target + Spec de-EVM constructor names. Execution not started. |
 | 2026-07-09 | **PR-A/B:** T1.1–T1.3, T1.5 — Pausable four-host smoke; `OwnablePausable`; Reentrancy lock-state boundary. **PR-C/D partial:** T2.0, T2.1 (two-step NEAR body), T2.3, T2.5. Remaining: T1.4 AccessControl, T2.2 EVM feature policy, T2.4 docs, Wave 3+. |
+| 2026-07-09 | **T1.4:** nested map EmitWat fix (`__pf_map_*_nested_*`); Soroban map helpers use `_get`/`_put`; AccessControl + RoleGatedToken wat2wasm-valid on NEAR·Soroban; Shared facade + PortableAuthMaterialize. |
 
 When a task completes: set Status to `done`, add commit hash or PR note in changelog.

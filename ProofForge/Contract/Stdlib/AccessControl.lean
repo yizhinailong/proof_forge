@@ -3,7 +3,16 @@ Copyright (c) 2026 DaviRain. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
 AccessControl role mixin for `contract_source` composition.
-Uses nested map storage `(role, account) -> membership` and `guard_role` checks.
+Uses nested map storage `(role, account) → membership` and `guard_role` checks.
+
+## Product boundary (T1.4)
+
+Nested role maps are **portable** on EVM · Solana · NEAR · Soroban:
+- EmitWat uses compound keys (`__pf_map_*_nested_*`) for `pathWriteRole` /
+  `pathReadRole`.
+- Soroban maps use host `_get`/`_put` (not NEAR `storage_*`).
+- Account params here are `.address` (EVM ABI ergonomics); for pure u64
+  handles see `Examples/Shared/RoleGatedToken.lean`.
 -/
 import ProofForge.Contract.Source
 

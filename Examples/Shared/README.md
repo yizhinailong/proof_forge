@@ -37,6 +37,7 @@ NEAR/Wasm:
 | OwnableHash | [OwnableHash.lean](OwnableHash.lean) | hash-width owner; `Tests/PortableAuthMaterialize` · EVM·Solana·NEAR |
 | Pausable | [Pausable.lean](Pausable.lean) | `just portable-stdlib-core-multi-target`; unauthenticated pause API |
 | OwnablePausable | [OwnablePausable.lean](OwnablePausable.lean) | owner-gated pause; `lake env lean --run Tests/PortableAuthMaterialize.lean` |
+| AccessControl | [AccessControl.lean](AccessControl.lean) | nested role map + `guard_role`; four-host materialize |
 | ReentrancyGuard | [ReentrancyGuard.lean](ReentrancyGuard.lean) | lock-state on four hosts; EVM is primary reentrancy meaning (see stdlib header) |
 | ValueVault | [ValueVault.lean](ValueVault.lean) | `just portable-value-vault` |
 | RoleGatedToken | [RoleGatedToken.lean](RoleGatedToken.lean) | `scripts/portable/role-gated-token-multi-target.sh` |
