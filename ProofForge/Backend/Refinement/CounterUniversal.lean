@@ -320,27 +320,27 @@ covered fragment, so the interpreter never hits an `unsupported*` fallthrough.
 open ProofForge.IR.SemanticsFuel
 open ProofForge.Backend.Refinement.ConstructorCoverage
 
-/-- Generic module-qualified IR step: run `m`'s entrypoint for `call` under the
-shared fueled interpreter. When `isCounterModule m = true`, the fragment
-guarantees `m`'s entrypoints have the canonical Counter bodies, so the shared
-fueled interpreter runs them. The entrypoint resolution uses the canonical
-`CounterCall.entrypoint` (which returns the fixed `Examples.Counter` entrypoints)
-because `isCounterModule m = true` constrains `m`'s entrypoints to have those
-exact bodies — this is the structural bridge that makes the `∀ m` theorem
-provable without needing `Module BEq`. -/
+/-- Generic module-qualified IR step. Takes `m` as a parameter so the theorem
+quantifies over it. **NOTE (2026-07-09 honesty review):** this implementation
+discards `m` and runs the canonical `CounterCall.entrypoint` (the canonical
+Counter entrypoint bodies), NOT `m`'s own entrypoint bodies. So
+`moduleIrStep m = irStep` by `rfl`, and the `∀ m` theorem is real and
+`sorry`-free — but `m` is a *structural* parameter only; this is the scaffold
+form, not the content-honest "runs `m`'s own bodies" version (FV-9.5, open).
+The content-honest version needs `moduleEntrypointForCall m call` (lookup by
+name in `m.entrypoints`) + body-extraction lemmas proving the agreement. -/
 def moduleIrStep (m : Module) (state : State) (call : CounterCall) :
     Except String (State × ObservableReturn) := do
-  let _ := m  -- module parameter: the theorem quantifies over it
+  let _ := m  -- structural only; see honesty note above
   let (nextState, value?) ← runEntrypointNoArgsFuel defaultFuel state call.entrypoint
   let observable ← counterObservableReturn call value?
   .ok (nextState, observable)
 
-/-- When `isCounterModule m = true`, `moduleIrStep m` equals the canonical
-`irStep` exactly, because both run the same shared fueled interpreter on the
-canonical `CounterCall.entrypoint`. The module parameter `m` is carried
-through the theorem to quantify over it; the entrypoint bodies are fixed by
-`isCounterModule m = true` to be the canonical Counter shape, so the canonical
-entrypoints are the correct ones to run. This is `sorry`-free by reflexivity. -/
+/-- When `isCounterModule m = true`, `moduleIrStep m state call = irStep state call`
+by `rfl` — both run the canonical entrypoint via the shared fueled interpreter
+(because `moduleIrStep` discards `m`). This is the scaffold bridge. The
+content-honest version (FV-9.5, open) replaces this with a real lemma proving
+`m`'s own entrypoint bodies agree with the canonical ones. -/
 theorem moduleIrStep_eq_irStep_of_isCounterModule {m : Module} (hm : isCounterModule m = true)
     (call : CounterCall) (state : State) :
     moduleIrStep m state call = irStep state call := by

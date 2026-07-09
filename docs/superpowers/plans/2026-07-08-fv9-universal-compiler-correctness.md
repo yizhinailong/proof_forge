@@ -214,12 +214,23 @@ Landed:
 
 - **`moduleIrStep : Module → State → CounterCall → Except String (State × ObservableReturn)`**
   in `CounterUniversal.lean`: the module-qualified IR step runner. Takes `m`
-  as a parameter so the theorem quantifies over it. Resolves entrypoints via
-  the canonical `CounterCall.entrypoint` — the fragment guarantees the bodies
-  match, so `moduleIrStep m = irStep` by `rfl`, making the `∀ m` theorem
+  as a parameter so the theorem quantifies over it. **Resolves entrypoints via
+  the canonical `CounterCall.entrypoint`** (the current implementation discards
+  `m` and runs the canonical Counter entrypoint bodies, NOT `m`'s own entrypoint
+  bodies), so `moduleIrStep m = irStep` by `rfl`, making the `∀ m` theorem
   provable without needing `Module BEq`/`DecidableEq`.
+
+  **Honest characterization (2026-07-09 review):** this `∀ m` is a *structural
+  scaffold*, not yet a *content-honest* compiler-correctness theorem. The `m`
+  parameter is carried for quantification, but `moduleIrStep` does not read
+  `m.entrypoints` — it runs the canonical Counter entrypoints. So the theorem
+  says: "for any `m` that satisfies `isCounterModule`, the *canonical* Counter
+  refines." This is a real, `sorry`-free, `rfl`-closed proposition, and it
+  documents the intended shape of the true theorem — but it is **not** the
+  content-honest "any `m` in the fragment, running `m`'s own bodies, refines."
+  See "FV-9.5 — the content-honest `∀ m` (open)" below for the real path.
 - **`counterModel_fragment_refines_all`** in `CounterUniversal.lean`: the
-  counter-model `∀ (m : Module)` theorem:
+  counter-model `∀ (m : Module)` theorem (structural scaffold form):
   ```
   ∀ (m : Module) (hm : isCounterModule m = true)
     (hcovered : moduleInCoveredFragment m = true)
@@ -232,28 +243,31 @@ Landed:
       IRTraceMatches (moduleIrStep m) state calls observables ∧
       IRTraceMatches counterModelTargetSemantics.traceStep count calls observables
   ```
-  Proof: `moduleIrStep m = irStep` by `rfl`, then `counterModel_fragment_refines`.
+  Proof: `moduleIrStep m = irStep` by `rfl` (because `moduleIrStep` discards
+  `m` and runs the canonical entrypoint), then `counterModel_fragment_refines`.
   Zero `sorry`.
 
-**FV-9.3 replication — Solana-first, Wasm, EVM (all landed 2026-07-09):**
+**FV-9.3 replication — Solana-first, Wasm, EVM (all landed 2026-07-09, structural scaffold form):**
 
 - **`solanaSbpf_fragment_refines_all`** in `Solana/CounterSbpfRefinement.lean`:
-  the Solana sBPF core-tail target's `∀ (m : Module)` theorem, with
-  `CounterSbpfRel` as the simulation relation. Proof:
+  the Solana sBPF core-tail target's `∀ (m : Module)` theorem (scaffold form),
+  with `CounterSbpfRel` as the simulation relation. Proof:
   `moduleIrStep m = irStep` (`rfl`) + existing
   `counterSbpfCore_trace_simulates_from_obligations`.
 - **`wasmCore_fragment_refines_all`** in `WasmHost/CounterWasmRefinement.lean`:
-  the Wasm host target's `∀ (m : Module)` theorem, with `CounterWasmRel` as
-  the simulation relation. Proof: same `rfl` + existing
+  the Wasm host target's `∀ (m : Module)` theorem (scaffold form), with
+  `CounterWasmRel` as the simulation relation. Proof: same `rfl` + existing
   `counterWasmCore_trace_simulates_from_obligations`.
 - **`evmCompiledPowdr_fragment_refines_all`** in
   `EvmRefinement/CounterRefinement.lean`: the EVM/powdr target's `∀ (m : Module)`
-  theorem, with `CounterStorageRel` as the simulation relation. Proof: same `rfl`
-  + existing `counterPowdr_trace_simulates_from_obligations`.
+  theorem (scaffold form), with `CounterStorageRel` as the simulation relation.
+  Proof: same `rfl` + existing `counterPowdr_trace_simulates_from_obligations`.
 
 All four host families (counter-model, Solana sBPF, Wasm host, EVM/powdr) now
-have the `∀ (m : Module)` fragment-refines keystone, sharing the same IR-side
-`moduleIrStep` (rfl-equal to `irStep`). Zero `sorry` across all targets.
+have the `∀ (m : Module)` fragment-refines **structural scaffold** theorem,
+sharing the same IR-side `moduleIrStep` (rfl-equal to `irStep` because it
+discards `m`). Zero `sorry` across all targets. **Caveat:** the `m` parameter
+is structural-only; the content-honest version (FV-9.5) is open.
 
 Smoke: `counter-universal-refinement-smoke` + `solana-counter-sbpf-regression`
 extended with `∀ m` `#check` witnesses + `sample_fragment_refines_all` discharge.
@@ -448,15 +462,17 @@ module the counter-model actually admits.
 - Keep the discipline that held for L1: generic files carry **0 contract names**; every theorem
   **closed** (no `sorry`/`axiom`); self-built targets keep the external differential gate.
 
-## Definition of done — **ALL MET (2026-07-09)**
+## Definition of done — **STRUCTURAL SCAFFOLD MET (2026-07-09); CONTENT-HONEST `∀ m` OPEN (FV-9.5)**
 
 - ✅ A shared generic `evalModuleFuel`-equivalent in the IR layer (0 contract names):
   `SemanticsFuel.lean` + `moduleIrStep` (module-qualified wrapper). Both Counter and
   ValueVault re-pointed at it. Green.
 - ✅ `counterModel_fragment_refines_all : ∀ m ∈ SupportedFragment, ∀ calls, TraceSimulates …`
-  **closed and green** (`rfl`-reducible: `moduleIrStep m = irStep` by the fragment's
-  body-fixing guarantee). Replicated to Solana (`solanaSbpf_fragment_refines_all`),
+  **closed and green** as a *structural scaffold* (`rfl`-reducible: `moduleIrStep m = irStep`
+  by discarding `m`). Replicated to Solana (`solanaSbpf_fragment_refines_all`),
   Wasm (`wasmCore_fragment_refines_all`), and EVM (`evmCompiledPowdr_fragment_refines_all`).
+  ❌ **Not yet content-honest:** `moduleIrStep` runs the canonical Counter entrypoint
+  bodies, not `m`'s own. See FV-9.5.
 - ✅ A constructor-coverage table (`ConstructorCoverage.lean`); the fragment predicate
   (`moduleInCoveredFragment`) admits exactly the proven constructors (gap constructors
   rejected structurally via depth-fueled walk). IR-side preservation lemmas for the
@@ -464,6 +480,50 @@ module the counter-model actually admits.
   context + literal).
 - ✅ WASM and EVM analogues via the shared IR side (same `moduleIrStep`, per-target
   simulation relations).
+
+## FV-9.5 — the content-honest `∀ m` theorem — **OPEN**
+
+The structural scaffold (FV-9.3) proves a `∀ m` theorem where `moduleIrStep` discards
+`m` and runs the canonical Counter entrypoints. The content-honest version makes
+`moduleIrStep` run **`m`'s own entrypoint bodies** (looked up by name in
+`m.entrypoints`), and proves the per-call agreement:
+
+```
+moduleIrStep m state call = irStep state call
+```
+
+via a *real lemma* — not `rfl` — that shows `m`'s entrypoint bodies agree with the
+canonical ones when `isCounterModule m = true`.
+
+### The blocker
+
+The real lemma needs three **body-extraction** lemmas:
+
+```
+isCounterInitializeEntrypoint ep = true →
+  ep.body.toList = [Statement.effect (Effect.storageScalarWrite "count" (Expr.literal (Literal.u64 0)))]
+isCounterIncrementEntrypoint ep = true → ep.body.toList = [canonical increment body]
+isCounterGetEntrypoint ep = true → ep.body.toList = [canonical get body]
+```
+
+These are *true* and *kernel-decidable in principle* — the predicates match the body
+via an exhaustive list-pattern match with exactly one `true` branch. But proving them
+`sorry`-free in this Lean toolchain needs exhaustive nested `cases` over
+`List Statement` × `Statement` × `Effect` × `Expr` × `Literal` × `String`, which is
+tedious and brittle (pattern-overlap + wildcard-branch reduction issues surfaced
+during the 2026-07-09 attempt; reverted to the green `rfl` scaffold). The cleanest
+fix is to derive `DecidableEq` for `Statement`/`Expr`/`Effect`/`Literal`/`ErrorRef`
+(currently blocked: `Expr`/`Effect` are mutually recursive and reference
+`Array (String × Expr)`/`Array Statement`, which the deriving handler rejects), then
+the body-extraction lemmas close by `decide`.
+
+### Why this matters (and why it was deferred)
+
+The structural scaffold is a *real, sorry-free theorem* and a useful staging artifact:
+it pins the theorem shape and the simulation-relation plumbing across all four host
+families. But it must not be read as "every fragment contract's own bodies refine" —
+that is FV-9.5, and it is open. The deferral is documented honestly here so a future
+reader (or agent) does not mistake the scaffold for the content-honest cap.
 
 ## Non-goals / honest limits
 
@@ -482,5 +542,10 @@ module the counter-model actually admits.
   interpreter won't allow — budget for it.
 - **Fragment honesty:** resist quantifying over a fragment wider than FV-9.2 covers; a green
   theorem over a secretly-narrow fragment that *reads* as "all contracts" is the failure mode.
+- **Scaffold-vs-content-honest `∀ m`:** the FV-9.3 `∀ m` theorem (landed) is a structural
+  scaffold — `moduleIrStep` discards `m` and runs the canonical Counter entrypoints, so the
+  `rfl` proof is real but the `m` is structural-only. The content-honest version (FV-9.5,
+  open) must make `moduleIrStep` read `m`'s own entrypoint bodies. Don't mistake the scaffold
+  for the cap; the distinction is documented above.
 ```
 
