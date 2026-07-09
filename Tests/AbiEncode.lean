@@ -136,16 +136,16 @@ def main : IO UInt32 := do
   -- IR auto-lower: crosscallAbiPacked → helper Yul
   let irExpr := irAggregate (.literal (.u64 0xcA11)) #[mkCall 0xab #[0x11]] 32
   match irExpr with
-  | .crosscallAbiPacked _ sel stores argsSize _ none none =>
+  | .crosscallAbiPacked _ sel stores argsSize _ none none #[] #[] =>
       require (sel == 0x252dba42) "aggregate selector on IR node"
       require (stores.size > 0) "IR carries plan stores"
       require (argsSize > 0) "IR argsSize"
   | _ => throw (IO.userError "expected static crosscallAbiPacked")
   let packSpec : ProofForge.Backend.Evm.Plan.AbiPackedHelperSpec :=
     match irExpr with
-    | .crosscallAbiPacked _ sel stores argsSize outSize dynOff _ =>
+    | .crosscallAbiPacked _ sel stores argsSize outSize dynOff _ offs _ =>
         { selector := sel, stores := stores, argsSize := argsSize, outSize := outSize,
-          dynLenOffset? := dynOff }
+          dynLenOffset? := dynOff, dynTargetOffsets := offs }
     | _ => { selector := 0, stores := #[], argsSize := 0, outSize := 0 }
   let helperYul := renderStatements #[abiPackedHelperFunction packSpec]
   require (contains helperYul "__pf_abi_packed_") "abi packed helper name"
@@ -157,20 +157,38 @@ def main : IO UInt32 := do
   let calls2 := #[mkCall 0xab #[0x11], mkCall 0xcd #[0x22]]
   let irDyn := irAggregateDynLen (.literal (.u64 0xcA11)) (.literal (.u64 1)) calls2 32
   match irDyn with
-  | .crosscallAbiPacked _ _ _ _ _ (some 0x20) (some _) => pure ()
+  | .crosscallAbiPacked _ _ _ _ _ (some 0x20) (some _) #[] #[] => pure ()
   | _ => throw (IO.userError "expected dyn-len packed at offset 0x20")
   let dynSpec : ProofForge.Backend.Evm.Plan.AbiPackedHelperSpec :=
     match irDyn with
-    | .crosscallAbiPacked _ sel stores argsSize outSize dynOff _ =>
+    | .crosscallAbiPacked _ sel stores argsSize outSize dynOff _ offs _ =>
         { selector := sel, stores := stores, argsSize := argsSize, outSize := outSize,
-          dynLenOffset? := dynOff }
+          dynLenOffset? := dynOff, dynTargetOffsets := offs }
     | _ => { selector := 0, stores := #[], argsSize := 0, outSize := 0, dynLenOffset? := some 0x20 }
   let dynYul := renderStatements #[abiPackedHelperFunction dynSpec]
   require (contains dynYul "_dyn32" || contains dynYul "dyn") "dyn helper name"
   require (contains dynYul "n") "runtime length param n"
   require (contains dynYul "call(") "dyn helper CALL"
 
-  IO.println s!"abi-encode: ok (layout + yul + IR packed/dyn empty={empty.size} one={one.size} two={two.size})"
+  -- Runtime targets + static calldata
+  let irTgt := irAggregateDynTargets (.literal (.u64 0xcA11))
+    #[.literal (.u64 0x1111), .literal (.u64 0x2222)] calls2 none 32
+  match irTgt with
+  | .crosscallAbiPacked _ _ _ _ _ none none offs tgts =>
+      require (offs.size == 2 && tgts.size == 2) "two runtime targets"
+  | _ => throw (IO.userError "expected dyn-targets packed")
+  let tgtSpec : ProofForge.Backend.Evm.Plan.AbiPackedHelperSpec :=
+    match irTgt with
+    | .crosscallAbiPacked _ sel stores argsSize outSize dynOff _ offs _ =>
+        { selector := sel, stores := stores, argsSize := argsSize, outSize := outSize,
+          dynLenOffset? := dynOff, dynTargetOffsets := offs }
+    | _ => { selector := 0, stores := #[], argsSize := 0, outSize := 0 }
+  let tgtYul := renderStatements #[abiPackedHelperFunction tgtSpec]
+  require (contains tgtYul "tgts2" || contains tgtYul "t0") "dyn target params"
+  require (contains tgtYul "t1") "second target param"
+  require (contains tgtYul "call(") "dyn-targets helper CALL"
+
+  IO.println s!"abi-encode: ok (layout + yul + IR packed/dyn/tgts empty={empty.size} one={one.size} two={two.size})"
   pure 0
 
 end ProofForge.Tests.AbiEncode

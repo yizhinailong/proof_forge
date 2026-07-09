@@ -136,14 +136,17 @@ mutual
         classifyExpr s!"{path}.a" a ++ classifyExpr s!"{path}.b" b ++
           classifyExpr s!"{path}.c" c ++ classifyExpr s!"{path}.d" d ++
           classifyExpr s!"{path}.e" e ++ classifyExpr s!"{path}.f" f
-    | .crosscallAbiPacked target _ _ _ _ _ dynLen? =>
+    | .crosscallAbiPacked target _ _ _ _ _ dynLen? _dynOffs dynTargets =>
         let base :=
-          #[finding path "crosscallAbiPacked (ABI Call[] plan; optional runtime length)"
+          #[finding path "crosscallAbiPacked (ABI Call[] plan; optional runtime length/targets)"
               (.targetFamilyOnly .evm)] ++
             classifyExpr s!"{path}.target" target
-        match dynLen? with
-        | none => base
-        | some len => base ++ classifyExpr s!"{path}.dynLen" len
+        let base :=
+          match dynLen? with
+          | none => base
+          | some len => base ++ classifyExpr s!"{path}.dynLen" len
+        dynTargets.foldl (init := base) fun acc t =>
+          acc ++ classifyExpr s!"{path}.dynTarget" t
     | .cast value _ | .boolNot value | .hash value =>
         classifyExpr s!"{path}.value" value
     | .hashValue a b c d =>

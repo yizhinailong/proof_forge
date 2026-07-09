@@ -158,7 +158,7 @@ mutual
         ensureType "permit deadline" .u64 (← inferExprType module env deadline)
         discard <| inferExprType module env domainSep
         .ok .hash
-    | .crosscallAbiPacked target _ _ _ _ _ _ => do
+    | .crosscallAbiPacked target _ _ _ _ _ _ _ _ => do
         ensureType "abi-packed call target" .u64 (← inferExprType module env target)
         .ok .u64
     | .nativeValue => .ok .u64

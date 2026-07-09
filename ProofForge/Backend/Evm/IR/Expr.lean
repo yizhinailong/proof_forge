@@ -449,8 +449,11 @@ mutual
         lowerExprThroughPlan module env (.ecrecover a b c d)
     | .eip712PermitDigest a b c d e f => do
         lowerExprThroughPlan module env (.eip712PermitDigest a b c d e f)
-    | .crosscallAbiPacked target sel stores argsSize outSize dynLenOffset? dynLen? => do
-        lowerExprThroughPlan module env (.crosscallAbiPacked target sel stores argsSize outSize dynLenOffset? dynLen?)
+    | .crosscallAbiPacked target sel stores argsSize outSize dynLenOffset? dynLen?
+        dynTargetOffsets dynTargets => do
+        lowerExprThroughPlan module env
+          (.crosscallAbiPacked target sel stores argsSize outSize dynLenOffset? dynLen?
+            dynTargetOffsets dynTargets)
     | .nativeValue =>
         lowerExprThroughPlan module env .nativeValue
     | .crosscallInvoke target methodId args => do
@@ -796,7 +799,7 @@ partial def exprSupportsPlanScalarYul : ProofForge.IR.Expr → Bool
       exprSupportsPlanScalarYul a && exprSupportsPlanScalarYul b &&
         exprSupportsPlanScalarYul c && exprSupportsPlanScalarYul d &&
         exprSupportsPlanScalarYul e && exprSupportsPlanScalarYul f
-  | .crosscallAbiPacked target _ _ _ _ _ _ =>
+  | .crosscallAbiPacked target _ _ _ _ _ _ _ _ =>
       exprSupportsPlanScalarYul target
   | .cast value _ => exprSupportsPlanScalarYul value
   | .boolNot value

@@ -20,9 +20,11 @@ Selectors (canonical Multicall3):
 3. **IR auto-lower** (Wave ε): `aggregateIr` / `aggregate3Ir` →
    `crosscallAbiPacked` (static stores; EVM helper with mstore+CALL).
 4. **Runtime length** (Wave ε.15): `aggregateIrDynLen` packs max Call[] then
-   overwrites the array length word with runtime `n` (n ≤ max). Fully dynamic
-   Call element data still open.
-5. **Portable scalar remote**: `aggregate` still uses `remoteCall` with scalar
+   overwrites the array length word with runtime `n` (n ≤ max).
+5. **Runtime Call targets** (Wave ε.17): `aggregateIrDynTargets` — static
+   calldata templates + runtime target addresses (optional runtime length).
+   Fully dynamic per-call bytes still open.
+6. **Portable scalar remote**: `aggregate` still uses `remoteCall` with scalar
    words for multi-target handle wiring / smoke.
 -/
 import ProofForge.Contract.Surface
@@ -110,5 +112,12 @@ def aggregateIrDynLen (m : Multicall) (n : ProofForge.IR.Expr) (calls : Array Ca
 def aggregate3IrDynLen (m : Multicall) (n : ProofForge.IR.Expr) (calls : Array Call3)
     (outSize : Nat := 32) : ProofForge.IR.Expr :=
   ProofForge.Backend.Evm.ToYul.AbiEncode.irAggregate3DynLen m.target n calls outSize
+
+/-- Runtime Call **targets** with static calldata (`calls[i].target` ignored).
+    Optional runtime length `n?`. -/
+def aggregateIrDynTargets (m : Multicall) (dynTargets : Array ProofForge.IR.Expr)
+    (calls : Array Call) (n? : Option ProofForge.IR.Expr := none) (outSize : Nat := 32) :
+    ProofForge.IR.Expr :=
+  ProofForge.Backend.Evm.ToYul.AbiEncode.irAggregateDynTargets m.target dynTargets calls n? outSize
 
 end ProofForge.Protocols.Evm.Multicall

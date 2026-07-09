@@ -184,13 +184,19 @@ def abiPackedHelperName (spec : AbiPackedHelperSpec) : String :=
     match spec.dynLenOffset? with
     | some off => acc := s!"{acc}_dyn{off}"
     | none => pure ()
+    if !spec.dynTargetOffsets.isEmpty then
+      acc := s!"{acc}_tgts{spec.dynTargetOffsets.size}"
     for s in spec.stores do
       acc := s!"{acc}_{s.1}_{s.2}"
+    for off in spec.dynTargetOffsets do
+      acc := s!"{acc}_to{off}"
     acc
 
-/-- Yul helper: pack selector+stores at `memBase`, optional runtime length
-    overwrite, CALL `target`, return first out word.
-    Static: params `(target)`. Dyn length: params `(target, n)`. -/
+def dynTargetParamName (i : Nat) : String := s!"t{i}"
+
+/-- Yul helper: pack selector+stores, optional runtime length + Call targets,
+    CALL multicall `target`, return first out word.
+    Params: `(target [, n] [, t0..tk])`. -/
 def abiPackedHelperFunction (spec : AbiPackedHelperSpec) (memBase : Nat := defaultMemBase) :
     Statement :=
   let plan : Plan := {
@@ -199,17 +205,25 @@ def abiPackedHelperFunction (spec : AbiPackedHelperSpec) (memBase : Nat := defau
   }
   let inSize := callInSize plan
   let pack := packCalldataStatements memBase spec.selector plan
-  let overwrite :=
+  let overwriteLen :=
     match spec.dynLenOffset? with
     | none => #[]
     | some off =>
-        -- args region starts at memBase+4; overwrite length word with runtime `n`
-        #[.exprStmt (builtin "mstore" #[
-          .num (memBase + 4 + off),
-          .id "n"
-        ])]
+        #[.exprStmt (builtin "mstore" #[.num (memBase + 4 + off), .id "n"])]
+  let overwriteTgts :=
+    Id.run do
+      let mut stmts : Array Statement := #[]
+      for i in [0:spec.dynTargetOffsets.size] do
+        match spec.dynTargetOffsets[i]? with
+        | none => pure ()
+        | some off =>
+            stmts := stmts.push <| .exprStmt (builtin "mstore" #[
+              .num (memBase + 4 + off),
+              .id (dynTargetParamName i)
+            ])
+      stmts
   let body :=
-    pack ++ overwrite ++ #[
+    pack ++ overwriteLen ++ overwriteTgts ++ #[
       .varDecl #[{ name := "_abi_ok" }] (some <|
         builtin "call" #[
           builtin "gas" #[],
@@ -227,29 +241,62 @@ def abiPackedHelperFunction (spec : AbiPackedHelperSpec) (memBase : Nat := defau
         (if spec.outSize == 0 then .num 0
          else builtin "mload" #[.num memBase])
     ]
+  let tgtParams : Array Lean.Compiler.Yul.TypedName :=
+    Id.run do
+      let mut ps : Array Lean.Compiler.Yul.TypedName := #[]
+      for i in [0:spec.dynTargetOffsets.size] do
+        ps := ps.push { name := dynTargetParamName i }
+      ps
   let params : Array Lean.Compiler.Yul.TypedName :=
-    match spec.dynLenOffset? with
-    | none => #[{ name := "target" }]
-    | some _ => #[{ name := "target" }, { name := "n" }]
+    let base : Array Lean.Compiler.Yul.TypedName := #[{ name := "target" }]
+    let base :=
+      match spec.dynLenOffset? with
+      | none => base
+      | some _ => base.push { name := "n" }
+    base ++ tgtParams
   .funcDef (abiPackedHelperName spec) params #[{ name := "result" }] { statements := body }
 
 def abiPackedHelperCallExpr (target : Lean.Compiler.Yul.Expr) (spec : AbiPackedHelperSpec)
-    (dynLen? : Option Lean.Compiler.Yul.Expr := none) : Lean.Compiler.Yul.Expr :=
-  match spec.dynLenOffset?, dynLen? with
-  | some _, some n => Lean.Compiler.Yul.call (abiPackedHelperName spec) #[target, n]
-  | _, _ => Lean.Compiler.Yul.call (abiPackedHelperName spec) #[target]
+    (dynLen? : Option Lean.Compiler.Yul.Expr := none)
+    (dynTargets : Array Lean.Compiler.Yul.Expr := #[]) : Lean.Compiler.Yul.Expr :=
+  let args : Array Lean.Compiler.Yul.Expr :=
+    let base := #[target]
+    let base :=
+      match spec.dynLenOffset?, dynLen? with
+      | some _, some n => base.push n
+      | _, _ => base
+    base ++ dynTargets
+  Lean.Compiler.Yul.call (abiPackedHelperName spec) args
 
 /-- Build IR `crosscallAbiPacked` from an AbiEncode plan (args region). -/
 def irFromPlan (target : ProofForge.IR.Expr) (selector : Nat) (plan : Plan)
     (outSize : Nat := 32)
     (dynLenOffset? : Option Nat := none)
-    (dynLen? : Option ProofForge.IR.Expr := none) : ProofForge.IR.Expr :=
+    (dynLen? : Option ProofForge.IR.Expr := none)
+    (dynTargetOffsets : Array Nat := #[])
+    (dynTargets : Array ProofForge.IR.Expr := #[]) : ProofForge.IR.Expr :=
   ProofForge.IR.Expr.crosscallAbiPacked target selector
     (plan.stores.map fun s => (s.offset, wordNat s.value))
     plan.size
     outSize
     dynLenOffset?
     dynLen?
+    dynTargetOffsets
+    dynTargets
+
+/-- Args-region offsets of each `Call.address` word in `encodeAggregateArgs`. -/
+def aggregateCallTargetOffsets (calls : Array Call) : Array Nat :=
+  Id.run do
+    let n := calls.size
+    let arrayBase := 0x20
+    let offsetsBase := arrayBase + 32
+    let mut cursor := offsetsBase + n * 32
+    let mut offs : Array Nat := #[]
+    for i in [0:n] do
+      offs := offs.push cursor
+      let (_, endOff) := encodeCallAt cursor calls[i]!
+      cursor := endOff
+    offs
 
 /-- Multicall3 `aggregate(Call[])` as IR expr (compile-time calls / length). -/
 def irAggregate (target : ProofForge.IR.Expr) (calls : Array Call) (outSize : Nat := 32) :
@@ -262,6 +309,20 @@ def irAggregate (target : ProofForge.IR.Expr) (calls : Array Call) (outSize : Na
 def irAggregateDynLen (target n : ProofForge.IR.Expr) (calls : Array Call)
     (outSize : Nat := 32) : ProofForge.IR.Expr :=
   irFromPlan target 0x252dba42 (encodeAggregateArgs calls) outSize (some 0x20) (some n)
+
+/-- Aggregate with **runtime Call targets** and static calldata templates.
+    `calls[i].target` is ignored (overwritten by `dynTargets[i]`). Optional
+    runtime length `n?` (default = full max). -/
+def irAggregateDynTargets (target : ProofForge.IR.Expr)
+    (dynTargets : Array ProofForge.IR.Expr) (calls : Array Call)
+    (n? : Option ProofForge.IR.Expr := none) (outSize : Nat := 32) : ProofForge.IR.Expr :=
+  let plan := encodeAggregateArgs calls
+  let offs := aggregateCallTargetOffsets calls
+  let (dynLenOff, dynLen) :=
+    match n? with
+    | none => (none, none)
+    | some n => (some 0x20, some n)
+  irFromPlan target 0x252dba42 plan outSize dynLenOff dynLen offs dynTargets
 
 /-- Multicall3 `aggregate3(Call3[])` as IR expr. -/
 def irAggregate3 (target : ProofForge.IR.Expr) (calls : Array Call3) (outSize : Nat := 32) :

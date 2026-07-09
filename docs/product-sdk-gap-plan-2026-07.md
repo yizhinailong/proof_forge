@@ -184,9 +184,10 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 | ε.14 | ERC-4626 fee-on-transfer deposit/mint (balance delta) | **done** |
 | ε.15 | Call[] runtime length via max-pack + length-word overwrite | **done** |
 | ε.16 | ERC-4626 exit FOT (vault balance down-delta on push) | **done** |
+| ε.17 | Call[] runtime targets + static calldata templates | **done** |
 
-**Honesty still open:** recipient-side FOT re-measure; fully dynamic Call
-element calldata (not just length of a static max prefix).
+**Honesty still open:** recipient-side FOT re-measure; fully dynamic per-call
+bytes (runtime calldata blobs, not only targets/length).
 
 ---
 

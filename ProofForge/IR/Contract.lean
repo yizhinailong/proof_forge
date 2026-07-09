@@ -208,10 +208,10 @@ mutual
     | nativeValue
     /-- ABI-packed CALL (EVM). `stores` are `(offset, word)` in the **args
     region** after the 4-byte selector (from `Evm.AbiEncode.Plan`).
-    Optional `dynLenOffset?` + `dynLen?`: after static pack, overwrite the
-    word at that args offset with a **runtime** length (Multicall Call[]
-    prefix: pack max Call[], set length = n ≤ max). Requires `crosscall.invoke`.
-    Other hosts reject. -/
+    - `dynLenOffset?`/`dynLen?`: overwrite Call[] length word at runtime.
+    - `dynTargetOffsets`/`dynTargets`: overwrite each Call.address word with a
+      **runtime** target (static calldata stays in `stores`).
+    Requires `crosscall.invoke`. Other hosts reject. -/
     | crosscallAbiPacked
         (target : Expr)
         (selector : Nat)
@@ -220,6 +220,8 @@ mutual
         (outSize : Nat)
         (dynLenOffset? : Option Nat)
         (dynLen? : Option Expr)
+        (dynTargetOffsets : Array Nat)
+        (dynTargets : Array Expr)
     | crosscallInvoke (targetContractId : Expr) (methodId : Expr) (args : Array Expr)
     | crosscallInvokeTyped (targetContractId : Expr) (methodId : Expr) (args : Array Expr) (returnType : ValueType)
     | crosscallInvokeValueTyped (targetContractId : Expr) (methodId callValue : Expr) (args : Array Expr) (returnType : ValueType)
@@ -492,11 +494,14 @@ mutual
         #[.cryptoEcrecover, .cryptoHash] ++ owner.capabilities ++ spender.capabilities ++
           value.capabilities ++ nonce.capabilities ++ deadline.capabilities ++ domainSep.capabilities
     | .nativeValue => #[.valueNative]
-    | .crosscallAbiPacked target _selector _stores _argsSize _outSize _dynOff dynLen? =>
+    | .crosscallAbiPacked target _selector _stores _argsSize _outSize _dynOff dynLen?
+        _dynTgtOffs dynTargets =>
         let caps := #[.crosscallInvoke] ++ target.capabilities
-        match dynLen? with
-        | none => caps
-        | some len => caps ++ len.capabilities
+        let caps :=
+          match dynLen? with
+          | none => caps
+          | some len => caps ++ len.capabilities
+        dynTargets.foldl (init := caps) fun acc t => acc ++ t.capabilities
     | .crosscallInvoke target methodId args =>
         #[.crosscallInvoke] ++ target.capabilities ++ methodId.capabilities ++
           args.foldl (fun acc arg => acc ++ arg.capabilities) #[]

@@ -80,10 +80,11 @@ mutual
     | hashTwoToOne (lhs rhs : ExprPlan)
     | ecrecover (digest v r s : ExprPlan)
     | eip712PermitDigest (owner spender value nonce deadline domainSep : ExprPlan)
-    /-- ABI-packed CALL: static stores; optional runtime length overwrite. -/
+    /-- ABI-packed CALL: static stores; optional runtime length + targets. -/
     | crosscallAbiPacked (target : ExprPlan) (selector : Nat)
         (stores : Array (Nat × Nat)) (argsSize : Nat) (outSize : Nat)
         (dynLenOffset? : Option Nat) (dynLen? : Option ExprPlan)
+        (dynTargetOffsets : Array Nat) (dynTargets : Array ExprPlan)
     | nativeValue
     | effect (effect : EffectPlan)
     deriving Repr
@@ -420,7 +421,7 @@ structure CreateHelperSpec where
 
 instance : BEq CreateHelperSpec := ⟨fun a b => a.mode == b.mode && a.initCodeHex == b.initCodeHex⟩
 
-/-- ABI-packed CALL helper (selector + static args; optional runtime length). -/
+/-- ABI-packed CALL helper (static args; optional runtime length + targets). -/
 structure AbiPackedHelperSpec where
   selector : Nat
   stores : Array (Nat × Nat)
@@ -428,13 +429,16 @@ structure AbiPackedHelperSpec where
   outSize : Nat
   /-- Args-region offset of the Call[] length word (e.g. `0x20` for aggregate). -/
   dynLenOffset? : Option Nat := none
+  /-- Args-region offsets of each Call.address word to overwrite at runtime. -/
+  dynTargetOffsets : Array Nat := #[]
   deriving BEq, Repr
 
 instance : BEq AbiPackedHelperSpec :=
   ⟨fun a b =>
     a.selector == b.selector && a.stores == b.stores &&
       a.argsSize == b.argsSize && a.outSize == b.outSize &&
-      a.dynLenOffset? == b.dynLenOffset?⟩
+      a.dynLenOffset? == b.dynLenOffset? &&
+      a.dynTargetOffsets == b.dynTargetOffsets⟩
 
 /-! ## StmtPlan: target-semantic statement plan -/
 
@@ -646,10 +650,12 @@ mutual
     | .eip712PermitDigest a b c d e f =>
         contextOpsFromExpr a ++ contextOpsFromExpr b ++ contextOpsFromExpr c ++
           contextOpsFromExpr d ++ contextOpsFromExpr e ++ contextOpsFromExpr f
-    | .crosscallAbiPacked target _ _ _ _ _ dynLen? =>
-        match dynLen? with
-        | none => contextOpsFromExpr target
-        | some len => contextOpsFromExpr target ++ contextOpsFromExpr len
+    | .crosscallAbiPacked target _ _ _ _ _ dynLen? _dynOffs dynTargets =>
+        let base :=
+          match dynLen? with
+          | none => contextOpsFromExpr target
+          | some len => contextOpsFromExpr target ++ contextOpsFromExpr len
+        dynTargets.foldl (init := base) fun acc t => acc ++ contextOpsFromExpr t
     | .cast value _ | .boolNot value | .hash value => contextOpsFromExpr value
     | .hashValue a b c d =>
         contextOpsFromExpr a ++ contextOpsFromExpr b ++ contextOpsFromExpr c ++ contextOpsFromExpr d
