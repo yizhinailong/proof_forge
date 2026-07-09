@@ -246,22 +246,32 @@ use `proof-forge emit --target {profile.id} --fixture <id>` for the Counter spik
       validation := pushValidation next.validation "contractSource" "failed"
     }
       | .ok spec =>
-          -- L0+L1 preflight (portability hard + capability) before materialize/emit.
+          -- L0+L1+L2 preflight (PF-P1-04): readiness requires backend fragment hooks when registered.
           let pref := ProofForge.Target.Preflight.run profile spec.module
           if !pref.readyToMaterialize then
+            let code :=
+              if !pref.backendOk then "backend.validate"
+              else if !pref.capabilityOk then "capability.unsupported"
+              else if !pref.portabilityOk then "portability.failed"
+              else "preflight.failed"
             return {
               next with
               diagnostics := pushDiagnostic next.diagnostics {
                 severity := .error
-                code := "preflight.failed"
+                code := code
                 message := pref.note
                 file? := some input.toString
               }
-              validation := pushValidation next.validation "preflight" "failed"
+              validation := pushValidation
+                (pushValidation next.validation "preflight" "failed")
+                "backendStage" pref.backendStage
             }
           let preflighted := {
             next with
-            validation := pushValidation next.validation "preflight" "passed"
+            validation :=
+              pushValidation
+                (pushValidation next.validation "preflight" "passed")
+                "backendStage" pref.backendStage
           }
           -- PF-P1-01: capability resolve goes through the registry-backed TargetBackend.
           let backend ← match ProofForge.Target.findBackend? profile.id with

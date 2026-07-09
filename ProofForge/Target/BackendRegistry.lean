@@ -47,9 +47,12 @@ def solanaEnsurePlan (module : Module) : Except Diagnostic Unit :=
   mapPlanError (fun (e : ProofForge.Backend.Solana.Plan.PlanError) => e.message)
     (ProofForge.Backend.Solana.Plan.buildSolanaModulePlan module)
 
+/-- Align with production EmitWat path (PF-P1-04). `WasmHost.IR.validateModule`
+rejects nested mapKey paths that EmitWat already lowers (e.g. AccessControl
+roles); readiness must match build, not the stricter Rust-sourcegen gate. -/
 def nearValidateModule (module : Module) : Except Diagnostic Unit :=
-  match ProofForge.Backend.WasmHost.IR.validateModule module with
-  | .ok () => .ok ()
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule module with
+  | .ok _ => .ok ()
   | .error err => .error (diagFromMessage err.message)
 
 def nearEnsurePlan (module : Module) : Except Diagnostic Unit :=
