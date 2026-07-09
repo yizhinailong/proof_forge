@@ -105,7 +105,7 @@ Soroban token explicitly unsupported.
 |----|------|------|------------|------|------|--------|
 | **T3.1** | Remote scalar ABI MVP | Portable args (u64/bool/hash) encoding table across four hosts; extend Shared RemoteCall | Multi-target smoke with one parameterized remote | L | RemoteCall baseline | pending |
 | **T3.2** | Solana account auto-fill | Extend `ensurePortableAuthAccounts` pattern for transfer/remote intents; reduce Source.Solana need | Named Shared example emits without Solana Surface | L | T3.1 optional | pending |
-| **T3.3** | Identity docs + Solana Hash bound | Ownable vs OwnableHash chooser table; limb0 = Phase-1 product contract | Architecture + Surface comments; tests agree | S | OwnableHash landed | pending |
+| **T3.3** | Identity docs + Solana Hash bound | Ownable vs OwnableHash chooser table; limb0 = Phase-1 product contract | Architecture + Surface comments; tests agree | S | OwnableHash landed | **done** (architecture table) |
 | **T3.4** | Error id → clients | Map assertion_id across EVM revert / Solana custom / NEAR panic into sdk-schema | Same id in three-host artifacts | M | — | pending |
 | **T3.5** | Soroban product close-out (non-token) | Counter/Ownable/RemoteCall artifact list, SDK extension, wat2wasm gates | Existing multi-target scripts stable | M | C.5–C.9 | pending |
 

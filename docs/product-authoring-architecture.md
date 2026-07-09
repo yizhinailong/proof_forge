@@ -470,8 +470,19 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 |---|---|---|---|---|
 | `require*` / `assert` / `guard_owner` | revert | assert trap + **authority signer @0** | `unreachable`/`panic` | same + **require_auth** prologue |
 | `caller` / `userId` | `CALLER` | account[0] pubkey (`authority`) | predecessor | host auth stub + assert |
+| `callerHash` / `userIdHash` | `hashWord(caller)` = keccak of padded address | sha256(full pubkey) **limb0** handle (Phase-1) | predecessor → sha256 Hash | host auth + hash path where lowered |
 | `remoteCall` + logical peer | CALL | CPI | `promise_create` + **PeerMap** | `invoke_contract` + PeerMap |
 | storage scalar | slots | account data | `storage_read/write` | **`_get`/`_put`** |
+| TokenSpec (core FT) | ERC-20 artifact | SPL / Token-2022 plan | NEP-141 plan (+ `NearFungibleToken` body) | **no lane** |
+| `Pausable` / `OwnablePausable` | revert guards | assert | panic/unreachable | same + auth when caller used |
+
+**When to use Ownable vs OwnableHash**
+
+| Policy | Owner type | Prefer when |
+|--------|------------|-------------|
+| `Stdlib.Ownable` | `.u64` handle | Triad product path; EVM address-width / Solana digest handle / NEAR u64 projection |
+| `Stdlib.OwnableHash` | `.hash` | Identity-width owner (NEAR account hash; EVM keccak(caller); Solana limb0 of pubkey digest) |
+| `Stdlib.OwnablePausable` | u64 owner + pause | Owner-gated pause without composing unauthenticated `Pausable` alone |
 
 **Deferred (new chains):**
 
