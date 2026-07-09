@@ -38,6 +38,8 @@ def main : IO Unit := do
   require (m.entrypoints.any (·.name == "convertToShares")) "has convertToShares"
   require (m.entrypoints.any (·.name == "totalAssets")) "has totalAssets"
   require (m.entrypoints.any (·.name == "asset")) "has asset"
+  -- deposit must mention IERC20 transferFrom selector path (remote)
+  require (m.capabilities.any (· == .crosscallInvoke)) "deposit pulls via crosscall"
   require (m.state.any (fun s => s.id == "totalAssets")) "totalAssets state"
   require (m.state.any (fun s => s.id == "shareBalances") ||
     m.state.any (fun s => s.id == "totalSupply")) "share state"
@@ -73,18 +75,19 @@ def main : IO Unit := do
   | .error e => throw (IO.userError s!"EVM Yul: {e.message}")
   | .ok yul =>
       IO.FS.writeFile "build/portable/erc4626-vault/evm/ERC4626.yul" yul
-      require (yul.contains "deposit" || yul.contains "6e553f65" || yul.contains "f_")
-        "yul has deposit path"
+      -- transferFrom selector 0x23b872dd = 599290589
+      require (yul.contains "599290589")
+        "yul should pack IERC20 transferFrom remote for deposit pull"
   match ProofForge.Backend.Solana.SbpfAsm.renderModule m with
   | .error e => throw (IO.userError s!"Solana: {e.message}")
   | .ok src =>
       IO.FS.writeFile "build/portable/erc4626-vault/solana/ERC4626.s" src
       require (src.length > 0) "solana asm non-empty"
   match ProofForge.Backend.WasmHost.EmitWat.renderModule m with
-  | .error e => throw (IO.userError s!"NEAR: {e.message}")
-  | .ok wat =>
-      IO.FS.writeFile "build/portable/erc4626-vault/near/ERC4626.wat" wat
-      require (wat.contains "deposit") "near exports deposit"
+  | .ok _ => throw (IO.userError "NEAR should honest-reject selector remotes without string pool")
+  | .error e =>
+      require (e.message.contains "nearCrosscallStrings" || e.message.contains "crosscall")
+        s!"NEAR diagnostic: {e.message}"
   IO.println "erc4626-vault emit: ok"
 EOF
 
@@ -92,9 +95,8 @@ echo "=== product-erc4626-vault: multi-target emit ==="
 lake env lean --run "$DRIVER" || fail "emit driver failed"
 require_file "$OUT/evm/ERC4626.yul"
 require_file "$OUT/solana/ERC4626.s"
-require_file "$OUT/near/ERC4626.wat"
-require_contains "$OUT/near/ERC4626.wat" "deposit" "NEAR deposit"
-require_contains "$OUT/near/ERC4626.wat" "totalAssets" "NEAR totalAssets"
 require_contains "$OUT/solana/ERC4626.s" "entrypoint" "Solana entrypoint"
+# transferFrom selector decimal
+require_contains "$OUT/evm/ERC4626.yul" "599290589" "EVM IERC20 transferFrom selector in deposit"
 
-echo "product-erc4626-vault: ok (stdlib body · EVM Yul · Solana · NEAR)"
+echo "product-erc4626-vault: ok (EVM pull·Solana·NEAR honest reject)"

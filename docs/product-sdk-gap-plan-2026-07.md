@@ -173,10 +173,12 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 | ε.3 | ERC-4626 Layer C stdlib body (1:1 synthetic) | **done** |
 | ε.4 | IR `ecrecover` + EIP-712 digest helpers (EVM) | **done** |
 | ε.5 | ERC20Permit Layer C body (`setPermitSig` + `permit`) | **done** |
+| ε.6 | ERC-4626 underlying pull/push via IERC20 remote | **done** |
+| ε.7 | TokenSpec EVM `permit` plan → ERC20Permit stdlib notes | **done** |
 
-**Honesty still open:** TokenSpec `--token` `permit` feature wiring (use stdlib
-ERC20Permit instead); ERC-4626 underlying ERC-20 pull + non-1:1 rates; dynamic
-IR Call[] auto-lower.
+**Honesty still open:** ERC-4626 non-1:1 rates / fee-on-transfer assets; dynamic
+IR Call[] auto-lower; TokenSpec auto-compose of ERC20Permit bytecode (plan +
+stdlib path documented; legacy Token/Evm.lean path still non-permit).
 
 ---
 

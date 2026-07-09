@@ -12,14 +12,17 @@ client (`Protocols.Evm.IERC4626` / Product `external_vault`).
 | Feature | Behavior |
 |---------|----------|
 | Exchange rate | **1:1** `shares ↔ assets` (`convertTo*` is identity) |
-| Underlying ERC-20 pull | **Synthetic** — `deposit` credits `totalAssets` without
-  `transferFrom` on an external token (no ecrecover / nested CALL required) |
+| Underlying ERC-20 | `deposit`/`mint` **pull** via IERC20 `transferFrom(caller, vaultSelf, amount)`;
+  `withdraw`/`redeem` **push** via IERC20 `transfer(receiver, amount)`.
+  `vaultSelf` is set in `init` (portable stand-in for `address(this)` so Solana/NEAR
+  do not need unsupported `contractId`). Method words are EVM selectors
+  (`0x23b872dd` / `0xa9059cbb`) — **EVM-primary** packing; other hosts still get
+  portable remote nodes (CPI/promise smoke). |
 | Share token | Minimal ERC-20 surface: `balanceOf` / `totalSupply` / `transfer` /
-  `approve` / `transferFrom` on **shares** |
+  `approve` on **shares** |
 | Full fee / preview rounding | Deferred |
 
-This matches VerifiedVault’s solvent model (`reserves = shares`) with the
-EIP-4626 method surface for multi-target product demos.
+Solvent model: `totalAssets = totalSupply` (1:1) when pull/push succeed.
 -/
 import ProofForge.Contract.Source
 
@@ -74,6 +77,10 @@ end Spec
 def assetAddress : ScalarRef :=
   ProofForge.Contract.Surface.slot "asset" .u64
 
+/-- Portable vault self address (init-set stand-in for `address(this)`). -/
+def vaultSelf : ScalarRef :=
+  ProofForge.Contract.Surface.slot "vaultSelf" .u64
+
 def totalAssetsSlot : ScalarRef :=
   ProofForge.Contract.Surface.slot "totalAssets" .u64
 
@@ -88,6 +95,7 @@ def shareAllowances : MapRef :=
 
 contract_mixin ERC4626Mixin do
   use ProofForge.Contract.Surface.scalar assetAddress
+  use ProofForge.Contract.Surface.scalar vaultSelf
   use ProofForge.Contract.Surface.scalar totalAssetsSlot
   use ProofForge.Contract.Surface.scalar totalSupply
   use ProofForge.Contract.Surface.mapState shareBalances
@@ -128,11 +136,23 @@ contract_mixin ERC4626Mixin do
   query maxRedeem (holder : .address) returns(.u64) do
     return mapRead shareBalances holder;
 
+  -- IERC20 transferFrom / transfer selectors (EVM-primary remote packing).
+  -- transferFrom(address,address,uint256) = 0x23b872dd
+  -- transfer(address,uint256) = 0xa9059cbb
+
   entry deposit (assets : .u64, receiver : .address) returns(.u64) do
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref receiver)
       "zero receiver";
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref assets)
       "zero assets";
+    -- Pull underlying: transferFrom(caller, this, assets)
+    let assetTok : .u64 := assetAddress;
+    let selfAddr : .u64 := vaultSelf;
+    let _pulled : .u64 :=
+      ProofForge.Contract.Surface.remoteCall
+        (ProofForge.Contract.Surface.ref assetTok)
+        (u64 0x23b872dd)
+        #[caller, ProofForge.Contract.Surface.ref selfAddr, ProofForge.Contract.Surface.ref assets];
     let ta : .u64 := totalAssetsSlot;
     totalAssetsSlot := ta +! assets;
     let ts : .u64 := totalSupply;
@@ -159,6 +179,13 @@ contract_mixin ERC4626Mixin do
       "zero receiver";
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref shares)
       "zero shares";
+    let assetTok : .u64 := assetAddress;
+    let selfAddr : .u64 := vaultSelf;
+    let _pulled : .u64 :=
+      ProofForge.Contract.Surface.remoteCall
+        (ProofForge.Contract.Surface.ref assetTok)
+        (u64 0x23b872dd)
+        #[caller, ProofForge.Contract.Surface.ref selfAddr, ProofForge.Contract.Surface.ref shares];
     let ta : .u64 := totalAssetsSlot;
     totalAssetsSlot := ta +! shares;
     let ts : .u64 := totalSupply;
@@ -190,6 +217,13 @@ contract_mixin ERC4626Mixin do
     totalSupply := ts -! assets;
     let ta : .u64 := totalAssetsSlot;
     totalAssetsSlot := ta -! assets;
+    -- Push underlying: transfer(receiver, assets)
+    let assetTok : .u64 := assetAddress;
+    let _sent : .u64 :=
+      ProofForge.Contract.Surface.remoteCall
+        (ProofForge.Contract.Surface.ref assetTok)
+        (u64 0xa9059cbb)
+        #[ProofForge.Contract.Surface.ref receiver, ProofForge.Contract.Surface.ref assets];
     emit Withdraw indexed #[
       fieldAsName "sender" caller,
       fieldAsName "receiver" receiver,
@@ -222,6 +256,12 @@ contract_mixin ERC4626Mixin do
     totalSupply := ts -! shares;
     let ta : .u64 := totalAssetsSlot;
     totalAssetsSlot := ta -! shares;
+    let assetTok : .u64 := assetAddress;
+    let _sent : .u64 :=
+      ProofForge.Contract.Surface.remoteCall
+        (ProofForge.Contract.Surface.ref assetTok)
+        (u64 0xa9059cbb)
+        #[ProofForge.Contract.Surface.ref receiver, ProofForge.Contract.Surface.ref shares];
     emit Withdraw indexed #[
       fieldAsName "sender" caller,
       fieldAsName "receiver" receiver,
@@ -266,8 +306,10 @@ contract_mixin ERC4626Mixin do
 
 contract_source ERC4626 do
   use mixin
-  entry init (assetAddr : .u64) do
+  -- assetAddr: underlying ERC-20; selfAddr: this vault (portable address(this)).
+  entry init (assetAddr : .u64, selfAddr : .u64) do
     assetAddress := assetAddr;
+    vaultSelf := selfAddr;
     totalAssetsSlot := u64 0;
     totalSupply := u64 0;
 

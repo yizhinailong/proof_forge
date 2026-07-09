@@ -134,21 +134,20 @@ def TokenSpec.needsToken2022 (spec : TokenSpec) : Bool :=
   spec.hasFeature .defaultAccountState ||
   spec.hasFeature .immutableOwner
 
-/-- Features that the EVM TokenSpec lane **permanently rejects** (no silent drop).
+/-- Features that the EVM TokenSpec lane **rejects** (no silent drop).
 
-Product policy (T2.2 / D-W2-EvmFee): Solana Token-2022-shaped extensions and
-EIP-2612 `permit` are **not** lowered into the generated ERC-20 contract.
+Product policy (T2.2 / D-W2-EvmFee): Solana Token-2022-shaped extensions are
+**not** lowered into the generated ERC-20 contract (use Solana target).
 
-* Use `--target solana-sbpf-asm` for `transfer_fee` / `non_transferable` / other
-  Token-2022 extensions.
-* `permit` on the **TokenSpec `--token` lane** still rejects on `evm`. Deploy an
-  EIP-2612 body via `Contract.Stdlib.ERC20Permit` (`just product-erc20-permit`)
-  which uses IR `ecrecover` + EIP-712 digest (EVM-only `crypto.ecrecover`).
+EIP-2612 `permit` is **planned** on EVM (`erc20.permit` ops + notes) and
+materialized via `Contract.Stdlib.ERC20Permit` / `just product-erc20-permit`
+(IR `ecrecover`). The legacy hand-written `Token/Evm.lean` Yul path does not
+emit permit; compose the stdlib for a real body.
 
-Core ERC-20 lane on EVM remains: mintable / burnable / capped / pausable. -/
+Core ERC-20 lane on EVM: mintable / burnable / capped / pausable (+ permit plan). -/
 def TokenSpec.evmUnsupportedFeatures (spec : TokenSpec) : Array TokenFeature :=
   #[.transferFee, .nonTransferable, .confidentialTransfer, .transferHook,
-    .metadataPointer, .defaultAccountState, .immutableOwner, .permit].filter spec.hasFeature
+    .metadataPointer, .defaultAccountState, .immutableOwner].filter spec.hasFeature
 
 inductive TokenArtifactKind where
   | evmErc20Contract
@@ -244,31 +243,40 @@ def baseErc20Operations : Array String := #[
   "erc20.events"
 ]
 
-/-- Plan ops for materializable EVM features only (`permit` rejected, not listed). -/
+/-- Plan ops for materializable EVM features. -/
 def evmFeatureOperations (spec : TokenSpec) : Array String :=
   #[] ++
   (if spec.hasFeature .mintable then #["erc20.mint"] else #[]) ++
   (if spec.hasFeature .burnable then #["erc20.burn"] else #[]) ++
   (if spec.hasFeature .capped then #["erc20.cap"] else #[]) ++
-  (if spec.hasFeature .pausable then #["erc20.pause"] else #[])
+  (if spec.hasFeature .pausable then #["erc20.pause"] else #[]) ++
+  (if spec.hasFeature .permit then
+    #["erc20.permit", "erc20.nonces", "erc20.domain_separator"]
+  else #[])
 
 def evmErc20Plan (target : TargetProfile) (spec : TokenSpec) : TokenPlan := {
   targetId := target.id
   standard := .erc20
   artifactKind := .evmErc20Contract
-  capabilities := #[
-    .storageScalar,
-    .storageMap,
-    .callerSender,
-    .eventsEmit,
-    .controlConditional,
-    .assertions
-  ]
+  capabilities :=
+    #[
+      .storageScalar,
+      .storageMap,
+      .callerSender,
+      .eventsEmit,
+      .controlConditional,
+      .assertions
+    ] ++
+    (if spec.hasFeature .permit then #[.cryptoEcrecover, .cryptoHash] else #[])
   operations := baseErc20Operations ++ evmFeatureOperations spec
-  notes := #[
-    "EVM lowers a TokenSpec into a per-token ERC-20-compatible contract artifact.",
-    "Deployment creates contract bytecode plus ABI/deploy metadata."
-  ]
+  notes :=
+    #[
+      "EVM lowers a TokenSpec into a per-token ERC-20-compatible contract artifact.",
+      "Deployment creates contract bytecode plus ABI/deploy metadata."
+    ] ++
+    (if spec.hasFeature .permit then
+      #["permit: use ProofForge.Contract.Stdlib.ERC20Permit (just product-erc20-permit) for EIP-2612 body with ecrecover."]
+    else #[])
 }
 
 def baseSplTokenOperations : Array String := #[
@@ -863,8 +871,7 @@ def FeatureSupport.id : FeatureSupport → String
   | .noLane => "no-lane"
 
 /-- Core portable features materializable on EVM ERC-20 **and** Solana SPL base
-plans (and NEAR NEP-141 plan). `permit` is **not** core: EVM rejects it until
-EIP-2612 ships; Solana/NEAR may still plan it as metadata. -/
+plans (and NEAR NEP-141 plan). `permit` is EVM-full via ERC20Permit stdlib plan. -/
 def corePortableFeatures : Array TokenFeature :=
   #[.mintable, .burnable, .capped, .pausable]
 
@@ -873,9 +880,9 @@ def solanaExtensionFeatures : Array TokenFeature :=
   #[.transferFee, .nonTransferable, .confidentialTransfer, .transferHook,
     .metadataPointer, .defaultAccountState, .immutableOwner]
 
-/-- Features rejected on EVM ERC-20 lane (permanent product policy T2.2). -/
+/-- Features rejected on EVM ERC-20 lane (Token-2022-shaped; permanent T2.2). -/
 def evmRejectedPortableFeatures : Array TokenFeature :=
-  #[.permit] ++ solanaExtensionFeatures
+  solanaExtensionFeatures
 
 /-- Look up support for one feature on a registry target id. -/
 def featureSupportOnTarget (targetId : String) (feature : TokenFeature) : FeatureSupport :=
@@ -884,7 +891,7 @@ def featureSupportOnTarget (targetId : String) (feature : TokenFeature) : Featur
       if TokenSpec.evmUnsupportedFeatures { name := "", symbol := "", decimals := 0, features := #[feature] }
           |>.contains feature then
         .reject
-      else if corePortableFeatures.contains feature then
+      else if corePortableFeatures.contains feature || feature == .permit then
         .full
       else
         .reject

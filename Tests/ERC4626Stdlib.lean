@@ -38,17 +38,22 @@ def main : IO UInt32 := do
               "convertToAssets", "totalAssets", "asset", "balanceOf"] do
     require (names.any (· == n)) s!"entrypoint {n}"
 
+  require (m.capabilities.any (· == .crosscallInvoke)) "asset pull uses crosscall"
+
   match ProofForge.Backend.Evm.Plan.buildModulePlan m with
   | .error e => throw (IO.userError s!"EVM plan: {e.message}")
   | .ok _ => pure ()
   match ProofForge.Backend.Solana.SbpfAsm.renderModule m with
   | .error e => throw (IO.userError s!"Solana: {e.message}")
   | .ok src => require (src.length > 0) "solana"
+  -- NEAR: IERC20 selector remotes need a string pool; honest reject without it.
   match ProofForge.Backend.WasmHost.EmitWat.renderModule m with
-  | .error e => throw (IO.userError s!"NEAR: {e.message}")
-  | .ok wat => require (wat.contains "deposit") "near deposit"
+  | .ok _ => throw (IO.userError "NEAR should reject empty nearCrosscallStrings for asset pull")
+  | .error e =>
+      require (e.message.contains "nearCrosscallStrings" || e.message.contains "crosscall")
+        s!"NEAR honesty diagnostic, got: {e.message}"
 
-  IO.println "erc4626-stdlib: ok"
+  IO.println "erc4626-stdlib: ok (EVM·Solana emit; NEAR honest reject for selector remotes)"
   pure 0
 
 end ProofForge.Tests.ERC4626Stdlib

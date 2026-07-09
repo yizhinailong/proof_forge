@@ -251,6 +251,10 @@ def ge (lhs rhs : ProofForge.IR.Expr) : ProofForge.IR.Expr :=
 def caller : ProofForge.IR.Expr :=
   ProofForge.Contract.Builder.contextRead .userId
 
+/-- This contract's address (`address(this)` / contract id). -/
+def contractId : ProofForge.IR.Expr :=
+  ProofForge.Contract.Builder.contextRead .contractId
+
 /-- NEAR predecessor account id as a full 32-byte hash (sha256 of account id bytes). -/
 def callerHash : ProofForge.IR.Expr :=
   ProofForge.Contract.Builder.contextRead .userIdHash

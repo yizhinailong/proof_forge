@@ -18,7 +18,7 @@ def main : IO Unit := do
   require (rows.size == primaryTokenTargetIds.size * knownFeatureIds.size)
     s!"matrix size {rows.size}"
 
-  -- EVM: core full; extension features + permit reject (T2.2 permanent policy).
+  -- EVM: core + permit full; Token-2022 extensions reject (T2.2).
   for f in corePortableFeatures do
     require (featureSupportOnTarget "evm" f == .full)
       s!"evm should fully support {f.id}"
@@ -29,10 +29,19 @@ def main : IO Unit := do
       s!"evm should reject {f.id}"
     require (!planSucceedsForFeature evm f)
       s!"evm planForTarget must fail for {f.id}"
-  require (featureSupportOnTarget "evm" .permit == .reject)
-    "evm permanently rejects permit until EIP-2612 materializer"
-  require (!planSucceedsForFeature evm .permit)
-    "evm planForTarget must fail for permit"
+  require (featureSupportOnTarget "evm" .permit == .full)
+    "evm plans permit via ERC20Permit stdlib path"
+  require (planSucceedsForFeature evm .permit)
+    "evm planForTarget should succeed for permit"
+  match planForTarget evm {
+    name := "P", symbol := "P", decimals := 18, features := #[.permit]
+  } with
+  | .error e => throw (IO.userError s!"permit plan: {e}")
+  | .ok plan =>
+      require (plan.operations.any (· == "erc20.permit")) "ops include erc20.permit"
+      require (plan.capabilities.any (· == .cryptoEcrecover)) "plan needs crypto.ecrecover"
+      require (plan.notes.any (fun n => n.contains "ERC20Permit"))
+        "notes point at ERC20Permit stdlib"
   match planForTarget evm {
     name := "Fee", symbol := "FEE", decimals := 9, features := #[.transferFee]
   } with
