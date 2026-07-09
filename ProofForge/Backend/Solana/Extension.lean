@@ -113,6 +113,54 @@ def lowerRuntimeAllocator (allocator : RuntimeAllocator) : Array AstNode := #[
 def lowerRuntimeAllocators (extensions : ProgramExtensions) : Array AstNode :=
   extensions.allocators.foldl (fun acc allocator => acc ++ lowerRuntimeAllocator allocator) #[]
 
+/-- Preflight: reject PDA/CPI seed paths that would pack **zero pubkeys**
+(wrong PDA / wrong signer). Unbound bumps and instruction params still lower
+to runtime traps (`error_pda` / `error_pda_bump`) when Surface bindings are not
+yet wired into value bindings (legacy fixtures). -/
+def validatePdaSeedBindings (accountBindings : Array CpiAccountBinding)
+    (_valueBindings : Array CpiValueBinding) (pda : PdaDerive) : Except String Unit := do
+  for seed in pda.effectiveSeeds do
+    match seed.kind with
+    | .account =>
+        if (cpiAccountBinding? accountBindings seed.value).isNone then
+          throw s!"Solana PDA `{pda.name}`: seed account `{seed.value}` is not bound in the account schema"
+    | .bump =>
+        match seed.value.toNat? with
+        | some n =>
+            if n >= 256 then
+              throw s!"Solana PDA `{pda.name}`: bump literal {n} out of range (need 0..255)"
+        | none => pure ()
+    | .literal | .instructionParam => pure ()
+  match pda.account? with
+  | none => pure ()
+  | some acc =>
+      if (cpiAccountBinding? accountBindings acc).isNone then
+        throw s!"Solana PDA `{pda.name}`: result account `{acc}` is not bound"
+
+def validateCpiSignerSeedBindings (accountBindings : Array CpiAccountBinding)
+    (_valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Except String Unit := do
+  for raw in cpi.signerSeeds do
+    let seed := parsePdaSeed raw
+    match seed.kind with
+    | .account =>
+        if (cpiAccountBinding? accountBindings seed.value).isNone then
+          throw s!"Solana CPI `{cpi.name}`: signer seed account `{seed.value}` is not bound"
+    | .bump =>
+        match seed.value.toNat? with
+        | some n =>
+            if n >= 256 then
+              throw s!"Solana CPI `{cpi.name}`: signer bump literal {n} out of range"
+        | none => pure ()
+    | .literal | .instructionParam => pure ()
+
+def validateProgramExtensionBindings (accountBindings : Array CpiAccountBinding)
+    (valueBindings : Array CpiValueBinding) (extensions : ProgramExtensions) :
+    Except String Unit := do
+  for pda in extensions.pdas do
+    validatePdaSeedBindings accountBindings valueBindings pda
+  for cpi in extensions.cpis do
+    validateCpiSignerSeedBindings accountBindings valueBindings cpi
+
 def lowerProgramExtensionsWithBindings
     (accountBindings : Array CpiAccountBinding) (valueBindings : Array CpiValueBinding)
     (extensions : ProgramExtensions) : Array AstNode :=
@@ -139,6 +187,14 @@ def lowerProgramExtensionsWithBindings
     extensions.transferHookExtraAccountMetaListActions.foldl
       (fun acc action => acc ++ lowerTransferHookExtraAccountMetaListHelper accountBindings action) #[] ++
     lowerExtensionErrors
+
+/-- Like `lowerProgramExtensionsWithBindings`, but preflight-rejects unresolved
+PDA/CPI seed bindings (never silent zero-seed codegen). -/
+def lowerProgramExtensionsWithBindingsChecked
+    (accountBindings : Array CpiAccountBinding) (valueBindings : Array CpiValueBinding)
+    (extensions : ProgramExtensions) : Except String (Array AstNode) := do
+  validateProgramExtensionBindings accountBindings valueBindings extensions
+  pure (lowerProgramExtensionsWithBindings accountBindings valueBindings extensions)
 
 def lowerProgramExtensionsWithAccountBindings
     (bindings : Array CpiAccountBinding) (extensions : ProgramExtensions) : Array AstNode :=

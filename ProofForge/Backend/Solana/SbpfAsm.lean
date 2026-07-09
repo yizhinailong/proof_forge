@@ -511,9 +511,13 @@ def lowerModuleWithPlan (module : IR.Module) (plan : ProofForge.Target.Capabilit
   let stateDataOff ← stateDataStartFromSchema module schema
   let valueBindings := buildCpiValueBindings module stateDataOff
   let nodes ← lowerModuleCore module extensions
-  .ok (nodes ++
-    ProofForge.Backend.Solana.Extension.lowerProgramExtensionsWithBindings
-      accountBindings valueBindings extensions)
+  -- Preflight: reject unresolved PDA/CPI seed bindings (no silent zero seeds).
+  let extNodes ←
+    match ProofForge.Backend.Solana.Extension.lowerProgramExtensionsWithBindingsChecked
+        accountBindings valueBindings extensions with
+    | .ok n => pure n
+    | .error msg => throw { message := msg }
+  .ok (nodes ++ extNodes)
 
 def renderModuleWithPlan (module : IR.Module) (plan : ProofForge.Target.CapabilityPlan) :
     Except LowerError String := do

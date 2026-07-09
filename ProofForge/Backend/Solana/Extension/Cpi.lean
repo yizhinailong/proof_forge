@@ -481,12 +481,11 @@ def lowerCpiSignerAccountSeed (bindings : Array CpiAccountBinding)
         #[] ++
       lowerCpiSignerSeedTableEntry idx 32
   | none =>
+      -- Honest reject: never sign with a zeroed account seed.
       #[
-        .comment s!"solana.cpi.signer_seed {cpiName}[{idx}] account {account} missing placeholder=zero"
-      ] ++
-      lowerCpiSignerStackSeedPtr idx ++
-      lowerCpiSignerZeroSeedBytes 32 ++
-      lowerCpiSignerSeedTableEntry idx 32
+        .comment s!"solana.cpi.signer_seed {cpiName}[{idx}] account {account} missing (reject)",
+        .instruction { opcode := .ja, off := some (.sym "error_pda") }
+      ]
 
 def lowerCpiSignerBumpSeed (bindings : Array CpiValueBinding)
     (cpiName : String) (idx : Nat) (source : String) : Array AstNode :=
@@ -531,12 +530,11 @@ def lowerCpiSignerInstructionParamSeed (bindings : Array CpiValueBinding)
       lowerInputBytesToCpiSignerSeed binding binding.byteSize ++
       lowerCpiSignerSeedTableEntry idx binding.byteSize
   | none =>
+      -- Honest reject: never pack zero signer-seed bytes for missing params.
       #[
-        .comment s!"solana.cpi.signer_seed {cpiName}[{idx}] instruction-param {source} missing placeholder=zero"
-      ] ++
-      lowerCpiSignerStackSeedPtr idx ++
-      lowerCpiSignerZeroSeedBytes 1 ++
-      lowerCpiSignerSeedTableEntry idx 1
+        .comment s!"solana.cpi.signer_seed {cpiName}[{idx}] instruction-param {source} missing (reject)",
+        .instruction { opcode := .ja, off := some (.sym "error_pda") }
+      ]
 
 def lowerCpiSignerSeed (accountBindings : Array CpiAccountBinding)
     (valueBindings : Array CpiValueBinding) (cpiName : String) (idx : Nat)

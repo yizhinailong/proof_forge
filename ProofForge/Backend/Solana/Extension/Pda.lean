@@ -83,12 +83,11 @@ def lowerPdaAccountSeed (bindings : Array CpiAccountBinding) (pdaName : String)
       inputAccountFieldPtr .r5 binding.layout binding.layout.keyOff ++
       lowerPdaSeedTableEntry idx 32
   | none =>
+      -- Honest reject: never pack zero pubkey as a seed (wrong PDA / wrong account).
       #[
-        .comment s!"solana.pda.seed {pdaName}[{idx}] account {account} missing placeholder=zero"
-      ] ++
-      lowerPdaStackSeedPtr idx ++
-      lowerPdaZeroSeedBytes 32 ++
-      lowerPdaSeedTableEntry idx 32
+        .comment s!"solana.pda.seed {pdaName}[{idx}] account {account} missing (reject)",
+        .instruction { opcode := .ja, off := some (.sym "error_pda") }
+      ]
 
 def lowerPdaValueSeed (pdaName : String) (idx : Nat) (kind source : String)
     (binding : CpiValueBinding) (byteSize : Nat) : Array AstNode :=
@@ -134,12 +133,11 @@ def lowerPdaInstructionParamSeed (bindings : Array CpiValueBinding) (pdaName : S
   match cpiValueBinding? bindings source with
   | some binding => lowerPdaValueSeed pdaName idx "instruction-param" source binding binding.byteSize
   | none =>
+      -- Honest reject: never pack zero seed bytes for missing instruction params.
       #[
-        .comment s!"solana.pda.seed {pdaName}[{idx}] instruction-param {source} missing placeholder=zero"
-      ] ++
-      lowerPdaStackSeedPtr idx ++
-      lowerPdaZeroSeedBytes 1 ++
-      lowerPdaSeedTableEntry idx 1
+        .comment s!"solana.pda.seed {pdaName}[{idx}] instruction-param {source} missing (reject)",
+        .instruction { opcode := .ja, off := some (.sym "error_pda") }
+      ]
 
 def lowerPdaSeed (accountBindings : Array CpiAccountBinding) (valueBindings : Array CpiValueBinding)
     (pdaName : String) (idx : Nat) (seed : PdaSeed) : Array AstNode :=
@@ -162,7 +160,8 @@ def lowerPdaResultAccountValidation (accountBindings : Array CpiAccountBinding)
       match cpiAccountBinding? accountBindings account with
       | none =>
           #[
-            .comment s!"solana.pda.validate {pda.name} account {account} missing account binding"
+            .comment s!"solana.pda.validate {pda.name} account {account} missing (reject)",
+            .instruction { opcode := .ja, off := some (.sym "error_pda") }
           ]
       | some binding =>
           let compareWords :=
