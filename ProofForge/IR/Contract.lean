@@ -325,14 +325,19 @@ def ContextField.toHostEnv : ContextField → ProofForge.Target.HostRuntime.Host
   | .coinbase => .coinbase
   | .blockHash _ => .blockHash
 
-/-- Coarse portable-core gate (legacy D-050): family-shared fields that every
-primary target lowers today without a `targetFamilyOnly` finding.
-Fine-grained honesty uses `HostEnv.bucket` + `materializeEnv`. -/
-def ContextField.isPortableEnv : ContextField → Bool
-  | .userId | .userIdHash | .contractId | .checkpointId | .timestamp
-  | .epochHeight | .chainId => true
-  | .gasPrice | .gasLeft | .baseFee | .prevRandao | .randomSeed
-  | .origin | .coinbase | .blockHash _ => false
+/-- Product portable-core env whitelist: true only when **every** primary triad
+target (`evm` · `solana-sbpf-asm` · `wasm-near`) materializes the field via
+`HostRuntime.materializeEnv` without reject.
+
+Derived from HostRuntime so the list cannot drift from honesty. After U1.1 that
+includes `caller` (userId / userIdHash), `blockHeight` (checkpointId), and
+`blockTime` (timestamp via Solana `Clock.unix_timestamp`). Fields such as
+`chainId`, `contractId`, and `epochHeight` are not triad-safe — authors get
+honest reject on unsupported targets rather than a false "portable" label.
+Fine-grained per-target honesty still uses `HostEnv.bucket` + `materializeEnv`. -/
+def ContextField.isPortableEnv (field : ContextField) : Bool :=
+  ProofForge.Target.HostRuntime.primaryTargetIds.all fun targetId =>
+    ProofForge.Target.HostRuntime.supportsHostEnv targetId field.toHostEnv
 
 structure ErrorRef where
   assertionId : UInt32

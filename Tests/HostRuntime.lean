@@ -10,6 +10,7 @@ import ProofForge.Contract.Intent
 import ProofForge.IR.Contract
 import ProofForge.IR.Examples.EventProbe
 import ProofForge.Backend.Solana.SbpfAsm
+import ProofForge.Backend.Solana.Package
 
 namespace ProofForge.Tests.HostRuntime
 
@@ -213,16 +214,18 @@ def main : IO UInt32 := do
             s!"general {env.id}@{tid} symbol must not be n/a"
           require (m.binding.targetId == tid)
             s!"general {env.id} binding targetId"
-  -- blockTime: EVM + NEAR only (Solana has no timestamp context lower).
-  for tid in #["evm", "wasm-near"] do
+  -- blockTime: full triad (Solana Clock.unix_timestamp lower).
+  for tid in primaryTargetIds do
     match materializeEnv tid .blockTime with
     | .error msg => throw (IO.userError s!"blockTime must materialize on {tid}: {msg}")
-    | .ok m => require (!isNaSymbol m.binding.symbol) s!"blockTime@{tid}"
+    | .ok m =>
+        require (!isNaSymbol m.binding.symbol) s!"blockTime@{tid}"
+        require (supportsHostEnv tid .blockTime) s!"supportsHostEnv blockTime@{tid}"
   match materializeEnv "solana-sbpf-asm" .blockTime with
-  | .ok _ => throw (IO.userError "Solana blockTime must honest-reject")
-  | .error msg =>
-      require (contains msg "HostEnv") "Solana blockTime names HostEnv"
-      require (contains msg "env.blockTime") "Solana blockTime names term"
+  | .error msg => throw (IO.userError s!"Solana blockTime: {msg}")
+  | .ok m =>
+      require (contains m.binding.symbol "clock" || contains m.binding.symbol "sol_get_clock")
+        "solana blockTime → sol_get_clock_sysvar"
   -- selfAddress: EVM + NEAR; Solana reject.
   for tid in #["evm", "wasm-near"] do
     match materializeEnv tid .selfAddress with
@@ -335,11 +338,40 @@ no silent wrong binding — especially not block_index / sol_get_cluster)")
   require (ContextField.randomSeed.toHostEnv == .randomness) "randomSeed→randomness"
   require ((ContextField.blockHash (.literal (.u64 0))).toHostEnv == .blockHash)
     "blockHash→blockHash"
-  -- Portable core still classifies as before (coarse gate).
-  require ContextField.timestamp.isPortableEnv "timestamp portable core"
+  -- Product portable-core env = HostRuntime triad materialize (after U1.1 blockTime).
+  require ContextField.checkpointId.isPortableEnv "checkpointId portable-core (triad)"
+  require ContextField.userId.isPortableEnv "userId portable-core (triad)"
+  require ContextField.timestamp.isPortableEnv
+    "timestamp portable-core after Solana Clock.unix_timestamp lower (U1.1)"
   require (!ContextField.baseFee.isPortableEnv) "baseFee still non-portable core"
   require (!ContextField.gasLeft.isPortableEnv)
     "gasLeft stays non-core (approximate HostEnv, not portable-core)"
+
+  -- Solana HostEnv U1.1: contextRead.timestamp lowers Clock.unix_timestamp.
+  let tsModule : Module := {
+    name := "HostEnvBlockTime"
+    state := #[]
+    entrypoints := #[{
+      name := "now"
+      body := #[
+        .letBind "t" .u64 (.effect (.contextRead .timestamp))
+        , .return (.local "t")
+      ]
+    }]
+  }
+  match resolveModule solanaSbpfAsm tsModule with
+  | .error err => throw (IO.userError s!"resolve Solana timestamp module: {err.render}")
+  | .ok _ => pure ()
+  match ProofForge.Backend.Solana.Package.renderPackage "hostenv-blocktime" tsModule with
+  | .error err => throw (IO.userError s!"render Solana timestamp: {err.render}")
+  | .ok pkg =>
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw (IO.userError "timestamp package missing asm")
+      let asm := asmFile.contents
+      require (contains asm "Clock.unix_timestamp")
+        "asm must mark Clock.unix_timestamp lower"
+      require (contains asm "call sol_get_clock_sysvar")
+        "asm must call sol_get_clock_sysvar for timestamp"
 
   IO.println s!"host-runtime: ok (effects={allEffects.size} hostEnvs={allHostEnvs.size} evm={evmN} solana={solN} near={nearN} soroban={sorobanN} cosmwasm={cosmwasmN}; adapters+catalog-ref+HostEnv)"
   pure 0

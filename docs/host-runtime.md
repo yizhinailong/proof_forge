@@ -132,7 +132,7 @@ Triad snapshot (context / `nativeValue` paths):
 
 | HostEnv | EVM | Solana | NEAR |
 |---------|-----|--------|------|
-| `blockTime` | ok | reject | ok |
+| `blockTime` | ok | ok (`Clock.unix_timestamp`) | ok |
 | `blockHeight` | ok | ok (`Clock.slot`) | ok |
 | `chainId` | ok | reject | reject |
 | `caller` / `attachedValue` | ok | ok | ok |

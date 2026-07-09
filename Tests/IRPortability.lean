@@ -73,34 +73,36 @@ def main : IO Unit := do
   require (!(counterModule.capabilities.any fun c => c.id == "storage.object"))
     "portable IR must not emit storage.object"
 
-  -- Slice 2: Context field portability split. Portable env fields
-  -- (timestamp/chainId/epochHeight/checkpointId/userId/userIdHash/contractId)
-  -- are family-shared; EVM-only fields (baseFee/prevRandao/coinbase/origin/
-  -- gasPrice/gasLeft/randomSeed/blockHash) classify as EVM target-family-only.
-  require ContextField.timestamp.isPortableEnv "timestamp must be portable env"
-  require ContextField.chainId.isPortableEnv "chainId must be portable env"
-  require ContextField.epochHeight.isPortableEnv "epochHeight must be portable env"
-  require ContextField.checkpointId.isPortableEnv "checkpointId must be portable env"
-  require ContextField.userId.isPortableEnv "userId must be portable env"
-  require ContextField.contractId.isPortableEnv "contractId must be portable env"
+  -- Product portable-core env = HostRuntime triad materialize only (auto-derived).
+  -- Today: userId / userIdHash / checkpointId / timestamp. Not triad-safe:
+  -- chainId, contractId (Solana self pending), epochHeight, EVM-only fields.
+  require ContextField.userId.isPortableEnv "userId must be portable-core env"
+  require ContextField.userIdHash.isPortableEnv "userIdHash must be portable-core env"
+  require ContextField.checkpointId.isPortableEnv "checkpointId must be portable-core env"
+  require ContextField.timestamp.isPortableEnv
+    "timestamp must be portable-core (EVM + Solana Clock + NEAR)"
+  require (!ContextField.chainId.isPortableEnv) "chainId is EVM-only materialize"
+  require (!ContextField.contractId.isPortableEnv)
+    "contractId not triad-safe (Solana self pending)"
+  require (!ContextField.epochHeight.isPortableEnv) "epochHeight is NEAR-only"
   require (!ContextField.baseFee.isPortableEnv) "baseFee must be EVM-only"
   require (!ContextField.prevRandao.isPortableEnv) "prevRandao must be EVM-only"
   require (!ContextField.coinbase.isPortableEnv) "coinbase must be EVM-only"
   require (!ContextField.origin.isPortableEnv) "origin must be EVM-only"
   require (!ContextField.gasPrice.isPortableEnv) "gasPrice must be EVM-only"
   require (!ContextField.gasLeft.isPortableEnv) "gasLeft must be EVM-only"
-  require (!ContextField.randomSeed.isPortableEnv) "randomSeed must be EVM-only"
-  require (!(ContextField.isPortableEnv (ContextField.blockHash (Expr.literal (.u64 0))))) "blockHash must be EVM-only"
+  require (!ContextField.randomSeed.isPortableEnv) "randomSeed must not be portable-core"
+  require (!(ContextField.isPortableEnv (ContextField.blockHash (Expr.literal (.u64 0)))))
+    "blockHash must not be portable-core"
 
-  -- A module reading a portable env field stays portable-core; reading an
-  -- EVM-only field produces an EVM-family finding and is not portable-core.
+  -- Triad portable-core env stays portable-core.
   let envReadEp : Entrypoint := {
     name := "envRead", returns := .u64,
     body := #[.return (.effect (.contextRead .timestamp))]
   }
   let portableEnvReadModule : Module := { counterModule with entrypoints := #[envReadEp] }
   require (isPortableCoreModule portableEnvReadModule)
-    "module reading a portable env field must stay portable-core"
+    "module reading a triad portable-core env field must stay portable-core"
   let evmEnvReadEp : Entrypoint := {
     name := "evmEnvRead", returns := .u64,
     body := #[.return (.effect (.contextRead .baseFee))]

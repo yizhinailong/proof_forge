@@ -532,8 +532,8 @@ alias another field (e.g. `chainId` ↛ `block_index`) and never invent syscalls
 the lowerer does not emit. General-bucket membership is **portable intent**;
 triad coverage grows as lowers land — until then, reject.
 
-Primary triad matrix (context / nativeValue paths as of HostEnv step 1):
-* `blockTime` — EVM + NEAR; Solana reject (no `timestamp` context lower)
+Primary triad matrix (context / nativeValue paths as of HostEnv step U1.1):
+* `blockTime` — triad (EVM `timestamp` · Solana `Clock.unix_timestamp` · NEAR `block_timestamp`)
 * `blockHeight` — triad (EVM `number` · Solana `Clock.slot` · NEAR `block_index`)
 * `chainId` — EVM only (Solana/NEAR plan reject `contextRead.chainId`)
 * `caller` / `attachedValue` — triad
@@ -556,8 +556,9 @@ def materializeEnv (targetId : String) (env : HostEnv) :
   | .blockTime, "wasm-near" =>
       .ok (mk .hostImport "env.block_timestamp" none (some "nanoseconds; divide for seconds"))
   | .blockTime, "solana-sbpf-asm" =>
-      .error (hostEnvReject targetId env
-        "no contextRead.timestamp lower; Clock.unix_timestamp not wired (use blockHeight/slot)")
+      .ok (mk .syscall "sol_get_clock_sysvar"
+        (some "Clock.unix_timestamp via contextRead.timestamp")
+        (some "i64 seconds from Clock; portable u64 (NEAR is nanoseconds)"))
   | .blockHeight, "evm" =>
       .ok (mk .opcode "number" none (some "block.number"))
   | .blockHeight, "solana-sbpf-asm" =>

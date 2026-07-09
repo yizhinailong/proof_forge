@@ -384,6 +384,21 @@ partial def lowerExpr (ctx : LowerCtx) (expr : IR.Expr) : Except LowerError (Arr
       .instruction { opcode := .ldxdw, dst := some .r2, src := some .r10, off := some (.num clockBuffer) },
       .instruction { opcode := .ldxdw, dst := some .r1, src := some .r10, off := some (.num inputPtrScratch) }
     ], ctx)
+  | .effect (.contextRead .timestamp) =>
+    -- Same Clock sysvar fill as checkpointId; load unix_timestamp (i64@+32) as u64.
+    let (inputPtrScratch, ctx) := ctx.allocScratch
+    let (clockBuffer, ctx) := ctx.allocScratchBytes CLOCK_SYSVAR_SIZE
+    let tsOff := clockBuffer - CLOCK_UNIX_TIMESTAMP_OFF
+    .ok (#[
+      .comment "solana.sysvar.clock: sol_get_clock_sysvar -> Clock.unix_timestamp",
+      .instruction { opcode := .stxdw, dst := some .r10, off := some (.num inputPtrScratch), src := some .r1 },
+      .instruction { opcode := .mov64, dst := some .r1, src := some .r10 },
+      .instruction { opcode := .sub64, dst := some .r1, imm := some (.num clockBuffer) },
+      .instruction { opcode := .call, imm := some (.sym sol_get_clock_sysvar) },
+      .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_syscall") },
+      .instruction { opcode := .ldxdw, dst := some .r2, src := some .r10, off := some (.num tsOff) },
+      .instruction { opcode := .ldxdw, dst := some .r1, src := some .r10, off := some (.num inputPtrScratch) }
+    ], ctx)
   | .effect (.contextRead .userId) =>
       let (nodes, ctx) := lowerAccount0PubkeyDigestU64 ctx "userId"
       .ok (nodes, ctx)
@@ -400,7 +415,7 @@ partial def lowerExpr (ctx : LowerCtx) (expr : IR.Expr) : Except LowerError (Arr
         .comment "solana.context.userIdHash: same full-pubkey sha256; portable Hash limb0 in r2"
       ], ctx)
   | .effect (.contextRead field) =>
-    .error { message := s!"Solana context read `{field.name}` is not supported; userId/origin/userIdHash are sha256(account[0] pubkey), checkpointId maps to Clock.slot" }
+    .error { message := s!"Solana context read `{field.name}` is not supported; userId/origin/userIdHash are sha256(account[0] pubkey), checkpointId maps to Clock.slot, timestamp maps to Clock.unix_timestamp" }
   | .hashValue a b c d => do
     let (an, ctx) ← lowerExpr ctx a
     let (scratchA, ctx) := ctx.allocScratch

@@ -91,7 +91,7 @@ U7  Secondary hosts discipline (spike freeze / optional)     [LOW]
 
 | ID | Task | Work | Acceptance | Size | Deps | Status |
 |----|------|------|------------|------|------|--------|
-| **U1.1** | Solana `blockTime` | Lower `contextRead .timestamp` via `sol_get_clock_sysvar` → `Clock.unix_timestamp` (i64 at offset in clock buffer); `materializeEnv .blockTime "solana-sbpf-asm" = .ok`; HostRuntime tests | `lake env lean --run Tests/HostRuntime.lean`; Solana fixture/smoke that reads timestamp; `just product` | M | — | pending |
+| **U1.1** | Solana `blockTime` | Lower `contextRead .timestamp` via `sol_get_clock_sysvar` → `Clock.unix_timestamp` (i64 at offset in clock buffer); `materializeEnv .blockTime "solana-sbpf-asm" = .ok`; HostRuntime tests | `lake env lean --run Tests/HostRuntime.lean`; Solana fixture/smoke that reads timestamp; `just product` | M | — | **done** (`ac12d18d`) |
 | **U1.2** | Solana `selfAddress` | Lower `contextRead .contractId` to program id (32-byte / limb0 Hash policy matching OwnableHash); materializeEnv ok; honesty tests | Same gates + identity note in `docs/host-runtime.md` | M | U1.1 optional | pending |
 | **U1.3** | Solana `randomness` / `epoch` decision | Either wire SlotHashes / Clock.epoch **or** permanent reject + author doc | Decision row §Open decisions + tests match | S | — | pending |
 | **U1.4** | Gas/compute HostEnv path | Document EVM-only vs extension-only CU; optional Solana `gasOrComputeBudgetLeft` via `sol_remaining_compute_units` **as HostEnv** (not only extension) | materializeEnv matrix + one smoke or permanent reject | M | U1.1 | pending |
@@ -271,6 +271,7 @@ U7 anytime (docs)
 |------|------|
 | 2026-07-09 | Roadmap created from full project audit + completed portable-sdk waves. First execution target: U0 then U1.1 Solana `blockTime`. HEAD baseline: `4ffa1f1f` honesty/CPI green `just check`. |
 | 2026-07-09 | **U0 complete:** INDEX link; portable-sdk plan → Complete; `just product` green locally (`product: ok (matrix · counter · remote)`). Next: **PR-U1a** = U1.1 Solana HostEnv `blockTime`. |
+| 2026-07-09 | **U1.1 done (`ac12d18d`):** Solana `contextRead.timestamp` → `Clock.unix_timestamp`; `materializeEnv` triad `blockTime`; HostRuntime lower smoke; `isPortableEnv` derives triad (timestamp now portable-core). `lake build` + `just product` green. Next: **U1.2** Solana `selfAddress`. |
 
 When a task completes: set Status to **done**, add commit hash in changelog.
 

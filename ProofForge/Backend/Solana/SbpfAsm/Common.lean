@@ -321,6 +321,10 @@ def buildCtx (module : Module) (stateDataOff : Nat) (txAccountCount : Nat := 0) 
 def SPL_TOKEN_ACCOUNT_DATA_SIZE : Nat := 165
 def SPL_TOKEN_MINT_DATA_SIZE : Nat := 82
 def CLOCK_SYSVAR_SIZE : Nat := 40
+/-- Byte offset of `Clock.unix_timestamp` (i64) within the 40-byte sysvar buffer.
+Layout: slot@0, epoch_start_timestamp@8, epoch@16, leader_schedule_epoch@24,
+unix_timestamp@32. -/
+def CLOCK_UNIX_TIMESTAMP_OFF : Nat := 32
 
 def LOG_EVENT_TAG_MODULUS : Nat := 4294967296
 
