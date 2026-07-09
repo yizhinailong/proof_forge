@@ -16,6 +16,7 @@ import ProofForge.IR.Examples.ErrorRefProbe
 import ProofForge.IR.Examples.HashProbe
 import ProofForge.IR.Examples.MapProbe
 import ProofForge.Target
+import ProofForge.Target.ArtifactBundle
 import ProofForge.Target.PeerMap
 import ProofForge.Target.Preflight
 
@@ -137,6 +138,59 @@ def writeEmitWatDeployManifest
     IO.FS.createDirAll parent
   IO.FS.writeFile deployOutput (manifest ++ "\n")
 
+/-- PF-P1-03: build an honest ArtifactBundle for EmitWat outputs. -/
+def emitWatArtifactBundle
+    (targetId : String) (module : ProofForge.IR.Module)
+    (watPath : FilePath) (wasmPath? : Option FilePath)
+    (watSha? wasmSha? : Option String)
+    (watBytes? wasmBytes? : Option Nat) :
+    ProofForge.Target.ArtifactBundle.ArtifactBundle :=
+  open ProofForge.Target.ArtifactBundle in
+  let source : SourceIdentity := {
+    moduleName := module.name
+    path? := none
+    kind := "portable-ir"
+  }
+  let watOut : TypedOutput := {
+    kind := "wat"
+    role := .intermediate
+    path? := some watPath.toString
+    sha256? := watSha?
+    bytes? := watBytes?
+  }
+  match wasmPath? with
+  | some wasmPath =>
+      let wasmOut : TypedOutput := {
+        kind := "wasm"
+        role := .finalDeployable
+        path? := some wasmPath.toString
+        sha256? := wasmSha?
+        bytes? := wasmBytes?
+      }
+      {
+        targetId := targetId
+        source := source
+        outputs := #[watOut, wasmOut]
+        primaryOutput? := some "wasm"
+        finalOutput? := some "wasm"
+        toolchain := #[{ tool := "wat2wasm", stage := "final-deployable", available := true }]
+        validations := #[{ name := "wat2wasm", state := .passed }]
+      }
+  | none =>
+      {
+        targetId := targetId
+        source := source
+        outputs := #[watOut]
+        primaryOutput? := some "wat"
+        finalOutput? := none
+        toolchain := #[{ tool := "wat2wasm", stage := "final-deployable", available := false }]
+        validations := #[{
+          name := "wat2wasm"
+          state := .unavailable
+          detail? := some "final Wasm not produced; wat2wasm missing or skipped"
+        }]
+      }
+
 def writeEmitWatArtifactMetadata
     (opts : CliOptions)
     (targetId fixture sourceKind : String)
@@ -148,6 +202,23 @@ def writeEmitWatArtifactMetadata
   let deployOutput := defaultDeployManifestOutput metadataOutput
   let watArtifact ← artifactEntryJsonRelativeTo schemaDir watPath
   let wasmArtifact? ← optionalExistingArtifactEntryJsonRelativeTo schemaDir wasmPath?
+  let watDigest ← fileDigestAndBytes watPath
+  let wasmDigest? ← match wasmPath? with
+    | some p =>
+        if ← p.pathExists then
+          pure (some (← fileDigestAndBytes p))
+        else
+          pure none
+    | none => pure none
+  let bundle := emitWatArtifactBundle targetId module watPath
+    (if wasmDigest?.isSome then wasmPath? else none)
+    (some watDigest.fst)
+    (wasmDigest?.map (·.fst))
+    (some watDigest.snd)
+    (wasmDigest?.map (·.snd))
+  let _ ← match ProofForge.Target.ArtifactBundle.validateHonesty bundle with
+    | .ok () => pure ()
+    | .error err => throw <| IO.userError s!"EmitWat ArtifactBundle honesty: {err.message}"
   let spec := ProofForge.Contract.ContractSpec.fromIR module
   let (contractSpecOutput, nearClientOutput, unifiedClientOutput) ←
     if opts.fromNewSurface then
@@ -168,7 +239,14 @@ def writeEmitWatArtifactMetadata
   ]
   if let some wasmArtifact := wasmArtifact? then
     artifactFields := artifactFields.push ("wasm", wasmArtifact)
-  let wat2wasmStatus := if wasmArtifact?.isSome then "passed" else "skipped"
+  -- PF-P1-03: never claim wat2wasm `passed` when Wasm is absent.
+  let wat2wasmStatus :=
+    match ProofForge.Target.ArtifactBundle.validationState? bundle "wat2wasm" with
+    | some .passed => "passed"
+    | some .failed => "failed"
+    | some .unavailable => "unavailable"
+    | some .notRun => "notRun"
+    | none => "notRun"
   let materializationJson :=
     match ProofForge.Target.find? targetId with
     | some profile =>
@@ -220,6 +298,7 @@ def writeEmitWatArtifactMetadata
       ("entrypoints", jsonArray (module.entrypoints.map emitWatEntrypointJson))
     ]),
     ("artifacts", jsonObject artifactFields),
+    ("artifactBundle", ProofForge.Target.ArtifactBundle.ArtifactBundle.toJson bundle),
     ("validation", jsonObject #[
       ("emitWat", jsonString "passed"),
       ("watGeneration", jsonString "passed"),
