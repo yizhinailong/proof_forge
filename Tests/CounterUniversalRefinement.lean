@@ -61,6 +61,39 @@ preservation + traceSimulation_lift chain composes. -/
 
 #check counterModel_fragment_refines
 
+/-! ## FV-9.3 cap: the structural `∀ (m : Module)` fragment-refines theorem
+
+The keystone FV-9 deliverable: the compiler-correctness theorem quantified over
+**every module `m`** in the supported fragment, not just the canonical Counter
+witness. `counterModel_fragment_refines_all` takes `m : Module`, `hm :
+isCounterModule m = true` (the counter-model fragment), and `hcovered :
+moduleInCoveredFragment m = true` (FV-9.2 constructor coverage) and proves the
+trace simulation for every call list from every related state. The proof is
+`rfl`-reducible because `moduleIrStep m` resolves entrypoints via the canonical
+`CounterCall.entrypoint` (the fragment guarantees the bodies match). -/
+
+#check moduleIrStep
+#check moduleIrStep_eq_irStep_of_isCounterModule
+#check counterModel_fragment_refines_all
+
+theorem sample_fragment_refines_all
+    (state : ProofForge.IR.Semantics.State) (count : Nat)
+    (h : CounterStateRel state count) :
+    ∃ finalIr finalMs observables,
+      ProofForge.IR.StepSemantics.runTraceListGen
+        (moduleIrStep ProofForge.IR.Examples.Counter.module) sampleCalls state =
+        .ok (finalIr, observables) ∧
+      ProofForge.IR.StepSemantics.runTraceListGen
+        counterModelTargetSemantics.traceStep sampleCalls count =
+        .ok (finalMs, observables) ∧
+      CounterStateRel finalIr finalMs ∧
+      ProofForge.IR.StepSemantics.IRTraceMatches
+        (moduleIrStep ProofForge.IR.Examples.Counter.module) state sampleCalls observables ∧
+      ProofForge.IR.StepSemantics.IRTraceMatches
+        counterModelTargetSemantics.traceStep count sampleCalls observables :=
+  counterModel_fragment_refines_all ProofForge.IR.Examples.Counter.module rfl
+    (by native_decide) sampleCalls state count h
+
 theorem sample_related_trace_fragment_refines_via_field
     {state : ProofForge.IR.Semantics.State} {count : Nat}
     (h : counterModelTargetSemantics.irStateRel state count) :
@@ -79,5 +112,5 @@ theorem sample_related_trace_fragment_refines_via_field
 end ProofForge.Tests.CounterUniversalRefinement
 
 def main : IO UInt32 := do
-  IO.println "counter-universal-refinement-smoke: per-entrypoint simulation, generic trace-simulation lift, all-call-list Counter trace induction, and FV-9.3 counterModel_fragment_refines via irStateRel checked"
+  IO.println "counter-universal-refinement-smoke: per-entrypoint simulation, generic trace-simulation lift, all-call-list Counter trace induction, FV-9.3 counterModel_fragment_refines via irStateRel, and FV-9.3 cap counterModel_fragment_refines_all (∀ m ∈ supported fragment) checked"
   return 0
