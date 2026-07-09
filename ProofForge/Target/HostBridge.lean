@@ -66,7 +66,9 @@ def HostBridge.requiredImports : HostBridge → Array String
     ]
   | .cosmWasm => #[
       "env.db_read",
-      "env.db_write"
+      "env.db_write",
+      -- Portable crosscall.invoke → WasmMsg-shaped host execute (spike ABI).
+      "env.execute_msg"
     ]
   | .soroban => #[
       "env._put",
@@ -102,7 +104,13 @@ def HostBridge.hostFunctions : HostBridge → Array HostFunction
     ]
   | .cosmWasm => #[
       { name := "db_read",  params := #["i32"], results := #["i32"] },
-      { name := "db_write", params := #["i32", "i32"], results := #[] }
+      { name := "db_write", params := #["i32", "i32"], results := #[] },
+      -- Same packing as Soroban invoke_contract: contract/method string pool +
+      -- JSON args scratch → host result handle. Real CosmWasm WasmMsg encoding
+      -- lands as a later spike; this host surface unblocks general peer remote.
+      { name := "execute_msg",
+        params := #["i64", "i64", "i64", "i64", "i64", "i64"],
+        results := #["i64"] }
     ]
   | .soroban => #[
       { name := "_put",  params := #["i32", "i32", "i32", "i32"], results := #[] },

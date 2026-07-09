@@ -7,7 +7,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Every **Product** business module must materialize on primary hosts by changing
 only `--target` semantics (plan / lower). Authors never write chain DSL.
 
-Hosts: EVM plan · Solana sBPF · NEAR EmitWat · Soroban EmitWat (non-token).
+Hosts: EVM plan · Solana sBPF · NEAR EmitWat · Soroban EmitWat · CosmWasm
+remote (`execute_msg`). General peer remote is multi-host (not token-only).
 TokenSpec: EVM · Solana · NEAR honesty only (no Soroban token lane).
 -/
 import Examples.Product.AccessControl
@@ -26,6 +27,7 @@ import Examples.Product.RoleGatedToken
 import Examples.Product.SoulboundToken
 import Examples.Product.StakingVault
 import Examples.Product.ValueVault
+import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Evm.Plan
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.Materialize
@@ -131,20 +133,49 @@ def testVaultsAndTokens : IO Unit := do
       require a.writable "StakingVault nativeValue writable fee payer"
   | none => throw (IO.userError "StakingVault empty accounts")
 
+/-- General peer remote (not token CPI): native form on every product host family. -/
 def testRemote : IO Unit := do
   let remote := Examples.Product.RemoteCall.module
   let authRemote := Examples.Product.AuthRemoteCall.module
   assertFourHost "RemoteCall" remote
   assertFourHost "AuthRemoteCall" authRemote
+  -- EVM CALL (product sources are name-only; pin selectors for Yul emit only)
+  let remoteEvm : Module := {
+    remote with
+    entrypoints := remote.entrypoints.map fun (ep : Entrypoint) =>
+      if ep.name == "initialize" then { ep with selector? := some "8129fc1c" }
+      else if ep.name == "call_remote" then { ep with selector? := some "e8902e74" }
+      else if ep.name == "call_with_args" then { ep with selector? := some "728f8748" }
+      else ep
+  }
+  match ProofForge.Backend.Evm.IR.renderModule remoteEvm with
+  | Except.error e => throw (IO.userError s!"RemoteCall EVM Yul: {e.message}")
+  | Except.ok yul =>
+      require (contains yul "call(" || contains yul "__proof_forge_crosscall")
+        "RemoteCall EVM must emit CALL / crosscall helper"
+      require (contains yul "__proof_forge_crosscall_2" || contains yul "42")
+        "RemoteCall multi-arg path on EVM"
+  -- Solana general CPI (any program via account index — not SPL-only)
+  match ProofForge.Backend.Solana.SbpfAsm.renderModule remote with
+  | .ok src =>
+      require (contains src "sol_invoke_signed_c") "RemoteCall Solana CPI"
+      require (contains src "data_len=24" || contains src "portable crosscall")
+        "RemoteCall multi-arg Solana ix packing"
+  | .error e => throw (IO.userError e.message)
+  -- NEAR Promise
   match ProofForge.Backend.WasmHost.EmitWat.renderModule remote with
   | .ok wat => require (contains wat "promise_create") "RemoteCall NEAR promise"
   | .error e => throw (IO.userError e.message)
+  -- Soroban invoke_contract
   match ProofForge.Backend.WasmHost.EmitWat.renderModule remote .soroban with
   | .ok wat => require (contains wat "invoke_contract") "RemoteCall Soroban invoke"
   | .error e => throw (IO.userError e.message)
-  match ProofForge.Backend.Solana.SbpfAsm.renderModule remote with
-  | .ok src => require (contains src "sol_invoke_signed_c") "RemoteCall Solana CPI"
-  | .error e => throw (IO.userError e.message)
+  -- CosmWasm execute_msg (Wasm host family, general peer remote)
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule remote .cosmWasm with
+  | .ok wat =>
+      require (contains wat "execute_msg") "RemoteCall CosmWasm execute_msg"
+      require (!contains wat "promise_create") "CosmWasm must not use NEAR promise"
+  | .error e => throw (IO.userError s!"RemoteCall CosmWasm: {e.message}")
   let authAccounts := buildModuleAccounts authRemote {}
   require (authAccounts.any (·.signer)) "AuthRemoteCall authority"
   require (authAccounts.any (fun a => a.name == "callee_program"))

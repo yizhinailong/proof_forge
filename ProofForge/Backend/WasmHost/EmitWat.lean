@@ -404,13 +404,13 @@ mutual
       .call "promise_create"
     ], .u64)
 
-  /-- Portable crosscall → Soroban host `invoke_contract` (not NEAR promise).
-  Reuses the shared string pool + JSON args scratch; deposit/gas are NEAR-only
-  and are not passed to the Soroban host surface. -/
-  partial def lowerSorobanInvoke (ctx : Ctx) (env : LocalTypes) (target method : Expr)
-      (args : Array Expr) : Except EmitError (Array Insn × ValueType) := do
+  /-- Shared string-pool + JSON-args packing for host-bridge remote invoke
+  (Soroban `invoke_contract`, CosmWasm `execute_msg`). Not NEAR promise. -/
+  partial def lowerHostBridgeRemoteInvoke (ctx : Ctx) (env : LocalTypes)
+      (target method : Expr) (args : Array Expr) (hostFn bridgeLabel : String) :
+      Except EmitError (Array Insn × ValueType) := do
     if ctx.crosscallStrings.isEmpty then
-      err "EmitWat: Soroban invoke requires `module.nearCrosscallStrings` for contract/method names"
+      err s!"EmitWat: {bridgeLabel} remote requires `module.nearCrosscallStrings` for contract/method names"
     let contract ← resolveCrosscallStringRef ctx target "target contract id"
     let methodSi ← resolveCrosscallStringRef ctx method "method name"
     let (argBuildInsns, argsPtr, argsLenMarker) ← lowerCrosscallArgsJson ctx env args
@@ -420,8 +420,20 @@ mutual
       stringInfoLenPtrInsns contract ++
       stringInfoLenPtrInsns methodSi ++
       argsLenInsns ++ argsPtrInsns ++ #[
-      .call "invoke_contract"
+      .call hostFn
     ], .u64)
+
+  /-- Portable crosscall → Soroban host `invoke_contract` (not NEAR promise). -/
+  partial def lowerSorobanInvoke (ctx : Ctx) (env : LocalTypes) (target method : Expr)
+      (args : Array Expr) : Except EmitError (Array Insn × ValueType) :=
+    lowerHostBridgeRemoteInvoke ctx env target method args "invoke_contract" "Soroban"
+
+  /-- Portable crosscall → CosmWasm host `execute_msg` (WasmMsg-shaped stub).
+  Real CosmWasm submessage encoding is a later spike; this unblocks general
+  peer remote on HostBridge.cosmWasm the same way Soroban uses invoke_contract. -/
+  partial def lowerCosmWasmExecuteMsg (ctx : Ctx) (env : LocalTypes) (target method : Expr)
+      (args : Array Expr) : Except EmitError (Array Insn × ValueType) :=
+    lowerHostBridgeRemoteInvoke ctx env target method args "execute_msg" "CosmWasm"
 
   partial def lowerNearPromiseCreate (ctx : Ctx) (env : LocalTypes) (target method : Expr)
       (args : Array Expr) (deposit : Expr) : Except EmitError (Array Insn × ValueType) := do
@@ -445,8 +457,7 @@ mutual
       (deposit : Expr) : Except EmitError (Array Insn × ValueType) :=
     match ctx.bridge with
     | .soroban => lowerSorobanInvoke ctx env target method args
-    | .cosmWasm =>
-        err "EmitWat: CosmWasm portable crosscall is deferred (HostBridge.cosmWasm message ABI TBD)"
+    | .cosmWasm => lowerCosmWasmExecuteMsg ctx env target method args
     | .near => lowerNearPromiseCreate ctx env target method args deposit
 
   partial def lowerNearPromiseThen (ctx : Ctx) (env : LocalTypes) (parentPromise callbackMethod : Expr)
@@ -1079,9 +1090,9 @@ def renderCheckedModule (mod : ProofForge.IR.Module)
 /-- Unified Wasm-family render entry.
 
 * `.near` / `.soroban` — shared IR → WAT lowering.
-* `.cosmWasm` — CosmWasm **Counter spike** adapter (`WasmHost.CosmWasm.EmitWat`)
-  so `cosmwasm-check` exports remain valid; full IR lower is available via
-  `lowerModule` / `renderCheckedModule` for interpreter work.
+* `.cosmWasm` — full IR lower when the module uses portable peer remote
+  (`crosscall.invoke` → `execute_msg`); otherwise the Counter-spike WAT adapter
+  (`WasmHost.CosmWasm.EmitWat`) for `cosmwasm-check` golden exports.
 -/
 def renderModule (mod : ProofForge.IR.Module)
     (bridge : ProofForge.Target.HostBridge := .near)
@@ -1090,9 +1101,16 @@ def renderModule (mod : ProofForge.IR.Module)
   match bridge with
   | .cosmWasm =>
       let mod := ProofForge.Target.PeerMap.applyToModule mod peerMap
-      match ProofForge.Backend.WasmHost.CosmWasm.EmitWat.renderModule mod with
-      | .ok wat => .ok wat
-      | .error e => err e.message
+      let usesPortableRemote :=
+        mod.capabilities.any (fun c => c == .crosscallInvoke)
+      if usesPortableRemote then
+        -- General peer remote on CosmWasm host (not token-specific).
+        checkCapabilities mod
+        renderCheckedModule mod .cosmWasm ProofForge.Target.PeerMap.identity
+      else
+        match ProofForge.Backend.WasmHost.CosmWasm.EmitWat.renderModule mod with
+        | .ok wat => .ok wat
+        | .error e => err e.message
   | .near | .soroban =>
       checkCapabilities mod
       renderCheckedModule mod bridge peerMap
@@ -1105,7 +1123,6 @@ def renderModuleWithPlan
     Except EmitError String := do
   match bridge with
   | .cosmWasm =>
-      -- CosmWasm Counter spike ignores CapabilityPlan shape for now.
       renderModule mod bridge peerMap
   | .near | .soroban =>
       checkTargetPlan plan

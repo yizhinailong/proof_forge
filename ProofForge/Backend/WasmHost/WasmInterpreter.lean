@@ -112,6 +112,8 @@ structure HostState where
   sorobanAuthDenied : Bool := false
   /-- Log of `invoke_contract` host calls (contract/method/args byte slices). -/
   sorobanInvokes : Array (Bytes × Bytes × Bytes) := #[]
+  /-- Log of CosmWasm `execute_msg` portable remote host calls. -/
+  cosmWasmExecutes : Array (Bytes × Bytes × Bytes) := #[]
   deriving Repr, Inhabited
 
 def HostState.beginCall (host : HostState) (input : Bytes := #[]) : HostState :=
@@ -343,6 +345,7 @@ def cosmWasmHostArity (name : String) : Except String Nat :=
   | "db_remove" => .ok 2
   | "set_return_data" => .ok 2
   | "log" => .ok 2
+  | "execute_msg" => .ok 6
   | other => .error s!"unsupported CosmWasm host call `{other}`"
 
 def runCosmWasmHostCall (name : String) (args : Array Nat) (state : WasmState) : Except String WasmState :=
@@ -369,6 +372,18 @@ def runCosmWasmHostCall (name : String) (args : Array Nat) (state : WasmState) :
         .ok { state with host := { state.host with returnValue := value } }
       else .error s!"set_return_data expected 2 arguments, got {args.size}"
   | "log" => .ok state
+  -- Portable general peer remote (not token-specific). Records slices; returns 0.
+  | "execute_msg" =>
+      if h : args.size = 6 then
+        let contract := readBytes state.memory args[1] args[0]
+        let method := readBytes state.memory args[3] args[2]
+        let callArgs := readBytes state.memory args[5] args[4]
+        let host := {
+          state.host with
+          cosmWasmExecutes := state.host.cosmWasmExecutes.push (contract, method, callArgs)
+        }
+        .ok (stackPush { state with host := host } 0)
+      else .error s!"execute_msg expected 6 arguments, got {args.size}"
   | other => .error s!"unsupported CosmWasm host call `{other}`"
 
 /-- Soroban host-call arity table for the minimal first-spike surface.

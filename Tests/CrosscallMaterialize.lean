@@ -114,13 +114,15 @@ def main : IO Unit := do
       require (e.message.contains "STATICCALL" || e.message.contains "EVM-only")
         s!"expected STATICCALL reject, got: {e.message}"
 
-  -- CosmWasm Counter spike: honest capability reject for portable crosscall.
+  -- CosmWasm: general portable remote → execute_msg (Wasm family host, not token-only).
   require ((forProfile wasmCosmWasm).nativeForm == NativeForm.cosmWasmMsg) "CosmWasm form"
-  match ProofForge.Backend.WasmHost.CosmWasm.EmitWat.checkCapabilities solProbe with
-  | .ok _ => throw (IO.userError "CosmWasm spike must reject crosscall.invoke capability")
-  | .error e =>
-      require (e.message.contains "not supported" || e.message.contains "crosscall")
-        s!"expected CosmWasm capability reject, got: {e.message}"
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule nearPortable .cosmWasm with
+  | .error e => throw (IO.userError s!"CosmWasm should lower portable crosscall to execute_msg: {e.message}")
+  | .ok wat =>
+      require (wat.contains "execute_msg")
+        "CosmWasm WAT must import/call execute_msg for portable crosscall"
+      require (!wat.contains "promise_create")
+        "CosmWasm must not import NEAR promise_create"
 
   -- Psy: untyped U64 crosscall accepted; typed/create rejected.
   require ((forProfile psyDpn).nativeForm == NativeForm.zkCircuitCall) "Psy form"
@@ -152,9 +154,9 @@ def main : IO Unit := do
   require (NativeForm.sorobanInvoke.id == "soroban-invoke") "Soroban form id"
   require (NativeForm.sorobanInvoke != NativeForm.nearPromise)
     "Soroban must not be mapped as near-promise"
-  require ((forProfile wasmCosmWasm).note.contains "deferred" ||
+  require ((forProfile wasmCosmWasm).note.contains "execute_msg" ||
       (forProfile wasmCosmWasm).nativeForm == NativeForm.cosmWasmMsg)
-    "CosmWasm remains deferred spike form"
+    "CosmWasm form documents execute_msg portable remote"
   -- Soroban: portable crosscall → invoke_contract, never promise_create.
   match ProofForge.Backend.WasmHost.EmitWat.renderModule nearPortable .soroban with
   | .error e => throw (IO.userError s!"Soroban should lower portable crosscall to invoke_contract: {e.message}")
@@ -255,5 +257,11 @@ def main : IO Unit := do
       require (wat.contains "invoke_contract") "Shared.RemoteCall Soroban invoke"
       require (wat.contains "i64.const 42")
         "Soroban remote scalar ABI embeds u64 arg 42"
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule shared .cosmWasm with
+  | .error e => throw (IO.userError s!"CosmWasm Shared.RemoteCall: {e.message}")
+  | .ok wat =>
+      require (wat.contains "execute_msg") "Shared.RemoteCall CosmWasm execute_msg"
+      require (wat.contains "i64.const 42")
+        "CosmWasm remote scalar ABI embeds u64 arg 42"
 
-  IO.println "crosscall-materialize: ok (evm·solana·near + soroban-invoke + shared RemoteCall + scalar args)"
+  IO.println "crosscall-materialize: ok (evm·solana·near·soroban·cosmwasm general remote + scalar args)"

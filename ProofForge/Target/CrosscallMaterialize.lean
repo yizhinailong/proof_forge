@@ -142,7 +142,7 @@ def forProfile (profile : TargetProfile) : Report :=
     | .nearPromise =>
         "Portable crosscall.invoke → NEAR promise_create (nearCrosscallStrings string pool for account/method names)"
     | .cosmWasmMsg =>
-        "Portable crosscall.invoke → CosmWasm WasmMsg/submessage (deferred; Counter spike only)"
+        "Portable crosscall.invoke → CosmWasm execute_msg host stub (WasmMsg-shaped; general peer remote, not token-only)"
     | .workersBinding =>
         "Portable crosscall.invoke reinterpreted as Workers binding/fetch (deferred off-chain host)"
     | .sorobanInvoke =>

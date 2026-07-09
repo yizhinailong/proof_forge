@@ -166,6 +166,11 @@ def cosmWasmSetReturnDataImport : Import :=
 def cosmWasmLogImport : Import :=
   hostImport "log" #[.i32, .i32] #[]
 
+/-- Portable `crosscall.invoke` on CosmWasm: WasmMsg-shaped host execute stub.
+Same arg packing as Soroban `invoke_contract` (string pool + JSON scratch). -/
+def cosmWasmExecuteMsgImport : Import :=
+  hostImport "execute_msg" #[.i64, .i64, .i64, .i64, .i64, .i64] #[.i64]
+
 def importsForModulePlan
     (plan : ModulePlan) (cfg : ProofForge.IR.AllocatorConfig) (hasPanic : Bool)
     (bridge : ProofForge.Target.HostBridge := .near) : Array Import :=
@@ -207,7 +212,7 @@ def importsForModulePlan
         else withAuth
       dedupeImports withInvoke
   | .cosmWasm =>
-      -- CosmWasm: db_read/db_write (no NEAR storage_* / promise_*).
+      -- CosmWasm: db_read/db_write + portable crosscall → execute_msg (no NEAR promise).
       let withoutPromise := stripNearPromiseImports nearFamily
       let withoutNearStorage := stripNearStorageImports withoutPromise
       -- Drop NEAR input / value_return / log_utf8 when CosmWasm-shaped.
@@ -225,7 +230,10 @@ def importsForModulePlan
         let acc := if plan.usesEventApi then acc.push cosmWasmLogImport else acc
         if plan.returnTypes.isEmpty then acc
         else acc.push cosmWasmSetReturnDataImport
-      dedupeImports withStorage
+      let withRemote :=
+        if plan.usesPromiseCreate then withStorage.push cosmWasmExecuteMsgImport
+        else withStorage
+      dedupeImports withRemote
   | .near => dedupeImports nearFamily
 
 end ProofForge.Backend.WasmHost.Imports

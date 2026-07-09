@@ -246,7 +246,7 @@ frame — authors never write these frames:
 | **Solana** | `sol_invoke_signed_c` **CPI** | AccountMeta/Info vector (pack up to **64**) | **Product** (closed for this phase) |
 | **NEAR** | `promise_create` (+ optional `promise_then`) | account id strings + method + gas/deposit | **Product** (closed for this phase) |
 | **Soroban** | host contract invoke + `require_auth*` | Stellar addresses / auth context | **Next** host-adapter spike (not NEAR promise) |
-| **CosmWasm** | WasmMsg / submessage | contract addr + msg JSON | **Deferred** |
+| **CosmWasm** | `execute_msg` host stub (WasmMsg-shaped) | contract/method string pool + JSON args | **Spike** (portable peer remote; full WasmMsg later) |
 | **Workers** | binding / fetch | off-chain service ids | **Deferred** |
 | **Move** | entry/object call (sourcegen) | address / object handles | spike |
 

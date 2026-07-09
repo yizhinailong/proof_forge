@@ -29,7 +29,11 @@ structure EmitError where
 
 def err (msg : String) : Except EmitError α := .error { message := msg }
 
-/-- Capabilities supported by the CosmWasm Counter spike. -/
+/-- Capabilities supported by the CosmWasm host path.
+
+Counter spike plus portable general peer remote (`crosscall.invoke` →
+`execute_msg`). Protocol-token CPI is Solana-family; Wasm hosts share the
+portable remote intent. -/
 def supportedCapabilities : CapabilitySet := #[
   .storageScalar,
   .callerSender,
@@ -38,7 +42,8 @@ def supportedCapabilities : CapabilitySet := #[
   .accountExplicit,
   .controlConditional,
   .controlBoundedLoop,
-  .assertions
+  .assertions,
+  .crosscallInvoke
 ]
 
 def checkCapabilities (mod : ProofForge.IR.Module) : Except EmitError Unit :=
