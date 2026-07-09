@@ -71,6 +71,9 @@ def main : IO Unit := do
       | "previewMint" => { ep with selector? := some "b3d7f6b9" }
       | "previewWithdraw" => { ep with selector? := some "0a28a477" }
       | "previewRedeem" => { ep with selector? := some "4cdad506" }
+      -- non-standard fee surface (fixture pins only)
+      | "feeBps" => { ep with selector? := some "f0fdf834" }
+      | "feeRecipient" => { ep with selector? := some "46904840" }
       | "transfer" => { ep with selector? := some "a9059cbb" }
       | "approve" => { ep with selector? := some "095ea7b3" }
       | _ => ep

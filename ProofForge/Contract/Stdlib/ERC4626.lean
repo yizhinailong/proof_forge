@@ -18,11 +18,13 @@ client (`Protocols.Evm.IERC4626` / Product `external_vault`).
   `vaultSelf` is init-set (portable `address(this)`). Method words are EVM
   selectors — **EVM-primary** packing. |
 | Share token | Minimal ERC-20 surface on **shares** |
+| Entry fee | Optional **`feeBps` / 10000** on deposit/mint share mint:
+  `feeShares = gross * feeBps / 10000`, user gets `gross - fee`, fee minted
+  to `feeRecipient`. Zero bps = previous behavior. Exit fees: none. |
 | Fee-on-transfer assets | Not modeled (assumes transfer amount equals requested) |
-| `preview*` | Same floor formula as `convert*` (no fee / no asymmetric
-  deposit-vs-mint rounding yet) |
+| `preview*` deposit/mint | Net after entry fee; withdraw/redeem = convert floor |
 
-Spec math lives in `Spec` (Nat formulas + empty-vault 1:1 theorems).
+Spec math lives in `Spec` (Nat formulas + fee/empty-vault theorems).
 -/
 import ProofForge.Contract.Source
 
@@ -47,15 +49,28 @@ def convertToAssets (s : State) (shares : Nat) : Nat :=
   if s.totalSupply == 0 || s.totalAssets == 0 then shares
   else shares * s.totalAssets / s.totalSupply
 
-def deposit? (s : State) (assets : Nat) : Option (State × Nat) :=
+/-- Entry fee shares from gross mint (`feeBps` basis points, floor). -/
+def entryFeeShares (gross feeBps : Nat) : Nat :=
+  gross * feeBps / 10000
+
+def netAfterEntryFee (gross feeBps : Nat) : Nat :=
+  gross - entryFeeShares gross feeBps
+
+/-- Deposit; optional entry fee. Returns `(next, userShares)` where
+`totalSupply` grows by **gross** shares (user + fee). -/
+def deposit? (s : State) (assets : Nat) (feeBps : Nat := 0) : Option (State × Nat) :=
   if assets == 0 then none
   else
-    let shares := convertToShares s assets
-    if shares == 0 then none
-    else some ({
-      totalAssets := s.totalAssets + assets
-      totalSupply := s.totalSupply + shares
-    }, shares)
+    let gross := convertToShares s assets
+    if gross == 0 then none
+    else
+      let fee := entryFeeShares gross feeBps
+      let user := gross - fee
+      if user == 0 then none
+      else some ({
+        totalAssets := s.totalAssets + assets
+        totalSupply := s.totalSupply + gross
+      }, user)
 
 def withdraw? (s : State) (assets : Nat) : Option (State × Nat) :=
   if assets == 0 || assets > s.totalAssets then none
@@ -84,8 +99,19 @@ theorem empty_convert_assets (sh : Nat) : convertToAssets empty sh = sh := by
   simp [convertToAssets, empty]
 
 theorem deposit_empty_1to1 (a : Nat) (ha : a ≠ 0) :
-    deposit? empty a = some ({ totalAssets := a, totalSupply := a }, a) := by
-  simp [deposit?, convertToShares, empty, ha]
+    deposit? empty a 0 = some ({ totalAssets := a, totalSupply := a }, a) := by
+  simp [deposit?, convertToShares, empty, entryFeeShares, ha]
+
+theorem entry_fee_zero (g : Nat) : entryFeeShares g 0 = 0 := by
+  simp [entryFeeShares]
+
+theorem entry_fee_one_percent :
+    entryFeeShares 1000 100 = 10 := by
+  decide
+
+theorem deposit_fee_user_shares :
+    netAfterEntryFee (convertToShares empty 1000) 100 = 990 := by
+  decide
 
 /-- After a first deposit of `a`, convert is still 1:1. -/
 theorem convert_after_first_deposit (a assets : Nat) (ha : a ≠ 0) :
@@ -122,6 +148,18 @@ def totalSupply : ScalarRef :=
 def convertScratch : ScalarRef :=
   ProofForge.Contract.Surface.slot "convertScratch" .u64
 
+/-- Scratch for entry-fee shares (`gross * feeBps / 10000`). -/
+def feeScratch : ScalarRef :=
+  ProofForge.Contract.Surface.slot "feeScratch" .u64
+
+/-- Entry fee in basis points (0 = off, max 10000). -/
+def feeBps : ScalarRef :=
+  ProofForge.Contract.Surface.slot "feeBps" .u64
+
+/-- Recipient of entry-fee share mints (must be non-zero when fee > 0). -/
+def feeRecipient : ScalarRef :=
+  ProofForge.Contract.Surface.slot "feeRecipient" .u64
+
 def shareBalances : MapRef :=
   { id := "shareBalances", keyType := .u64, valueType := .u64 }
 
@@ -151,12 +189,45 @@ def applyConvertToAssets (amount : ProofForge.IR.Expr) : EntryM Unit := do
       (ProofForge.Contract.Surface.div
         (ProofForge.Contract.Surface.mul amount ta) ts)
 
+/-- `convertScratch` holds **gross** shares. Writes fee to `feeScratch` and
+    net user shares back to `convertScratch`. -/
+def applyEntryFee : EntryM Unit := do
+  let gross := ProofForge.Contract.Surface.read convertScratch
+  let bps := ProofForge.Contract.Surface.read feeBps
+  ProofForge.Contract.Surface.write feeScratch
+    (ProofForge.Contract.Surface.div
+      (ProofForge.Contract.Surface.mul gross bps)
+      (ProofForge.Contract.Surface.u64 10000))
+  ProofForge.Contract.Surface.write convertScratch
+    (ProofForge.Contract.Surface.sub gross
+      (ProofForge.Contract.Surface.read feeScratch))
+
+/-- Mint fee shares to `feeRecipient` when fee > 0. -/
+def mintFeeSharesIfAny : EntryM Unit := do
+  let fee := ProofForge.Contract.Surface.read feeScratch
+  ProofForge.Contract.Surface.whenPositive fee do
+    let recip := ProofForge.Contract.Surface.read feeRecipient
+    ProofForge.Contract.Surface.requireNonZero recip "zero feeRecipient"
+    let bal :=
+      ProofForge.Contract.Surface.mapGet shareBalances recip
+    ProofForge.Contract.Surface.mapSet shareBalances recip
+      (ProofForge.Contract.Surface.add bal fee)
+    ProofForge.Contract.Surface.emitIndexed (ProofForge.Contract.Surface.event "Transfer")
+      #[
+        ProofForge.Contract.Surface.field "from" (ProofForge.Contract.Surface.u64 0),
+        ProofForge.Contract.Surface.field "to" recip
+      ]
+      #[ProofForge.Contract.Surface.field "value" fee]
+
 contract_mixin ERC4626Mixin do
   use ProofForge.Contract.Surface.scalar assetAddress
   use ProofForge.Contract.Surface.scalar vaultSelf
   use ProofForge.Contract.Surface.scalar totalAssetsSlot
   use ProofForge.Contract.Surface.scalar totalSupply
   use ProofForge.Contract.Surface.scalar convertScratch
+  use ProofForge.Contract.Surface.scalar feeScratch
+  use ProofForge.Contract.Surface.scalar feeBps
+  use ProofForge.Contract.Surface.scalar feeRecipient
   use ProofForge.Contract.Surface.mapState shareBalances
   use ProofForge.Contract.Surface.mapState shareAllowances
 
@@ -202,13 +273,21 @@ contract_mixin ERC4626Mixin do
   query maxRedeem (holder : .address) returns(.u64) do
     return mapRead shareBalances holder;
 
-  -- preview* == convert* at no-fee floor (EIP-4626 allows stricter rounding later)
+  query feeBps returns(.u64) do
+    return feeBps;
+
+  query feeRecipient returns(.u64) do
+    return feeRecipient;
+
+  -- preview deposit/mint: net shares after entry fee; withdraw/redeem: convert floor
   query previewDeposit (assets : .u64) returns(.u64) do
     convertScratch := assets;
     do applyConvertToShares (ProofForge.Contract.Surface.ref assets);
+    do applyEntryFee;
     return convertScratch;
 
   query previewMint (shares : .u64) returns(.u64) do
+    -- assets required for gross `shares` mint (fee is taken from shares, not assets)
     convertScratch := shares;
     do applyConvertToAssets (ProofForge.Contract.Surface.ref shares);
     return convertScratch;
@@ -230,9 +309,13 @@ contract_mixin ERC4626Mixin do
       "zero assets";
     convertScratch := assets;
     do applyConvertToShares (ProofForge.Contract.Surface.ref assets);
+    let gross : .u64 := convertScratch;
+    do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref gross)
+      "zero shares";
+    do applyEntryFee;
     let shares : .u64 := convertScratch;
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref shares)
-      "zero shares";
+      "zero net shares";
     let assetTok : .u64 := assetAddress;
     let selfAddr : .u64 := vaultSelf;
     let _pulled : .u64 :=
@@ -243,9 +326,10 @@ contract_mixin ERC4626Mixin do
     let ta : .u64 := totalAssetsSlot;
     totalAssetsSlot := ta +! assets;
     let ts : .u64 := totalSupply;
-    totalSupply := ts +! shares;
+    totalSupply := ts +! gross;
     let bal : .u64 := mapRead shareBalances receiver;
     do mapWrite shareBalances receiver (bal +! shares);
+    do mintFeeSharesIfAny;
     emit Deposit indexed #[
       fieldAsName "sender" caller,
       fieldAsName "owner" receiver
@@ -266,11 +350,17 @@ contract_mixin ERC4626Mixin do
       "zero receiver";
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref shares)
       "zero shares";
+    -- `shares` is gross mint; user receives net after entry fee
     convertScratch := shares;
     do applyConvertToAssets (ProofForge.Contract.Surface.ref shares);
     let assets : .u64 := convertScratch;
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref assets)
       "zero assets";
+    convertScratch := shares;
+    do applyEntryFee;
+    let userShares : .u64 := convertScratch;
+    do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref userShares)
+      "zero net shares";
     let assetTok : .u64 := assetAddress;
     let selfAddr : .u64 := vaultSelf;
     let _pulled : .u64 :=
@@ -283,13 +373,20 @@ contract_mixin ERC4626Mixin do
     let ts : .u64 := totalSupply;
     totalSupply := ts +! shares;
     let bal : .u64 := mapRead shareBalances receiver;
-    do mapWrite shareBalances receiver (bal +! shares);
+    do mapWrite shareBalances receiver (bal +! userShares);
+    do mintFeeSharesIfAny;
     emit Deposit indexed #[
       fieldAsName "sender" caller,
       fieldAsName "owner" receiver
     ] data #[
       fieldAsName "assets" assets,
-      fieldAsName "shares" shares
+      fieldAsName "shares" userShares
+    ];
+    emit Transfer indexed #[
+      fieldAsName "from" (u64 0),
+      fieldAsName "to" receiver
+    ] data #[
+      fieldAsName "value" userShares
     ];
     return assets;
 
@@ -405,10 +502,16 @@ contract_mixin ERC4626Mixin do
 
 contract_source ERC4626 do
   use mixin
-  entry init (assetAddr : .u64, selfAddr : .u64) do
+  -- feeBpsVal ∈ [0, 10000]; feeRecipientAddr used only when fee shares > 0
+  entry init (assetAddr : .u64, selfAddr : .u64, feeBpsVal : .u64, feeRecipientAddr : .u64) do
     assetAddress := assetAddr;
     vaultSelf := selfAddr;
+    do ProofForge.Contract.Surface.requireGe (u64 10000)
+      (ProofForge.Contract.Surface.ref feeBpsVal) "feeBps > 10000";
+    feeBps := feeBpsVal;
+    feeRecipient := feeRecipientAddr;
     totalAssetsSlot := u64 0;
     totalSupply := u64 0;
+    feeScratch := u64 0;
 
 end ProofForge.Contract.Stdlib.ERC4626

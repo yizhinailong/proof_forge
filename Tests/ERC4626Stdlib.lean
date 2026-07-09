@@ -19,7 +19,10 @@ def main : IO UInt32 := do
   require (s0.totalAssets == 0 && s0.totalSupply == 0) "empty zero"
   require (convertToShares s0 50 == 50) "empty convert shares"
   require (convertToAssets s0 50 == 50) "empty convert assets"
-  match deposit? s0 100 with
+  require (entryFeeShares 1000 0 == 0) "fee zero"
+  require (entryFeeShares 1000 100 == 10) "fee 1%"
+  require (netAfterEntryFee 1000 100 == 990) "net after 1%"
+  match deposit? s0 100 0 with
   | none => throw (IO.userError "deposit should succeed")
   | some (s1, shares1) =>
       require (shares1 == 100) "first deposit 1:1 shares"
@@ -40,12 +43,18 @@ def main : IO UInt32 := do
         "donation: 100 assets → 50 shares (100*100/200)"
       require (convertToAssets sDonated 50 == 100)
         "donation: 50 shares → 100 assets"
-      match deposit? sDonated 100 with
+      match deposit? sDonated 100 0 with
       | none => throw (IO.userError "pro-rata deposit should succeed")
       | some (s3, sh3) =>
           require (sh3 == 50) "pro-rata mint shares"
           require (s3.totalAssets == 300 && s3.totalSupply == 150) "pro-rata totals"
-      match deposit? s1 0 with
+      -- entry fee: user gets 99%, totalSupply still gross
+      match deposit? empty 1000 100 with
+      | none => throw (IO.userError "fee deposit should succeed")
+      | some (sFee, userSh) =>
+          require (userSh == 990) "user net after 1% fee"
+          require (sFee.totalSupply == 1000 && sFee.totalAssets == 1000) "gross supply"
+      match deposit? s1 0 0 with
       | some _ => throw (IO.userError "zero deposit must fail")
       | none => pure ()
 
