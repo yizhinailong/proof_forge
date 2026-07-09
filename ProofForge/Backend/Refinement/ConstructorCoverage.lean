@@ -91,6 +91,7 @@ def fuelCoveredStatement : Statement → Bool
   | .assert _ _ _ | .assertEq _ _ _ _ => true
   | .revert _ | .revertWithError _ => true
   | .ifElse _ _ _ => true
+  | .boundedFor _ _ _ _ => true  -- U5.2: SemanticsFuel.execBoundedForFuel
   | .return _ => true
   | _ => false
 
@@ -702,9 +703,10 @@ which `moduleInCoveredFragment` checks modules stay within):
 `memoryArraySet`, `storagePathRead`/`Write`/`AssignOp`.
 
 **Statement — covered:** `letBind`/`letMutBind`, `assign`/`assignOp`, `effect`,
-`assert`/`assertEq`, `revert`/`revertWithError`, `ifElse`, `return`.
+`assert`/`assertEq`, `revert`/`revertWithError`, `ifElse`, `boundedFor` (U5.2),
+`return`.
 
-**Statement — gap (excluded):** `release`, `boundedFor`, `whileLoop`.
+**Statement — gap (excluded):** `release`, `whileLoop` (unbounded; fuel-hostile).
 
 Each widening adds a constructor here + a FV-9.2 preservation lemma + a
 `fuelCovered*` arm, then re-checks the honesty bridge.
@@ -722,6 +724,7 @@ semantics — not a real peer); RemoteCall is therefore **out of fragment**.
 | Ownable / OwnableHash / Pausable / Reentrancy | **yes** (typical) | scalar storage, caller `contextRead`, assert | no crosscall |
 | HostEnvProbe | **yes** (U5.4) | `contextRead` (time/height/self/caller), assign | U1 HostEnv triad; in-fragment; no peer call |
 | ValueVault | **yes** (typical) | scalar storage, arith, events, checkpoint | no crosscall |
+| LoopProbe (IR fixture) | **yes** (U5.2) | `boundedFor` + scalar storage | fuel-indexed loop |
 | RemoteCall / AuthRemoteCall | **no** | `crosscallInvoke*` | U2 stub; target materialize only |
 | ExternalTokenTransfer / ExternalVault | **no** | protocol remote / crosscall | peer materialize |
 | TokenSpec / RoleGatedToken / StakingVault | **partial** | maps / nativeValue / roles | may use map storage (covered) or extras |

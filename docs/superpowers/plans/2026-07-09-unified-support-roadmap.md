@@ -168,7 +168,7 @@ Pick **at most one** track per cycle. Default order if capacity:
 | ID | Task | Work | Acceptance | Size | Deps | Status |
 |----|------|------|------------|------|------|--------|
 | **U5.1** | Map Product constructors → fragment | List IR nodes used by Counter/Ownable/ValueVault/RemoteCall | Coverage table in ConstructorCoverage or doc | S | — | **done** |
-| **U5.2** | Fuel semantics for next constructor class | Extend `SemanticsFuel` + covered fragment | Smoke + theorems green | L | U5.1 | pending |
+| **U5.2** | Fuel semantics for next constructor class | Extend `SemanticsFuel` + covered fragment | Smoke + theorems green | L | U5.1 | **done** (`boundedFor` + LoopProbe) |
 | **U5.3** | Crosscall out of fragment | Explicitly **exclude** stub crosscall from ∀-fragment until U2.4 | fragment predicate tests | S | U2.1 | **done** (RemoteCall out; fuelCovered gap) |
 | **U5.4** | HostEnv-using modules in fragment | After U1, prove or differentially gate time/self reads | Refinement smoke | L | U1.1 | **done** (HostEnvProbe in-fragment smoke) |
 
@@ -182,7 +182,7 @@ Follow detailed steps in [FV-9 plan](2026-07-08-fv9-universal-compiler-correctne
 |----|------|------|------------|------|--------|
 | **U6.1** | Versioning RFC 0012 enforcement | IR major.minor + artifact schemaVersion checks in emit | Doc + smoke | M | **done** (`just versioning-policy`) |
 | **U6.2** | CLI M4 plan (no delete yet) | Inventory remaining legacy flags; deprecation window | Inventory md + `just cli-target-first` | S | **done** (`docs/cli-m4-legacy-inventory.md`) |
-| **U6.3** | CLI M4 delete | Remove aliases after window | CI green; docs | L | U6.2 | pending |
+| **U6.3** | CLI M4 delete | Remove aliases after window | CI green; docs | L | U6.2 | **prep only** (`cli-m4-deletion-checklist.md`; no delete) |
 | **U6.4** | Unified client schema gaps | Align method names / error ids three hosts | client-schema tests | M | **done** (`just client-schema-parity`) |
 | **U6.5** | Upgrade/signing boundary docs | RFC 0013 operational notes for CI keys | Docs only | S | **done** (`docs/upgrade-signing-ops.md`) |
 

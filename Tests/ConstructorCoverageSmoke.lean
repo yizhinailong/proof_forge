@@ -4,6 +4,7 @@ import Examples.Product.HostEnvProbe
 import Examples.Product.RemoteCall
 import Examples.Product.Ownable
 import Examples.Product.ValueVault
+import ProofForge.IR.Examples.LoopProbe
 import ProofForge.Backend.Refinement.CounterUniversal
 
 /-! ## FV-9.2: constructor coverage table + IR-side preservation smoke gate
@@ -130,6 +131,19 @@ theorem remote_crosscall_expr_is_gap :
     exprStatus (.crosscallInvoke (.literal (.u64 1)) (.literal (.u64 2)) #[]) = .gap := by
   decide
 
+-- 13. U5.2: boundedFor is fuel-covered; LoopProbe is in the covered fragment.
+theorem boundedFor_statement_is_covered :
+    fuelCoveredStatement (.boundedFor "_i" 0 3 #[]) = true := by
+  decide
+
+theorem whileLoop_statement_is_still_gap :
+    fuelCoveredStatement (.whileLoop (.literal (.bool true)) #[]) = false := by
+  decide
+
+theorem loopProbe_in_covered_fragment :
+    moduleInCoveredFragment ProofForge.IR.Examples.LoopProbe.module = true := by
+  native_decide
+
 
 def main : IO UInt32 := do
   -- Runtime re-check of U5 product map (native_decide theorems above).
@@ -140,5 +154,5 @@ def main : IO UInt32 := do
   if moduleInCoveredFragment Examples.Product.RemoteCall.module then
     throw (IO.userError "Product RemoteCall must stay OUT of covered fragment (crosscall stub)")
   IO.println
-    "constructor-coverage-smoke: FV-9.2/9.4 + U5 product map (Counter/HostEnv in; RemoteCall out)"
+    "constructor-coverage-smoke: FV-9.2/9.4 + U5 product map + U5.2 boundedFor (LoopProbe in; RemoteCall out)"
   return 0

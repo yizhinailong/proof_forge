@@ -102,6 +102,7 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - [Portable SDK unification plan (2026-07-09)](superpowers/plans/2026-07-09-portable-sdk-unification.md): **complete** (policy · Token · remote · author polish).
 - [Unified support roadmap (2026-07-09)](superpowers/plans/2026-07-09-unified-support-roadmap.md): **active** — HostEnv triad · crosscall honesty · FV-9 · platform debt (slow unification).
 - [CLI M4 legacy inventory](cli-m4-legacy-inventory.md): EmitMode/flag zoo inventory before alias deletion.
+- [CLI M4 deletion checklist](cli-m4-deletion-checklist.md): ordered delete steps (compat window).
 - [RFC 0012 versioning](rfcs/0012-versioning-and-compatibility-policy.md) + `just versioning-policy`.
 - [Upgrade/signing ops (RFC 0013)](upgrade-signing-ops.md): unsigned emit + live-gate key conventions.
 - [Client schema parity (U6.4)](client-schema-parity.md): entrypoint names + assertionId catalogue.

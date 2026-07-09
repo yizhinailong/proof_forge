@@ -314,10 +314,29 @@ mutual
           let (branchState, returnValue?) ←
             execStatementsFuel fuel selectedBody.toList nextState frame
           .ok (branchState, frame, returnValue?)
+      | .boundedFor indexName start stopExclusive body =>
+          -- U5.2: total fuel-indexed bounded loop (static start/stop, like IR.Semantics).
+          execBoundedForFuel fuel indexName start stopExclusive body state frame
       | .return value => do
           let (nextState, returnValue) ← evalExprFuel fuel state frame value
           .ok (nextState, frame, some returnValue)
       | _ => unsupportedStatement statement
+
+  /-- Fuel-indexed `boundedFor`: each iteration consumes fuel; early `return` exits. -/
+  def execBoundedForFuel : Nat → String → Nat → Nat → Array Statement → State → Frame →
+      Except String (State × Frame × Option Value)
+    | 0, _, _, _, _, _, _ => .error "IR fuel semantics boundedFor fuel exhausted"
+    | fuel + 1, indexName, index, stopExclusive, body, state, frame =>
+        if index < stopExclusive then
+          let loopFrame := frame.write indexName (.u32 index)
+          do
+            let (nextState, returnValue?) ← execStatementsFuel fuel body.toList state loopFrame
+            match returnValue? with
+            | some value => .ok (nextState, frame, some value)
+            | none =>
+                execBoundedForFuel fuel indexName (index + 1) stopExclusive body nextState frame
+        else
+          .ok (state, frame, none)
 
   def execStatementsFuel : Nat → List Statement → State → Frame →
       Except String (State × Option Value)
