@@ -4,12 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 EVM compatibility wrapper for the portable ReentrancyGuard shared example.
 -/
-import Examples.Shared.ReentrancyGuard
+import Examples.Product.ReentrancyGuard
 
 namespace ReentrancyGuard
 
 def spec : ProofForge.Contract.ContractSpec :=
-  Examples.Shared.ReentrancyGuard.spec
+  Examples.Product.ReentrancyGuard.spec
 
 def module : ProofForge.IR.Module :=
   spec.module

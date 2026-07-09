@@ -14,7 +14,7 @@ for tests; they are not the surface application developers should author by
 hand. The legacy parser may represent identifiers as strings internally after
 parsing, but lowering checks Solana CPI/PDA/state/account references before
 those names reach compiler artifacts. The portable ValueVault smoke deliberately
-routes `Examples/Learn/ValueVault.learn` through the CLI so regressions in this
+routes `Examples/Backend/Learn/ValueVault.learn` through the CLI so regressions in this
 compatibility path are caught before backend package generation is considered
 passing.
 For CPI declarations, account operands must first be introduced with
@@ -54,15 +54,15 @@ legacy parser reuses the same compiler-owned boundaries.
 
 Token SDK compatibility examples use a separate Learn intent form that lowers
 to the same Lean `TokenSpec` boundary as
-[`Examples/Shared/FungibleToken.lean`](../Shared/FungibleToken.lean) and
-[`Examples/Shared/FeeToken.lean`](../Shared/FeeToken.lean):
+[`Examples/Product/FungibleToken.lean`](../Shared/FungibleToken.lean) and
+[`Examples/Product/FeeToken.lean`](../Shared/FeeToken.lean):
 
 - `ProofToken.learn` describes one fungible token once and can be routed with
   `proof-forge --learn-token --target evm` to ERC-20 Yul, bytecode, and
   artifact metadata.
 - `FeeToken.learn` mirrors the shared transfer-fee intent and remains an
   equivalence fixture for the Token-2022 plan selected by
-  `Examples/Shared/FeeToken.lean`.
+  `Examples/Product/FeeToken.lean`.
 
 `TokenSpec` remains the internal compiler boundary used after parsing, target
 routing, and validation. New product examples should start from the shared

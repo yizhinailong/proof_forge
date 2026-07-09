@@ -117,7 +117,7 @@ Files most affected: `ProofForge/IR/Contract.lean` (`ContextField`), `ProofForge
 | Proxy patterns / EIP-1967 / UUPS | `create`/`create2` deploy fixed init code; no proxy scaffolding. | Proxy factory support, ERC-1967 storage slots, UUPS/transparent proxy upgrade paths. |
 | Contract metadata / `name`/`version` | Not emitted. | ERC-173/ERC-1967 ownership, upgrade events, implementation slot. |
 
-Files most affected: `ProofForge/Backend/Evm/IR.lean` (dispatcher), `ProofForge/Backend/Evm/Metadata.lean`, CLI deploy manifest logic, new proxy/example modules under `Examples/Evm/`.
+Files most affected: `ProofForge/Backend/Evm/IR.lean` (dispatcher), `ProofForge/Backend/Evm/Metadata.lean`, CLI deploy manifest logic, new proxy/example modules under `Examples/Backend/Evm/`.
 
 ### 2.4 ABI / calldata gaps
 
@@ -235,7 +235,7 @@ The roadmap is split into **six phases**, each 2–10 engineering days, sequence
    - `.gasLeft` → `gasleft()`
    - `.coinbase`, `.baseFee`, `.prevRandao` (optional stretch)
 2. Update `ProofForge.Backend.Evm.Plan` with `ContextOp` plan nodes and `ProofForge.Backend.Evm.YulSemantics.lean` with corresponding executable semantics.
-3. Add `ContextExtendedProbe` under `ProofForge/IR/Examples/` and `Examples/Evm/` with golden Yul + Foundry assertions using `vm.warp`, `vm.fee`, `vm.roll`, `vm.prank`.
+3. Add `ContextExtendedProbe` under `ProofForge/IR/Examples/` and `Examples/Backend/Evm/` with golden Yul + Foundry assertions using `vm.warp`, `vm.fee`, `vm.roll`, `vm.prank`.
 4. Update capability registry: new or updated `env.block` semantics; document that `caller.sender` stays separate from `tx.origin`.
 
 **Success criteria / new or modified CI gates**
@@ -253,7 +253,7 @@ The roadmap is split into **six phases**, each 2–10 engineering days, sequence
 - `ProofForge/Backend/Evm/IR.lean`
 - `ProofForge/Backend/Evm/YulSemantics.lean`
 - `ProofForge/Backend/Evm/Refinement.lean`
-- `ProofForge/IR/Examples/EvmContextProbe.lean` (extend) or new probe.
+- `ProofForge/IR/Examples/Backend/EvmContextProbe.lean` (extend) or new probe.
 - `docs/capability-registry.md`
 
 **Main risks**
@@ -500,7 +500,7 @@ Every phase that adds `ValueType`, `ContextField`, `Expr`, `Effect`, `Statement`
 
 Every new feature must include the canonical gate stack:
 
-1. **Golden Yul** — add/update `.golden.yul` in `Examples/Evm/`; `scripts/evm/build-examples.sh` diffs.
+1. **Golden Yul** — add/update `.golden.yul` in `Examples/Backend/Evm/`; `scripts/evm/build-examples.sh` diffs.
 2. **solc bytecode** — `solc --strict-assembly` must produce runtime bytecode.
 3. **Artifact metadata** — `scripts/evm/validate-artifact-metadata.py` checks selectors, capabilities, ABI layouts.
 4. **Foundry runtime** — `scripts/evm/foundry-smoke.sh` or a new `scripts/evm/*-ir-smoke.sh` exercises behavior and malformed-calldata reverts.
@@ -547,6 +547,6 @@ After Phase 0, the suggested order is **Phase 1 → Phase 2 → Phase 5 → Phas
 | Formal model / refinement | `ProofForge/Backend/Evm/YulSemantics.lean`, `ProofForge/Backend/Evm/Refinement.lean` |
 | Tests & coverage | `Tests/EvmDiagnostics.lean`, `Tests/EvmPlan.lean`, `Tests/EvmSemanticPlan.lean`, `Tests/EvmCoverage.tsv` |
 | CI / smokes | `justfile`, `scripts/evm/*-ir-smoke.sh`, `scripts/evm/diagnostic-smoke.sh`, `scripts/evm/build-examples.sh`, `scripts/evm/foundry-smoke.sh`, `scripts/evm/anvil-deploy-smoke.sh` |
-| Examples / golden fixtures | `Examples/Evm/*.golden.yul`, `ProofForge/IR/Examples/*.lean` |
+| Examples / golden fixtures | `Examples/Backend/Evm/*.golden.yul`, `ProofForge/IR/Examples/*.lean` |
 | Docs / registry | `docs/targets/evm.md`, `docs/capability-registry.md`, `docs/target-roadmap.md`, `docs/implementation-backlog.md`, `docs/gate-status.md` |
 

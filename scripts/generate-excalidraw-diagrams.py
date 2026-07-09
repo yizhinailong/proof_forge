@@ -484,9 +484,9 @@ def diagram_compilation_pipeline() -> None:
 def diagram_multi_target() -> None:
     d = Diagram("multi-target")
     d.title("ProofForge — One Contract, Three Targets")
-    d.subtitle("Examples/Shared/Counter.lean — same source, --target selects backend")
+    d.subtitle("Examples/Product/Counter.lean — same source, --target selects backend")
 
-    src = d.box(420, 110, 340, 80, "Examples/Shared/Counter.lean\ncontract_source Counter do … end", bg=COLORS["authoring"])
+    src = d.box(420, 110, 340, 80, "Examples/Product/Counter.lean\ncontract_source Counter do … end", bg=COLORS["authoring"])
     ir = d.box(420, 240, 340, 60, "Portable IR (shared)", bg=COLORS["core"])
     d.arrow(590, 190, 590, 235)
 

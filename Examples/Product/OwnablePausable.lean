@@ -6,19 +6,19 @@ Shared facade for Ownable + Pausable (owner-gated pause) on portable path.
 
   lake env proof-forge build --target evm --root . \
     -o build/portable-ownable-pausable/OwnablePausable \
-    Examples/Shared/OwnablePausable.lean
+    Examples/Product/OwnablePausable.lean
 
   lake env proof-forge build --target solana-sbpf-asm --root . \
     -o build/portable-ownable-pausable/OwnablePausable.s \
-    Examples/Shared/OwnablePausable.lean
+    Examples/Product/OwnablePausable.lean
 
   lake env proof-forge build --target wasm-near --root . \
     -o build/portable-ownable-pausable/near \
-    Examples/Shared/OwnablePausable.lean
+    Examples/Product/OwnablePausable.lean
 -/
 import ProofForge.Contract.Stdlib.OwnablePausable
 
-namespace Examples.Shared.OwnablePausable
+namespace Examples.Product.OwnablePausable
 
 def spec : ProofForge.Contract.ContractSpec :=
   ProofForge.Contract.Stdlib.OwnablePausable.spec
@@ -26,4 +26,4 @@ def spec : ProofForge.Contract.ContractSpec :=
 def module : ProofForge.IR.Module :=
   spec.module
 
-end Examples.Shared.OwnablePausable
+end Examples.Product.OwnablePausable

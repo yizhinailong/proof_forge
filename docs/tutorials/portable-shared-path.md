@@ -4,12 +4,12 @@ Status: **Product tutorial (T4.2)**
 Audience: new contributors writing portable business intent only
 
 This is the recommended **zero-to-multi-target** path. Every source lives under
-`Examples/Shared/`, uses name-only `entry`/`query` (no hand-written EVM
+`Examples/Product/`, uses name-only `entry`/`query` (no hand-written EVM
 selectors), and never imports Solana/NEAR chain Surfaces.
 
 Related:
 
-- [Examples/Shared/README](../../Examples/Shared/README.md) — table + rules
+- [Examples/Product/README](../../Examples/Product/README.md) — table + rules
 - [Portable three-target Counter](portable-contract-three-targets.md) — deeper Counter lab
 - [Authoring model](../authoring-model.md) — selectors & family-only constructors
 - Aggregate gate: `just portable-tutorial`
@@ -34,7 +34,7 @@ no Promise/CREATE2/selector pins).
 
 ## Step 1 — Counter (state + entrypoints)
 
-**Source:** [Examples/Shared/Counter.lean](../../Examples/Shared/Counter.lean)
+**Source:** [Examples/Product/Counter.lean](../../Examples/Product/Counter.lean)
 
 ```lean
 contract_source Counter do
@@ -56,8 +56,8 @@ Same file → EVM bytecode · Solana sBPF · NEAR WAT. No per-chain source fork.
 
 ## Step 2 — Ownable (business check → native fail)
 
-**Sources:** [Ownable.lean](../../Examples/Shared/Ownable.lean),
-[OwnablePausable.lean](../../Examples/Shared/OwnablePausable.lean)
+**Sources:** [Ownable.lean](../../Examples/Product/Ownable.lean),
+[OwnablePausable.lean](../../Examples/Product/OwnablePausable.lean)
 
 Authors write `guard_owner` / `caller` only. Solana synthesizes a leading
 `authority` signer; NEAR/Soroban panic/unreachable; EVM reverts.
@@ -73,7 +73,7 @@ Chooser: Ownable (u64 handle) vs OwnableHash — see
 
 ## Step 3 — Token intent (features, not standards)
 
-**Source:** [FungibleToken.lean](../../Examples/Shared/FungibleToken.lean)
+**Source:** [FungibleToken.lean](../../Examples/Product/FungibleToken.lean)
 
 ```lean
 def spec : TokenSpec := {
@@ -100,7 +100,7 @@ EVM permanently rejects fee/soulbound/permit features with a Solana pointer
 
 ## Step 4 — Remote (logical peer + scalar ABI)
 
-**Source:** [RemoteCall.lean](../../Examples/Shared/RemoteCall.lean)
+**Source:** [RemoteCall.lean](../../Examples/Product/RemoteCall.lean)
 
 ```lean
 remote callee "peer.callee" "remote_call";
@@ -117,7 +117,7 @@ Materializes EVM CALL · Solana CPI · NEAR `promise_create` · Soroban
 
 ## Step 5 — Auth + transfer-style debit + remote
 
-**Source:** [AuthRemoteCall.lean](../../Examples/Shared/AuthRemoteCall.lean)
+**Source:** [AuthRemoteCall.lean](../../Examples/Product/AuthRemoteCall.lean)
 
 Combines `caller`, local balance debit, and remote forward. Solana auto-fills
 authority / state / `callee_program` without any account DSL (T3.2).

@@ -1,9 +1,9 @@
-import Examples.Shared.Counter
+import Examples.Product.Counter
 
 namespace ProofForge.Contract.Examples.Counter
 
 def spec : ProofForge.Contract.ContractSpec :=
-  Examples.Shared.Counter.spec
+  Examples.Product.Counter.spec
 
 def module : ProofForge.IR.Module :=
   spec.module

@@ -95,17 +95,17 @@ Phase 2 is complete when **both** parallel spikes pass independently:
 ### Joint (after both spikes)
 
 - [x] Same `contract_source` module lowers to EVM + Solana + NEAR (see
-      `Examples/Shared/Counter.lean` and `just portable-counter-multi-target`).
+      `Examples/Product/Counter.lean` and `just portable-counter-multi-target`).
 - [x] ValueVault lowers from one `contract_source` module to EVM + Solana +
       NEAR, including EVM metadata, Solana manifest/IDL/client metadata, and
-      NEAR WAT/deploy metadata (see `Examples/Shared/ValueVault.lean` and
+      NEAR WAT/deploy metadata (see `Examples/Product/ValueVault.lean` and
       `just portable-value-vault`).
 - [ ] Document lists capabilities supported per target for this scenario.
 
 ## Multi-target authoring demo (CS-1.5)
 
 The canonical portable Counter lives in
-[`Examples/Shared/Counter.lean`](../Examples/Shared/Counter.lean)
+[`Examples/Product/Counter.lean`](../Examples/Product/Counter.lean)
 (`contract_source`). `ProofForge.Contract.Examples.Counter` is a compatibility
 alias for formal gates and older tests.
 
@@ -119,20 +119,20 @@ Or manually:
 
 ```bash
 lake env proof-forge build --target evm --root . \
-  -o build/portable-counter/Counter.bin Examples/Shared/Counter.lean
+  -o build/portable-counter/Counter.bin Examples/Product/Counter.lean
 
 lake env proof-forge build --target solana-sbpf-asm --root . \
-  -o build/portable-counter/Counter.s Examples/Shared/Counter.lean
+  -o build/portable-counter/Counter.s Examples/Product/Counter.lean
 
 lake env proof-forge build --target wasm-near --root . \
-  -o build/portable-counter/near Examples/Shared/Counter.lean
+  -o build/portable-counter/near Examples/Product/Counter.lean
 ```
 
 Chain choice is entirely build-time; the Lean module does not fork per target.
 
 The canonical portable ValueVault follows the same pattern:
 
-[`Examples/Shared/ValueVault.lean`](../Examples/Shared/ValueVault.lean)
+[`Examples/Product/ValueVault.lean`](../Examples/Product/ValueVault.lean)
 
 `ProofForge.Contract.Examples.ValueVault` is likewise a compatibility alias for
 the shared source; target adapters derive selectors, instruction tags, exports,
@@ -144,7 +144,7 @@ Build and validate the same file across the three primary targets:
 just portable-value-vault
 ```
 
-The legacy `Examples/Learn/ValueVault.learn` fixture is retained for parser
+The legacy `Examples/Backend/Learn/ValueVault.learn` fixture is retained for parser
 equivalence coverage. It is not the recommended authoring path for new
 contracts.
 
@@ -205,13 +205,13 @@ scenario through generated `.psy` source and Dargo validation.
 
 | Target | Path | Status |
 |---|---|---|
-| **All primary chains** | `Examples/Shared/Counter.lean`, `Examples/Shared/ValueVault.lean` (`contract_source`) | **In repo** — `just portable-counter-multi-target`, `just portable-value-vault` |
-| EVM | `Examples/Evm/Contracts/Counter.lean` | **In repo** — compatibility wrapper around the shared Counter with EVM constructor-init metadata |
-| CosmWasm | `Examples/CosmWasm/Counter.golden.wat` | **In repo (Spike)** — golden WAT via `proof-forge emit --target wasm-cosmwasm --fixture counter`; `just cosmwasm-counter-smoke` |
-| Solana | `Examples/Solana/Counter.lean` + manifest | **In repo** — compatibility wrapper around the shared Counter plus sBPF golden/manifest fixtures |
-| Aptos | `Examples/Aptos/Counter/golden/` | **In repo (Spike)** — golden Move module; `just aptos-counter-smoke` |
-| Cloudflare Workers | `Examples/CloudflareWorkers/Counter/` + `emit --format ts` | **In repo (Spike)** — TS package + `scripts/ts/counter-ir-smoke.sh` |
-| Psy DPN | `Examples/Psy/*.golden.psy`, `scripts/psy/*-smoke.sh` | **In repo** |
+| **All primary chains** | `Examples/Product/Counter.lean`, `Examples/Product/ValueVault.lean` (`contract_source`) | **In repo** — `just portable-counter-multi-target`, `just portable-value-vault` |
+| EVM | `Examples/Backend/Evm/Contracts/Counter.lean` | **In repo** — compatibility wrapper around the shared Counter with EVM constructor-init metadata |
+| CosmWasm | `Examples/Backend/CosmWasm/Counter.golden.wat` | **In repo (Spike)** — golden WAT via `proof-forge emit --target wasm-cosmwasm --fixture counter`; `just cosmwasm-counter-smoke` |
+| Solana | `Examples/Backend/Solana/Counter.lean` + manifest | **In repo** — compatibility wrapper around the shared Counter plus sBPF golden/manifest fixtures |
+| Aptos | `Examples/Backend/Aptos/Counter/golden/` | **In repo (Spike)** — golden Move module; `just aptos-counter-smoke` |
+| Cloudflare Workers | `Examples/Backend/CloudflareWorkers/Counter/` + `emit --format ts` | **In repo (Spike)** — TS package + `scripts/ts/counter-ir-smoke.sh` |
+| Psy DPN | `Examples/Backend/Psy/*.golden.psy`, `scripts/psy/*-smoke.sh` | **In repo** |
 
 ## Out of Scope for v0
 

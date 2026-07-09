@@ -227,7 +227,7 @@ Add `--emit-pure-math-ir-leo <dir>` to `ProofForge.Cli`, analogous to `--emit-co
 Create `scripts/aleo/pure-math-smoke.sh`:
 
 1. Run `lake exe proof-forge --emit-pure-math-ir-leo`.
-2. Diff against `Examples/Aleo/PureMath.golden.leo`.
+2. Diff against `Examples/Backend/Aleo/PureMath.golden.leo`.
 3. Use `scripts/aleo/write-leo-package.py` to create a Leo package.
 4. Run `leo build` and `leo test`.
 5. Validate artifact metadata.
@@ -237,8 +237,8 @@ Create `scripts/aleo/pure-math-smoke.sh`:
 ## 6. Acceptance Criteria
 
 1. `lake build` succeeds.
-2. `proof-forge --emit-counter-ir-leo` still matches `Examples/Aleo/Counter.golden.leo`.
-3. `proof-forge --emit-pure-math-ir-leo` matches `Examples/Aleo/PureMath.golden.leo`.
+2. `proof-forge --emit-counter-ir-leo` still matches `Examples/Backend/Aleo/Counter.golden.leo`.
+3. `proof-forge --emit-pure-math-ir-leo` matches `Examples/Backend/Aleo/PureMath.golden.leo`.
 4. `./scripts/aleo/pure-math-smoke.sh` passes (`leo build`, `leo test`, metadata validation).
 5. `./scripts/aleo/counter-smoke.sh` still passes.
 
@@ -262,7 +262,7 @@ Create `scripts/aleo/pure-math-smoke.sh`:
 | `ProofForge/Compiler/Leo/Printer.lean` | Refine `assert`, `conditional`, `iteration`, `assign` printing. |
 | `ProofForge/Compiler/Leo/Emit.lean` | Add side-effect detection, pure entrypoint lowering, control-flow/assignment statement handlers. |
 | `ProofForge/IR/Examples/PureMath.lean` | New IR example. |
-| `Examples/Aleo/PureMath.golden.leo` | New golden fixture. |
+| `Examples/Backend/Aleo/PureMath.golden.leo` | New golden fixture. |
 | `ProofForge/Cli.lean` | Add `pureMathIrLeo` mode and handler. |
 | `scripts/aleo/pure-math-smoke.sh` | New smoke script. |
 | `docs/targets/aleo-leo.md` / `docs/zh/targets/aleo-leo.zh.md` | Mention PureMath smoke gate. |

@@ -1,6 +1,6 @@
-import Examples.Shared.FungibleToken
-import Examples.Shared.FeeToken
-import Examples.Shared.SoulboundToken
+import Examples.Product.FungibleToken
+import Examples.Product.FeeToken
+import Examples.Product.SoulboundToken
 import ProofForge.Contract.Token.Learn
 import ProofForge.Target.Registry
 
@@ -45,17 +45,17 @@ def requirePlanForTarget
   | .error err => throw <| IO.userError err
 
 def main : IO UInt32 := do
-  requireEq "shared token id" Examples.Shared.FungibleToken.id "FungibleToken"
-  requireEq "shared fee token id" Examples.Shared.FeeToken.id "FeeToken"
+  requireEq "shared token id" Examples.Product.FungibleToken.id "FungibleToken"
+  requireEq "shared fee token id" Examples.Product.FeeToken.id "FeeToken"
 
-  let proofToken ← parseFixture "Examples/Learn/ProofToken.learn"
+  let proofToken ← parseFixture "Examples/Backend/Learn/ProofToken.learn"
   requireSameSpec "legacy ProofToken vs shared FungibleToken"
-    proofToken.spec Examples.Shared.FungibleToken.spec
-  let feeToken ← parseFixture "Examples/Learn/FeeToken.learn"
+    proofToken.spec Examples.Product.FungibleToken.spec
+  let feeToken ← parseFixture "Examples/Backend/Learn/FeeToken.learn"
   requireSameSpec "legacy FeeToken vs shared FeeToken"
-    feeToken.spec Examples.Shared.FeeToken.spec
+    feeToken.spec Examples.Product.FeeToken.spec
 
-  let sharedEvmPlan ← requirePlanForTarget evm Examples.Shared.FungibleToken.spec
+  let sharedEvmPlan ← requirePlanForTarget evm Examples.Product.FungibleToken.spec
   let legacyEvmPlan ← requirePlanForTarget evm proofToken.spec
   requireEq "shared-vs-legacy EVM artifact kind"
     sharedEvmPlan.artifactKind legacyEvmPlan.artifactKind
@@ -64,7 +64,7 @@ def main : IO UInt32 := do
   require (hasOperation sharedEvmPlan "erc20.transfer")
     "shared token EVM plan missing target-specific transfer operation"
 
-  let sharedSolanaPlan ← requirePlanForTarget solanaSbpfAsm Examples.Shared.FungibleToken.spec
+  let sharedSolanaPlan ← requirePlanForTarget solanaSbpfAsm Examples.Product.FungibleToken.spec
   let legacySolanaPlan ← requirePlanForTarget solanaSbpfAsm proofToken.spec
   requireEq "shared-vs-legacy Solana artifact kind"
     sharedSolanaPlan.artifactKind legacySolanaPlan.artifactKind
@@ -74,7 +74,7 @@ def main : IO UInt32 := do
     "shared token Solana plan missing target-specific transfer operation"
 
   let deployment ←
-    match solanaTokenDeploymentPlan Examples.Shared.FungibleToken.spec with
+    match solanaTokenDeploymentPlan Examples.Product.FungibleToken.spec with
     | .ok deployment => pure deployment
     | .error err => throw <| IO.userError err
   require (hasInstruction deployment "initialize_mint")
@@ -82,7 +82,7 @@ def main : IO UInt32 := do
   require (hasInstruction deployment "transfer_checked")
     "shared token Solana deployment missing transfer_checked"
 
-  let sharedFeeSolanaPlan ← requirePlanForTarget solanaSbpfAsm Examples.Shared.FeeToken.spec
+  let sharedFeeSolanaPlan ← requirePlanForTarget solanaSbpfAsm Examples.Product.FeeToken.spec
   let legacyFeeSolanaPlan ← requirePlanForTarget solanaSbpfAsm feeToken.spec
   requireEq "shared-vs-legacy fee Solana standard"
     sharedFeeSolanaPlan.standard legacyFeeSolanaPlan.standard
@@ -93,7 +93,7 @@ def main : IO UInt32 := do
   require (hasOperation sharedFeeSolanaPlan "token-2022.extension.transfer_fee")
     "shared FeeToken Solana plan missing transfer-fee extension"
   let feeDeployment ←
-    match solanaTokenDeploymentPlan Examples.Shared.FeeToken.spec with
+    match solanaTokenDeploymentPlan Examples.Product.FeeToken.spec with
     | .ok deployment => pure deployment
     | .error err => throw <| IO.userError err
   require (hasInstruction feeDeployment "initialize_transfer_fee_config")
@@ -102,47 +102,47 @@ def main : IO UInt32 := do
     "shared FeeToken deployment missing transfer_checked_with_fee"
 
   -- NEAR NEP-141 plan lane for core fungible features.
-  let nearPlan ← requirePlanForTarget wasmNear Examples.Shared.FungibleToken.spec
+  let nearPlan ← requirePlanForTarget wasmNear Examples.Product.FungibleToken.spec
   require (nearPlan.standard == .nep141)
     "shared FungibleToken NEAR plan standard is nep-141"
   require (nearPlan.artifactKind == .nearNep141Plan)
     "shared FungibleToken NEAR artifact is near-nep141-plan"
   require (hasOperation nearPlan "ft_transfer")
     "shared FungibleToken NEAR plan missing ft_transfer"
-  match planForTarget wasmNear Examples.Shared.FeeToken.spec with
+  match planForTarget wasmNear Examples.Product.FeeToken.spec with
   | .ok _ => throw <| IO.userError "FeeToken must not silently lower on wasm-near"
   | .error err =>
       require (err.contains "transfer_fee")
         s!"NEAR FeeToken rejection should cite transfer_fee, got: {err}"
 
   -- Phase A: TokenStandard is target-resolved only (not on TokenSpec).
-  match resolveTokenStandard evm Examples.Shared.FungibleToken.spec with
+  match resolveTokenStandard evm Examples.Product.FungibleToken.spec with
   | .ok .erc20 => pure ()
   | .ok other => throw <| IO.userError s!"FungibleToken on EVM should resolve to erc20, got {repr other}"
   | .error err => throw <| IO.userError err
-  match resolveTokenStandard solanaSbpfAsm Examples.Shared.FungibleToken.spec with
+  match resolveTokenStandard solanaSbpfAsm Examples.Product.FungibleToken.spec with
   | .ok .splToken => pure ()
   | .ok other => throw <| IO.userError s!"FungibleToken on Solana should resolve to spl-token, got {repr other}"
   | .error err => throw <| IO.userError err
-  match resolveTokenStandard wasmNear Examples.Shared.FungibleToken.spec with
+  match resolveTokenStandard wasmNear Examples.Product.FungibleToken.spec with
   | .ok .nep141 => pure ()
   | .ok other => throw <| IO.userError s!"FungibleToken on NEAR should resolve to nep-141, got {repr other}"
   | .error err => throw <| IO.userError err
-  match resolveTokenStandard solanaSbpfAsm Examples.Shared.FeeToken.spec with
+  match resolveTokenStandard solanaSbpfAsm Examples.Product.FeeToken.spec with
   | .ok .splToken2022 => pure ()
   | .ok other => throw <| IO.userError s!"FeeToken on Solana should resolve to Token-2022, got {repr other}"
   | .error err => throw <| IO.userError err
-  match resolveTokenStandard evm Examples.Shared.FeeToken.spec with
+  match resolveTokenStandard evm Examples.Product.FeeToken.spec with
   | .ok _ => throw <| IO.userError "FeeToken must not silently lower on EVM (transfer_fee unsupported)"
   | .error err =>
       require (err.contains "transfer_fee")
         s!"EVM FeeToken rejection should cite transfer_fee, got: {err}"
-  match resolveTokenStandard evm Examples.Shared.SoulboundToken.spec with
+  match resolveTokenStandard evm Examples.Product.SoulboundToken.spec with
   | .ok _ => throw <| IO.userError "SoulboundToken must not silently lower on EVM"
   | .error err =>
       require (err.contains "non_transferable")
         s!"EVM Soulbound rejection should cite non_transferable, got: {err}"
-  match planForTarget evm Examples.Shared.FeeToken.spec with
+  match planForTarget evm Examples.Product.FeeToken.spec with
   | .ok _ => throw <| IO.userError "planForTarget must reject FeeToken on EVM"
   | .error _ => pure ()
 

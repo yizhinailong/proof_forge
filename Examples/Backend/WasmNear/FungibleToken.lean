@@ -6,7 +6,7 @@ NEAR NEP-141 Fungible Token example.
 
 Compile to Wasm/NEAR:
   lake env proof-forge build --target wasm-near --root . \
-    -o build/wasm-near/FungibleToken Examples/WasmNear/FungibleToken.lean
+    -o build/wasm-near/FungibleToken Examples/Backend/WasmNear/FungibleToken.lean
 
 The exported `ft_transfer_call(receiver_id, receiver_idx, amount)` entrypoint
 uses Borsh input layout `Hash || U32 || U64`. `receiver_idx = 0` selects the

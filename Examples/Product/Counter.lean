@@ -11,17 +11,17 @@ Compile the same module to EVM, Solana sBPF, and NEAR/Wasm by changing only
     -o build/portable-counter/Counter.bin \
     --yul-output build/portable-counter/Counter.yul \
     --artifact-output build/portable-counter/Counter.proof-forge-artifact.json \
-    Examples/Shared/Counter.lean
+    Examples/Product/Counter.lean
 
   lake env proof-forge build --target solana-sbpf-asm --root . \
     -o build/portable-counter/Counter.s \
     --artifact-output build/portable-counter/Counter.solana-artifact.json \
-    Examples/Shared/Counter.lean
+    Examples/Product/Counter.lean
 
   lake env proof-forge build --target wasm-near --root . \
     -o build/portable-counter/near \
     --artifact-output build/portable-counter/Counter.near-artifact.json \
-    Examples/Shared/Counter.lean
+    Examples/Product/Counter.lean
 
 See `scripts/portable/counter-multi-target.sh` for a checked end-to-end demo.
 
@@ -30,7 +30,7 @@ source so tests and formal gates keep one canonical authoring surface.
 -/
 import ProofForge.Contract.Source
 
-namespace Examples.Shared.Counter
+namespace Examples.Product.Counter
 
 open ProofForge.Contract.Source
 
@@ -52,4 +52,4 @@ contract_source Counter do
   query get returns(.u64) do
     return count;
 
-end Examples.Shared.Counter
+end Examples.Product.Counter

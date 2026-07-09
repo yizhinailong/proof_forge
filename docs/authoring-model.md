@@ -71,7 +71,7 @@ backend ASTs.
 Rules:
 
 1. **Shared / tutorials** use `entry` / `query` only (see
-   [Examples/Shared](../Examples/Shared/README.md)). Do not hand-write selectors
+   [Examples/Product](../Examples/Product/README.md)). Do not hand-write selectors
    for portable demos.
 2. **EVM dispatch** may hydrate selectors later via CLI / `cast` / token stdlib
    canonical maps (`Token.EvmSpec`). That is backend materialization, not
@@ -136,7 +136,7 @@ covers:
   contract body;
 - portable stdlib mixins under `ProofForge/Contract/Stdlib/` (`Ownable`,
   `Pausable`, `ERC20`, `ReentrancyGuard`) with thin EVM wrappers in
-  `Examples/Evm/Contracts/stdlib/`.
+  `Examples/Backend/Evm/Contracts/stdlib/`.
 
 To compose mixins, import the stdlib Lean module, `open` it for state ref
 names, then inside `contract_source` write:
@@ -148,11 +148,11 @@ import ProofForge.Contract.Stdlib.ERC20;
 
 Each `import` expands to that module's `mixin` action. Standalone stdlib
 contracts use `use mixin;` after defining the mixin in the same file. The
-ERC-style composition fixtures live under `Examples/Evm/Contracts/` because
+ERC-style composition fixtures live under `Examples/Backend/Evm/Contracts/` because
 they intentionally exercise EVM stdlib and ABI behavior. Shared token product
 examples should use the higher-level `TokenSpec` intent boundary instead; see
-`Examples/Shared/FungibleToken.lean`, `Examples/Shared/FeeToken.lean`, and
-`Examples/Shared/SoulboundToken.lean`.
+`Examples/Product/FungibleToken.lean`, `Examples/Product/FeeToken.lean`, and
+`Examples/Product/SoulboundToken.lean`.
 
 `ProofForge.Contract.Token` is the current token SDK planning boundary.
 Lean-authored `TokenSpec` values route to ERC-20 on EVM or to structured Solana
@@ -165,7 +165,7 @@ initialization that rejects `TransferChecked` while still allowing burn. It
 also records the Solana program ids needed by Web3.js or client generation.
 
 `ProofForge.Contract.Learn` still parses the checked-in `.learn` examples under
-`Examples/Learn/` into a small source AST and lowers that AST to the same
+`Examples/Backend/Learn/` into a small source AST and lowers that AST to the same
 `ContractSpec`/portable IR boundary used by `contract_source`. The CLI can route
 a `.learn` input through `--target evm` for EVM bytecode metadata or
 `--target solana-sbpf-asm` for Solana sBPF assembly packages. The parser covers the
@@ -186,7 +186,7 @@ state/account references before emitting `ContractSpec`, so the remaining
 string-bearing identifiers are checked compiler data instead of unchecked
 user-facing spec plumbing.
 `ProofForge.Contract.Token.Learn` separately parses Learn token intent sources
-such as `Examples/Learn/ProofToken.learn` and `Examples/Learn/FeeToken.learn`.
+such as `Examples/Backend/Learn/ProofToken.learn` and `Examples/Backend/Learn/FeeToken.learn`.
 Those files are compatibility fixtures for the shared Lean token intents, not
 the canonical product examples.
 `--learn-token --target evm` now emits ERC-20 Yul, bytecode, and artifact

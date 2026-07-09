@@ -6,7 +6,7 @@ cd "$ROOT"
 
 export PATH="$HOME/.foundry/bin:$PATH"
 
-SOURCE="Examples/Shared/RoleGatedToken.lean"
+SOURCE="Examples/Product/RoleGatedToken.lean"
 OUT="${PORTABLE_RGT_OUT:-build/portable-role-gated-token}"
 
 if [[ -n "${PROOF_FORGE_BIN:-}" ]]; then

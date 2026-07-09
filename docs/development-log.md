@@ -7672,7 +7672,7 @@ Summary:
 
 - Added optional `scenario.source` support to the Rust testkit manifest model.
 - Switched Counter and ValueVault testkit scenarios to
-  `Examples/Shared/Counter.lean` and `Examples/Shared/ValueVault.lean`.
+  `Examples/Product/Counter.lean` and `Examples/Product/ValueVault.lean`.
 - Updated the EVM, Solana, and NEAR harnesses so those scenarios build
   target-first artifacts from shared `.lean contract_source` modules before
   executing behavior traces.
@@ -7748,10 +7748,10 @@ Commit: this commit
 
 Summary:
 
-- Added `Examples/Shared/ValueVault.lean` as the application-facing
+- Added `Examples/Product/ValueVault.lean` as the application-facing
   chain-neutral ValueVault `contract_source` module.
 - Switched `scripts/portable/value-vault-smoke.sh` from the legacy
-  `Examples/Learn/ValueVault.learn` fixture to the shared `.lean` source.
+  `Examples/Backend/Learn/ValueVault.learn` fixture to the shared `.lean` source.
 - The smoke now builds the same source file for EVM, Solana sBPF, and
   NEAR/Wasm. Solana contract_source builds now emit IDL and TS client files
   alongside assembly, manifest, and metadata.
@@ -7761,7 +7761,7 @@ Summary:
 Validation run:
 
 ```sh
-lake env lean Examples/Shared/ValueVault.lean
+lake env lean Examples/Product/ValueVault.lean
 lake build proof-forge
 scripts/portable/value-vault-smoke.sh
 ```
@@ -8176,7 +8176,7 @@ Summary:
   SPL Token tag `9` and preserved token-account data-size metadata for the
   closed account.
 - Added `ProofForge.Solana.Examples.SplTokenCloseAccountCpi`,
-  `Examples/Learn/SplTokenCloseAccountCpi.learn`, and package-rendering checks
+  `Examples/Backend/Learn/SplTokenCloseAccountCpi.learn`, and package-rendering checks
   for manifest account schemas, data-layout metadata, data length, instruction
   tag store, and helper calls.
 - Added legacy and target-first CLI fixture routes for
@@ -9461,7 +9461,7 @@ Commit: feature commit for unified testkit EVM ValueVault golden
 
 Summary:
 
-- Added `Examples/Evm/ValueVault.golden.yul` as the reviewed Yul source
+- Added `Examples/Backend/Evm/ValueVault.golden.yul` as the reviewed Yul source
   snapshot for the portable ValueVault scenario.
 - Upgraded the `evm` Yul artifact in `testkit/scenarios/value-vault.toml` to
   check full generated-file equality through `matches_file`, while retaining
@@ -9500,8 +9500,8 @@ Commit: feature commit for unified testkit Solana ValueVault golden
 
 Summary:
 
-- Added `Examples/Solana/ValueVault.golden.s` and
-  `Examples/Solana/ValueVault.manifest.toml` as the reviewed Solana
+- Added `Examples/Backend/Solana/ValueVault.golden.s` and
+  `Examples/Backend/Solana/ValueVault.manifest.toml` as the reviewed Solana
   source/manifest snapshots for the portable ValueVault scenario.
 - Upgraded `testkit/scenarios/value-vault.toml` so the `solana-sbpf-asm`
   assembly and manifest artifacts check full generated-file equality through
@@ -9540,7 +9540,7 @@ Commit: feature commit for unified testkit Wasm ValueVault golden
 
 Summary:
 
-- Added `Examples/WasmNear/ValueVault.golden.wat` as the portable ValueVault
+- Added `Examples/Backend/WasmNear/ValueVault.golden.wat` as the portable ValueVault
   WAT golden for the `wasm-near` EmitWat path.
 - Upgraded `testkit/scenarios/value-vault.toml` so its `wasm-near` artifact
   checks full generated-source equality through `matches_file`, while keeping
@@ -9579,7 +9579,7 @@ Commit: feature commit for unified testkit Wasm Counter golden
 
 Summary:
 
-- Added `Examples/WasmNear/Counter.golden.wat` as the portable IR Counter WAT
+- Added `Examples/Backend/WasmNear/Counter.golden.wat` as the portable IR Counter WAT
   golden for the `wasm-near` EmitWat path.
 - Moved the `wasm-near` Counter WAT equality check into
   `testkit/scenarios/counter.toml` through a scenario-declared
@@ -9616,9 +9616,9 @@ Commit: feature commit for unified testkit EVM Counter golden
 
 Summary:
 
-- Added `Examples/Evm/Counter.golden.yul` as the portable IR Counter Yul
+- Added `Examples/Backend/Evm/Counter.golden.yul` as the portable IR Counter Yul
   golden, separate from the older Lean SDK contract golden under
-  `Examples/Evm/Contracts/`.
+  `Examples/Backend/Evm/Contracts/`.
 - Moved the EVM Counter Yul equality check into
   `testkit/scenarios/counter.toml` through a scenario-declared
   `[[artifact]]` `matches_file` expectation.
@@ -12389,7 +12389,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-evm-storage-array-ir-yul -o build/ir/EvmStorageArrayProbe.yul
-diff -u Examples/Evm/EvmStorageArrayProbe.golden.yul build/ir/EvmStorageArrayProbe.yul
+diff -u Examples/Backend/Evm/EvmStorageArrayProbe.golden.yul build/ir/EvmStorageArrayProbe.yul
 scripts/evm/storage-array-ir-smoke.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
@@ -12432,7 +12432,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-evm-storage-array-ir-yul -o build/ir/EvmStorageArrayProbe.yul
-diff -u Examples/Evm/EvmStorageArrayProbe.golden.yul build/ir/EvmStorageArrayProbe.yul
+diff -u Examples/Backend/Evm/EvmStorageArrayProbe.golden.yul build/ir/EvmStorageArrayProbe.yul
 scripts/evm/storage-array-ir-smoke.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
@@ -12472,7 +12472,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-context-ir-yul -o build/ir/ContextProbe.yul
-diff -u Examples/Evm/ContextProbe.golden.yul build/ir/ContextProbe.yul
+diff -u Examples/Backend/Evm/ContextProbe.golden.yul build/ir/ContextProbe.yul
 scripts/evm/context-ir-smoke.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
@@ -12507,7 +12507,7 @@ Summary:
 - Kept nested map paths, array paths, and struct paths explicitly rejected
   until those storage layouts are implemented.
 - Extended `ProofForge.IR.Examples.EvmMapProbe` with
-  `path_assign_lifecycle()`, updated `Examples/Evm/EvmMapProbe.golden.yul`,
+  `path_assign_lifecycle()`, updated `Examples/Backend/Evm/EvmMapProbe.golden.yul`,
   and extended `scripts/evm/map-ir-smoke.sh`.
 - Updated EVM diagnostics, coverage manifest, EVM target docs, validation
   gates, backlog, and Chinese docs.
@@ -12517,7 +12517,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-evm-map-ir-yul -o build/ir/EvmMapProbe.yul
-diff -u Examples/Evm/EvmMapProbe.golden.yul build/ir/EvmMapProbe.yul
+diff -u Examples/Backend/Evm/EvmMapProbe.golden.yul build/ir/EvmMapProbe.yul
 scripts/evm/map-ir-smoke.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
@@ -12568,7 +12568,7 @@ Summary:
   single-segment `mapKey` subset.
 - Added `ProofForge.IR.Examples.EvmAssignOpProbe`,
   `--emit-evm-assign-op-ir-yul`, `--emit-evm-assign-op-ir-bytecode`,
-  `Examples/Evm/EvmAssignOpProbe.golden.yul`, and
+  `Examples/Backend/Evm/EvmAssignOpProbe.golden.yul`, and
   `scripts/evm/assign-op-ir-smoke.sh`.
 - Updated EVM diagnostics, coverage manifest, CI, EVM target docs, validation
   gates, backlog, and Chinese docs.
@@ -12578,7 +12578,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-evm-assign-op-ir-yul -o build/ir/EvmAssignOpProbe.yul
-diff -u Examples/Evm/EvmAssignOpProbe.golden.yul build/ir/EvmAssignOpProbe.yul
+diff -u Examples/Backend/Evm/EvmAssignOpProbe.golden.yul build/ir/EvmAssignOpProbe.yul
 scripts/evm/assign-op-ir-smoke.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
@@ -12625,7 +12625,7 @@ Summary:
 - Added explicit diagnostics for invalid loop ranges and loop-local returns.
 - Added `ProofForge.IR.Examples.EvmLoopProbe`,
   `--emit-evm-loop-ir-yul`, `--emit-evm-loop-ir-bytecode`,
-  `Examples/Evm/EvmLoopProbe.golden.yul`, and
+  `Examples/Backend/Evm/EvmLoopProbe.golden.yul`, and
   `scripts/evm/loop-ir-smoke.sh`.
 - Updated EVM diagnostics, coverage manifest, CI, EVM target docs, validation
   gates, backlog, and Chinese docs.
@@ -12635,7 +12635,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-evm-loop-ir-yul -o build/ir/EvmLoopProbe.yul
-diff -u Examples/Evm/EvmLoopProbe.golden.yul build/ir/EvmLoopProbe.yul
+diff -u Examples/Backend/Evm/EvmLoopProbe.golden.yul build/ir/EvmLoopProbe.yul
 scripts/evm/loop-ir-smoke.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
@@ -12678,7 +12678,7 @@ Summary:
   `U64`.
 - Added `ProofForge.IR.Examples.EvmCrosscallProbe`,
   `--emit-evm-crosscall-ir-yul`, `--emit-evm-crosscall-ir-bytecode`,
-  `Examples/Evm/EvmCrosscallProbe.golden.yul`, and
+  `Examples/Backend/Evm/EvmCrosscallProbe.golden.yul`, and
   `scripts/evm/crosscall-ir-smoke.sh`.
 - Updated EVM diagnostics, coverage manifest, CI, EVM target docs, validation
   gates, backlog, and Chinese docs.
@@ -12688,7 +12688,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-evm-crosscall-ir-yul -o build/ir/EvmCrosscallProbe.yul
-diff -u Examples/Evm/EvmCrosscallProbe.golden.yul build/ir/EvmCrosscallProbe.yul
+diff -u Examples/Backend/Evm/EvmCrosscallProbe.golden.yul build/ir/EvmCrosscallProbe.yul
 scripts/evm/crosscall-ir-smoke.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
@@ -12745,7 +12745,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-evm-crosscall-ir-yul -o build/ir/EvmCrosscallProbe.yul
-diff -u Examples/Evm/EvmCrosscallProbe.golden.yul build/ir/EvmCrosscallProbe.yul
+diff -u Examples/Backend/Evm/EvmCrosscallProbe.golden.yul build/ir/EvmCrosscallProbe.yul
 scripts/evm/crosscall-ir-smoke.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/psy/diagnostic-smoke.sh
@@ -12851,7 +12851,7 @@ Summary:
   fields must be `U32`, `U64`, `Bool`, or `Hash`; event emission remains
   statement-only.
 - Added `--emit-evm-event-ir-yul`, `--emit-evm-event-ir-bytecode`,
-  `Examples/Evm/EventProbe.golden.yul`, and
+  `Examples/Backend/Evm/EventProbe.golden.yul`, and
   `scripts/evm/event-ir-smoke.sh`.
 - Updated EVM diagnostics, coverage manifest, CI, EVM target docs, validation
   gates, backlog, and Chinese docs.
@@ -12861,7 +12861,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-evm-event-ir-yul -o build/ir/EventProbe.yul
-diff -u Examples/Evm/EventProbe.golden.yul build/ir/EventProbe.yul
+diff -u Examples/Backend/Evm/EventProbe.golden.yul build/ir/EventProbe.yul
 scripts/evm/event-ir-smoke.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
@@ -12904,7 +12904,7 @@ Summary:
   and Hash subset so Hash/U64 mismatches fail before Yul generation.
 - Added `ProofForge.IR.Examples.EvmHashProbe`,
   `--emit-evm-hash-ir-yul`, `--emit-evm-hash-ir-bytecode`,
-  `Examples/Evm/EvmHashProbe.golden.yul`, and
+  `Examples/Backend/Evm/EvmHashProbe.golden.yul`, and
   `scripts/evm/hash-ir-smoke.sh`.
 - Updated EVM diagnostics, coverage manifest, CI, EVM target docs, validation
   gates, backlog, and Chinese docs.
@@ -12914,7 +12914,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-evm-hash-ir-yul -o build/ir/EvmHashProbe.yul
-diff -u Examples/Evm/EvmHashProbe.golden.yul build/ir/EvmHashProbe.yul
+diff -u Examples/Backend/Evm/EvmHashProbe.golden.yul build/ir/EvmHashProbe.yul
 scripts/evm/hash-ir-smoke.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
@@ -12962,7 +12962,7 @@ Summary:
 - Kept `storageMapContains` explicitly unsupported because EVM mappings do not
   track key presence without an auxiliary bitmap.
 - Added `ProofForge.IR.Examples.EvmMapProbe`, `--emit-evm-map-ir-yul`,
-  `--emit-evm-map-ir-bytecode`, `Examples/Evm/EvmMapProbe.golden.yul`, and
+  `--emit-evm-map-ir-bytecode`, `Examples/Backend/Evm/EvmMapProbe.golden.yul`, and
   `scripts/evm/map-ir-smoke.sh`.
 - Updated EVM diagnostics, coverage manifest, CI, EVM target docs, validation
   gates, backlog, and Chinese docs.
@@ -12972,7 +12972,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-evm-map-ir-yul -o build/ir/EvmMapProbe.yul
-diff -u Examples/Evm/EvmMapProbe.golden.yul build/ir/EvmMapProbe.yul
+diff -u Examples/Backend/Evm/EvmMapProbe.golden.yul build/ir/EvmMapProbe.yul
 scripts/evm/map-ir-smoke.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
@@ -13015,7 +13015,7 @@ Summary:
 - Added an EVM selector to `ContextProbe` while preserving the existing Psy
   context fixture.
 - Added `--emit-context-ir-yul` and `--emit-context-ir-bytecode` CLI modes.
-- Added `Examples/Evm/ContextProbe.golden.yul` plus
+- Added `Examples/Backend/Evm/ContextProbe.golden.yul` plus
   `scripts/evm/context-ir-smoke.sh`.
 - Updated EVM capability metadata so `ContextProbe` validates
   `caller.sender`, `account.explicit`, and `env.block`.
@@ -13027,7 +13027,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-context-ir-yul -o build/ir/ContextProbe.yul
-diff -u Examples/Evm/ContextProbe.golden.yul build/ir/ContextProbe.yul
+diff -u Examples/Backend/Evm/ContextProbe.golden.yul build/ir/ContextProbe.yul
 scripts/evm/context-ir-smoke.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
@@ -13083,7 +13083,7 @@ Validation run:
 lake build
 PATH="$HOME/.foundry/bin:$PATH" lake env proof-forge --evm-bytecode --root . --module contract \
   --artifact-output build/evm/Counter.proof-forge-artifact.json \
-  -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean
+  -o build/evm/Counter.bin Examples/Backend/Evm/Contracts/Counter.lean
 python3 scripts/evm/validate-artifact-metadata.py --root . \
   --expect-fixture Counter.lean \
   --expect-source-kind lean-sdk \
@@ -13141,7 +13141,7 @@ Summary:
 - Added an EVM selector to `ConditionalProbe` while preserving Psy output.
 - Added `--emit-conditional-ir-yul` and
   `--emit-conditional-ir-bytecode` CLI modes.
-- Added `Examples/Evm/ConditionalProbe.golden.yul` and
+- Added `Examples/Backend/Evm/ConditionalProbe.golden.yul` and
   `scripts/evm/conditional-ir-smoke.sh`, then wired the smoke into CI.
 - Updated EVM diagnostics, coverage manifest, capability registry, validation
   docs, EVM target docs, and Chinese documentation.
@@ -13151,9 +13151,9 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-conditional-ir-yul -o build/ir/ConditionalProbe.yul
-diff -u Examples/Evm/ConditionalProbe.golden.yul build/ir/ConditionalProbe.yul
+diff -u Examples/Backend/Evm/ConditionalProbe.golden.yul build/ir/ConditionalProbe.yul
 lake env proof-forge --emit-conditional-ir-psy -o build/psy/ConditionalProbe.psy
-diff -u Examples/Psy/ConditionalProbe.golden.psy build/psy/ConditionalProbe.psy
+diff -u Examples/Backend/Psy/ConditionalProbe.golden.psy build/psy/ConditionalProbe.psy
 bash -n scripts/evm/*.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
@@ -13209,7 +13209,7 @@ Summary:
   bool guard that depends on assignment.
 - Added `--emit-assignment-ir-yul` and
   `--emit-assignment-ir-bytecode` CLI modes.
-- Added `Examples/Evm/AssignmentProbe.golden.yul` and
+- Added `Examples/Backend/Evm/AssignmentProbe.golden.yul` and
   `scripts/evm/assignment-ir-smoke.sh`, then wired the smoke into CI.
 - Updated EVM diagnostics, coverage manifest, validation docs, and the EVM
   target docs.
@@ -13219,7 +13219,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-assignment-ir-yul -o build/ir/AssignmentProbe.yul
-diff -u Examples/Evm/AssignmentProbe.golden.yul build/ir/AssignmentProbe.yul
+diff -u Examples/Backend/Evm/AssignmentProbe.golden.yul build/ir/AssignmentProbe.yul
 bash -n scripts/evm/*.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
@@ -13268,7 +13268,7 @@ Summary:
 - Added an EVM selector to `AssertProbe` while preserving Psy's selector-ignore
   behavior.
 - Added `--emit-assert-ir-yul` and `--emit-assert-ir-bytecode` CLI modes.
-- Added `Examples/Evm/AssertProbe.golden.yul` and
+- Added `Examples/Backend/Evm/AssertProbe.golden.yul` and
   `scripts/evm/assert-ir-smoke.sh`, then wired the smoke into CI.
 - Updated EVM diagnostics and coverage manifest to treat assertions as lowered
   instead of unsupported.
@@ -13278,9 +13278,9 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-assert-ir-yul -o build/ir/AssertProbe.yul
-diff -u Examples/Evm/AssertProbe.golden.yul build/ir/AssertProbe.yul
+diff -u Examples/Backend/Evm/AssertProbe.golden.yul build/ir/AssertProbe.yul
 lake env proof-forge --emit-assert-ir-psy -o build/psy/AssertProbe.psy
-diff -u Examples/Psy/AssertProbe.golden.psy build/psy/AssertProbe.psy
+diff -u Examples/Backend/Psy/AssertProbe.golden.psy build/psy/AssertProbe.psy
 bash -n scripts/evm/*.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
@@ -13329,7 +13329,7 @@ Summary:
   values, and invalid `bool` encodings.
 - Added CLI modes:
   `--emit-abi-scalar-ir-yul` and `--emit-abi-scalar-ir-bytecode`.
-- Added `Examples/Evm/AbiScalarProbe.golden.yul` and
+- Added `Examples/Backend/Evm/AbiScalarProbe.golden.yul` and
   `scripts/evm/abi-scalar-ir-smoke.sh`, then wired the smoke into CI.
 - Updated EVM diagnostics to reject only non-scalar ABI parameter types instead
   of rejecting every parameterized entrypoint.
@@ -13339,7 +13339,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-abi-scalar-ir-yul -o build/ir/AbiScalarProbe.yul
-diff -u Examples/Evm/AbiScalarProbe.golden.yul build/ir/AbiScalarProbe.yul
+diff -u Examples/Backend/Evm/AbiScalarProbe.golden.yul build/ir/AbiScalarProbe.yul
 bash -n scripts/evm/*.sh
 scripts/evm/diagnostic-smoke.sh
 scripts/evm/check-ir-coverage-manifest.py
@@ -13445,7 +13445,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-array-ir-psy -o build/psy/ArrayProbe.psy
-diff -u Examples/Psy/ArrayProbe.golden.psy build/psy/ArrayProbe.psy
+diff -u Examples/Backend/Psy/ArrayProbe.golden.psy build/psy/ArrayProbe.psy
 bash -n scripts/psy/*.sh
 scripts/psy/diagnostic-smoke.sh
 scripts/psy/check-ir-coverage-manifest.py
@@ -13493,7 +13493,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-storage-nested-aggregate-ir-psy -o build/psy/StorageNestedAggregateProbe.psy
-diff -u Examples/Psy/StorageNestedAggregateProbe.golden.psy build/psy/StorageNestedAggregateProbe.psy
+diff -u Examples/Backend/Psy/StorageNestedAggregateProbe.golden.psy build/psy/StorageNestedAggregateProbe.psy
 scripts/psy/diagnostic-smoke.sh
 scripts/psy/check-ir-coverage-manifest.py
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
@@ -13601,7 +13601,7 @@ bash -n scripts/psy/*.sh
 scripts/psy/diagnostic-smoke.sh
 scripts/psy/check-ir-coverage-manifest.py
 lake env proof-forge --emit-hash-storage-ir-psy -o build/psy/HashStorageProbe.psy
-diff -u Examples/Psy/HashStorageProbe.golden.psy build/psy/HashStorageProbe.psy
+diff -u Examples/Backend/Psy/HashStorageProbe.golden.psy build/psy/HashStorageProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/hash-storage-smoke.sh
@@ -13653,7 +13653,7 @@ bash -n scripts/psy/*.sh
 scripts/psy/diagnostic-smoke.sh
 scripts/psy/check-ir-coverage-manifest.py
 lake env proof-forge --emit-bool-storage-array-ir-psy -o build/psy/BoolStorageArrayProbe.psy
-diff -u Examples/Psy/BoolStorageArrayProbe.golden.psy build/psy/BoolStorageArrayProbe.psy
+diff -u Examples/Backend/Psy/BoolStorageArrayProbe.golden.psy build/psy/BoolStorageArrayProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/bool-storage-array-smoke.sh
@@ -13702,7 +13702,7 @@ bash -n scripts/psy/*.sh
 scripts/psy/diagnostic-smoke.sh
 scripts/psy/check-ir-coverage-manifest.py
 lake env proof-forge --emit-bool-storage-scalar-ir-psy -o build/psy/BoolStorageScalarProbe.psy
-diff -u Examples/Psy/BoolStorageScalarProbe.golden.psy build/psy/BoolStorageScalarProbe.psy
+diff -u Examples/Backend/Psy/BoolStorageScalarProbe.golden.psy build/psy/BoolStorageScalarProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/bool-storage-scalar-smoke.sh
@@ -13748,7 +13748,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-map-ir-psy -o build/psy/MapProbe.psy
-diff -u Examples/Psy/MapProbe.golden.psy build/psy/MapProbe.psy
+diff -u Examples/Backend/Psy/MapProbe.golden.psy build/psy/MapProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/map-smoke.sh
@@ -13792,7 +13792,7 @@ bash -n scripts/psy/*.sh
 scripts/psy/diagnostic-smoke.sh
 scripts/psy/check-ir-coverage-manifest.py
 lake env proof-forge --emit-generic-entrypoint-ir-psy -o build/psy/GenericEntrypointProbe.psy
-diff -u Examples/Psy/GenericEntrypointProbe.golden.psy build/psy/GenericEntrypointProbe.psy
+diff -u Examples/Backend/Psy/GenericEntrypointProbe.golden.psy build/psy/GenericEntrypointProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/generic-entrypoint-smoke.sh
@@ -13878,7 +13878,7 @@ DARGO_STD_PATH=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/l
 lake build
 bash -n scripts/psy/*.sh
 lake env proof-forge --emit-u32-storage-scalar-ir-psy -o build/psy/U32StorageScalarProbe.psy
-diff -u Examples/Psy/U32StorageScalarProbe.golden.psy build/psy/U32StorageScalarProbe.psy
+diff -u Examples/Backend/Psy/U32StorageScalarProbe.golden.psy build/psy/U32StorageScalarProbe.psy
 scripts/psy/check-ir-coverage-manifest.py
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
@@ -14138,7 +14138,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-u32-storage-array-ir-psy -o build/psy/U32StorageArrayProbe.psy
-diff -u Examples/Psy/U32StorageArrayProbe.golden.psy build/psy/U32StorageArrayProbe.psy
+diff -u Examples/Backend/Psy/U32StorageArrayProbe.golden.psy build/psy/U32StorageArrayProbe.psy
 scripts/psy/diagnostic-smoke.sh
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
@@ -14191,7 +14191,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-storage-nested-aggregate-ir-psy -o build/psy/StorageNestedAggregateProbe.psy
-diff -u Examples/Psy/StorageNestedAggregateProbe.golden.psy build/psy/StorageNestedAggregateProbe.psy
+diff -u Examples/Backend/Psy/StorageNestedAggregateProbe.golden.psy build/psy/StorageNestedAggregateProbe.psy
 scripts/psy/diagnostic-smoke.sh
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
@@ -14243,9 +14243,9 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-u32-arithmetic-ir-psy -o build/psy/U32ArithmeticProbe.psy
-diff -u Examples/Psy/U32ArithmeticProbe.golden.psy build/psy/U32ArithmeticProbe.psy
+diff -u Examples/Backend/Psy/U32ArithmeticProbe.golden.psy build/psy/U32ArithmeticProbe.psy
 lake env proof-forge --emit-bitwise-ir-psy -o build/psy/BitwiseProbe.psy
-diff -u Examples/Psy/BitwiseProbe.golden.psy build/psy/BitwiseProbe.psy
+diff -u Examples/Backend/Psy/BitwiseProbe.golden.psy build/psy/BitwiseProbe.psy
 scripts/psy/diagnostic-smoke.sh
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
@@ -14300,7 +14300,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-map-ir-psy -o build/psy/MapProbe.psy
-diff -u Examples/Psy/MapProbe.golden.psy build/psy/MapProbe.psy
+diff -u Examples/Backend/Psy/MapProbe.golden.psy build/psy/MapProbe.psy
 scripts/psy/diagnostic-smoke.sh
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
@@ -14430,7 +14430,7 @@ PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
 
 Result:
 
-- Counter generated source still matches `Examples/Psy/Counter.golden.psy`.
+- Counter generated source still matches `Examples/Backend/Psy/Counter.golden.psy`.
 - Dargo `test`, `compile`, `execute`, and `generate-abi` passed.
 - `dargo execute` returned `result_vm: [2]` after initialize plus two
   increments.
@@ -14478,7 +14478,7 @@ Summary:
 lake env proof-forge --emit-u32-hash-packing-ir-psy -o build/psy/U32HashPackingProbe.psy
 ```
 
-- Added `Examples/Psy/U32HashPackingProbe.golden.psy`.
+- Added `Examples/Backend/Psy/U32HashPackingProbe.golden.psy`.
 - Added `scripts/psy/u32-hash-packing-smoke.sh`, which generates a temporary
   Dargo package, runs `dargo test --file`, `dargo compile`, two
   `dargo execute` checks, `dargo generate-abi`, and validates
@@ -14491,7 +14491,7 @@ Validation run:
 lake build
 scripts/psy/diagnostic-smoke.sh
 lake env proof-forge --emit-u32-hash-packing-ir-psy -o build/psy/U32HashPackingProbe.psy
-diff -u Examples/Psy/U32HashPackingProbe.golden.psy build/psy/U32HashPackingProbe.psy
+diff -u Examples/Backend/Psy/U32HashPackingProbe.golden.psy build/psy/U32HashPackingProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/u32-hash-packing-smoke.sh
@@ -14542,7 +14542,7 @@ Summary:
 lake env proof-forge --emit-bitwise-ir-psy -o build/psy/BitwiseProbe.psy
 ```
 
-- Added `Examples/Psy/BitwiseProbe.golden.psy`.
+- Added `Examples/Backend/Psy/BitwiseProbe.golden.psy`.
 - Added `scripts/psy/bitwise-smoke.sh`, which generates a temporary Dargo
   package, runs `dargo test --file`, `dargo compile`, `dargo execute`,
   `dargo generate-abi`, and validates `proof-forge-artifact.json`.
@@ -14554,7 +14554,7 @@ Validation run:
 lake build
 scripts/psy/diagnostic-smoke.sh
 lake env proof-forge --emit-bitwise-ir-psy -o build/psy/BitwiseProbe.psy
-diff -u Examples/Psy/BitwiseProbe.golden.psy build/psy/BitwiseProbe.psy
+diff -u Examples/Backend/Psy/BitwiseProbe.golden.psy build/psy/BitwiseProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/bitwise-smoke.sh
@@ -14605,7 +14605,7 @@ Summary:
 lake env proof-forge --emit-u32-arithmetic-ir-psy -o build/psy/U32ArithmeticProbe.psy
 ```
 
-- Added `Examples/Psy/U32ArithmeticProbe.golden.psy`.
+- Added `Examples/Backend/Psy/U32ArithmeticProbe.golden.psy`.
 - Added `scripts/psy/u32-arithmetic-smoke.sh`, which generates a temporary
   Dargo package, runs `dargo test --file`, `dargo compile`, `dargo execute
   --parameters 2,3`, `dargo generate-abi`, and validates
@@ -14618,7 +14618,7 @@ Validation run:
 lake build
 scripts/psy/diagnostic-smoke.sh
 lake env proof-forge --emit-u32-arithmetic-ir-psy -o build/psy/U32ArithmeticProbe.psy
-diff -u Examples/Psy/U32ArithmeticProbe.golden.psy build/psy/U32ArithmeticProbe.psy
+diff -u Examples/Backend/Psy/U32ArithmeticProbe.golden.psy build/psy/U32ArithmeticProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/u32-arithmetic-smoke.sh
@@ -14665,7 +14665,7 @@ Summary:
 lake env proof-forge --emit-arithmetic-ir-psy -o build/psy/ArithmeticProbe.psy
 ```
 
-- Added `Examples/Psy/ArithmeticProbe.golden.psy`.
+- Added `Examples/Backend/Psy/ArithmeticProbe.golden.psy`.
 - Added `scripts/psy/arithmetic-smoke.sh`, which generates a temporary Dargo
   package, runs `dargo test --file`, `dargo compile`, `dargo execute`,
   `dargo generate-abi`, and validates `proof-forge-artifact.json`.
@@ -14677,7 +14677,7 @@ Validation run:
 lake build
 scripts/psy/diagnostic-smoke.sh
 lake env proof-forge --emit-arithmetic-ir-psy -o build/psy/ArithmeticProbe.psy
-diff -u Examples/Psy/ArithmeticProbe.golden.psy build/psy/ArithmeticProbe.psy
+diff -u Examples/Backend/Psy/ArithmeticProbe.golden.psy build/psy/ArithmeticProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/arithmetic-smoke.sh
@@ -14725,7 +14725,7 @@ Summary:
 lake env proof-forge --emit-conditional-ir-psy -o build/psy/ConditionalProbe.psy
 ```
 
-- Added `Examples/Psy/ConditionalProbe.golden.psy`.
+- Added `Examples/Backend/Psy/ConditionalProbe.golden.psy`.
 - Added `scripts/psy/conditional-smoke.sh`, which generates a temporary Dargo
   package, runs `dargo test --file`, `dargo compile`, `dargo execute`,
   `dargo generate-abi`, and validates `proof-forge-artifact.json`.
@@ -14737,7 +14737,7 @@ Validation run:
 lake build
 scripts/psy/diagnostic-smoke.sh
 lake env proof-forge --emit-conditional-ir-psy -o build/psy/ConditionalProbe.psy
-diff -u Examples/Psy/ConditionalProbe.golden.psy build/psy/ConditionalProbe.psy
+diff -u Examples/Backend/Psy/ConditionalProbe.golden.psy build/psy/ConditionalProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/conditional-smoke.sh
@@ -14783,7 +14783,7 @@ Summary:
 lake env proof-forge --emit-expression-predicate-ir-psy -o build/psy/ExpressionPredicateProbe.psy
 ```
 
-- Added `Examples/Psy/ExpressionPredicateProbe.golden.psy`.
+- Added `Examples/Backend/Psy/ExpressionPredicateProbe.golden.psy`.
 - Added `scripts/psy/expression-predicate-smoke.sh`, which generates a
   temporary Dargo package, runs `dargo test --file`, `dargo compile`,
   `dargo execute`, `dargo generate-abi`, and validates
@@ -14797,7 +14797,7 @@ Validation run:
 lake build
 scripts/psy/diagnostic-smoke.sh
 lake env proof-forge --emit-expression-predicate-ir-psy -o build/psy/ExpressionPredicateProbe.psy
-diff -u Examples/Psy/ExpressionPredicateProbe.golden.psy build/psy/ExpressionPredicateProbe.psy
+diff -u Examples/Backend/Psy/ExpressionPredicateProbe.golden.psy build/psy/ExpressionPredicateProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/expression-predicate-smoke.sh
@@ -14847,9 +14847,9 @@ Validation run:
 lake build
 scripts/psy/diagnostic-smoke.sh
 lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy
-diff -u Examples/Psy/Counter.golden.psy build/psy/Counter.psy
+diff -u Examples/Backend/Psy/Counter.golden.psy build/psy/Counter.psy
 lake env proof-forge --emit-storage-nested-aggregate-ir-psy -o build/psy/StorageNestedAggregateProbe.psy
-diff -u Examples/Psy/StorageNestedAggregateProbe.golden.psy build/psy/StorageNestedAggregateProbe.psy
+diff -u Examples/Backend/Psy/StorageNestedAggregateProbe.golden.psy build/psy/StorageNestedAggregateProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/{counter,context,hash,map,assert,loop,array,struct,struct-array,abi-aggregate,nested-aggregate,storage-nested-aggregate}-smoke.sh
@@ -14895,7 +14895,7 @@ Summary:
 lake env proof-forge --emit-storage-nested-aggregate-ir-psy -o build/psy/StorageNestedAggregateProbe.psy
 ```
 
-- Added `Examples/Psy/StorageNestedAggregateProbe.golden.psy`.
+- Added `Examples/Backend/Psy/StorageNestedAggregateProbe.golden.psy`.
 - Added `scripts/psy/storage-nested-aggregate-smoke.sh`, which generates a
   temporary Dargo package, runs `dargo test --file`, `dargo compile`,
   `dargo execute`, `dargo generate-abi`, and validates
@@ -14909,7 +14909,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-storage-nested-aggregate-ir-psy -o build/psy/StorageNestedAggregateProbe.psy
-diff -u Examples/Psy/StorageNestedAggregateProbe.golden.psy build/psy/StorageNestedAggregateProbe.psy
+diff -u Examples/Backend/Psy/StorageNestedAggregateProbe.golden.psy build/psy/StorageNestedAggregateProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/storage-nested-aggregate-smoke.sh
@@ -14956,7 +14956,7 @@ Summary:
 lake env proof-forge --emit-nested-aggregate-ir-psy -o build/psy/NestedAggregateProbe.psy
 ```
 
-- Added `Examples/Psy/NestedAggregateProbe.golden.psy`.
+- Added `Examples/Backend/Psy/NestedAggregateProbe.golden.psy`.
 - Added `scripts/psy/nested-aggregate-smoke.sh`, which generates a temporary
   Dargo package, runs `dargo test --file`, `dargo compile`, `dargo execute`,
   `dargo generate-abi`, and validates `proof-forge-artifact.json`.
@@ -14968,7 +14968,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-nested-aggregate-ir-psy -o build/psy/NestedAggregateProbe.psy
-diff -u Examples/Psy/NestedAggregateProbe.golden.psy build/psy/NestedAggregateProbe.psy
+diff -u Examples/Backend/Psy/NestedAggregateProbe.golden.psy build/psy/NestedAggregateProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/nested-aggregate-smoke.sh
@@ -15059,7 +15059,7 @@ Summary:
 lake env proof-forge --emit-abi-aggregate-ir-psy -o build/psy/AbiAggregateProbe.psy
 ```
 
-- Added `Examples/Psy/AbiAggregateProbe.golden.psy`.
+- Added `Examples/Backend/Psy/AbiAggregateProbe.golden.psy`.
 - Added `scripts/psy/abi-aggregate-smoke.sh`, which generates a temporary
   Dargo package, runs `dargo test --file`, `dargo compile`, three
   `dargo execute` calls, `dargo generate-abi`, and validates
@@ -15071,7 +15071,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-abi-aggregate-ir-psy -o build/psy/AbiAggregateProbe.psy
-diff -u Examples/Psy/AbiAggregateProbe.golden.psy build/psy/AbiAggregateProbe.psy
+diff -u Examples/Backend/Psy/AbiAggregateProbe.golden.psy build/psy/AbiAggregateProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/abi-aggregate-smoke.sh
@@ -15120,7 +15120,7 @@ Summary:
 lake env proof-forge --emit-struct-array-ir-psy -o build/psy/StructArrayProbe.psy
 ```
 
-- Added `Examples/Psy/StructArrayProbe.golden.psy`.
+- Added `Examples/Backend/Psy/StructArrayProbe.golden.psy`.
 - Added `scripts/psy/struct-array-smoke.sh`, which generates a temporary Dargo
   package, runs `dargo test --file`, `dargo compile`, two `dargo execute`
   calls, `dargo generate-abi`, and validates `proof-forge-artifact.json`.
@@ -15131,7 +15131,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-struct-array-ir-psy -o build/psy/StructArrayProbe.psy
-diff -u Examples/Psy/StructArrayProbe.golden.psy build/psy/StructArrayProbe.psy
+diff -u Examples/Backend/Psy/StructArrayProbe.golden.psy build/psy/StructArrayProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/struct-array-smoke.sh
@@ -15184,7 +15184,7 @@ Summary:
 lake env proof-forge --emit-struct-ir-psy -o build/psy/StructProbe.psy
 ```
 
-- Added `Examples/Psy/StructProbe.golden.psy`.
+- Added `Examples/Backend/Psy/StructProbe.golden.psy`.
 - Added `scripts/psy/struct-smoke.sh`, which generates a temporary Dargo
   package, runs `dargo test --file`, `dargo compile`, two `dargo execute`
   calls, `dargo generate-abi`, and validates `proof-forge-artifact.json`.
@@ -15195,7 +15195,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-struct-ir-psy -o build/psy/StructProbe.psy
-diff -u Examples/Psy/StructProbe.golden.psy build/psy/StructProbe.psy
+diff -u Examples/Backend/Psy/StructProbe.golden.psy build/psy/StructProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/struct-smoke.sh
@@ -15245,7 +15245,7 @@ Summary:
 lake env proof-forge --emit-array-ir-psy -o build/psy/ArrayProbe.psy
 ```
 
-- Added `Examples/Psy/ArrayProbe.golden.psy`.
+- Added `Examples/Backend/Psy/ArrayProbe.golden.psy`.
 - Added `scripts/psy/array-smoke.sh`, which generates a temporary Dargo
   package, runs `dargo test --file`, `dargo compile`, three `dargo execute`
   calls, `dargo generate-abi`, and validates `proof-forge-artifact.json`.
@@ -15256,7 +15256,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-array-ir-psy -o build/psy/ArrayProbe.psy
-diff -u Examples/Psy/ArrayProbe.golden.psy build/psy/ArrayProbe.psy
+diff -u Examples/Backend/Psy/ArrayProbe.golden.psy build/psy/ArrayProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/array-smoke.sh
@@ -15305,7 +15305,7 @@ Summary:
 lake env proof-forge --emit-loop-ir-psy -o build/psy/LoopProbe.psy
 ```
 
-- Added `Examples/Psy/LoopProbe.golden.psy`.
+- Added `Examples/Backend/Psy/LoopProbe.golden.psy`.
 - Added `scripts/psy/loop-smoke.sh`, which generates a temporary Dargo package,
   runs `dargo test --file`, `dargo compile`, `dargo execute`,
   `dargo generate-abi`, and validates `proof-forge-artifact.json`.
@@ -15316,7 +15316,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-loop-ir-psy -o build/psy/LoopProbe.psy
-diff -u Examples/Psy/LoopProbe.golden.psy build/psy/LoopProbe.psy
+diff -u Examples/Backend/Psy/LoopProbe.golden.psy build/psy/LoopProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/loop-smoke.sh
@@ -15362,7 +15362,7 @@ Summary:
 lake env proof-forge --emit-assert-ir-psy -o build/psy/AssertProbe.psy
 ```
 
-- Added `Examples/Psy/AssertProbe.golden.psy`.
+- Added `Examples/Backend/Psy/AssertProbe.golden.psy`.
 - Added `scripts/psy/assert-smoke.sh`, which generates a temporary Dargo
   package, runs `dargo test --file`, `dargo compile`, `dargo execute`,
   `dargo generate-abi`, and validates `proof-forge-artifact.json`.
@@ -15373,7 +15373,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-assert-ir-psy -o build/psy/AssertProbe.psy
-diff -u Examples/Psy/AssertProbe.golden.psy build/psy/AssertProbe.psy
+diff -u Examples/Backend/Psy/AssertProbe.golden.psy build/psy/AssertProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/assert-smoke.sh
@@ -15416,7 +15416,7 @@ Summary:
 lake env proof-forge --emit-map-ir-psy -o build/psy/MapProbe.psy
 ```
 
-- Added `Examples/Psy/MapProbe.golden.psy`.
+- Added `Examples/Backend/Psy/MapProbe.golden.psy`.
 - Added `scripts/psy/map-smoke.sh`, which generates a temporary Dargo package,
   runs `dargo test --file`, `dargo compile`, `dargo execute`,
   `dargo generate-abi`, and validates `proof-forge-artifact.json`.
@@ -15427,7 +15427,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-map-ir-psy -o build/psy/MapProbe.psy
-diff -u Examples/Psy/MapProbe.golden.psy build/psy/MapProbe.psy
+diff -u Examples/Backend/Psy/MapProbe.golden.psy build/psy/MapProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/map-smoke.sh
@@ -15472,7 +15472,7 @@ Summary:
 lake env proof-forge --emit-hash-ir-psy -o build/psy/HashProbe.psy
 ```
 
-- Added `Examples/Psy/HashProbe.golden.psy`.
+- Added `Examples/Backend/Psy/HashProbe.golden.psy`.
 - Added `scripts/psy/hash-smoke.sh`, which generates a temporary Dargo package,
   runs `dargo test --file`, `dargo compile`, two `dargo execute` calls,
   `dargo generate-abi`, and writes `proof-forge-artifact.json`.
@@ -15487,7 +15487,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-hash-ir-psy -o build/psy/HashProbe.psy
-diff -u Examples/Psy/HashProbe.golden.psy build/psy/HashProbe.psy
+diff -u Examples/Backend/Psy/HashProbe.golden.psy build/psy/HashProbe.psy
 PSY_HOME=/tmp/proof_forge_refs/psyup-home-test/.psy \
   DARGO=/tmp/proof_forge_refs/psyup-home-test/.psy/toolchains/psy-0.1.0/bin/dargo \
   scripts/psy/counter-smoke.sh
@@ -15539,7 +15539,7 @@ Summary:
 lake env proof-forge --emit-context-ir-psy -o build/psy/ContextProbe.psy
 ```
 
-- Added `Examples/Psy/ContextProbe.golden.psy`.
+- Added `Examples/Backend/Psy/ContextProbe.golden.psy`.
 - Added `scripts/psy/context-smoke.sh`, which mirrors the Counter Dargo smoke:
   `dargo test --file`, `dargo compile`, `dargo execute`, and
   `dargo generate-abi`.
@@ -15552,7 +15552,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-context-ir-psy -o build/psy/ContextProbe.psy
-diff -u Examples/Psy/ContextProbe.golden.psy build/psy/ContextProbe.psy
+diff -u Examples/Backend/Psy/ContextProbe.golden.psy build/psy/ContextProbe.psy
 scripts/psy/context-smoke.sh
 scripts/psy/counter-smoke.sh
 git diff --check
@@ -15599,7 +15599,7 @@ Summary:
 lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy
 ```
 
-- Added `Examples/Psy/Counter.golden.psy` as the reviewed source snapshot.
+- Added `Examples/Backend/Psy/Counter.golden.psy` as the reviewed source snapshot.
 - Added `scripts/psy/counter-smoke.sh`, which:
   - regenerates Counter Psy source
   - compares it against the golden fixture
@@ -15621,7 +15621,7 @@ Validation run:
 ```sh
 lake build
 lake env proof-forge --emit-counter-ir-psy -o build/psy/Counter.psy
-diff -u Examples/Psy/Counter.golden.psy build/psy/Counter.psy
+diff -u Examples/Backend/Psy/Counter.golden.psy build/psy/Counter.psy
 psyup install 0.1.0
 scripts/psy/counter-smoke.sh
 ```
@@ -15671,13 +15671,13 @@ Summary:
   - `ContractMetadata`
 - Added context, storage, IMT map, hash, and deferred invocation externs under
   the `lean_psy_*` naming convention.
-- Added a small `Examples/Psy/Counter.lean` SDK example.
+- Added a small `Examples/Backend/Psy/Counter.lean` SDK example.
 
 Validation run:
 
 ```sh
 lake build
-lake env lean Examples/Psy/Counter.lean
+lake env lean Examples/Backend/Psy/Counter.lean
 ```
 
 Result:
@@ -16502,7 +16502,7 @@ lake build ProofForge.Target.Formal
 lake build ProofForge.Backend.WasmHost.EmitWat
 lake build proof-forge
 scripts/contract-source/diagnostic-smoke.sh
-lake env proof-forge build --target wasm-near --root . -o build/contract-source-diagnostics/near-positive --artifact-output build/contract-source-diagnostics/Counter.near-artifact.json Examples/Shared/Counter.lean
+lake env proof-forge build --target wasm-near --root . -o build/contract-source-diagnostics/near-positive --artifact-output build/contract-source-diagnostics/Counter.near-artifact.json Examples/Product/Counter.lean
 ```
 
 Result:

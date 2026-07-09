@@ -281,8 +281,8 @@ Spike 复用 Psy DPN sourcegen 模式：
 
 | 文件 | 职责 |
 |---|---|
-| `Examples/Aleo/Counter.golden.leo` | Counter IR fixture 期望生成的 Leo 源码。 |
-| `Examples/Aleo/README.md` | 说明 golden 文件如何生成与更新。 |
+| `Examples/Backend/Aleo/Counter.golden.leo` | Counter IR fixture 期望生成的 Leo 源码。 |
+| `Examples/Backend/Aleo/README.md` | 说明 golden 文件如何生成与更新。 |
 
 #### 新增脚本
 
@@ -453,7 +453,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="${ALEO_OUT_DIR:-$ROOT/build/aleo}"
 PROJECT_DIR="$OUT_DIR/counter"
 LEO_FILE="$OUT_DIR/Counter.leo"
-GOLDEN_FILE="${ALEO_GOLDEN:-$ROOT/Examples/Aleo/Counter.golden.leo}"
+GOLDEN_FILE="${ALEO_GOLDEN:-$ROOT/Examples/Backend/Aleo/Counter.golden.leo}"
 LEO_BIN="${LEO:-leo}"
 METADATA_FILE="$PROJECT_DIR/proof-forge-artifact.json"
 
@@ -524,7 +524,7 @@ echo "aleo-counter-smoke: passed"
 ### 8.5 验收标准
 
 - `lake build` 通过。
-- `proof-forge --emit-counter-ir-leo` 生成的 Leo 与 `Examples/Aleo/Counter.golden.leo` 一致。
+- `proof-forge --emit-counter-ir-leo` 生成的 Leo 与 `Examples/Backend/Aleo/Counter.golden.leo` 一致。
 - `leo build` 成功。
 - `leo test` 成功。
 - 生成 `proof-forge-artifact.json` 并通过校验。

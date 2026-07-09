@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Solana compatibility wrapper for the canonical portable Counter.
 
-The contract logic lives in `Examples.Shared.Counter`; this file preserves the
+The contract logic lives in `Examples.Product.Counter`; this file preserves the
 historical Solana example path for docs and local experiments. Use the shared
 source directly when demonstrating target-independent authoring.
 
@@ -21,12 +21,12 @@ Build the Solana ELF (requires `sbpf` on PATH):
   lake env proof-forge emit --target solana-sbpf-asm --fixture counter --format elf -o build/solana/Counter.so
 -/
 
-import Examples.Shared.Counter
+import Examples.Product.Counter
 
 namespace Examples.Solana.Counter
 
 def spec : ProofForge.Contract.ContractSpec :=
-  Examples.Shared.Counter.spec
+  Examples.Product.Counter.spec
 
 def module : ProofForge.IR.Module :=
   spec.module

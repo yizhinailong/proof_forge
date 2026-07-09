@@ -15,7 +15,7 @@ lake build proof-forge
 lake env proof-forge emit --target move-aptos --fixture counter --format aptos -o "$BUILD_DIR"
 
 for f in Move.toml sources/counter.move tests/counter_tests.move; do
-  if ! diff -u "Examples/Aptos/${EXAMPLE}/golden/$(basename "$f")" "$BUILD_DIR/$f"; then
+  if ! diff -u "Examples/Backend/Aptos/${EXAMPLE}/golden/$(basename "$f")" "$BUILD_DIR/$f"; then
     echo "  ${EXAMPLE}: ${f} differs from golden"
     exit 1
   fi

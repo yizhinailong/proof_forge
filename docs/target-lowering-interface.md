@@ -351,7 +351,7 @@ Should build `ProofForge.Backend.Solana.Plan` and run a new
 
 - **Plan consistency:** `SolanaModulePlan.StorageAccountPlan` matches the
   account layout produced by `StateLayout.computeInputLayoutWithReallocFlags`
-  for every example in `Examples/Solana/`.
+  for every example in `Examples/Backend/Solana/`.
 - **Layout stability:** state field byte offsets (`.equ <STATE>_DATA`)
   match the golden asm constants byte-for-byte.
 - **Manifest ↔ asm agreement:** `ManifestPlan` account ordering, sizes, and

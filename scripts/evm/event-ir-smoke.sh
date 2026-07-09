@@ -7,7 +7,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="${IR_EVM_OUT_DIR:-$ROOT/build/ir}"
 FORGE_DIR="${IR_EVM_FORGE_DIR:-$ROOT/build/foundry-ir-event-smoke}"
-GOLDEN_FILE="${IR_EVM_GOLDEN:-$ROOT/Examples/Evm/EventProbe.golden.yul}"
+GOLDEN_FILE="${IR_EVM_GOLDEN:-$ROOT/Examples/Backend/Evm/EventProbe.golden.yul}"
 METADATA_FILE="${IR_EVM_METADATA:-$OUT_DIR/EventProbe.proof-forge-artifact.json}"
 
 export PATH="$HOME/.foundry/bin:$PATH"

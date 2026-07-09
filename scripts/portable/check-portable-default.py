@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Phase A portable-default gate (product-authoring-architecture).
 
-Examples/Shared is the product path: business logic / TokenSpec only.
+Examples/Product is the product path: business logic / TokenSpec only.
 Authors must not import chain Surface modules, pick TokenStandard, or
 embed Account/PDA/CPI authoring in shared sources.
 """
@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SHARED = REPO_ROOT / "Examples" / "Shared"
+SHARED = REPO_ROOT / "Examples" / "Product"
 
 # Imports that pull chain-native authoring into the default product path.
 FORBIDDEN_IMPORT_RE = re.compile(
@@ -64,7 +64,7 @@ FORBIDDEN_STANDARD_RE = re.compile(
 )
 
 # Solana account model must not appear as authoring in Shared (extensions live
-# under Examples/Solana and ProofForge.Solana / Source.Solana).
+# under Examples/Backend/Solana and ProofForge.Solana / Source.Solana).
 FORBIDDEN_SOLANA_AUTHORING = [
     "pdaAccount",
     "pda_account",
@@ -113,7 +113,7 @@ def check_shared_file(path: Path) -> None:
             fail(
                 f"{rel}: portable Shared must not contain Solana authoring `{needle}`; "
                 "use business logic / TokenSpec and let --target materialize accounts/CPI "
-                "(or import ProofForge.Contract.Source.Solana only in Examples/Solana)"
+                "(or import ProofForge.Contract.Source.Solana only in Examples/Backend/Solana)"
             )
 
     for needle in FORBIDDEN_NEAR_EXTENSION:
@@ -129,7 +129,7 @@ def check_shared_file(path: Path) -> None:
             fail(
                 f"{rel}: portable Shared must not use EVM family-only / selector pin `{needle}`; "
                 "use name-only entry/query (no entrySelector) and remoteCallRef for remotes; "
-                "CREATE2 and selector fixtures stay under Examples/Evm (T4.1/T4.3)"
+                "CREATE2 and selector fixtures stay under Examples/Backend/Evm (T4.1/T4.3)"
             )
 
     for needle in FORBIDDEN_NEAR_METADATA:
@@ -180,11 +180,11 @@ def check_token_api_docs() -> None:
 
 def main() -> int:
     if not SHARED.is_dir():
-        fail("Examples/Shared missing")
+        fail("Examples/Product missing")
 
     sources = sorted(SHARED.glob("*.lean"))
     if not sources:
-        fail("Examples/Shared has no Lean sources")
+        fail("Examples/Product has no Lean sources")
 
     for path in sources:
         check_shared_file(path)

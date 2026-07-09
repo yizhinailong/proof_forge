@@ -16,7 +16,7 @@ CLI:
 ```bash
 lake build
 ./.lake/build/bin/proof-forge emit --target aleo-leo --fixture counter --format leo -o build/aleo/Counter.leo
-cp build/aleo/Counter.leo Examples/Aleo/Counter.golden.leo
+cp build/aleo/Counter.leo Examples/Backend/Aleo/Counter.golden.leo
 ```
 
 Then review the diff before committing.

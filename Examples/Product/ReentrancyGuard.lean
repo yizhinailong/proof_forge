@@ -11,7 +11,7 @@ by changing only `--target`.
 -/
 import ProofForge.Contract.Stdlib.ReentrancyGuard
 
-namespace Examples.Shared.ReentrancyGuard
+namespace Examples.Product.ReentrancyGuard
 
 def spec : ProofForge.Contract.ContractSpec :=
   ProofForge.Contract.Stdlib.ReentrancyGuard.spec
@@ -19,4 +19,4 @@ def spec : ProofForge.Contract.ContractSpec :=
 def module : ProofForge.IR.Module :=
   spec.module
 
-end Examples.Shared.ReentrancyGuard
+end Examples.Product.ReentrancyGuard

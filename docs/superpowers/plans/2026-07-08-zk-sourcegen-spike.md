@@ -24,7 +24,7 @@ Compiler/<Lang>/ (AST + Printer)  →  Backend/<Lang>/IR.lean (IR → AST loweri
 ```
 
 Reference implementation to copy: `ProofForge/Compiler/Leo/` (AST/Printer/Emit) +
-`ProofForge/Backend/Aleo/IR.lean` (IR → Leo) + `Examples/Aleo/PureMath.golden.leo` +
+`ProofForge/Backend/Aleo/IR.lean` (IR → Leo) + `Examples/Backend/Aleo/PureMath.golden.leo` +
 `scripts/aleo/pure-math-smoke.sh`. `ProofForge/Compiler/Psy/` is a second, more compact ZK
 printer example.
 
@@ -68,7 +68,7 @@ state (notes/nullifiers), unconstrained/Brillig bodies, and the Lampe FV-import 
 
 - **② Context to load:** `ProofForge/Cli/Fixture.lean` (the whitelist — mirror the `aleo-leo`
   entries: `.leo` format at :109/:125, target at :143/:158, per-fixture at :210-211);
-  `ProofForge/Cli.lean` (emit compile functions); `Examples/Aleo/PureMath.golden.leo` (mirror).
+  `ProofForge/Cli.lean` (emit compile functions); `Examples/Backend/Aleo/PureMath.golden.leo` (mirror).
 - **③ Do:** add a `.noir` format + `noir` target id + `("noir", "pure-math", .noir) => true`
   to `Fixture.lean`; add the emit compile function in `Cli.lean`; land
   `Examples/Noir/PureMath.golden.nr`. The command

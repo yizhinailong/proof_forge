@@ -51,11 +51,11 @@ def main : IO UInt32 := do
       !ProofForge.Cli.Fixture.supportsFormat "psy-dpn" "assert" .wat)
     "fixture support helpers should preserve Solana/Psy format boundaries"
   requireLegacy
-    ["build", "--target", "evm", "--root", ".", "--module", "contract", "-o", "build/evm/Counter.bin", "Examples/Evm/Contracts/Counter.lean"]
-    ["--evm-bytecode", "-o", "build/evm/Counter.bin", "--root", ".", "--module", "contract", "--solc", "solc", "--cast", "cast", "Examples/Evm/Contracts/Counter.lean"]
+    ["build", "--target", "evm", "--root", ".", "--module", "contract", "-o", "build/evm/Counter.bin", "Examples/Backend/Evm/Contracts/Counter.lean"]
+    ["--evm-bytecode", "-o", "build/evm/Counter.bin", "--root", ".", "--module", "contract", "--solc", "solc", "--cast", "cast", "Examples/Backend/Evm/Contracts/Counter.lean"]
   requireLegacy
-    ["build", "--target", "evm", "--format", "yul", "-o", "build/evm/ValueVault.yul", "Examples/Learn/ValueVault.learn"]
-    ["--learn-yul", "-o", "build/evm/ValueVault.yul", "Examples/Learn/ValueVault.learn"]
+    ["build", "--target", "evm", "--format", "yul", "-o", "build/evm/ValueVault.yul", "Examples/Backend/Learn/ValueVault.learn"]
+    ["--learn-yul", "-o", "build/evm/ValueVault.yul", "Examples/Backend/Learn/ValueVault.learn"]
   requireLegacy
     ["emit", "--target", "evm", "--fixture", "counter", "--format", "yul", "-o", "build/ir/Counter.yul"]
     ["--emit-counter-ir-yul", "-o", "build/ir/Counter.yul"]
@@ -126,11 +126,11 @@ def main : IO UInt32 := do
     ["build", "--target", "wasm-near", "--fixture", "context", "--format", "wat", "-o", "build/wasm-near/context"]
     ["--emit-context-emitwat", "-o", "build/wasm-near/context"]
   requireLegacy
-    ["build", "--target", "solana-sbpf-asm", "--root", ".", "-o", "build/portable-counter/Counter.s", "Examples/Shared/Counter.lean"]
-    ["--contract-source-sbpf", "-o", "build/portable-counter/Counter.s", "--root", ".", "Examples/Shared/Counter.lean"]
+    ["build", "--target", "solana-sbpf-asm", "--root", ".", "-o", "build/portable-counter/Counter.s", "Examples/Product/Counter.lean"]
+    ["--contract-source-sbpf", "-o", "build/portable-counter/Counter.s", "--root", ".", "Examples/Product/Counter.lean"]
   requireLegacy
-    ["build", "--target", "wasm-near", "--root", ".", "-o", "build/portable-counter/near", "Examples/Shared/Counter.lean"]
-    ["--contract-source-emitwat", "-o", "build/portable-counter/near", "--root", ".", "Examples/Shared/Counter.lean"]
+    ["build", "--target", "wasm-near", "--root", ".", "-o", "build/portable-counter/near", "Examples/Product/Counter.lean"]
+    ["--contract-source-emitwat", "-o", "build/portable-counter/near", "--root", ".", "Examples/Product/Counter.lean"]
   requireLegacy
     ["emit", "--target", "psy-dpn", "--fixture", "assert", "--format", "psy", "-o", "build/psy/AssertProbe.psy"]
     ["--emit-assert-ir-psy", "-o", "build/psy/AssertProbe.psy"]
@@ -156,7 +156,7 @@ def main : IO UInt32 := do
     ["emit", "--target", "move-sui", "--fixture", "value-vault", "--format", "sui", "-o", "build/sdk/move-sui"]
     #["move-sui", "value-vault", "not yet mapped"]
   requireErrorContains
-    ["build", "--target", "move-sui", "--root", ".", "-o", "build/source-sdk/move-sui", "Examples/Shared/Counter.lean"]
+    ["build", "--target", "move-sui", "--root", ".", "-o", "build/source-sdk/move-sui", "Examples/Product/Counter.lean"]
     #["move-sui", "source", "out of scope"]
   requireLegacy
     ["emit", "--target", "wasm-cloudflare-workers", "--fixture", "counter", "--format", "ts"]

@@ -4,15 +4,15 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 EVM compatibility wrapper for the canonical portable ArrayExample.
 
-The contract logic lives in `Examples.Shared.ArrayExample`; this file preserves
+The contract logic lives in `Examples.Product.ArrayExample`; this file preserves
 the historical EVM example path next to its golden Yul fixture.
 -/
-import Examples.Shared.ArrayExample
+import Examples.Product.ArrayExample
 
 namespace ArrayExample
 
 def spec : ProofForge.Contract.ContractSpec :=
-  Examples.Shared.ArrayExample.spec
+  Examples.Product.ArrayExample.spec
 
 def module : ProofForge.IR.Module :=
   spec.module

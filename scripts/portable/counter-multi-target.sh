@@ -6,7 +6,7 @@ cd "$ROOT"
 
 export PATH="$HOME/.foundry/bin:$PATH"
 
-SOURCE="${PORTABLE_COUNTER_SOURCE:-Examples/Shared/Counter.lean}"
+SOURCE="${PORTABLE_COUNTER_SOURCE:-Examples/Product/Counter.lean}"
 OUT="${PORTABLE_COUNTER_OUT:-build/portable-counter}"
 HOST=(cargo run --quiet --manifest-path runtime/offline-host/Cargo.toml -- run)
 
@@ -31,7 +31,7 @@ echo "portable-counter: EVM"
   --artifact-output "$OUT/Counter.proof-forge-artifact.json" \
   "${cast_args[@]+"${cast_args[@]}"}" \
   "$SOURCE"
-diff -u Examples/Evm/Counter.golden.yul "$OUT/Counter.yul"
+diff -u Examples/Backend/Evm/Counter.golden.yul "$OUT/Counter.yul"
 python3 scripts/evm/validate-artifact-metadata.py \
   --root "$ROOT" \
   --expect-fixture Counter \
@@ -43,15 +43,15 @@ echo "portable-counter: Solana sBPF"
   -o "$OUT/Counter.s" \
   --artifact-output "$OUT/Counter.solana-artifact.json" \
   "$SOURCE"
-diff -u Examples/Solana/Counter.golden.s "$OUT/Counter.s"
-diff -u Examples/Solana/Counter.manifest.toml "$OUT/manifest.toml"
+diff -u Examples/Backend/Solana/Counter.golden.s "$OUT/Counter.s"
+diff -u Examples/Backend/Solana/Counter.manifest.toml "$OUT/manifest.toml"
 
 echo "portable-counter: NEAR/Wasm"
 "${proof_forge[@]}" build --target wasm-near --root . \
   -o "$OUT/near" \
   --artifact-output "$OUT/Counter.near-artifact.json" \
   "$SOURCE"
-diff -u Examples/WasmNear/Counter.golden.wat "$OUT/near/counter.wat"
+diff -u Examples/Backend/WasmNear/Counter.golden.wat "$OUT/near/counter.wat"
 
 python3 scripts/near/validate-emitwat-metadata.py \
   "$OUT/Counter.near-artifact.json" \

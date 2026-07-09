@@ -53,7 +53,7 @@ def counterTrace : ITF.Trace := {
 }
 
 /-- ValueVault config: read back `balance` via the `get_balance` export. The
-WAT artifact exists at `Examples/WasmNear/ValueVault.golden.wat`. -/
+WAT artifact exists at `Examples/Backend/WasmNear/ValueVault.golden.wat`. -/
 def valueVaultCfg : NearReplayConfig := {
   watPath := "build/wasm-near/emitwat-valuevault.wat",
   primaryStateExport := "get_balance",

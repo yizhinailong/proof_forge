@@ -69,7 +69,7 @@ lake build
 
 lake env proof-forge build --target evm --root . \
   --artifact-output build/evm/Counter.proof-forge-artifact.json \
-  -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean
+  -o build/evm/Counter.bin Examples/Backend/Evm/Contracts/Counter.lean
 
 scripts/evm/build-examples.sh
 scripts/evm/foundry-smoke.sh
@@ -151,7 +151,7 @@ entrypoint。
 
 ## 添加或更改 EVM 示例
 
-1. 在 `Examples/Evm/Contracts/` 下添加或更新 Lean 合约。
+1. 在 `Examples/Backend/Evm/Contracts/` 下添加或更新 Lean 合约。
 2. 直接使用 `contract_source`，或通过组合可 import 的 `contract_source`/stdlib
    模块定义 `spec : ProofForge.Contract.ContractSpec`。
 3. 添加或更新同级的 `.golden.yul` 文件；`scripts/evm/build-examples.sh` 会把生成的 Yul 与这个 fixture 做 diff。
@@ -212,7 +212,7 @@ EVM 不支持（设计上针对其他目标）：
 
 ## 示例
 
-参见 [Examples/Evm/README.md](../../Examples/Evm/README.md)：
+参见 [Examples/Backend/Evm/README.md](../../Examples/Backend/Evm/README.md)：
 
 - `Counter.lean` — 标量存储
 - `SimpleToken.lean` — 带有映射的 ERC-20 风格代币

@@ -9,7 +9,7 @@ Current scope:
 - scenario discovery from `testkit/scenarios/*.toml`
 - scenario manifest validation that rejects empty or duplicate target ids and
   artifact checks for targets not declared by the scenario
-- optional scenario `source = "Examples/Shared/*.lean"` inputs. Counter and
+- optional scenario `source = "Examples/Product/*.lean"` inputs. Counter and
   ValueVault now build from the same chain-neutral `.lean contract_source`
   modules through `proof-forge build --target ... --root .` before each harness
   executes target-native artifacts; fixture-only emission remains for focused

@@ -237,11 +237,11 @@ git commit -m "feat(cli): add --emit-counter-ir-leo mode"
 
 ---
 
-## Task 4: Generate and Check `Examples/Aleo/Counter.golden.leo`
+## Task 4: Generate and Check `Examples/Backend/Aleo/Counter.golden.leo`
 
 **Files:**
-- Create: `Examples/Aleo/Counter.golden.leo`
-- Create: `Examples/Aleo/README.md`
+- Create: `Examples/Backend/Aleo/Counter.golden.leo`
+- Create: `Examples/Backend/Aleo/README.md`
 
 - [ ] **Step 1: Generate Leo output**
 
@@ -257,18 +257,18 @@ Compare against the design spec. Adjust lowering rules if `leo build` later reje
 - [ ] **Step 3: Copy to golden fixture**
 
 ```bash
-mkdir -p Examples/Aleo
-cp build/aleo/Counter.leo Examples/Aleo/Counter.golden.leo
+mkdir -p Examples/Backend/Aleo
+cp build/aleo/Counter.leo Examples/Backend/Aleo/Counter.golden.leo
 ```
 
-- [ ] **Step 4: Create `Examples/Aleo/README.md`**
+- [ ] **Step 4: Create `Examples/Backend/Aleo/README.md`**
 
 Explain that `Counter.golden.leo` is the expected output of `proof-forge --emit-counter-ir-leo`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add Examples/Aleo/Counter.golden.leo Examples/Aleo/README.md
+git add Examples/Backend/Aleo/Counter.golden.leo Examples/Backend/Aleo/README.md
 git commit -m "feat(aleo): add Counter Leo golden fixture"
 ```
 

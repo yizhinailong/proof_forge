@@ -26,5 +26,5 @@ Compile to EVM:
 ```sh
 lake env proof-forge build --target evm --root . \
   -o build/role-gated-token/RoleGatedToken.bin \
-  Examples/Shared/RoleGatedToken.lean
+  Examples/Product/RoleGatedToken.lean
 ```

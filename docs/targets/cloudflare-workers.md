@@ -165,7 +165,7 @@ lake env proof-forge emit --target wasm-cloudflare-workers \
 scripts/ts/counter-ir-smoke.sh
 ```
 
-Smoke (package under `Examples/CloudflareWorkers/Counter/`):
+Smoke (package under `Examples/Backend/CloudflareWorkers/Counter/`):
 
 ```sh
 scripts/ts/counter-ir-smoke.sh
@@ -177,7 +177,7 @@ npx wrangler deploy --dry-run
 
 | Target | Path | Status |
 |---|---|---|
-| Cloudflare Workers | `Examples/CloudflareWorkers/Counter/` + IR emit `--format ts` | **In repo (Spike)** |
+| Cloudflare Workers | `Examples/Backend/CloudflareWorkers/Counter/` + IR emit `--format ts` | **In repo (Spike)** |
 
 ## Open Questions
 

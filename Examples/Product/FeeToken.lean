@@ -14,11 +14,11 @@ Compile:
 
   lake env proof-forge build --target solana-sbpf-asm --token --root . \
     -o build/shared-fee-token/FeeToken.token-plan.json \
-    Examples/Shared/FeeToken.lean
+    Examples/Product/FeeToken.lean
 -/
 import ProofForge.Contract.Token
 
-namespace Examples.Shared.FeeToken
+namespace Examples.Product.FeeToken
 
 open ProofForge.Contract.Token
 
@@ -33,4 +33,4 @@ def spec : TokenSpec := {
   features := #[.mintable, .transferFee]
 }
 
-end Examples.Shared.FeeToken
+end Examples.Product.FeeToken

@@ -11,17 +11,17 @@ Compile the same module to EVM, Solana sBPF, and NEAR/Wasm by changing only
     -o build/portable-value-vault/ValueVault.bin \
     --yul-output build/portable-value-vault/ValueVault.yul \
     --artifact-output build/portable-value-vault/ValueVault.proof-forge-artifact.json \
-    Examples/Shared/ValueVault.lean
+    Examples/Product/ValueVault.lean
 
   lake env proof-forge build --target solana-sbpf-asm --root . \
     -o build/portable-value-vault/ValueVault.s \
     --artifact-output build/portable-value-vault/ValueVault.solana-artifact.json \
-    Examples/Shared/ValueVault.lean
+    Examples/Product/ValueVault.lean
 
   lake env proof-forge build --target wasm-near --root . \
     -o build/portable-value-vault/near \
     --artifact-output build/portable-value-vault/ValueVault.near-artifact.json \
-    Examples/Shared/ValueVault.lean
+    Examples/Product/ValueVault.lean
 
 See `scripts/portable/value-vault-smoke.sh` for a checked end-to-end demo.
 
@@ -30,7 +30,7 @@ this source so tests and formal gates keep one canonical authoring surface.
 -/
 import ProofForge.Contract.Source
 
-namespace Examples.Shared.ValueVault
+namespace Examples.Product.ValueVault
 
 open ProofForge.Contract.Source
 
@@ -137,4 +137,4 @@ contract_source ValueVault do
     let fees_now : .u64 := fees;
     return balance_now -! fees_now;
 
-end Examples.Shared.ValueVault
+end Examples.Product.ValueVault

@@ -6,7 +6,7 @@ cd "$ROOT"
 
 export PATH="$HOME/.foundry/bin:$PATH"
 
-SOURCE="${PROOF_FORGE_SOURCE_COUNTER:-Examples/Shared/Counter.lean}"
+SOURCE="${PROOF_FORGE_SOURCE_COUNTER:-Examples/Product/Counter.lean}"
 OUT_ROOT="${PROOF_FORGE_SOURCE_COUNTER_SDK_OUT:-build/source-counter-sdk}"
 
 rm -rf "$OUT_ROOT"

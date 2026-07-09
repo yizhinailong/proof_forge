@@ -16,24 +16,24 @@ Compile the same module to EVM, Solana sBPF, and NEAR/Wasm by changing only
     -o build/role-gated-token/RoleGatedToken.bin \
     --yul-output build/role-gated-token/RoleGatedToken.yul \
     --artifact-output build/role-gated-token/RoleGatedToken.proof-forge-artifact.json \
-    Examples/Shared/RoleGatedToken.lean
+    Examples/Product/RoleGatedToken.lean
 
   lake env proof-forge build --target solana-sbpf-asm --root . \
     -o build/role-gated-token/RoleGatedToken.s \
     --artifact-output build/role-gated-token/RoleGatedToken.solana-artifact.json \
-    Examples/Shared/RoleGatedToken.lean
+    Examples/Product/RoleGatedToken.lean
 
   lake env proof-forge build --target wasm-near --root . \
     -o build/role-gated-token/near \
     --artifact-output build/role-gated-token/RoleGatedToken.near-artifact.json \
-    Examples/Shared/RoleGatedToken.lean
+    Examples/Product/RoleGatedToken.lean
 
 See `scripts/portable/role-gated-token-multi-target.sh` for a checked
 end-to-end demo.
 -/
 import ProofForge.Contract.Source
 
-namespace Examples.Shared.RoleGatedToken
+namespace Examples.Product.RoleGatedToken
 
 open ProofForge.Contract.Source
 
@@ -97,4 +97,4 @@ contract_source RoleGatedToken do
     do mapWrite balances recipient (bal +! amount);
     emit Transfer indexed #[fieldAsName "from" (u64 0), fieldAsName "to" recipient] data #[fieldAsName "amount" amount];
 
-end Examples.Shared.RoleGatedToken
+end Examples.Product.RoleGatedToken

@@ -17,7 +17,7 @@
 | `ProofForge/Compiler/Leo/Printer.lean` | Refine `assert`, `conditional`, `iteration`, `assign` printing. |
 | `ProofForge/Compiler/Leo/Emit.lean` | Side-effect detection, pure entrypoint lowering, control-flow/assignment statement handlers. |
 | `ProofForge/IR/Examples/PureMath.lean` | New IR example with pure functions. |
-| `Examples/Aleo/PureMath.golden.leo` | Expected Leo source for the new example. |
+| `Examples/Backend/Aleo/PureMath.golden.leo` | Expected Leo source for the new example. |
 | `ProofForge/Cli.lean` | Add `pureMathIrLeo` mode and handler. |
 | `scripts/aleo/pure-math-smoke.sh` | End-to-end smoke test for PureMath. |
 | `docs/targets/aleo-leo.md`, `docs/validation-gates.md` and Chinese versions | Document the new smoke gate. |
@@ -453,12 +453,12 @@ git commit -m "feat(cli): add --emit-pure-math-ir-leo mode"
 ## Task 6: Create golden fixture and smoke script
 
 **Files:**
-- Create: `Examples/Aleo/PureMath.golden.leo`
+- Create: `Examples/Backend/Aleo/PureMath.golden.leo`
 - Create: `scripts/aleo/pure-math-smoke.sh`
 
 - [ ] **Step 1: Generate the fixture**
 
-Run: `lake exe proof-forge --emit-pure-math-ir-leo --output Examples/Aleo/PureMath.golden.leo`
+Run: `lake exe proof-forge --emit-pure-math-ir-leo --output Examples/Backend/Aleo/PureMath.golden.leo`
 
 Then inspect and adjust whitespace if needed so it matches the printer output exactly.
 
@@ -500,7 +500,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 BUILD_DIR="build/aleo/pure-math"
-GOLDEN="Examples/Aleo/PureMath.golden.leo"
+GOLDEN="Examples/Backend/Aleo/PureMath.golden.leo"
 
 echo "[Aleo PureMath] Emitting Leo source..."
 mkdir -p build/aleo
@@ -546,7 +546,7 @@ Expected: diff passes, `leo build` succeeds, `leo test` passes, metadata validat
 - [ ] **Step 4: Commit**
 
 ```bash
-git add Examples/Aleo/PureMath.golden.leo scripts/aleo/pure-math-smoke.sh
+git add Examples/Backend/Aleo/PureMath.golden.leo scripts/aleo/pure-math-smoke.sh
 git commit -m "test(aleo): add PureMath golden fixture and smoke script"
 ```
 
@@ -573,7 +573,7 @@ In `docs/targets/aleo-leo.md`, add a bullet under "Road 1 spike" describing the 
 In `docs/validation-gates.md`, add a row:
 
 ```markdown
-| Aleo PureMath IR smoke | `scripts/aleo/pure-math-smoke.sh` | `leo` CLI (4.0.2 tested) on `PATH`; `python3`; Lean toolchain from `lean-toolchain` | Portable IR pure functions with params, `if/else`, `boundedFor`, `assign`, and `assert` lower to valid Leo 4.0 source, match `Examples/Aleo/PureMath.golden.leo`, and pass `leo build`/`leo test` | Stateful parameterized entrypoints, non-local assignment targets, dynamic loop bounds |
+| Aleo PureMath IR smoke | `scripts/aleo/pure-math-smoke.sh` | `leo` CLI (4.0.2 tested) on `PATH`; `python3`; Lean toolchain from `lean-toolchain` | Portable IR pure functions with params, `if/else`, `boundedFor`, `assign`, and `assert` lower to valid Leo 4.0 source, match `Examples/Backend/Aleo/PureMath.golden.leo`, and pass `leo build`/`leo test` | Stateful parameterized entrypoints, non-local assignment targets, dynamic loop bounds |
 ```
 
 - [ ] **Step 3: Update Chinese docs**

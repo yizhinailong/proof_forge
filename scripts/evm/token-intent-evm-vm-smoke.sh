@@ -8,7 +8,7 @@ cd "$REPO_ROOT"
 export PATH="$HOME/.foundry/bin:$HOME/.elan/bin:$HOME/.local/bin:$PATH"
 
 OUT_DIR="${PROOF_FORGE_TOKEN_INTENT_EVM_VM_OUT:-${PROOF_FORGE_LEARN_TOKEN_EVM_VM_OUT:-build/evm/token-intent-evm-vm}}"
-TOKEN_SOURCE="${PROOF_FORGE_TOKEN_INTENT_EVM_SOURCE:-Examples/Shared/FungibleToken.lean}"
+TOKEN_SOURCE="${PROOF_FORGE_TOKEN_INTENT_EVM_SOURCE:-Examples/Product/FungibleToken.lean}"
 TOKEN_NAME="${PROOF_FORGE_TOKEN_INTENT_EVM_NAME:-FungibleToken}"
 
 fail() {

@@ -422,7 +422,7 @@ it through `ProofForge.Compiler.Psy.Printer.module`, exposed through:
 lake env proof-forge emit --target psy-dpn --fixture counter --format psy -o build/psy/Counter.psy
 ```
 
-The checked-in golden source is `Examples/Psy/Counter.golden.psy`.
+The checked-in golden source is `Examples/Backend/Psy/Counter.golden.psy`.
 
 Current ContextProbe spike output layout:
 
@@ -768,7 +768,7 @@ Experimental smoke does not require a live Psy network.
 Preferred first smoke:
 
 1. Generate `.psy` source.
-2. Compare it against `Examples/Psy/Counter.golden.psy`.
+2. Compare it against `Examples/Backend/Psy/Counter.golden.psy`.
 3. Run `dargo test --file build/psy/Counter.psy`.
 4. Generate a temporary Dargo package.
 5. Run `dargo compile --contract-name Counter --method-names initialize increment get`.
@@ -1430,7 +1430,7 @@ EVM `Lower.lean` → `Plan.lean` split.
   browser-facing playground target.
 - Done: add a target-specific Counter acceptance note. The Psy Counter
   acceptance is: the portable `Counter` IR lowers to `build/psy/Counter.psy`,
-  matches `Examples/Psy/Counter.golden.psy` byte-for-byte, passes
+  matches `Examples/Backend/Psy/Counter.golden.psy` byte-for-byte, passes
   `dargo test --file`, compiles via `dargo compile` to non-empty DPN circuit
   JSON, executes `initialize → increment → increment → get` via
   `dargo execute` returning `result_vm: [2]`, emits a non-empty ABI via

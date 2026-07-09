@@ -28,7 +28,7 @@ def renderLearnTokenYul (decl : TokenDecl) : IO String := do
   pure <| ProofForge.Contract.Token.EvmWrap.wrapRuntimeObject decl.id (decl.id ++ "Runtime") runtimeObject decl.spec
 
 def main : IO UInt32 := do
-  let proofToken ← parseFixture "Examples/Learn/ProofToken.learn"
+  let proofToken ← parseFixture "Examples/Backend/Learn/ProofToken.learn"
   let yul ← renderLearnTokenYul proofToken
 
   require (yul.contains "object \"ProofToken\"") "ERC-20 Yul missing token object"
@@ -47,7 +47,7 @@ def main : IO UInt32 := do
   require (yul.contains "case 0x42966c68") "burnable ERC-20 Yul missing burn selector"
   require (yul.contains "log3(") "ERC-20 Yul missing indexed event emission"
 
-  let feeToken ← parseFixture "Examples/Learn/FeeToken.learn"
+  let feeToken ← parseFixture "Examples/Backend/Learn/FeeToken.learn"
   let feeYul ← renderLearnTokenYul feeToken
   require (feeYul.contains "case 0x40c10f19") "mintable fee token should include mint selector"
   require (!feeYul.contains "case 0x42966c68") "non-burnable fee token should not include burn selector"

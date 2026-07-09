@@ -648,7 +648,7 @@ real lowering (a `SuiModulePlan` would have to precede building one).
   `ProofForge/Backend/WasmHost/NearModulePlan.lean` with `NearModulePlan`,
   `NearLayoutPlan`, `NearLowerCtxSeed`, and a `buildNearModulePlan` for
   `ProofForge.IR.Examples.Counter.module`. Not wired into EmitWat. Added
-  `Tests/NearModulePlan.lean`, `Examples/WasmNear/Counter/golden/plan.txt`,
+  `Tests/NearModulePlan.lean`, `Examples/Backend/WasmNear/Counter/golden/plan.txt`,
   and `just near-plan-smoke` (mirroring `solana-plan-smoke`).
 - Step B (plan construction + `Ctx.fromSeed`, additive) — **LANDED (2026-07-07).**
   Implemented `Ctx.fromPlanSeed` (reconstructs `EmitWat.Ctx` from the plan's seed +
@@ -671,7 +671,7 @@ real lowering (a `SuiModulePlan` would have to precede building one).
   `scripts/near/plan-smoke.sh` now loops over all four fixtures (Counter +
   three new), generating + diffing each plan golden and running the parity
   check per fixture. New golden `plan.txt` files added under
-  `Examples/WasmNear/<Fixture>/golden/`. Parity results (plan-driven WAT ==
+  `Examples/Backend/WasmNear/<Fixture>/golden/`. Parity results (plan-driven WAT ==
   inline WAT, byte-identical): `Counter: MATCH 2228 chars`, `EvmMapProbe:
   MATCH 3498 chars`, `EvmStorageArrayProbe: MATCH 4703 chars`,
   `EvmStorageStructProbe: MATCH 3375 chars`. Coverage now spans scalar / map /
@@ -701,7 +701,7 @@ real lowering (a `SuiModulePlan` would have to precede building one).
 **Touch list:**
 
 - Step A: `ProofForge/Backend/WasmHost/NearModulePlan.lean` (new),
-  `Tests/NearModulePlan.lean` (new), `Examples/WasmNear/Counter/golden/plan.txt`
+  `Tests/NearModulePlan.lean` (new), `Examples/Backend/WasmNear/Counter/golden/plan.txt`
   (new), `scripts/near/plan-smoke.sh` (new), `justfile`.
 - Step B: `ProofForge/Backend/WasmHost/NearModulePlan.lean` (`Ctx.fromPlanSeed`,
   `lowerModuleFromPlan`, `renderModuleFromPlan`; `NearStatePlan`/`NearMapPlan`
@@ -712,7 +712,7 @@ real lowering (a `SuiModulePlan` would have to precede building one).
   (`--parity`), `justfile`.
 - Step B.2: `Tests/NearModulePlan.lean` (`moduleFor` + `mapSubModule` /
   `arraySubModule` / `structSubModule`), `scripts/near/plan-smoke.sh`
-  (multi-fixture loop), `Examples/WasmNear/{EvmMapProbe,EvmStorageArrayProbe,
+  (multi-fixture loop), `Examples/Backend/WasmNear/{EvmMapProbe,EvmStorageArrayProbe,
   EvmStorageStructProbe}/golden/plan.txt` (new goldens).
 - Step C: `ProofForge/Backend/WasmHost/EmitWat.lean` (`Ctx.fromPlanSeed` +
   `buildLowerCtx` added; inline `Ctx` assembly in `lowerModule` deleted;

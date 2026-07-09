@@ -1,7 +1,7 @@
 [scenario]
 name = "value-vault"
 fixture = "value-vault"
-source = "Examples/Shared/ValueVault.lean"
+source = "Examples/Product/ValueVault.lean"
 targets = ["wasm-near", "evm", "solana-sbpf-asm"]
 capabilities = ["storage.scalar", "entrypoint.external", "events.emit", "env.block"]
 
@@ -14,7 +14,7 @@ sbpf = "0.2.2"
 [[artifact]]
 target = "wasm-near"
 name = "wat"
-matches_file = "Examples/WasmNear/ValueVault.golden.wat"
+matches_file = "Examples/Backend/WasmNear/ValueVault.golden.wat"
 contains = [
   '(import "env" "block_index"',
   '(func $deposit (export "deposit")',
@@ -263,7 +263,7 @@ artifact = "wat"
 [[artifact]]
 target = "evm"
 name = "yul"
-matches_file = "Examples/Evm/ValueVault.golden.yul"
+matches_file = "Examples/Backend/Evm/ValueVault.golden.yul"
 contains = [
   'object "ValueVault"',
   'function f_ValueVault_deposit',
@@ -534,7 +534,7 @@ artifact = "init-code"
 [[artifact]]
 target = "solana-sbpf-asm"
 name = "sbpf-asm"
-matches_file = "Examples/Solana/ValueVault.golden.s"
+matches_file = "Examples/Backend/Solana/ValueVault.golden.s"
 contains = [
   'solana.event.emit ValueDeposited',
   'solana.event.emit ValueSnapshot',
@@ -546,7 +546,7 @@ contains = [
 [[artifact]]
 target = "solana-sbpf-asm"
 name = "manifest"
-matches_file = "Examples/Solana/ValueVault.manifest.toml"
+matches_file = "Examples/Backend/Solana/ValueVault.manifest.toml"
 contains = [
   'name = "deposit"',
   'name = "charge_fee"',

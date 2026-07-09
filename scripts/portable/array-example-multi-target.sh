@@ -6,7 +6,7 @@ cd "$ROOT"
 
 export PATH="$HOME/.elan/bin:$HOME/.local/bin:$HOME/.foundry/bin:$PATH"
 
-SOURCE="${PORTABLE_ARRAY_EXAMPLE_SOURCE:-Examples/Shared/ArrayExample.lean}"
+SOURCE="${PORTABLE_ARRAY_EXAMPLE_SOURCE:-Examples/Product/ArrayExample.lean}"
 OUT="${PORTABLE_ARRAY_EXAMPLE_OUT:-build/portable-array-example}"
 HOST=(cargo run --quiet --manifest-path runtime/offline-host/Cargo.toml -- run)
 
@@ -40,7 +40,7 @@ command -v cast >/dev/null 2>&1 || fail "cast not on PATH"
 rm -rf "$OUT"
 mkdir -p "$OUT/evm" "$OUT/solana" "$OUT/near"
 
-(cd "$ROOT" && lake build proof-forge Examples.Shared.ArrayExample >/dev/null)
+(cd "$ROOT" && lake build proof-forge Examples.Product.ArrayExample >/dev/null)
 
 echo "portable-array-example: EVM"
 "${proof_forge[@]}" build --target evm --root . \
@@ -48,7 +48,7 @@ echo "portable-array-example: EVM"
   --yul-output "$OUT/evm/ArrayExample.yul" \
   --artifact-output "$OUT/evm/ArrayExample.proof-forge-artifact.json" \
   "$SOURCE"
-diff -u Examples/Evm/Contracts/ArrayExample.golden.yul "$OUT/evm/ArrayExample.yul"
+diff -u Examples/Backend/Evm/Contracts/ArrayExample.golden.yul "$OUT/evm/ArrayExample.yul"
 python3 scripts/evm/validate-artifact-metadata.py \
   --root "$ROOT" \
   --expect-fixture ArrayExample \

@@ -16,7 +16,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
 OUT_DIR="${PROOF_FORGE_SOLANA_TOKEN_PLAN_LIVE_OUT:-build/solana-token-plan-live}"
-TOKEN_SOURCE="${PROOF_FORGE_SOLANA_TOKEN_PLAN_SOURCE:-Examples/Shared/FungibleToken.lean}"
+TOKEN_SOURCE="${PROOF_FORGE_SOLANA_TOKEN_PLAN_SOURCE:-Examples/Product/FungibleToken.lean}"
 TOKEN_NAME="${PROOF_FORGE_SOLANA_TOKEN_PLAN_NAME:-FungibleToken}"
 TOKEN_PLAN="$OUT_DIR/$TOKEN_NAME.solana-token-plan.json"
 PAYER_KEYPAIR="$OUT_DIR/payer.json"

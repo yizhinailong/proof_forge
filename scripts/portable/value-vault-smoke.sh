@@ -18,7 +18,7 @@ OUT_DIR="${PROOF_FORGE_VALUE_VAULT_OUT:-build/portable/value-vault}"
 EVM_DIR="$OUT_DIR/evm"
 SOLANA_DIR="$OUT_DIR/solana"
 NEAR_DIR="$OUT_DIR/near"
-SOURCE="${PROOF_FORGE_VALUE_VAULT_SOURCE:-Examples/Shared/ValueVault.lean}"
+SOURCE="${PROOF_FORGE_VALUE_VAULT_SOURCE:-Examples/Product/ValueVault.lean}"
 
 EVM_YUL="$EVM_DIR/ValueVault.yul"
 EVM_BIN="$EVM_DIR/ValueVault.bin"
@@ -240,7 +240,7 @@ lake env proof-forge build --target wasm-near \
   || fail "proof-forge build --target wasm-near failed"
 require_file "$NEAR_WAT"
 require_file "$NEAR_ARTIFACT"
-diff -u Examples/WasmNear/ValueVault.golden.wat "$NEAR_WAT" \
+diff -u Examples/Backend/WasmNear/ValueVault.golden.wat "$NEAR_WAT" \
   || fail "NEAR ValueVault WAT golden mismatch"
 python3 scripts/near/validate-emitwat-metadata.py \
   "$NEAR_ARTIFACT" \

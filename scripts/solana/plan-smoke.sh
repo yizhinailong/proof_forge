@@ -2,7 +2,7 @@
 # V-GATE-SOLANA-06: SolanaModulePlan golden + single-path render smoke.
 #
 # Builds the Solana semantic plan for each fixture, compares it to the golden
-# copy at Examples/Solana/<Fixture>/golden/plan.txt, AND (Step C) runs the
+# copy at Examples/Backend/Solana/<Fixture>/golden/plan.txt, AND (Step C) runs the
 # single-path render check: plan-driven sBPF assembly must emit cleanly for
 # each fixture.
 #
@@ -45,7 +45,7 @@ fail=0
 
 for fixture in "${FIXTURES[@]}"; do
   step=$((step + 1))
-  GOLDEN="$REPO_ROOT/Examples/Solana/${fixture}/golden/plan.txt"
+  GOLDEN="$REPO_ROOT/Examples/Backend/Solana/${fixture}/golden/plan.txt"
   OUTPUT="$REPO_ROOT/build/solana/${fixture}.plan.txt"
 
   if [ ! -f "$GOLDEN" ]; then

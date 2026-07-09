@@ -2,7 +2,7 @@
 # V-GATE-NEAR-06: NearModulePlan golden + single-path render smoke.
 #
 # Builds the NearModulePlan for each fixture, compares it to the golden copy
-# at Examples/WasmNear/<Fixture>/golden/plan.txt, AND (Step C) runs the
+# at Examples/Backend/WasmNear/<Fixture>/golden/plan.txt, AND (Step C) runs the
 # single-path render check: plan-driven WAT must emit cleanly for each fixture.
 #
 # Fixtures (RFC 0014 Phase 4 — Step C plan-driven lowering, single path):
@@ -44,7 +44,7 @@ fail=0
 
 for fixture in "${FIXTURES[@]}"; do
   step=$((step + 1))
-  GOLDEN="$REPO_ROOT/Examples/WasmNear/${fixture}/golden/plan.txt"
+  GOLDEN="$REPO_ROOT/Examples/Backend/WasmNear/${fixture}/golden/plan.txt"
   OUTPUT="$REPO_ROOT/build/wasm-near/${fixture}.plan.txt"
 
   if [ ! -f "$GOLDEN" ]; then

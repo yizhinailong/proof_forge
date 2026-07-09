@@ -4,15 +4,15 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 EVM compatibility wrapper for the canonical portable Counter.
 
-The contract logic lives in `Examples.Shared.Counter`; this file preserves the
+The contract logic lives in `Examples.Product.Counter`; this file preserves the
 historical EVM example path and adds only EVM deploy-time constructor metadata.
 -/
-import Examples.Shared.Counter
+import Examples.Product.Counter
 
 namespace Counter
 
 def spec : ProofForge.Contract.ContractSpec :=
-  { Examples.Shared.Counter.spec with
+  { Examples.Product.Counter.spec with
     constructorParams := #[
       { name := "initial", abiType := "uint256" }
     ]

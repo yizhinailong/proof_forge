@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 EVM stdlib composition fixture. This intentionally exercises the ERC-20 mixin
 surface; the chain-neutral token intent example lives in
-`Examples/Shared/FungibleToken.lean`.
+`Examples/Product/FungibleToken.lean`.
 -/
 import ProofForge.Contract.Source
 import ProofForge.Contract.Compose

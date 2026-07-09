@@ -5,11 +5,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 T3.2: Solana account auto-fill for transfer / remote / native-value intents
 without Source.Solana authoring.
 -/
-import Examples.Shared.AuthRemoteCall
-import Examples.Shared.Ownable
-import Examples.Shared.RemoteCall
-import Examples.Shared.RoleGatedToken
-import Examples.Shared.StakingVault
+import Examples.Product.AuthRemoteCall
+import Examples.Product.Ownable
+import Examples.Product.RemoteCall
+import Examples.Product.RoleGatedToken
+import Examples.Product.StakingVault
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.Materialize
 import ProofForge.Backend.Solana.SbpfAsm
@@ -45,7 +45,7 @@ def mustRender (label : String) (m : Module) : IO String := do
 
 /-- Pure Ownable: authority non-writable (no nativeValue). -/
 def testOwnableAuth : IO Unit := do
-  let m := Examples.Shared.Ownable.module
+  let m := Examples.Product.Ownable.module
   let accounts := buildModuleAccounts m {}
   let head ← leading accounts
   require head.signer "Ownable: leading account must be signer"
@@ -57,7 +57,7 @@ def testOwnableAuth : IO Unit := do
 
 /-- Remote-only: state + payer + callee_program (no caller). -/
 def testRemoteCall : IO Unit := do
-  let m := Examples.Shared.RemoteCall.module
+  let m := Examples.Product.RemoteCall.module
   let accounts := buildModuleAccounts m {}
   require (hasNamed accounts "callee_program") "RemoteCall: callee_program"
   require (hasSigner accounts) "RemoteCall: fee payer / signer"
@@ -69,7 +69,7 @@ def testRemoteCall : IO Unit := do
 
 /-- Transfer-style map debit: leading authority for caller. -/
 def testRoleGatedTokenTransfer : IO Unit := do
-  let m := Examples.Shared.RoleGatedToken.module
+  let m := Examples.Product.RoleGatedToken.module
   let accounts := buildModuleAccounts m {}
   let head ← leading accounts
   require head.signer "RoleGatedToken: caller needs leading signer"
@@ -82,7 +82,7 @@ def testRoleGatedTokenTransfer : IO Unit := do
 
 /-- Staking deposit uses nativeValue: leading signer must be writable. -/
 def testStakingVaultNative : IO Unit := do
-  let m := Examples.Shared.StakingVault.module
+  let m := Examples.Product.StakingVault.module
   let accounts := buildModuleAccounts m {}
   let head ← leading accounts
   require head.signer "StakingVault: leading fee payer/authority"
@@ -98,7 +98,7 @@ def testStakingVaultNative : IO Unit := do
 
 /-- T3.2 flagship: caller + debit + remote → authority + state + callee. -/
 def testAuthRemoteCall : IO Unit := do
-  let m := Examples.Shared.AuthRemoteCall.module
+  let m := Examples.Product.AuthRemoteCall.module
   -- No Solana Surface: auto-portable only.
   let report := report m {}
   require (report.mode == .autoPortable)

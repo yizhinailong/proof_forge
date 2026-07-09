@@ -13,7 +13,7 @@ demo.
 -/
 import ProofForge.Contract.Source
 
-namespace Examples.Shared.ArrayExample
+namespace Examples.Product.ArrayExample
 
 open ProofForge.Contract.Source
 
@@ -29,4 +29,4 @@ contract_source ArrayExample do
     fixedu64x3 xs (10, 20, 30);
     return (array_get xs (u64 0)) +! (array_get xs (u64 1)) +! (array_get xs (u64 2));
 
-end Examples.Shared.ArrayExample
+end Examples.Product.ArrayExample

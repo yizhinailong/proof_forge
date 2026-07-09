@@ -50,12 +50,12 @@ rebuild_constructor_init_fixture() {
 NAME_HASH="$(cast keccak hello | sed 's/^0x//')"
 PAYLOAD_HASH="$(cast keccak 0xdeadbeef | sed 's/^0x//')"
 
-rebuild_constructor_init_fixture DynamicConstructorProbe "$ROOT/Examples/Evm/Contracts/DynamicConstructorProbe.lean" \
+rebuild_constructor_init_fixture DynamicConstructorProbe "$ROOT/Examples/Backend/Evm/Contracts/DynamicConstructorProbe.lean" \
   --evm-constructor-arg "name=hello" \
   --evm-constructor-arg "payload=0xdeadbeef" \
   --evm-constructor-arg "amounts=1,2,3"
 
-rebuild_constructor_init_fixture Counter "$ROOT/Examples/Evm/Contracts/Counter.lean" \
+rebuild_constructor_init_fixture Counter "$ROOT/Examples/Backend/Evm/Contracts/Counter.lean" \
   --evm-constructor-arg "initial=123"
 
 rm -rf "$FORGE_DIR"

@@ -14,11 +14,11 @@ Compile:
 
   lake env proof-forge build --target solana-sbpf-asm --token --root . \
     -o build/shared-soulbound-token/SoulboundToken.token-plan.json \
-    Examples/Shared/SoulboundToken.lean
+    Examples/Product/SoulboundToken.lean
 -/
 import ProofForge.Contract.Token
 
-namespace Examples.Shared.SoulboundToken
+namespace Examples.Product.SoulboundToken
 
 open ProofForge.Contract.Token
 
@@ -33,4 +33,4 @@ def spec : TokenSpec := {
   features := #[.mintable, .burnable, .nonTransferable]
 }
 
-end Examples.Shared.SoulboundToken
+end Examples.Product.SoulboundToken

@@ -5,7 +5,7 @@ entry path: golden Yul files, Foundry runtime smokes, constructor/proxy probes,
 and stdlib/protocol-specific composition examples.
 
 Portable examples that should compile by changing only `--target` belong in
-[Examples/Shared](../Shared/README.md).
+[Examples/Product](../Shared/README.md).
 
 ## Unified entry
 
@@ -35,16 +35,16 @@ Build:
 lake env proof-forge build --target evm \
   --root . \
   -o build/evm/Counter.bin \
-  Examples/Shared/Counter.lean
+  Examples/Product/Counter.lean
 ```
 
 `Counter`, `ArrayExample`, `Ownable`, `Pausable`, `ReentrancyGuard`,
 `ValueVault`, `RoleGatedToken`, and `StakingVault` are the primary multi-target
 shared contract scenarios.
 
-`Examples/Evm/Contracts/Counter.lean` and
-`Examples/Evm/Contracts/ArrayExample.lean` are compatibility wrappers around
-the corresponding modules in `Examples/Shared`. Counter adds only EVM
+`Examples/Backend/Evm/Contracts/Counter.lean` and
+`Examples/Backend/Evm/Contracts/ArrayExample.lean` are compatibility wrappers around
+the corresponding modules in `Examples/Product`. Counter adds only EVM
 deploy-time constructor metadata used by constructor-init smokes; ArrayExample
 preserves the historical EVM golden Yul path.
 The `stdlib/Ownable.lean`, `stdlib/Pausable.lean`, and
@@ -56,7 +56,7 @@ constructor probes, proxy probes, and the remaining `stdlib/` wrappers are
 EVM-focused fixtures because they exercise EVM ABI, ERC-style stdlib
 composition, deployment, callvalue/native-transfer, or golden-output behavior.
 Chain-neutral token intent lives in
-`Examples/Shared/FungibleToken.lean` as a `TokenSpec`; the EVM target lowers
+`Examples/Product/FungibleToken.lean` as a `TokenSpec`; the EVM target lowers
 that intent to an ERC-20-compatible artifact.
 
 No `.evm-methods` sidecar is required. The CLI loads `spec : ContractSpec` from
@@ -85,8 +85,8 @@ scripts/evm/foundry-smoke.sh
 
 ## Shared Scenarios
 
-The canonical shared examples live in [Examples/Shared](../Shared/README.md).
+The canonical shared examples live in [Examples/Product](../Shared/README.md).
 See [docs/shared-scenario.md](../../docs/shared-scenario.md) for the Counter and
 ValueVault scenario details. See
-[Examples/Shared/FungibleToken.lean](../Shared/FungibleToken.lean) for the
+[Examples/Product/FungibleToken.lean](../Shared/FungibleToken.lean) for the
 target-neutral token-intent example.

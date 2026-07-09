@@ -84,7 +84,7 @@ DOC_MAP: dict[str, str] = {
     "docs/targets/wasm-near.md": "docs/zh/targets/wasm-near.zh.md",
     "docs/targets/solana-sbf.md": "docs/zh/targets/solana-sbf.zh.md",
     "docs/targets/move-family.md": "docs/zh/targets/move-family.zh.md",
-    "Examples/Evm/README.md": "docs/zh/examples-evm-README.zh.md",
+    "Examples/Backend/Evm/README.md": "docs/zh/examples-evm-README.zh.md",
 }
 
 # Docs that are originally Chinese (not translated, kept as-is). Listed here so

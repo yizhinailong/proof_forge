@@ -14,11 +14,11 @@ Compile the same token intent by changing only `--target`:
     -o build/shared-fungible-token/FungibleToken.erc20.bin \
     --yul-output build/shared-fungible-token/FungibleToken.erc20.yul \
     --artifact-output build/shared-fungible-token/FungibleToken.evm-artifact.json \
-    Examples/Shared/FungibleToken.lean
+    Examples/Product/FungibleToken.lean
 
   lake env proof-forge build --target solana-sbpf-asm --token --root . \
     -o build/shared-fungible-token/FungibleToken.solana-token-plan.json \
-    Examples/Shared/FungibleToken.lean
+    Examples/Product/FungibleToken.lean
 
 `--target` chooses the native standard (authors never set `TokenStandard`):
 
@@ -28,7 +28,7 @@ Compile the same token intent by changing only `--target`:
 -/
 import ProofForge.Contract.Token
 
-namespace Examples.Shared.FungibleToken
+namespace Examples.Product.FungibleToken
 
 open ProofForge.Contract.Token
 
@@ -43,4 +43,4 @@ def spec : TokenSpec := {
   features := #[.mintable, .burnable]
 }
 
-end Examples.Shared.FungibleToken
+end Examples.Product.FungibleToken

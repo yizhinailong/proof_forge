@@ -6,15 +6,15 @@ Shared facade for AccessControl role mixin (portable u64 role map path).
 
 Note: `Stdlib.AccessControl` uses `.address` account params (EVM-shaped ABI).
 For fully portable handle keys without address ABI, prefer the role map pattern
-in `Examples/Shared/RoleGatedToken.lean` (`.u64` keys + `pathWriteRole`).
+in `Examples/Product/RoleGatedToken.lean` (`.u64` keys + `pathWriteRole`).
 
   lake env proof-forge build --target evm --root . \
     -o build/portable-access-control/AccessControl \
-    Examples/Shared/AccessControl.lean
+    Examples/Product/AccessControl.lean
 -/
 import ProofForge.Contract.Stdlib.AccessControl
 
-namespace Examples.Shared.AccessControl
+namespace Examples.Product.AccessControl
 
 def spec : ProofForge.Contract.ContractSpec :=
   ProofForge.Contract.Stdlib.AccessControl.spec
@@ -22,4 +22,4 @@ def spec : ProofForge.Contract.ContractSpec :=
 def module : ProofForge.IR.Module :=
   spec.module
 
-end Examples.Shared.AccessControl
+end Examples.Product.AccessControl

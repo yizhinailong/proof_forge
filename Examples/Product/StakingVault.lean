@@ -19,24 +19,24 @@ Compile the same module to EVM, Solana sBPF, and NEAR/Wasm by changing only
     -o build/staking-vault/StakingVault.bin \
     --yul-output build/staking-vault/StakingVault.yul \
     --artifact-output build/staking-vault/StakingVault.proof-forge-artifact.json \
-    Examples/Shared/StakingVault.lean
+    Examples/Product/StakingVault.lean
 
   lake env proof-forge build --target solana-sbpf-asm --root . \
     -o build/staking-vault/StakingVault.s \
     --artifact-output build/staking-vault/StakingVault.solana-artifact.json \
-    Examples/Shared/StakingVault.lean
+    Examples/Product/StakingVault.lean
 
   lake env proof-forge build --target wasm-near --root . \
     -o build/staking-vault/near \
     --artifact-output build/staking-vault/StakingVault.near-artifact.json \
-    Examples/Shared/StakingVault.lean
+    Examples/Product/StakingVault.lean
 
 See `scripts/portable/staking-vault-multi-target.sh` for a checked
 end-to-end demo.
 -/
 import ProofForge.Contract.Source
 
-namespace Examples.Shared.StakingVault
+namespace Examples.Product.StakingVault
 
 open ProofForge.Contract.Source
 
@@ -87,4 +87,4 @@ contract_source StakingVault do
   query sharesOf (who : .u64) returns(.u64) do
     return mapRead shares who;
 
-end Examples.Shared.StakingVault
+end Examples.Product.StakingVault

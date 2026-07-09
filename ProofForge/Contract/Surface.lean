@@ -404,7 +404,7 @@ remote:
 
 Authors pass `#[u64 42, u64 7]` etc. Host encoding is materialization; do not
 hand-write selectors or CPI account metas in Shared. See
-`Examples/Shared/RemoteCall.lean` (`call_with_args`). -/
+`Examples/Product/RemoteCall.lean` (`call_with_args`). -/
 def remoteCallRef (remote : RemoteRef) (args : Array ProofForge.IR.Expr) :
     ProofForge.IR.Expr :=
   remoteCall remote.target remote.method args
@@ -413,7 +413,7 @@ def hash4 (a b c d : Nat) : ProofForge.IR.Expr :=
   .literal (.hash4 a b c d)
 
 /-- EVM family-only CREATE2 deploy (init-code hex). **Not portable** — banned in
-`Examples/Shared` (`just portable-default`). Prefer portable `remoteCallRef` for
+`Examples/Product` (`just portable-default`). Prefer portable `remoteCallRef` for
 cross-contract intent; keep CREATE2 in EVM fixtures only (T4.3). -/
 def create2Deploy (callValue salt : ProofForge.IR.Expr) (initCodeHex : String) : ProofForge.IR.Expr :=
   .crosscallCreate2 callValue salt initCodeHex

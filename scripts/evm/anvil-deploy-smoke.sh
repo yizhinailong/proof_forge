@@ -53,7 +53,7 @@ else
   proof_forge=(lake env proof-forge)
 fi
 
-(cd "$ROOT" && lake build proof-forge Examples.Shared.Counter >/dev/null)
+(cd "$ROOT" && lake build proof-forge Examples.Product.Counter >/dev/null)
 
 rebuild_counter_with_profile() {
   local proof_forge_args=(
@@ -63,7 +63,7 @@ rebuild_counter_with_profile() {
     --yul-output "$OUT_DIR/Counter.yul"
     --artifact-output "$OUT_DIR/Counter.proof-forge-artifact.json"
     -o "$OUT_DIR/Counter.bin"
-    Examples/Evm/Contracts/Counter.lean
+    Examples/Backend/Evm/Contracts/Counter.lean
   )
   if [[ -n "$CHAIN_PROFILE" ]]; then
     proof_forge_args+=(--evm-chain-profile "$CHAIN_PROFILE")
@@ -71,7 +71,7 @@ rebuild_counter_with_profile() {
   (
     cd "$ROOT"
     "${proof_forge[@]}" "${proof_forge_args[@]}"
-    diff -u Examples/Evm/Contracts/Counter.golden.yul "$OUT_DIR/Counter.yul"
+    diff -u Examples/Backend/Evm/Contracts/Counter.golden.yul "$OUT_DIR/Counter.yul"
     metadata_validator=(
       python3 "$ROOT/scripts/evm/validate-artifact-metadata.py"
       --root "$ROOT"
@@ -108,12 +108,12 @@ if [[ -n "$CONSTRUCTOR_ARG" || -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
   if [[ -n "$CONSTRUCTOR_ARGS_HEX" ]]; then
     proof_forge_args+=(--evm-constructor-args-hex "$CONSTRUCTOR_ARGS_HEX")
   fi
-  proof_forge_args+=(-o "$OUT_DIR/Counter.bin" Examples/Evm/Contracts/Counter.lean)
+  proof_forge_args+=(-o "$OUT_DIR/Counter.bin" Examples/Backend/Evm/Contracts/Counter.lean)
 
   (
     cd "$ROOT"
     "${proof_forge[@]}" "${proof_forge_args[@]}"
-    diff -u Examples/Evm/Contracts/Counter.golden.yul "$OUT_DIR/Counter.yul"
+    diff -u Examples/Backend/Evm/Contracts/Counter.golden.yul "$OUT_DIR/Counter.yul"
     metadata_validator=(
       python3 "$ROOT/scripts/evm/validate-artifact-metadata.py"
       --root "$ROOT"

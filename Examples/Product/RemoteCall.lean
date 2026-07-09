@@ -18,7 +18,7 @@ See `just portable-remote-call-multi-target` / `just crosscall-materialize`.
 -/
 import ProofForge.Contract.Source
 
-namespace Examples.Shared.RemoteCall
+namespace Examples.Product.RemoteCall
 
 open ProofForge.Contract.Source
 
@@ -36,4 +36,4 @@ contract_source RemoteCall do
   entry call_with_args returns(.u64) do
     return ProofForge.Contract.Surface.remoteCallRef callee #[u64 42, u64 7];
 
-end Examples.Shared.RemoteCall
+end Examples.Product.RemoteCall

@@ -26,10 +26,10 @@ contract_source MyProgram do
 Allowed locations:
 
 * `ProofForge/Solana/Examples/*`
-* `Examples/Solana/*` (chain-specific goldens / probes)
+* `Examples/Backend/Solana/*` (chain-specific goldens / probes)
 * Internal backend tests that deliberately exercise extension surface
 
-Not allowed: `Examples/Shared/*`, stdlib portable mixins, product tutorials.
+Not allowed: `Examples/Product/*`, stdlib portable mixins, product tutorials.
 -/
 import ProofForge.Contract.Source
 import ProofForge.Solana.Surface

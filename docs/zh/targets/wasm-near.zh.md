@@ -66,7 +66,7 @@ Fixture：`ProofForge/IR/Examples/NearCrosscallProbe.lean`。
 
 ### NEP-141 `ft_transfer_call` 示例
 
-`Examples/WasmNear/FungibleToken.lean` 复用
+`Examples/Backend/WasmNear/FungibleToken.lean` 复用
 `ProofForge.Contract.Stdlib.NearFungibleToken` mixin。生成的合约导出
 `ft_transfer_call(receiver_id, receiver_idx, amount)`，Borsh 输入布局为
 `Hash || U32 || U64`：

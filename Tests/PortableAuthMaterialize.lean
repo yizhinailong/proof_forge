@@ -5,14 +5,14 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Portable business checks (Ownable / Pausable / require*) materialize on
 EVM · Solana · NEAR · Soroban without chain DSL in source.
 -/
-import Examples.Shared.AccessControl
-import Examples.Shared.Ownable
-import Examples.Shared.OwnableHash
-import Examples.Shared.OwnablePausable
-import Examples.Shared.Pausable
-import Examples.Shared.ReentrancyGuard
-import Examples.Shared.RemoteCall
-import Examples.Shared.RoleGatedToken
+import Examples.Product.AccessControl
+import Examples.Product.Ownable
+import Examples.Product.OwnableHash
+import Examples.Product.OwnablePausable
+import Examples.Product.Pausable
+import Examples.Product.ReentrancyGuard
+import Examples.Product.RemoteCall
+import Examples.Product.RoleGatedToken
 import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Evm.Plan
 import ProofForge.Backend.Solana.Manifest
@@ -32,8 +32,8 @@ def require (cond : Bool) (msg : String) : IO Unit :=
   if cond then pure () else throw (IO.userError msg)
 
 def main : IO Unit := do
-  let ownable := Examples.Shared.Ownable.module
-  let remote := Examples.Shared.RemoteCall.module
+  let ownable := Examples.Product.Ownable.module
+  let remote := Examples.Product.RemoteCall.module
 
   -- C.6: Shared holds logical peers; deploy PeerMap rewrites host ids.
   require (!remote.nearCrosscallStrings.isEmpty)
@@ -141,7 +141,7 @@ def main : IO Unit := do
         s!"preflight should be ready for {r.targetId} on {mod.name}: {r.note}"
 
   -- Hash-width Ownable: callerHash / requireOwnerHash on NEAR · EVM · Solana.
-  let ownableHash := Examples.Shared.OwnableHash.module
+  let ownableHash := Examples.Product.OwnableHash.module
   require (ownableHash.state.any (fun s => s.id == "owner" && s.type == .hash))
     "OwnableHash stores owner as Hash"
 
@@ -187,7 +187,7 @@ def main : IO Unit := do
         "Solana OwnableHash requireOwnerHash materializes as assert"
 
   -- T1.1/T1.2: Pausable emergency-stop on four hosts (unauthenticated pause API).
-  let pausable := Examples.Shared.Pausable.module
+  let pausable := Examples.Product.Pausable.module
   require (pausable.state.any (fun s => s.id == "paused" && s.type == .u64))
     "Pausable stores paused as u64"
   match ProofForge.Backend.Evm.Plan.buildModulePlan pausable with
@@ -228,7 +228,7 @@ def main : IO Unit := do
         "Soroban Pausable uses host storage"
 
   -- T1.3: OwnablePausable — only owner may pause/unpause.
-  let ownablePausable := Examples.Shared.OwnablePausable.module
+  let ownablePausable := Examples.Product.OwnablePausable.module
   require (ownablePausable.state.any (fun s => s.id == "owner"))
     "OwnablePausable has owner"
   require (ownablePausable.state.any (fun s => s.id == "paused"))
@@ -257,7 +257,7 @@ def main : IO Unit := do
         "Soroban OwnablePausable fail path"
 
   -- T1.5: ReentrancyGuard lock-state materializes on four hosts (not EVM-only).
-  let reent := Examples.Shared.ReentrancyGuard.module
+  let reent := Examples.Product.ReentrancyGuard.module
   match ProofForge.Backend.Evm.Plan.buildModulePlan reent with
   | .error e => throw (IO.userError s!"EVM ReentrancyGuard plan: {e.message}")
   | .ok _ => pure ()
@@ -274,7 +274,7 @@ def main : IO Unit := do
         "Soroban ReentrancyGuard uses host storage for lock"
 
   -- T1.4: AccessControl / roles — nested map path on four hosts.
-  let accessControl := Examples.Shared.AccessControl.module
+  let accessControl := Examples.Product.AccessControl.module
   match ProofForge.Backend.Evm.Plan.buildModulePlan accessControl with
   | .error e => throw (IO.userError s!"EVM AccessControl plan: {e.message}")
   | .ok _ => pure ()
@@ -299,7 +299,7 @@ def main : IO Unit := do
       require (!wat.contains "storage_read" && !wat.contains "storage_write")
         "Soroban AccessControl must not import NEAR storage_*"
 
-  let roleGated := Examples.Shared.RoleGatedToken.module
+  let roleGated := Examples.Product.RoleGatedToken.module
   match ProofForge.Backend.WasmHost.EmitWat.renderModule roleGated with
   | .error e => throw (IO.userError s!"NEAR RoleGatedToken: {e.message}")
   | .ok wat =>

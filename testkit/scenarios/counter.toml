@@ -1,7 +1,7 @@
 [scenario]
 name = "counter"
 fixture = "counter"
-source = "Examples/Shared/Counter.lean"
+source = "Examples/Product/Counter.lean"
 targets = ["wasm-near", "evm", "solana-sbpf-asm"]
 capabilities = ["storage.scalar", "entrypoint.external"]
 
@@ -14,7 +14,7 @@ sbpf = "0.2.2"
 [[artifact]]
 target = "wasm-near"
 name = "wat"
-matches_file = "Examples/WasmNear/Counter.golden.wat"
+matches_file = "Examples/Backend/WasmNear/Counter.golden.wat"
 
 [[artifact]]
 target = "wasm-near"
@@ -209,12 +209,12 @@ artifact = "wat"
 [[artifact]]
 target = "solana-sbpf-asm"
 name = "sbpf-asm"
-matches_file = "Examples/Solana/Counter.golden.s"
+matches_file = "Examples/Backend/Solana/Counter.golden.s"
 
 [[artifact]]
 target = "solana-sbpf-asm"
 name = "manifest"
-matches_file = "Examples/Solana/Counter.manifest.toml"
+matches_file = "Examples/Backend/Solana/Counter.manifest.toml"
 
 [[artifact.toml]]
 path = "target"
@@ -384,7 +384,7 @@ contains = [
 [[artifact]]
 target = "evm"
 name = "yul"
-matches_file = "Examples/Evm/Counter.golden.yul"
+matches_file = "Examples/Backend/Evm/Counter.golden.yul"
 
 [[artifact]]
 target = "evm"

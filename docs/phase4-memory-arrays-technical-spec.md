@@ -189,7 +189,7 @@ This commit does **not** implement ABI-facing dynamic arrays; the probe keeps me
 
 ## 8. Example Probe
 
-Create `ProofForge/IR/Examples/EvmMemoryArrayProbe.lean` with entrypoints:
+Create `ProofForge/IR/Examples/Backend/EvmMemoryArrayProbe.lean` with entrypoints:
 
 - `memory_lifecycle` — allocates a 3-element `Array<U64>`, fills it, and returns the sum.
 - `memory_length` — allocates a 5-element array and returns its length.

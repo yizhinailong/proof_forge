@@ -6,7 +6,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Build the `NearModulePlan` for a named fixture and write its rendered form to a
 path provided on the command line. The shell gate compares the output to the
-golden copy at `Examples/WasmNear/<Fixture>/golden/plan.txt`.
+golden copy at `Examples/Backend/WasmNear/<Fixture>/golden/plan.txt`.
 
 Step C (RFC 0014 Phase 4) retired the dual-path parity check that landed in
 Step B/B.2: there is now only one lowering path. `EmitWat.lowerModule` derives

@@ -10,7 +10,7 @@ cd "$ROOT"
 
 export PATH="$HOME/.foundry/bin:$PATH"
 
-SOURCE="${PORTABLE_REMOTE_CALL_SOURCE:-Examples/Shared/RemoteCall.lean}"
+SOURCE="${PORTABLE_REMOTE_CALL_SOURCE:-Examples/Product/RemoteCall.lean}"
 OUT="${PORTABLE_REMOTE_CALL_OUT:-build/portable-remote-call}"
 
 if [[ -n "${PROOF_FORGE_BIN:-}" ]]; then
@@ -39,7 +39,7 @@ require_contains() {
 command -v lake >/dev/null 2>&1 || fail "lake not on PATH"
 mkdir -p "$OUT/evm" "$OUT/solana" "$OUT/near"
 
-(cd "$ROOT" && lake build proof-forge Examples.Shared.RemoteCall >/dev/null)
+(cd "$ROOT" && lake build proof-forge Examples.Product.RemoteCall >/dev/null)
 
 echo "portable-remote-call: EVM"
 if command -v solc >/dev/null 2>&1; then
@@ -72,10 +72,10 @@ require_contains "$OUT/solana/RemoteCall.s" "sol_get_return_data" "Solana return
 require_contains "$OUT/solana/RemoteCall.s" "AccountMeta" "Solana account metas"
 require_contains "$OUT/solana/RemoteCall.s" "forward" "Solana forwards full account vector"
 require_contains "$OUT/solana/manifest.toml" "callee_program" "manifest callee_program account"
-GOLDEN_SOL="$ROOT/Examples/Shared/goldens/RemoteCall.solana.s"
+GOLDEN_SOL="$ROOT/Examples/Product/goldens/RemoteCall.solana.s"
 if [[ -f "$GOLDEN_SOL" ]]; then
   diff -u "$GOLDEN_SOL" "$OUT/solana/RemoteCall.s" \
-    || fail "Solana asm drifted from Examples/Shared/goldens/RemoteCall.solana.s"
+    || fail "Solana asm drifted from Examples/Product/goldens/RemoteCall.solana.s"
 fi
 
 echo "portable-remote-call: NEAR/Wasm"
@@ -96,10 +96,10 @@ else
 fi
 [[ -n "$WAT" && -f "$WAT" ]] || fail "NEAR WAT not written under $OUT/near"
 require_contains "$WAT" "promise_create" "NEAR promise_create materialization"
-GOLDEN_NEAR="$ROOT/Examples/Shared/goldens/RemoteCall.near.wat"
+GOLDEN_NEAR="$ROOT/Examples/Product/goldens/RemoteCall.near.wat"
 if [[ -f "$GOLDEN_NEAR" ]]; then
   diff -u "$GOLDEN_NEAR" "$WAT" \
-    || fail "NEAR WAT drifted from Examples/Shared/goldens/RemoteCall.near.wat"
+    || fail "NEAR WAT drifted from Examples/Product/goldens/RemoteCall.near.wat"
 fi
 require_file "$OUT/near/RemoteCall.near-artifact.json"
 

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CONTRACTS_DIR="${CONTRACTS_DIR:-$ROOT/Examples/Evm/Contracts}"
+CONTRACTS_DIR="${CONTRACTS_DIR:-$ROOT/Examples/Backend/Evm/Contracts}"
 OUT_DIR="${EVM_OUT_DIR:-$ROOT/build/evm}"
 
 export PATH="$HOME/.foundry/bin:$PATH"

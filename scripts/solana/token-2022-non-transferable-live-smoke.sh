@@ -15,7 +15,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$REPO_ROOT"
 
 OUT_DIR="${PROOF_FORGE_SOLANA_TOKEN_2022_NON_TRANSFERABLE_LIVE_OUT:-build/solana-token-2022-non-transferable-live}"
-TOKEN_SOURCE="${PROOF_FORGE_SOLANA_TOKEN_2022_NON_TRANSFERABLE_SOURCE:-Examples/Shared/SoulboundToken.lean}"
+TOKEN_SOURCE="${PROOF_FORGE_SOLANA_TOKEN_2022_NON_TRANSFERABLE_SOURCE:-Examples/Product/SoulboundToken.lean}"
 TOKEN_PLAN="$OUT_DIR/SoulboundToken.solana-token-2022-plan.json"
 PAYER_KEYPAIR="$OUT_DIR/payer.json"
 SURFPOOL_BIN="${SURFPOOL:-surfpool}"

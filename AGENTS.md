@@ -67,7 +67,9 @@ entrypoint (see `.woodpecker.yml` on Codeberg and `.github/workflows/ci.yml` on 
   `cli-deploy`, and `cli-check` live in `just check` but are not in the `build-test`
   job.
 - Run the CLI directly, e.g. compile a Lean contract to EVM runtime bytecode:
-  `lake env proof-forge build --target evm --root . --module contract -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean`
+  `lake env proof-forge build --target evm --root . --module contract -o build/evm/Counter.bin Examples/Product/Counter.lean`
+  (Product path: business logic only + `--target`. Chain fixtures live under
+  `Examples/Backend/`. Primary gate: `just product`.)
 
 ### Non-obvious caveats
 - Lean commands must be run through `lake env ...` so the toolchain env is set (e.g.

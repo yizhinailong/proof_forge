@@ -24,14 +24,14 @@ fi
 
 mkdir -p "$OUT_DIR" "$RUN_DIR"
 
-lake build proof-forge Examples.Shared.Counter >/dev/null
+lake build proof-forge Examples.Product.Counter >/dev/null
 
 lake env proof-forge build \
   --target evm \
   --root . \
   --module Counter \
   -o "$OUT_DIR/Counter.bin" \
-  Examples/Evm/Contracts/Counter.lean
+  Examples/Backend/Evm/Contracts/Counter.lean
 
 DEPLOY_MANIFEST="$OUT_DIR/Counter.proof-forge-deploy.json"
 DEPLOY_RUN="$RUN_DIR/Counter.proof-forge-deploy-run.json"

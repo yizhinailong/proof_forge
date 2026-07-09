@@ -1,7 +1,7 @@
 [scenario]
 name = "role-gated-token"
 fixture = "role-gated-token"
-source = "Examples/Shared/RoleGatedToken.lean"
+source = "Examples/Product/RoleGatedToken.lean"
 targets = ["evm"]
 capabilities = ["storage.scalar", "storage.map", "entrypoint.external", "events.emit", "caller.sender"]
 

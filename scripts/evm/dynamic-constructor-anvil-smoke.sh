@@ -11,7 +11,7 @@ CHAIN_ID="${EVM_ANVIL_CHAIN_ID:-31337}"
 CHAIN_PROFILE="${EVM_ANVIL_CHAIN_PROFILE:-anvil-local}"
 ANVIL_PORT="${EVM_ANVIL_PORT:-18549}"
 PROBE_NAME="DynamicConstructorProbe"
-PROBE_LEAN="$ROOT/Examples/Evm/Contracts/${PROBE_NAME}.lean"
+PROBE_LEAN="$ROOT/Examples/Backend/Evm/Contracts/${PROBE_NAME}.lean"
 RUNTIME_OUT="$OUT_DIR/${PROBE_NAME}.bin"
 INIT_OUT="$OUT_DIR/${PROBE_NAME}.ctor.init.bin"
 DEPLOY_MANIFEST="$OUT_DIR/${PROBE_NAME}.proof-forge-deploy.json"
@@ -50,7 +50,7 @@ mkdir -p "$OUT_DIR" "$RUN_DIR"
     --evm-constructor-arg "amounts=1,2,3" \
     -o "$RUNTIME_OUT" \
     "$PROBE_LEAN"
-  diff -u "$ROOT/Examples/Evm/Contracts/${PROBE_NAME}.golden.yul" "$OUT_DIR/${PROBE_NAME}.yul"
+  diff -u "$ROOT/Examples/Backend/Evm/Contracts/${PROBE_NAME}.golden.yul" "$OUT_DIR/${PROBE_NAME}.yul"
   cp "$OUT_DIR/${PROBE_NAME}.init.bin" "$INIT_OUT"
   python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
     --root "$ROOT" \

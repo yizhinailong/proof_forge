@@ -10,7 +10,7 @@ EVM, Solana sBPF, and NEAR/Wasm by changing only `--target`.
 -/
 import ProofForge.Contract.Stdlib.Ownable
 
-namespace Examples.Shared.Ownable
+namespace Examples.Product.Ownable
 
 def spec : ProofForge.Contract.ContractSpec :=
   ProofForge.Contract.Stdlib.Ownable.spec
@@ -18,4 +18,4 @@ def spec : ProofForge.Contract.ContractSpec :=
 def module : ProofForge.IR.Module :=
   spec.module
 
-end Examples.Shared.Ownable
+end Examples.Product.Ownable

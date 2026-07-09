@@ -7,7 +7,7 @@ backed by a KV namespace.
 
 ```bash
 lake build
-.lake/build/bin/proof-forge emit --target wasm-cloudflare-workers --fixture counter --format ts -o Examples/CloudflareWorkers/Counter/Counter.ts
+.lake/build/bin/proof-forge emit --target wasm-cloudflare-workers --fixture counter --format ts -o Examples/Backend/CloudflareWorkers/Counter/Counter.ts
 ```
 
 Or use the smoke test script, which also type-checks and runs a wrangler dry-run:

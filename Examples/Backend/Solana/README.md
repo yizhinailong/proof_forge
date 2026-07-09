@@ -7,7 +7,7 @@ assembled and linked by the [blueshift-gg/sbpf](https://github.com/blueshift-gg/
 toolchain.
 
 **Product authoring is not here.** Shared portable contracts live under
-`Examples/Shared` with `import ProofForge.Contract.Source` only. Account / PDA /
+`Examples/Product` with `import ProofForge.Contract.Source` only. Account / PDA /
 CPI syntax (`import ProofForge.Contract.Source.Solana`) is **fixture / research
 only** — for backend goldens, Pinocchio gates, and hand-tuned layouts that the
 portable materializer does not cover yet.
@@ -15,7 +15,7 @@ portable materializer does not cover yet.
 ## `Counter.lean`
 
 `Counter.lean` imports the canonical shared Counter source from
-`Examples/Shared/Counter.lean`; it preserves the historical Solana example path
+`Examples/Product/Counter.lean`; it preserves the historical Solana example path
 without duplicating the contract logic. The generated module has three
 entrypoints:
 

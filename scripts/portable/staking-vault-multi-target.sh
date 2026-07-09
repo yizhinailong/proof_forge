@@ -6,7 +6,7 @@ cd "$ROOT"
 
 export PATH="$HOME/.foundry/bin:$PATH"
 
-SOURCE="Examples/Shared/StakingVault.lean"
+SOURCE="Examples/Product/StakingVault.lean"
 OUT="${PORTABLE_SV_OUT:-build/portable-staking-vault}"
 
 if [[ -n "${PROOF_FORGE_BIN:-}" ]]; then

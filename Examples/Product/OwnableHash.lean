@@ -6,21 +6,21 @@ Shared facade for hash-width Ownable (NEAR · EVM · Solana identity path).
 
   lake env proof-forge build --target wasm-near --root . \
     -o build/portable-ownable-hash/near \
-    Examples/Shared/OwnableHash.lean
+    Examples/Product/OwnableHash.lean
 
   lake env proof-forge build --target evm --root . \
     -o build/portable-ownable-hash/OwnableHash.yul \
-    Examples/Shared/OwnableHash.lean
+    Examples/Product/OwnableHash.lean
 
   lake env proof-forge build --target solana-sbpf-asm --root . \
     -o build/portable-ownable-hash/OwnableHash.s \
-    Examples/Shared/OwnableHash.lean
+    Examples/Product/OwnableHash.lean
 
-u64 triad (no hash): Examples/Shared/Ownable.
+u64 triad (no hash): Examples/Product/Ownable.
 -/
 import ProofForge.Contract.Stdlib.OwnableHash
 
-namespace Examples.Shared.OwnableHash
+namespace Examples.Product.OwnableHash
 
 def spec : ProofForge.Contract.ContractSpec :=
   ProofForge.Contract.Stdlib.OwnableHash.spec
@@ -28,4 +28,4 @@ def spec : ProofForge.Contract.ContractSpec :=
 def module : ProofForge.IR.Module :=
   spec.module
 
-end Examples.Shared.OwnableHash
+end Examples.Product.OwnableHash

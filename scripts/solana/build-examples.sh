@@ -23,8 +23,8 @@ mkdir -p "$OUT_DIR"
 
 ASM_OUTPUT="$OUT_DIR/Counter.s"
 ARTIFACT_OUTPUT="$OUT_DIR/proof-forge-artifact.json"
-GOLDEN_S="$REPO_ROOT/Examples/Solana/Counter.golden.s"
-GOLDEN_MANIFEST="$REPO_ROOT/Examples/Solana/Counter.manifest.toml"
+GOLDEN_S="$REPO_ROOT/Examples/Backend/Solana/Counter.golden.s"
+GOLDEN_MANIFEST="$REPO_ROOT/Examples/Backend/Solana/Counter.manifest.toml"
 
 [ -f "$GOLDEN_S" ] || fail "golden assembly not found: $GOLDEN_S"
 [ -f "$GOLDEN_MANIFEST" ] || fail "golden manifest not found: $GOLDEN_MANIFEST"

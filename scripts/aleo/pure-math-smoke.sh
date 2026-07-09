@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUILD_DIR="${ROOT}/build/aleo"
 LEO_FILE="${BUILD_DIR}/PureMath.leo"
-GOLDEN_FILE="${ROOT}/Examples/Aleo/PureMath.golden.leo"
+GOLDEN_FILE="${ROOT}/Examples/Backend/Aleo/PureMath.golden.leo"
 PROJECT_DIR="${BUILD_DIR}/pure-math"
 SOURCE_FILE="${PROJECT_DIR}/src/main.leo"
 METADATA_FILE="${PROJECT_DIR}/proof-forge-artifact.json"

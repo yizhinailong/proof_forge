@@ -12,7 +12,7 @@ Nested role maps are **portable** on EVM · Solana · NEAR · Soroban:
   `pathReadRole`.
 - Soroban maps use host `_get`/`_put` (not NEAR `storage_*`).
 - Account params here are `.address` (EVM ABI ergonomics); for pure u64
-  handles see `Examples/Shared/RoleGatedToken.lean`.
+  handles see `Examples/Product/RoleGatedToken.lean`.
 -/
 import ProofForge.Contract.Source
 

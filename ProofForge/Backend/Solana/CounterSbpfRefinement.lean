@@ -3,6 +3,8 @@ import ProofForge.Backend.Refinement.CounterUniversal
 import ProofForge.Backend.Solana.CounterSbpfExec
 import ProofForge.IR.CounterSemantics
 import ProofForge.IR.StepSemantics
+import ProofForge.IR.SemanticsFuel
+import ProofForge.Backend.Refinement.ConstructorCoverage
 
 /-!
 Counter IR ↔ sBPF core-tail universal refinement (SOL-3).

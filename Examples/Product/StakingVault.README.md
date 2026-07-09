@@ -24,7 +24,7 @@ NEAR (the indexed/data distinction is EVM-specific).
 Compile:
 ```sh
 lake env proof-forge build --target evm --root . \
-  -o build/staking-vault/StakingVault.bin Examples/Shared/StakingVault.lean
+  -o build/staking-vault/StakingVault.bin Examples/Product/StakingVault.lean
 lake env proof-forge build --target wasm-near --root . \
-  -o build/staking-vault/StakingVault Examples/Shared/StakingVault.lean
+  -o build/staking-vault/StakingVault Examples/Product/StakingVault.lean
 ```

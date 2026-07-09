@@ -10,7 +10,7 @@ for the remote CPI. No Solana Surface / account DSL import.
 
   lake env proof-forge build --target solana-sbpf-asm --root . \
     -o build/portable-auth-remote/AuthRemoteCall.s \
-    Examples/Shared/AuthRemoteCall.lean
+    Examples/Product/AuthRemoteCall.lean
 
 Also builds on EVM / NEAR / Soroban (remote materializes as CALL / promise /
 invoke_contract). See `Tests/SolanaPortableAccounts.lean` and
@@ -18,7 +18,7 @@ invoke_contract). See `Tests/SolanaPortableAccounts.lean` and
 -/
 import ProofForge.Contract.Source
 
-namespace Examples.Shared.AuthRemoteCall
+namespace Examples.Product.AuthRemoteCall
 
 open ProofForge.Contract.Source
 
@@ -41,4 +41,4 @@ contract_source AuthRemoteCall do
     return ProofForge.Contract.Surface.remoteCallRef callee
       #[ProofForge.Contract.Surface.ref amount];
 
-end Examples.Shared.AuthRemoteCall
+end Examples.Product.AuthRemoteCall

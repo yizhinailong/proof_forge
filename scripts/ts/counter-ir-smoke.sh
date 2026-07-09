@@ -57,8 +57,8 @@ cat > "$OUT_DIR/tsconfig.json" <<'EOF'
 EOF
 
 # Copy deployment templates next to the generated worker.
-cp "$ROOT/Examples/CloudflareWorkers/Counter/wrangler.toml" "$OUT_DIR/wrangler.toml"
-cp "$ROOT/Examples/CloudflareWorkers/Counter/package.json" "$OUT_DIR/package.json"
+cp "$ROOT/Examples/Backend/CloudflareWorkers/Counter/wrangler.toml" "$OUT_DIR/wrangler.toml"
+cp "$ROOT/Examples/Backend/CloudflareWorkers/Counter/package.json" "$OUT_DIR/package.json"
 
 "$TSC_BIN" --project "$OUT_DIR" --noEmit
 

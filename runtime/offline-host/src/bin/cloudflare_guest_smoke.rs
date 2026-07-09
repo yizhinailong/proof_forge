@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use anyhow::{anyhow, ensure, Context, Result};
 use wasmtime::{Caller, Engine, Extern, Linker, Memory, Module, Store, TypedFunc};
 
-const DEFAULT_WASM_PATH: &str = "Examples/cloudflare-workers-spike/build/counter.wasm";
+const DEFAULT_WASM_PATH: &str = "Examples/Backend/cloudflare-workers-spike/build/counter.wasm";
 
 fn main() -> Result<()> {
     let wasm_path = match env::args_os().nth(1) {

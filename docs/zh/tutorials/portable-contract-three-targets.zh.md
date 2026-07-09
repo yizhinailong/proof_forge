@@ -8,11 +8,11 @@
 
 - [编写模型](../authoring-model.md)
 - [共享场景](../shared-scenario.md)
-- [Examples/Shared/Counter.lean](../../Examples/Shared/Counter.lean)
+- [Examples/Product/Counter.lean](../../Examples/Product/Counter.lean)
 
 ## 你将构建什么
 
-使用 `Examples/Shared/Counter.lean` 中的 canonical Counter 模块。它提供三个 entrypoint：
+使用 `Examples/Product/Counter.lean` 中的 canonical Counter 模块。它提供三个 entrypoint：
 
 | 调用 | 效果 |
 |---|---|
@@ -24,7 +24,7 @@
 
 ## 步骤 1 — 阅读源码（无目标分叉）
 
-打开 `Examples/Shared/Counter.lean`：
+打开 `Examples/Product/Counter.lean`：
 
 ```lean
 contract_source Counter do
@@ -39,7 +39,7 @@ contract_source Counter do
 
   query get returns(.u64) do
     return count;
-end Examples.Shared.Counter
+end Examples.Product.Counter
 ```
 
 要点：
@@ -57,17 +57,17 @@ lake env proof-forge build --target evm --root . \
   -o build/tutorial-counter/Counter.bin \
   --yul-output build/tutorial-counter/Counter.yul \
   --artifact-output build/tutorial-counter/Counter.proof-forge-artifact.json \
-  Examples/Shared/Counter.lean
+  Examples/Product/Counter.lean
 
 lake env proof-forge build --target solana-sbpf-asm --root . \
   -o build/tutorial-counter/Counter.s \
   --artifact-output build/tutorial-counter/Counter.solana-artifact.json \
-  Examples/Shared/Counter.lean
+  Examples/Product/Counter.lean
 
 lake env proof-forge build --target wasm-near --root . \
   -o build/tutorial-counter/near \
   --artifact-output build/tutorial-counter/Counter.near-artifact.json \
-  Examples/Shared/Counter.lean
+  Examples/Product/Counter.lean
 ```
 
 每条命令都会生成目标原生 artifact 以及结构化 metadata JSON。Lean 源文件始终不变。
@@ -109,7 +109,7 @@ just testkit-budget-gate
 ## 步骤 5 — 扩展到更丰富的可移植逻辑（ValueVault）
 
 当合约需要 event 与 block 上下文时，模式相同。
-`Examples/Shared/ValueVault.lean` 增加 `events.emit` 和 `env.block`，源码仍保持链中立。
+`Examples/Product/ValueVault.lean` 增加 `events.emit` 和 `env.block`，源码仍保持链中立。
 
 构建与校验：
 
@@ -129,20 +129,20 @@ ValueVault budget baseline 位于 `testkit/scenarios/value-vault.toml`。
 lake env proof-forge build --target evm --token --root . \
   -o build/shared-fungible-token/FungibleToken.erc20.bin \
   --yul-output build/shared-fungible-token/FungibleToken.erc20.yul \
-  Examples/Shared/FungibleToken.lean
+  Examples/Product/FungibleToken.lean
 
 lake env proof-forge build --target solana-sbpf-asm --token --root . \
   -o build/shared-fungible-token/FungibleToken.solana-token-plan.json \
-  Examples/Shared/FungibleToken.lean
+  Examples/Product/FungibleToken.lean
 ```
 
 source 保持 target-neutral；EVM target 选择 ERC-20-compatible artifact，
 Solana target 选择 SPL Token / Token-2022 plan。EVM stdlib composition 示例仍放在
-`Examples/Evm/Contracts/`。
+`Examples/Backend/Evm/Contracts/`。
 
 ## 检查清单
 
-- [ ] 在 `Examples/Shared/`（或你的项目根）下有一个 Lean 模块，无按目标复制的源码。
+- [ ] 在 `Examples/Product/`（或你的项目根）下有一个 Lean 模块，无按目标复制的源码。
 - [ ] 三条 `proof-forge build --target ...` 对 `evm`、`solana-sbpf-asm`、
       `wasm-near` 均成功。
 - [ ] 本地 `just portable-counter-multi-target` 通过。

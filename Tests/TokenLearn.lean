@@ -22,7 +22,7 @@ def parseFixture (path : String) : IO TokenDecl := do
   | .error err => throw <| IO.userError err
 
 def main : IO UInt32 := do
-  let proofToken ← parseFixture "Examples/Learn/ProofToken.learn"
+  let proofToken ← parseFixture "Examples/Backend/Learn/ProofToken.learn"
   require (proofToken.id == "ProofToken") "ProofToken id did not parse"
   require (proofToken.spec.name == "Proof Token") "ProofToken display name did not parse"
   require (proofToken.spec.symbol == "PRF") "ProofToken symbol did not parse"
@@ -48,7 +48,7 @@ def main : IO UInt32 := do
   require (solanaPlan.artifactKind == .solanaSplTokenPlan)
     "ProofToken Solana plan should emit SPL Token plan"
 
-  let feeToken ← parseFixture "Examples/Learn/FeeToken.learn"
+  let feeToken ← parseFixture "Examples/Backend/Learn/FeeToken.learn"
   require (feeToken.spec.hasFeature .transferFee) "FeeToken missing transfer_fee feature"
   let feePlan ←
     match planForTarget solanaSbpfAsm feeToken.spec with

@@ -184,7 +184,7 @@ Initial schema:
   "package": "counter",
   "target": "wasm-cosmwasm",
   "source": {
-    "entryFile": "Examples/CosmWasm/Counter.lean",
+    "entryFile": "Examples/Backend/CosmWasm/Counter.lean",
     "module": "Counter"
   },
   "proofs": {
@@ -224,16 +224,16 @@ The current CLI supports EVM bytecode directly:
 
 ```sh
 lake env proof-forge --evm-bytecode -o build/evm/Counter.bin \
-  Examples/Evm/Contracts/Counter.lean
+  Examples/Backend/Evm/Contracts/Counter.lean
 ```
 
 The target-oriented CLI should eventually expose:
 
 ```sh
-proof-forge build --target evm --out build/evm Examples/Evm/Contracts/Counter.lean
+proof-forge build --target evm --out build/evm Examples/Backend/Evm/Contracts/Counter.lean
 proof-forge build --target wasm-near --out build/near Examples/Near/Counter.lean          # planned
-proof-forge build --target wasm-cosmwasm --out build/cosmwasm Examples/CosmWasm/Counter.lean  # planned
-proof-forge build --target solana-sbpf-asm --out build/solana Examples/Solana/Counter.lean  # planned
+proof-forge build --target wasm-cosmwasm --out build/cosmwasm Examples/Backend/CosmWasm/Counter.lean  # planned
+proof-forge build --target solana-sbpf-asm --out build/solana Examples/Backend/Solana/Counter.lean  # planned
 proof-forge build --target move-aptos --out build/aptos Examples/Move/Aptos/Counter/       # planned
 proof-forge test --target evm
 proof-forge test --target solana-sbpf-asm

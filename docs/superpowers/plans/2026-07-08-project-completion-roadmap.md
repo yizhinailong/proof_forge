@@ -213,7 +213,7 @@ divergences). **All three verified STILL OPEN (2026-07-08):**
     storing `(name, predicate function qualified name)` in a new `leanInvariants` field on
     `ContractSpec`/`ModuleBuilder` (documentation link to the predicate `def`; the machine
     check happens in the gate, not by string parsing).
-  - Wired `Examples/Shared/Counter.lean` with `lean_invariant countBounded`/`countNonNegative`.
+  - Wired `Examples/Product/Counter.lean` with `lean_invariant countBounded`/`countNonNegative`.
   - New gate `lean-invariants-smoke` (`Tests/LeanInvariantsSmoke.lean`), integrated into
     `just check`, exercises the ValueVault + Counter invariant theorems.
   - Scope: pure-Lean, backend-agnostic. The `invariants_hold_after_scenario` witness is

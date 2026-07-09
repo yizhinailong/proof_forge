@@ -13,7 +13,7 @@ source-of-truth docs and states when they must be updated.
 | Portable IR and runtime/capability lowering | `docs/portable-ir.md`, `docs/rfcs/0003-portable-ir-and-runtime.md` |
 | Canonical capability ids and support matrix | `docs/capability-registry.md` |
 | Target lifecycle and per-target notes | `docs/targets/README.md`, then the specific `docs/targets/*.md` note |
-| EVM baseline details | `docs/targets/evm.md`, `Examples/Evm/README.md` |
+| EVM baseline details | `docs/targets/evm.md`, `Examples/Backend/Evm/README.md` |
 | Shared cross-target Counter scenario | `docs/shared-scenario.md` |
 | Execution backlog and acceptance criteria | `docs/implementation-backlog.md` |
 | Validation commands and tool prerequisites | `docs/validation-gates.md` |
@@ -131,7 +131,7 @@ and run `just doc-sync-audit` (advisory; writes `build/doc-sync-audit.md`).
 | `ProofForge/Cli/Fixture.lean` (supported targets/fixtures) | README emit examples, `docs/validation-gates.md`, AGENTS.md registry vs CLI table |
 | Root `justfile` CI-tracked recipe | `docs/validation-gates.md`, AGENTS.md if in `just check` |
 | `ProofForge/Contract/Stdlib/*` | `docs/sdk-ecosystem-gaps-2026-07.md`, README stdlib bullet if user-facing |
-| `Examples/Shared/*` or portable scenario smokes | `docs/shared-scenario.md`, `docs/validation-gates.md` |
+| `Examples/Product/*` or portable scenario smokes | `docs/shared-scenario.md`, `docs/validation-gates.md` |
 | Gate closure (G0/P0/G1) | `docs/gate-status.md`, `docs/implementation-backlog.md` |
 | Accepted RFC / decision | RFC status line, `docs/decisions.md`, nearest target note |
 

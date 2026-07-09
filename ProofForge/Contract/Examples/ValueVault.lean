@@ -1,9 +1,9 @@
-import Examples.Shared.ValueVault
+import Examples.Product.ValueVault
 
 namespace ProofForge.Contract.Examples.ValueVault
 
 def spec : ProofForge.Contract.ContractSpec :=
-  Examples.Shared.ValueVault.spec
+  Examples.Product.ValueVault.spec
 
 def module : ProofForge.IR.Module :=
   spec.module

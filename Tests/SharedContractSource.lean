@@ -52,10 +52,10 @@ def packageFile (label path : String)
       throw <| IO.userError s!"{label} Solana render failed: {err.render}"
 
 unsafe def requireCounterEquivalence : IO Unit := do
-  let shared ← loadSharedSpec "Examples/Shared/Counter.lean"
-  let evm ← loadSharedSpec "Examples/Evm/Contracts/Counter.lean"
-  let solana ← loadSharedSpec "Examples/Solana/Counter.lean"
-  let learn ← parseLearnSpec "Examples/Learn/Counter.learn"
+  let shared ← loadSharedSpec "Examples/Product/Counter.lean"
+  let evm ← loadSharedSpec "Examples/Backend/Evm/Contracts/Counter.lean"
+  let solana ← loadSharedSpec "Examples/Backend/Solana/Counter.lean"
+  let learn ← parseLearnSpec "Examples/Backend/Learn/Counter.learn"
   requireSameModule "Shared Counter vs canonical contract_source"
     shared.module ProofForge.Contract.Examples.Counter.module
   requireSameAnnotations "Shared Counter vs canonical quint_invariant"
@@ -84,8 +84,8 @@ unsafe def requireCounterEquivalence : IO Unit := do
     learn.module shared.module
 
 unsafe def requireValueVaultEquivalence : IO Unit := do
-  let shared ← loadSharedSpec "Examples/Shared/ValueVault.lean"
-  let learn ← parseLearnSpec "Examples/Learn/ValueVault.learn"
+  let shared ← loadSharedSpec "Examples/Product/ValueVault.lean"
+  let learn ← parseLearnSpec "Examples/Backend/Learn/ValueVault.learn"
   requireSameModule "Shared ValueVault vs canonical contract_source"
     shared.module ProofForge.Contract.Examples.ValueVault.module
   requireSameAnnotations "Shared ValueVault vs canonical quint_invariant"

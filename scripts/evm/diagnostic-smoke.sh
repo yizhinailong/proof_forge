@@ -7,7 +7,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 cd "$ROOT"
-lake build proof-forge Examples.Shared.Counter >/dev/null
+lake build proof-forge Examples.Product.Counter >/dev/null
 lake env lean --run Tests/EvmDiagnostics.lean
 
 run_cli_diagnostic() {
@@ -29,7 +29,7 @@ run_cli_diagnostic() {
     --artifact-output "$out_dir/Counter.proof-forge-artifact.json" \
     -o "$out_dir/Counter.bin" \
     "$@" \
-    Examples/Evm/Contracts/Counter.lean \
+    Examples/Backend/Evm/Contracts/Counter.lean \
     >"$stdout_log" 2>"$stderr_log"
   local status=$?
   set -e

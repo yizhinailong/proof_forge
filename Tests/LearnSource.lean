@@ -72,23 +72,23 @@ def requireValueVaultSolanaRender (spec : ProofForge.Contract.ContractSpec) : IO
       throw <| IO.userError s!"Learn ValueVault Solana render failed: {err.render}"
 
 def main : IO UInt32 := do
-  let counter ← parseSpec "Examples/Learn/Counter.learn"
+  let counter ← parseSpec "Examples/Backend/Learn/Counter.learn"
   requireSameModule "Counter" counter.module ProofForge.Contract.Examples.Counter.module
-  let valueVault ← parseSpec "Examples/Learn/ValueVault.learn"
+  let valueVault ← parseSpec "Examples/Backend/Learn/ValueVault.learn"
   requireSameModule "ValueVault" valueVault.module ProofForge.Contract.Examples.ValueVault.module
   requireValueVaultSolanaRender valueVault
-  let solanaVault ← parseSpec "Examples/Learn/SolanaVault.learn"
+  let solanaVault ← parseSpec "Examples/Backend/Learn/SolanaVault.learn"
   requireSameModule "SolanaVault" solanaVault.module ProofForge.Solana.Examples.Vault.module
   let learnManifest ← packageFile "learn-solana-vault" "manifest.toml" solanaVault
   let sourceManifest ← packageFile "source-solana-vault" "manifest.toml" ProofForge.Solana.Examples.Vault.spec
   requireSameText "SolanaVault Learn manifest" learnManifest sourceManifest
-  let systemCpi ← parseSpec "Examples/Learn/SystemCpi.learn"
+  let systemCpi ← parseSpec "Examples/Backend/Learn/SystemCpi.learn"
   requireSameModule "SystemCpi" systemCpi.module ProofForge.Solana.Examples.SystemCpi.module
   let learnSystemManifest ← packageFile "learn-system-cpi" "manifest.toml" systemCpi
   let sourceSystemManifest ← packageFile "source-system-cpi" "manifest.toml"
     ProofForge.Solana.Examples.SystemCpi.spec
   requireSameText "SystemCpi Learn manifest" learnSystemManifest sourceSystemManifest
-  let systemCreateAccount ← parseSpec "Examples/Learn/SystemCreateAccountCpi.learn"
+  let systemCreateAccount ← parseSpec "Examples/Backend/Learn/SystemCreateAccountCpi.learn"
   requireSameModule "SystemCreateAccountCpi" systemCreateAccount.module
     ProofForge.Solana.Examples.SystemCreateAccountCpi.module
   let learnCreateAccountManifest ← packageFile "learn-system-create-account-cpi" "manifest.toml"
@@ -97,14 +97,14 @@ def main : IO UInt32 := do
     ProofForge.Solana.Examples.SystemCreateAccountCpi.spec
   requireSameText "SystemCreateAccountCpi Learn manifest"
     learnCreateAccountManifest sourceCreateAccountManifest
-  let splTokenOps ← parseSpec "Examples/Learn/SplTokenOpsCpi.learn"
+  let splTokenOps ← parseSpec "Examples/Backend/Learn/SplTokenOpsCpi.learn"
   requireSameModule "SplTokenOpsCpi" splTokenOps.module
     ProofForge.Solana.Examples.SplTokenOpsCpi.module
   let learnTokenOpsManifest ← packageFile "learn-spl-token-ops-cpi" "manifest.toml" splTokenOps
   let sourceTokenOpsManifest ← packageFile "source-spl-token-ops-cpi" "manifest.toml"
     ProofForge.Solana.Examples.SplTokenOpsCpi.spec
   requireSameText "SplTokenOpsCpi Learn manifest" learnTokenOpsManifest sourceTokenOpsManifest
-  let splTokenCloseAccount ← parseSpec "Examples/Learn/SplTokenCloseAccountCpi.learn"
+  let splTokenCloseAccount ← parseSpec "Examples/Backend/Learn/SplTokenCloseAccountCpi.learn"
   requireSameModule "SplTokenCloseAccountCpi" splTokenCloseAccount.module
     ProofForge.Solana.Examples.SplTokenCloseAccountCpi.module
   let learnTokenCloseManifest ← packageFile "learn-spl-token-close-account-cpi" "manifest.toml"
@@ -113,13 +113,13 @@ def main : IO UInt32 := do
     ProofForge.Solana.Examples.SplTokenCloseAccountCpi.spec
   requireSameText "SplTokenCloseAccountCpi Learn manifest"
     learnTokenCloseManifest sourceTokenCloseManifest
-  let logEvent ← parseSpec "Examples/Learn/LogEvent.learn"
+  let logEvent ← parseSpec "Examples/Backend/Learn/LogEvent.learn"
   requireSameModule "LogEvent" logEvent.module ProofForge.Solana.Examples.LogEvent.module
   let learnLogEventManifest ← packageFile "learn-log-event" "manifest.toml" logEvent
   let sourceLogEventManifest ← packageFile "source-log-event" "manifest.toml"
     ProofForge.Solana.Examples.LogEvent.spec
   requireSameText "LogEvent Learn manifest" learnLogEventManifest sourceLogEventManifest
-  let returnDataCompute ← parseSpec "Examples/Learn/ReturnDataCompute.learn"
+  let returnDataCompute ← parseSpec "Examples/Backend/Learn/ReturnDataCompute.learn"
   requireSameModule "ReturnDataCompute" returnDataCompute.module
     ProofForge.Solana.Examples.ReturnDataCompute.module
   let learnReturnDataComputeManifest ← packageFile "learn-return-data-compute" "manifest.toml"
@@ -128,31 +128,31 @@ def main : IO UInt32 := do
     ProofForge.Solana.Examples.ReturnDataCompute.spec
   requireSameText "ReturnDataCompute Learn manifest" learnReturnDataComputeManifest
     sourceReturnDataComputeManifest
-  let memory ← parseSpec "Examples/Learn/Memory.learn"
+  let memory ← parseSpec "Examples/Backend/Learn/Memory.learn"
   requireSameModule "Memory" memory.module ProofForge.Solana.Examples.Memory.module
   let learnMemoryManifest ← packageFile "learn-memory" "manifest.toml" memory
   let sourceMemoryManifest ← packageFile "source-memory" "manifest.toml"
     ProofForge.Solana.Examples.Memory.spec
   requireSameText "Memory Learn manifest" learnMemoryManifest sourceMemoryManifest
-  let crypto ← parseSpec "Examples/Learn/Crypto.learn"
+  let crypto ← parseSpec "Examples/Backend/Learn/Crypto.learn"
   requireSameModule "Crypto" crypto.module ProofForge.Solana.Examples.Crypto.module
   let learnCryptoManifest ← packageFile "learn-crypto" "manifest.toml" crypto
   let sourceCryptoManifest ← packageFile "source-crypto" "manifest.toml"
     ProofForge.Solana.Examples.Crypto.spec
   requireSameText "Crypto Learn manifest" learnCryptoManifest sourceCryptoManifest
-  let clock ← parseSpec "Examples/Learn/Clock.learn"
+  let clock ← parseSpec "Examples/Backend/Learn/Clock.learn"
   requireSameModule "Clock" clock.module ProofForge.Solana.Examples.Clock.module
   let learnClockManifest ← packageFile "learn-clock" "manifest.toml" clock
   let sourceClockManifest ← packageFile "source-clock" "manifest.toml"
     ProofForge.Solana.Examples.Clock.spec
   requireSameText "Clock Learn manifest" learnClockManifest sourceClockManifest
-  let rent ← parseSpec "Examples/Learn/Rent.learn"
+  let rent ← parseSpec "Examples/Backend/Learn/Rent.learn"
   requireSameModule "Rent" rent.module ProofForge.Solana.Examples.Rent.module
   let learnRentManifest ← packageFile "learn-rent" "manifest.toml" rent
   let sourceRentManifest ← packageFile "source-rent" "manifest.toml"
     ProofForge.Solana.Examples.Rent.spec
   requireSameText "Rent Learn manifest" learnRentManifest sourceRentManifest
-  let epochSchedule ← parseSpec "Examples/Learn/EpochSchedule.learn"
+  let epochSchedule ← parseSpec "Examples/Backend/Learn/EpochSchedule.learn"
   requireSameModule "EpochSchedule" epochSchedule.module
     ProofForge.Solana.Examples.EpochSchedule.module
   let learnEpochScheduleManifest ← packageFile "learn-epoch-schedule" "manifest.toml"
@@ -161,7 +161,7 @@ def main : IO UInt32 := do
     ProofForge.Solana.Examples.EpochSchedule.spec
   requireSameText "EpochSchedule Learn manifest" learnEpochScheduleManifest
     sourceEpochScheduleManifest
-  let epochRewards ← parseSpec "Examples/Learn/EpochRewards.learn"
+  let epochRewards ← parseSpec "Examples/Backend/Learn/EpochRewards.learn"
   requireSameModule "EpochRewards" epochRewards.module
     ProofForge.Solana.Examples.EpochRewards.module
   let learnEpochRewardsManifest ← packageFile "learn-epoch-rewards" "manifest.toml"
@@ -170,7 +170,7 @@ def main : IO UInt32 := do
     ProofForge.Solana.Examples.EpochRewards.spec
   requireSameText "EpochRewards Learn manifest" learnEpochRewardsManifest
     sourceEpochRewardsManifest
-  let lastRestartSlot ← parseSpec "Examples/Learn/LastRestartSlot.learn"
+  let lastRestartSlot ← parseSpec "Examples/Backend/Learn/LastRestartSlot.learn"
   requireSameModule "LastRestartSlot" lastRestartSlot.module
     ProofForge.Solana.Examples.LastRestartSlot.module
   let learnLastRestartSlotManifest ← packageFile "learn-last-restart-slot" "manifest.toml"

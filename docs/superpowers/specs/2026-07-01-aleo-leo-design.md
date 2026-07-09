@@ -281,8 +281,8 @@ The spike mirrors the Psy DPN sourcegen pattern:
 
 | File | Responsibility |
 |---|---|
-| `Examples/Aleo/Counter.golden.leo` | Expected generated Leo source for the Counter IR fixture. |
-| `Examples/Aleo/README.md` | Notes on how the golden file is produced and updated. |
+| `Examples/Backend/Aleo/Counter.golden.leo` | Expected generated Leo source for the Counter IR fixture. |
+| `Examples/Backend/Aleo/README.md` | Notes on how the golden file is produced and updated. |
 
 #### New scripts
 
@@ -455,7 +455,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="${ALEO_OUT_DIR:-$ROOT/build/aleo}"
 PROJECT_DIR="$OUT_DIR/counter"
 LEO_FILE="$OUT_DIR/Counter.leo"
-GOLDEN_FILE="${ALEO_GOLDEN:-$ROOT/Examples/Aleo/Counter.golden.leo}"
+GOLDEN_FILE="${ALEO_GOLDEN:-$ROOT/Examples/Backend/Aleo/Counter.golden.leo}"
 LEO_BIN="${LEO:-leo}"
 METADATA_FILE="$PROJECT_DIR/proof-forge-artifact.json"
 
@@ -526,7 +526,7 @@ Responsibilities:
 ### 8.5 Acceptance Criteria
 
 - `lake build` passes.
-- `proof-forge --emit-counter-ir-leo` emits Leo source that matches `Examples/Aleo/Counter.golden.leo`.
+- `proof-forge --emit-counter-ir-leo` emits Leo source that matches `Examples/Backend/Aleo/Counter.golden.leo`.
 - `leo build` succeeds.
 - `leo test` succeeds.
 - `proof-forge-artifact.json` is produced and passes validation.

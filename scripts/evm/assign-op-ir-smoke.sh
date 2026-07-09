@@ -7,7 +7,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT_DIR="${IR_EVM_OUT_DIR:-$ROOT/build/ir}"
 FORGE_DIR="${IR_EVM_FORGE_DIR:-$ROOT/build/foundry-ir-assign-op-smoke}"
-GOLDEN_FILE="${IR_EVM_GOLDEN:-$ROOT/Examples/Evm/EvmAssignOpProbe.golden.yul}"
+GOLDEN_FILE="${IR_EVM_GOLDEN:-$ROOT/Examples/Backend/Evm/EvmAssignOpProbe.golden.yul}"
 METADATA_FILE="${IR_EVM_METADATA:-$OUT_DIR/EvmAssignOpProbe.proof-forge-artifact.json}"
 
 export PATH="$HOME/.foundry/bin:$PATH"

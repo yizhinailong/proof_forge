@@ -4,7 +4,7 @@ import ProofForge.Backend.Solana.SbpfExec
 Counter core-tail compositions over generic `SbpfExec` step lemmas.
 
 These model the semantic tails of `sol_initialize`, `sol_increment`, and `sol_get`
-from `Examples/Solana/Counter.golden.s` (account-validation prologue omitted).
+from `Examples/Backend/Solana/Counter.golden.s` (account-validation prologue omitted).
 -/
 
 namespace ProofForge.Backend.Solana.CounterSbpfExec

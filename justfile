@@ -48,7 +48,7 @@ shared-contract-source:
 
 # Check shared TokenSpec intents and legacy Learn equivalence fixtures.
 shared-token-intent:
-    lake build Examples.Shared.FungibleToken Examples.Shared.FeeToken Examples.Shared.SoulboundToken
+    lake build Examples.Product.FungibleToken Examples.Product.FeeToken Examples.Product.SoulboundToken
     lake env lean --run Tests/SharedTokenIntent.lean
 
 # Run the CosmWasm Counter WAT emission smoke through wat2wasm and cosmwasm-check.
@@ -657,22 +657,22 @@ examples-topology:
 portable-default:
     python3 scripts/portable/check-portable-default.py
     python3 scripts/examples/check-topology.py
-    lake build Examples.Shared.FungibleToken Examples.Shared.FeeToken Examples.Shared.SoulboundToken
+    lake build Examples.Product.FungibleToken Examples.Product.FeeToken Examples.Product.SoulboundToken
     lake env lean --run Tests/SharedTokenIntent.lean
 
 # Phase B.2: portable IR → Solana accounts without Source.Solana authoring.
 solana-auto-materialize:
-    lake build ProofForge.Backend.Solana.Materialize Examples.Shared.Counter Examples.Shared.ValueVault ProofForge.Solana.Examples.Vault
+    lake build ProofForge.Backend.Solana.Materialize Examples.Product.Counter Examples.Product.ValueVault ProofForge.Solana.Examples.Vault
     lake env lean --run Tests/SolanaAutoMaterialize.lean
 
 # All implemented registry targets: materialization + crosscall map for Shared Counter.
 primary-materialize:
-    lake build ProofForge.Target.Materialize ProofForge.Target.CrosscallMaterialize Examples.Shared.Counter
+    lake build ProofForge.Target.Materialize ProofForge.Target.CrosscallMaterialize Examples.Product.Counter
     lake env lean --run Tests/PrimaryMaterialize.lean
 
 # Phase B.3: portable crosscall.invoke materialization (EVM CALL · Solana CPI · NEAR Promise).
 crosscall-materialize:
-    lake build ProofForge.Target.Preflight ProofForge.Backend.Solana.PortableCrosscall ProofForge.Backend.WasmHost.PortableCrosscall ProofForge.IR.Examples.CrosscallProbe ProofForge.IR.Examples.NearCrosscallProbe ProofForge.IR.Examples.Counter Examples.Shared.RemoteCall ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmHost.EmitWat ProofForge.Backend.WasmHost.CosmWasm.EmitWat ProofForge.Backend.Psy.IR
+    lake build ProofForge.Target.Preflight ProofForge.Backend.Solana.PortableCrosscall ProofForge.Backend.WasmHost.PortableCrosscall ProofForge.IR.Examples.CrosscallProbe ProofForge.IR.Examples.NearCrosscallProbe ProofForge.IR.Examples.Counter Examples.Product.RemoteCall ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmHost.EmitWat ProofForge.Backend.WasmHost.CosmWasm.EmitWat ProofForge.Backend.Psy.IR
     lake env lean --run Tests/CrosscallMaterialize.lean
     just portable-auth-materialize
     just portable-error-catalog
@@ -681,7 +681,7 @@ crosscall-materialize:
 
 # Portable business checks (Ownable) + declareRemote RemoteCall on EVM·Solana·NEAR·Soroban.
 portable-auth-materialize:
-    lake build Examples.Shared.Ownable Examples.Shared.RemoteCall ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.Manifest ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmHost.EmitWat ProofForge.Target.Preflight
+    lake build Examples.Product.AccessControl Examples.Product.Ownable Examples.Product.OwnableHash Examples.Product.OwnablePausable Examples.Product.Pausable Examples.Product.ReentrancyGuard Examples.Product.RemoteCall Examples.Product.RoleGatedToken ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.Manifest ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmHost.EmitWat ProofForge.Target.Preflight
     lake env lean --run Tests/PortableAuthMaterialize.lean
 
 # T3.4: assertionId catalogue parity across EVM · Solana · NEAR clients + sdk-schema + EmitWat PF.
@@ -690,10 +690,14 @@ portable-error-catalog:
 
 # T3.2: Solana transfer/remote/nativeValue account auto-fill without Source.Solana.
 portable-solana-accounts:
+    lake build Examples.Product.AuthRemoteCall Examples.Product.Ownable Examples.Product.RemoteCall Examples.Product.RoleGatedToken Examples.Product.StakingVault ProofForge.Backend.Solana.Manifest ProofForge.Backend.Solana.Materialize ProofForge.Backend.Solana.SbpfAsm
     lake env lean --run Tests/SolanaPortableAccounts.lean
 
-# T4.2: Shared product tutorial path (Counter → Ownable → Token → Remote).
-# Docs: docs/tutorials/portable-shared-path.md · Examples/Shared/README.md
+# Primary product gate: Examples/Product business sources + multi-target materialize.
+# Docs: docs/examples-and-tests-taxonomy.md · Examples/Product/README.md
+product: portable-tutorial
+
+# Product tutorial path (Counter → Ownable → Token → Remote).
 portable-tutorial:
     just portable-default
     just portable-counter-multi-target
@@ -702,7 +706,7 @@ portable-tutorial:
     just token-feature-matrix
     just portable-remote-call-multi-target
     just portable-solana-accounts
-    @echo "portable-tutorial: ok (Counter · Ownable · Token · Remote · AuthRemote)"
+    @echo "product: ok (Counter · Ownable · Token · Remote · AuthRemote)"
 
 # Check translated documentation freshness and example topology.
 docs-check: examples-topology portable-default
@@ -758,7 +762,8 @@ testkit-budget-gate:
     CAST="${CAST:-$HOME/.foundry/bin/cast}" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --scenario value-vault
 
 # Run the fast local baseline used before broader target smokes.
-check: build target-registry contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke diagnostic-smoke ir-step-semantics-smoke ir-counter-semantics-smoke ir-portability-smoke semantics-fuel-smoke constructor-coverage-smoke counter-universal-refinement-smoke supported-fragment-smoke track14-fragment-theorems-smoke lean-invariants-smoke target-semantics-instances-smoke wasm-exec-smoke wasm-near-host-smoke wasm-cosmwasm-host-smoke wasm-soroban-host-smoke aleo-leo-codegen-smoke wasm-cosmwasm-refinement-smoke value-vault-wasm-refinement-smoke evm-bytecode-semantics-smoke ir-exec-result-smoke fv5-overflow-smoke solana-light portable-counter-multi-target cli-target-first contract-source-diagnostics near-target-first wasm-near-plan near-plan-smoke wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli quint-mbt-gate quint-ir-model-gate aleo-leo-codegen-smoke
+# Product gate runs early so business multi-target failures surface first.
+check: build product target-registry contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke diagnostic-smoke ir-step-semantics-smoke ir-counter-semantics-smoke ir-portability-smoke semantics-fuel-smoke constructor-coverage-smoke counter-universal-refinement-smoke supported-fragment-smoke track14-fragment-theorems-smoke lean-invariants-smoke target-semantics-instances-smoke wasm-exec-smoke wasm-near-host-smoke wasm-cosmwasm-host-smoke wasm-soroban-host-smoke aleo-leo-codegen-smoke wasm-cosmwasm-refinement-smoke value-vault-wasm-refinement-smoke evm-bytecode-semantics-smoke ir-exec-result-smoke fv5-overflow-smoke solana-light portable-counter-multi-target cli-target-first contract-source-diagnostics near-target-first wasm-near-plan near-plan-smoke wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli quint-mbt-gate quint-ir-model-gate aleo-leo-codegen-smoke
 
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:
@@ -797,7 +802,7 @@ psy-golden-sources:
     for spec in "${fixtures[@]}"; do
       IFS=: read -r flag fixture <<< "$spec"
       lake env proof-forge emit --target psy-dpn --fixture "${flag}" -o "build/psy/${fixture}.psy"
-      diff -u "Examples/Psy/${fixture}.golden.psy" "build/psy/${fixture}.psy"
+      diff -u "Examples/Backend/Psy/${fixture}.golden.psy" "build/psy/${fixture}.psy"
     done
 
 # Run Psy unsupported-shape diagnostic smoke.

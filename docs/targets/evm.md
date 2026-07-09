@@ -79,7 +79,7 @@ lake build
 
 lake env proof-forge build --target evm --root . \
   --artifact-output build/evm/Counter.proof-forge-artifact.json \
-  -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean
+  -o build/evm/Counter.bin Examples/Backend/Evm/Contracts/Counter.lean
 
 scripts/evm/build-examples.sh
 scripts/evm/foundry-smoke.sh
@@ -183,7 +183,7 @@ add sidecars or `@[export l_<Contract>_<method>]` entrypoints.
 
 ## Adding or changing an EVM example
 
-1. Add or update the Lean contract under `Examples/Evm/Contracts/`.
+1. Add or update the Lean contract under `Examples/Backend/Evm/Contracts/`.
 2. Use `contract_source` directly, or define
    `spec : ProofForge.Contract.ContractSpec` by composing importable
    `contract_source`/stdlib modules.
@@ -254,7 +254,7 @@ through `proof-forge build --target evm`.
 
 ## Examples
 
-See [Examples/Evm/README.md](../../Examples/Evm/README.md):
+See [Examples/Backend/Evm/README.md](../../Examples/Backend/Evm/README.md):
 
 - `Counter.lean` — scalar storage
 - `SimpleToken.lean` — ERC-20-style token with mappings

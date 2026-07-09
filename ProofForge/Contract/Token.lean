@@ -2,7 +2,7 @@
 # Multi-chain Token Intent SDK (RFC 0006 / product authoring architecture)
 
 **Portable author entry:** `TokenSpec` + `TokenFeature` only (see
-`Examples/Shared/FungibleToken.lean`). Authors never pick `TokenStandard`
+`Examples/Product/FungibleToken.lean`). Authors never pick `TokenStandard`
 (ERC-20 / SPL / Token-2022 / NEP-141).
 
 `planForTarget` / `resolveTokenStandard` select the native standard from

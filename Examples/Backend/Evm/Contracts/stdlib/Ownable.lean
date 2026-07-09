@@ -4,12 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 EVM compatibility wrapper for the portable Ownable shared example.
 -/
-import Examples.Shared.Ownable
+import Examples.Product.Ownable
 
 namespace Ownable
 
 def spec : ProofForge.Contract.ContractSpec :=
-  Examples.Shared.Ownable.spec
+  Examples.Product.Ownable.spec
 
 def module : ProofForge.IR.Module :=
   spec.module

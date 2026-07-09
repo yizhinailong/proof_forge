@@ -1,52 +1,54 @@
 # ProofForge Examples
 
-Examples are split by authoring intent, not by backend implementation detail.
+**Product thesis:** write business logic once; choose `--target` to materialize
+chain form. See [examples-and-tests-taxonomy](../docs/examples-and-tests-taxonomy.md).
 
-## Shared Portable Contracts
+## Product (author-facing)
 
-Use `Examples/Shared/` for contracts that should compile to multiple targets by
-changing only `--target`. These are the canonical application-facing examples:
+**[`Product/`](Product/)** — portable contracts and TokenSpec intents only.
+
+```bash
+just product
+```
+
+Canonical sources (change only `--target` to build EVM · Solana · NEAR · …):
 
 - `Counter.lean`
 - `ArrayExample.lean`
-- `RemoteCall.lean` for portable cross-contract intent
-- `AuthRemoteCall.lean` for caller + debit + remote (Solana account auto-fill)
+- `RemoteCall.lean`, `AuthRemoteCall.lean`
 - `Ownable.lean`, `OwnableHash.lean`, `Pausable.lean`, `OwnablePausable.lean`,
-  `AccessControl.lean`, and `ReentrancyGuard.lean` for portable stdlib / policy
-  facades
-- `RoleGatedToken.lean`
-- `StakingVault.lean`
-- `ValueVault.lean`
-- `FungibleToken.lean`, `FeeToken.lean`, and `SoulboundToken.lean` for
-  target-neutral token intent examples
+  `AccessControl.lean`, `ReentrancyGuard.lean`
+- `RoleGatedToken.lean`, `StakingVault.lean`, `ValueVault.lean`
+- `FungibleToken.lean`, `FeeToken.lean`, `SoulboundToken.lean`
 
-These modules should avoid target-only capabilities unless the compiler can
-route or reject them through target capabilities. The portable smoke scripts and
-Rust testkit scenarios should prefer this directory.
+Rules: no Solana account/PDA/CPI DSL, no NEAR Promise, no hand-written EVM
+selectors, no author-chosen token standard. Enforced by `just portable-default`.
 
-## Target-Specific Contracts
+Tutorial: [docs/tutorials/portable-shared-path.md](../docs/tutorials/portable-shared-path.md)
+and `Product/README.md`.
 
-Use target directories when the source intentionally exercises one chain's
-native surface or a backend-specific artifact format:
+## Backend (compiler / fixtures only)
 
-- `Evm/` for EVM-specific ABI, constructor, event, proxy, and Yul golden probes.
-- `Solana/` for Solana sBPF assembly, manifest, PDA/CPI/sysvar, and account
-  layout probes.
-- `WasmNear/` and `near/spike/` for NEAR/Wasm target-first examples and older
-  EmitWat spike fixtures.
-- `Psy/`, `Aleo/`, `CosmWasm/`, `CloudflareWorkers/`, and
-  `cloudflare-workers-spike/` for target research or target-specific golden
-  artifacts.
+**[`Backend/`](Backend/)** — **not** the product authoring path.
 
-If an example starts in a target directory but its contract logic is useful
-across chains, move the shared logic to `Examples/Shared/` and keep only
-target-specific golden files, manifests, or runtime probes in the target
-directory. Compatibility entrypoints may import the shared module and attach
-target-only metadata such as EVM constructor bindings.
+| Path | Role |
+|------|------|
+| `Backend/Evm/` | Yul goldens, Foundry probes, UUPS/CREATE2 fixtures |
+| `Backend/Solana/` | sBPF goldens, manifests; Source.Solana only when needed |
+| `Backend/WasmNear/` | WAT goldens / NEAR fixtures |
+| `Backend/Learn/` | Legacy `.learn` parser fixtures |
+| `Backend/Psy/`, `Aleo/`, `Aptos/`, `CosmWasm/`, `CloudflareWorkers/`, … | Research / target spikes |
 
-## Legacy Parser Fixtures
+If a Backend fixture starts as useful business logic, **move the logic into
+`Product/`** and leave only goldens or thin re-exports under Backend.
 
-`Examples/Learn/` contains compatibility fixtures for the legacy `.learn`
-parser and token intent syntax. New product examples should use Lean
-`contract_source` modules in `Examples/Shared/` unless they are deliberately
-testing the Learn parser.
+## Tests
+
+| Gate | Command |
+|------|---------|
+| Product multi-target | `just product` |
+| Full engineering | `just check` |
+
+Product tests assert materialization from Product sources. Backend tests
+(Solana CPI packing, EmitWat probes, …) validate the compiler — they do not
+define the author API.

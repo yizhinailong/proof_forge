@@ -72,7 +72,7 @@ rm -rf "$OUT_DIR"
 
 lake build proof-forge ProofForge.Contract.Stdlib.NearFungibleToken >/dev/null
 lake env proof-forge build --target wasm-near --root . -o "$OUT_DIR" \
-  Examples/WasmNear/FungibleToken.lean
+  Examples/Backend/WasmNear/FungibleToken.lean
 test -s "$WAT"
 
 out="$("${HOST[@]}" "$WAT" \

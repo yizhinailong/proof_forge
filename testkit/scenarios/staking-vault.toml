@@ -1,7 +1,7 @@
 [scenario]
 name = "staking-vault"
 fixture = "staking-vault"
-source = "Examples/Shared/StakingVault.lean"
+source = "Examples/Product/StakingVault.lean"
 targets = ["evm"]
 capabilities = ["storage.scalar", "storage.map", "entrypoint.external", "events.emit", "caller.sender", "value.native"]
 

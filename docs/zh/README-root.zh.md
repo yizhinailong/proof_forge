@@ -70,7 +70,7 @@ lake build
 
 ```sh
 lake env proof-forge build --target evm --root . --module contract \
-  -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean
+  -o build/evm/Counter.bin Examples/Backend/Evm/Contracts/Counter.lean
 ```
 
 从内置的 portable IR fixture 产出其他目标的制品：

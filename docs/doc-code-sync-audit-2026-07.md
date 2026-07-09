@@ -33,9 +33,9 @@ Re-run: `just doc-sync-audit` (writes `build/doc-sync-audit.md`).
 
 | ID | Type | Doc | Code anchor | Fix |
 |----|------|-----|-------------|-----|
-| DC-EX-COSMWASM | 已实现未更新 | `shared-scenario.md` CosmWasm Counter.lean Planned | `Examples/CosmWasm/Counter.golden.wat` | Path + Spike status |
-| DC-EX-APTOS | 已实现未更新 | `shared-scenario.md` Move/Aptos path Planned | `Examples/Aptos/Counter/golden/` | Path + Spike status |
-| DC-EX-CF | 已实现未更新 | `cloudflare-workers.md` Example Planned | `Examples/CloudflareWorkers/Counter/` | In repo (TS package) |
+| DC-EX-COSMWASM | 已实现未更新 | `shared-scenario.md` CosmWasm Counter.lean Planned | `Examples/Backend/CosmWasm/Counter.golden.wat` | Path + Spike status |
+| DC-EX-APTOS | 已实现未更新 | `shared-scenario.md` Move/Aptos path Planned | `Examples/Backend/Aptos/Counter/golden/` | Path + Spike status |
+| DC-EX-CF | 已实现未更新 | `cloudflare-workers.md` Example Planned | `Examples/Backend/CloudflareWorkers/Counter/` | In repo (TS package) |
 | DC-CF-BACKEND | 已实现未更新 | `cloudflare-workers.md` no local backend | `Compiler/TS/Emit.lean` | Stage Spike; TS pipeline |
 
 ### P1 — Target inventory and lifecycle

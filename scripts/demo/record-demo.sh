@@ -55,7 +55,7 @@ echo "Let's look at the Counter example:"
 echo ""
 sleep 1
 
-type_cmd "cat Examples/Evm/Contracts/Counter.lean"
+type_cmd "cat Examples/Backend/Evm/Contracts/Counter.lean"
 
 echo ""
 sleep 1
@@ -71,7 +71,7 @@ echo "Now let's write a new contract — a SimpleStorage with access control:"
 echo ""
 sleep 1
 
-type_cmd "cat Examples/Evm/Contracts/VerifiedVault.lean | head -40"
+type_cmd "cat Examples/Backend/Evm/Contracts/VerifiedVault.lean | head -40"
 
 echo ""
 sleep 1
@@ -94,7 +94,7 @@ echo "Compile the Counter contract to EVM runtime bytecode:"
 echo ""
 sleep 0.5
 
-type_cmd "lake env proof-forge build --target evm --root . --module Counter -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean"
+type_cmd "lake env proof-forge build --target evm --root . --module Counter -o build/evm/Counter.bin Examples/Backend/Evm/Contracts/Counter.lean"
 
 echo ""
 sleep 1
@@ -110,7 +110,7 @@ echo "Let's inspect the generated Yul (intermediate representation):"
 echo ""
 sleep 0.5
 
-type_cmd "lake env proof-forge build --target evm --root . --module Counter --yul-output build/evm/Counter.demo.yul Examples/Evm/Contracts/Counter.lean"
+type_cmd "lake env proof-forge build --target evm --root . --module Counter --yul-output build/evm/Counter.demo.yul Examples/Backend/Evm/Contracts/Counter.lean"
 
 echo ""
 sleep 0.5

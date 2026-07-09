@@ -1401,7 +1401,7 @@ Tasks:
   - Effect lowering: storageScalar read/write at account-data offsets.
 - Add `--solana-elf` CLI mode: emit `.s` then invoke `sbpf build`.
 - Generate instruction manifest (`manifest.toml`) alongside the `.s`.
-- Create `Examples/Solana/Counter.lean` + manifest.
+- Create `Examples/Backend/Solana/Counter.lean` + manifest.
 - Run `sbpf test` (Mollusk) and a Surfpool/Rust live deployment smoke.
 
 Acceptance criteria:
@@ -1463,7 +1463,7 @@ partial progress is visible before the full acceptance criteria close:
       6 (`error_owner`). Phase 1 Mollusk runtime gates disable the
       direct-account-mapping ABI so the legacy embedded account-data layout
       is exercised.
-- [x] `Examples/Solana/Counter.lean` + manifest as a self-contained example.
+- [x] `Examples/Backend/Solana/Counter.lean` + manifest as a self-contained example.
       Includes a tracked `Counter.golden.s` and `Counter.manifest.toml` and a
       CI-runnable `scripts/solana/build-examples.sh` that emits and diffs.
 - [x] Capability checker rejects unsupported capability/target combinations
@@ -1920,7 +1920,7 @@ Completed developer-surface slices:
   IDL, and client artifact generation.
 - Legacy `.learn` parser/lowering seed:
   `ProofForge.Contract.Learn` now lexes and parses checked-in `.learn` files
-  under `Examples/Learn/` into a small source AST for the portable scalar/event
+  under `Examples/Backend/Learn/` into a small source AST for the portable scalar/event
   subset, lowers that AST to `ContractSpec`/portable IR, and serves as a
   compatibility validation entrypoint rather than a new product source
   language. The primary authoring surface remains Lean `.lean` files and Lean
@@ -1931,7 +1931,7 @@ Completed developer-surface slices:
   `--learn-yul`, `--learn-bytecode`, and `--learn-sbpf` retained as lower-level
   compatibility convenience paths.
   `scripts/portable/value-vault-smoke.sh` uses
-  `Examples/Learn/ValueVault.learn` as a legacy equivalence fixture and proves
+  `Examples/Backend/Learn/ValueVault.learn` as a legacy equivalence fixture and proves
   that compatibility entrypoint can route to EVM Yul/bytecode metadata and
   Solana sBPF assembly/manifest/IDL/client artifacts without hand-authoring
   `ContractSpec`.
@@ -2681,7 +2681,7 @@ Tasks:
   plans, and `Tests/TokenSpec.lean`.
 - Done: add legacy Learn token intent source syntax,
   `ProofForge.Contract.Token.Learn`,
-  `Examples/Learn/ProofToken.learn`, `Examples/Learn/FeeToken.learn`,
+  `Examples/Backend/Learn/ProofToken.learn`, `Examples/Backend/Learn/FeeToken.learn`,
   `Tests/TokenLearn.lean`, and `proof-forge --learn-token --target <id>` plan
   emission as a compatibility path into `TokenSpec`.
 - Done: add the first EVM ERC-20 artifact emitter for Learn token sources:
@@ -2709,13 +2709,13 @@ Tasks:
   planner rejects the documented incompatible `transfer_fee` +
   `non_transferable` combination.
 - Done: extend `scripts/portable/token-intent-smoke.sh` so
-  `Examples/Shared/FungibleToken.lean`, `Examples/Shared/FeeToken.lean`, and
+  `Examples/Product/FungibleToken.lean`, `Examples/Product/FeeToken.lean`, and
   the legacy `.learn` input paths all reuse the Lean `TokenSpec` plan, emit
   structured Solana SPL Token / Token-2022 plan JSON, and validate the plans
   offline with the Rust `token_plan_smoke` harness.
 - Done: add `scripts/solana/token-plan-live-smoke.sh` / `just
   solana-token-plan-live` to execute the structured SPL Token plan from
-  `Examples/Shared/FungibleToken.lean` on Surfpool with a Rust harness. The
+  `Examples/Product/FungibleToken.lean` on Surfpool with a Rust harness. The
   former `solana-token-plan-web3` entrypoint remains as a compatibility alias.
   The live runner creates the mint and
   associated token accounts, mints initial supply, executes the planned
@@ -2724,7 +2724,7 @@ Tasks:
   delegate state, and authority revocation with Rust RPC account reads.
 - Done: add `scripts/solana/token-2022-transfer-fee-live-smoke.sh` / `just
   solana-token-2022-transfer-fee-live` to execute the structured Token-2022
-  transfer-fee plan from `Examples/Shared/FeeToken.lean` on Surfpool with a
+  transfer-fee plan from `Examples/Product/FeeToken.lean` on Surfpool with a
   Rust harness. The former `solana-token-2022-transfer-fee-web3` entrypoint
   remains as a compatibility alias. The live runner initializes
   `TransferFeeConfig`, creates Token-2022
@@ -2734,7 +2734,7 @@ Tasks:
   account, then runs a second transfer, harvests withheld fees to the mint,
   withdraws them from the mint, and validates the fee receiver balance plus
   cleared account/mint withheld amounts with Rust RPC account reads.
-- Done: add `Examples/Shared/SoulboundToken.lean`,
+- Done: add `Examples/Product/SoulboundToken.lean`,
   `scripts/solana/token-2022-non-transferable-live-smoke.sh`, and `just
   solana-token-2022-non-transferable-live` to execute a shared Lean `TokenSpec`
   Token-2022 non-transferable plan through the target-first
@@ -2968,22 +2968,22 @@ Tasks (one milestone per implementing branch):
   `[[diagnostic]]` expectations and a diagnostic-only `unsupported-crosscall`
   scenario that proves `solana-sbpf-asm` rejects the portable
   `crosscall.invoke` capability with the expected target/capability message.
-  The current EVM golden slice adds `Examples/Evm/Counter.golden.yul` as the
+  The current EVM golden slice adds `Examples/Backend/Evm/Counter.golden.yul` as the
   portable IR Counter Yul golden and makes `testkit/scenarios/counter.toml`
   assert the generated EVM Yul through `matches_file`; the older Lean SDK
-  contract golden stays under `Examples/Evm/Contracts/`. The current
-  Wasm/NEAR golden slice adds `Examples/WasmNear/Counter.golden.wat` and makes
+  contract golden stays under `Examples/Backend/Evm/Contracts/`. The current
+  Wasm/NEAR golden slice adds `Examples/Backend/WasmNear/Counter.golden.wat` and makes
   the same Counter scenario assert generated EmitWat output through
   `matches_file`, so Counter now has scenario-declared source equality for
   `wasm-near`, `evm`, and `solana-sbpf-asm`. The current ValueVault
-  Wasm/NEAR golden slice adds `Examples/WasmNear/ValueVault.golden.wat` and
+  Wasm/NEAR golden slice adds `Examples/Backend/WasmNear/ValueVault.golden.wat` and
   makes `testkit/scenarios/value-vault.toml` assert generated EmitWat output
   through `matches_file`. The current ValueVault Solana golden slice adds
-  `Examples/Solana/ValueVault.golden.s` and
-  `Examples/Solana/ValueVault.manifest.toml`, making the same scenario assert
+  `Examples/Backend/Solana/ValueVault.golden.s` and
+  `Examples/Backend/Solana/ValueVault.manifest.toml`, making the same scenario assert
   generated sBPF assembly and manifest output through `matches_file`. The
   current ValueVault EVM golden slice adds
-  `Examples/Evm/ValueVault.golden.yul` and makes the same scenario assert
+  `Examples/Backend/Evm/ValueVault.golden.yul` and makes the same scenario assert
   generated EVM Yul through `matches_file`, so ValueVault now has
   scenario-declared source equality for `wasm-near`, `solana-sbpf-asm`, and
   `evm`. The current metadata file-reference slice adds nested
@@ -3246,7 +3246,7 @@ Rules for new work in this workstream:
 |---|---|---|
 | CS-0.1 | Route all EVM example builds through `ContractLoader` + portable IR | ✅ |
 | CS-0.2 | Remove legacy `ProofForge.Evm`, LCNF `EmitYul`, `.evm-methods` | ✅ |
-| CS-0.3 | Migrate `Examples/Evm/Contracts/*` to `contract_source` / `ContractSpec` | ✅ |
+| CS-0.3 | Migrate `Examples/Backend/Evm/Contracts/*` to `contract_source` / `ContractSpec` | ✅ |
 | CS-0.4 | Refresh CI gates (build-examples, Foundry, Anvil, docs-check) | ✅ |
 
 ### Phase CS-1 — Portable authoring core
@@ -3270,15 +3270,15 @@ contract-source-diagnostics` locks the CLI behavior with a negative
 `contract_source` fixture.
 
 Current CS-1.3/CS-5.1 slice: ValueVault now has an application-facing shared
-`contract_source` module at `Examples/Shared/ValueVault.lean`. `just
+`contract_source` module at `Examples/Product/ValueVault.lean`. `just
 portable-value-vault` builds that same `.lean` file for the three primary
 targets: EVM bytecode/Yul/metadata, Solana sBPF assembly plus manifest/IDL/TS
 client metadata, and NEAR/Wasm WAT plus deploy metadata. The legacy
-`Examples/Learn/ValueVault.learn` file remains an equivalence fixture, not the
+`Examples/Backend/Learn/ValueVault.learn` file remains an equivalence fixture, not the
 recommended product authoring path.
 
 Current CS-1.4 slice: `Tests/SharedContractSource.lean` now loads
-`Examples/Shared/Counter.lean` and `Examples/Shared/ValueVault.lean` through
+`Examples/Product/Counter.lean` and `Examples/Product/ValueVault.lean` through
 the product `contract_source` loader, compares their lowered IR modules against
 the canonical `ProofForge.Contract.Examples.*` specs, and compares the paired
 legacy `.learn` fixtures against those same shared modules. ValueVault also
@@ -3302,7 +3302,7 @@ Maps to SDK ecosystem P0/P1 "access patterns" and partial token work.
 
 | ID | Task | Acceptance |
 |---|---|---|
-| CS-2.1 | Rewrite `Examples/Evm/Contracts/stdlib/Ownable.lean` as `contract_source` module with `onlyOwner`-style entry guards | Builds on `--target evm`; Foundry smoke covers owner transfer/renounce |
+| CS-2.1 | Rewrite `Examples/Backend/Evm/Contracts/stdlib/Ownable.lean` as `contract_source` module with `onlyOwner`-style entry guards | Builds on `--target evm`; Foundry smoke covers owner transfer/renounce |
 | CS-2.2 | Rewrite `Pausable.lean` as `contract_source` with pause/unpause + `whenNotPaused` guard | Foundry smoke for paused/unpaused paths |
 | CS-2.3 | Rewrite `ERC20.lean` as `contract_source` stdlib (not Builder map boilerplate) | Matches canonical ERC-20 selectors/events; Foundry lifecycle smoke |
 | CS-2.4 | Add reusable `ReentrancyGuard` module (`contract_source`) | `VerifiedVault` uses stdlib guard instead of hand-rolled lock state |
@@ -3354,7 +3354,7 @@ Focus: prove the unified authoring story on all three primary chains.
 
 Current CS-5.1 testkit slice: `testkit/scenarios/counter.toml` and
 `testkit/scenarios/value-vault.toml` now declare `source =
-"Examples/Shared/*.lean"`. The EVM, Solana, and NEAR harnesses consume that
+"Examples/Product/*.lean"`. The EVM, Solana, and NEAR harnesses consume that
 field and run target-first `proof-forge build --target ... --root . <source>`
 instead of fixture-only emission for Counter/ValueVault. Scenario assertions now
 pin `contract-sdk` metadata, NEAR artifact/deploy-manifest metadata parity,
@@ -3374,7 +3374,7 @@ testkit; CI still executes the full `just testkit` suite, so budget regressions
 fail the default pipeline.
 
 Current CS-5.3 tutorial slice: [tutorials/portable-contract-three-targets.md](tutorials/portable-contract-three-targets.md)
-walks through `Examples/Shared/Counter.lean` and ValueVault with build commands,
+walks through `Examples/Product/Counter.lean` and ValueVault with build commands,
 `just portable-counter-multi-target`, testkit parity, and budget gates. The zh
 mirror lives at [docs/zh/tutorials/portable-contract-three-targets.zh.md](zh/tutorials/portable-contract-three-targets.zh.md)
 and is tracked in the translate manifest.
@@ -3386,7 +3386,7 @@ and is tracked in the translate manifest.
 | CS-6.1 | Rewrite `docs/targets/evm.md` pipeline section for unified entry (remove EmitYul/Lean.Evm) | ✅ Current EVM target note describes `contract_source` / `ContractSpec` → portable IR → EVM semantic plan → Yul AST/printer → solc, and labels the old EVM/LCNF route legacy/research |
 | CS-6.2 | Update `development-standards.md` library roots (drop `ProofForge.Evm`, `EmitYul`) | ✅ Current roots match `lakefile.lean`; authoring guidance names `contract_source` and labels the old EVM/LCNF route legacy/research |
 | CS-6.3 | Close Workstream 24 items: declare LCNF→EmitYul removed; record `contract_source` as EVM product pipeline | ✅ Decision log + RFC 0004 alignment (D-046) |
-| CS-6.4 | Keep `docs/zh/examples-evm-README.zh.md` synced when `Examples/Evm/README.md` changes | ✅ `just docs-check` green; translate manifest tracks `Examples/Evm/README.md` |
+| CS-6.4 | Keep `docs/zh/examples-evm-README.zh.md` synced when `Examples/Backend/Evm/README.md` changes | ✅ `just docs-check` green; translate manifest tracks `Examples/Backend/Evm/README.md` |
 
 Current CS-6.2 slice: `docs/development-standards.md` and its zh mirror now
 list the current Lake roots from `lakefile.lean`, remove `ProofForge.Evm` and
@@ -3409,7 +3409,7 @@ Yul → solc as the sole EVM product pipeline. [INDEX.md](INDEX.md),
 [validation-gates.md](validation-gates.md), and [targets/evm.md](targets/evm.md)
 no longer describe LCNF as a live compiler route.
 
-Current CS-6.4 slice: `Examples/Evm/README.md` and
+Current CS-6.4 slice: `Examples/Backend/Evm/README.md` and
 `docs/zh/examples-evm-README.zh.md` are aligned on the unified `contract_source`
 entry; the translate manifest entry keeps `just docs-check` green when the
 English README changes.
@@ -3425,7 +3425,7 @@ English README changes.
 
 ### Acceptance criteria (workstream complete)
 
-- Every file under `Examples/Evm/Contracts/` is authored with `contract_source`
+- Every file under `Examples/Backend/Evm/Contracts/` is authored with `contract_source`
   or composes stdlib `contract_source` modules; Builder-only EVM examples live
   only under compiler test/fixture paths.
 - A new developer can write a portable contract module and run

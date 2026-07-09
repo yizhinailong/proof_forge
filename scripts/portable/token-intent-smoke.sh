@@ -15,11 +15,11 @@ EVM_DIR="$OUT_DIR/evm"
 SOLANA_DIR="$OUT_DIR/solana"
 NEAR_DIR="$OUT_DIR/near"
 
-PROOF_TOKEN="Examples/Learn/ProofToken.learn"
-FEE_TOKEN="Examples/Learn/FeeToken.learn"
-LEAN_TOKEN="Examples/Shared/FungibleToken.lean"
-LEAN_FEE_TOKEN="Examples/Shared/FeeToken.lean"
-LEAN_SOULBOUND_TOKEN="Examples/Shared/SoulboundToken.lean"
+PROOF_TOKEN="Examples/Backend/Learn/ProofToken.learn"
+FEE_TOKEN="Examples/Backend/Learn/FeeToken.learn"
+LEAN_TOKEN="Examples/Product/FungibleToken.lean"
+LEAN_FEE_TOKEN="Examples/Product/FeeToken.lean"
+LEAN_SOULBOUND_TOKEN="Examples/Product/SoulboundToken.lean"
 
 fail() {
   echo "FAIL: $1" >&2
@@ -345,7 +345,7 @@ PY
 echo "=== Token intent step 10: emit NEAR NEP-141 body (Stdlib.NearFungibleToken) to WAT ==="
 # TokenSpec plan (step 9) is metadata; full NEP-141 host body is the stdlib
 # contract_source path (see Token.nearNep141Plan notes).
-NEAR_FT_SRC="Examples/WasmNear/FungibleToken.lean"
+NEAR_FT_SRC="Examples/Backend/WasmNear/FungibleToken.lean"
 NEAR_FT_OUT="$NEAR_DIR/NearFungibleToken"
 lake env proof-forge build --target wasm-near --root . \
   -o "$NEAR_FT_OUT" \

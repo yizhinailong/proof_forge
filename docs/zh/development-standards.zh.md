@@ -12,7 +12,7 @@
 | 可移植 IR 与运行时/能力降级 | `docs/portable-ir.md`, `docs/rfcs/0003-portable-ir-and-runtime.md` |
 | 规范的能力 id 与支持矩阵 | `docs/capability-registry.md` |
 | 目标生命周期与各目标注释 | `docs/targets/README.md`, 以及具体的 `docs/targets/*.md` 注释 |
-| EVM 基准详情 | `docs/targets/evm.md`, `Examples/Evm/README.md` |
+| EVM 基准详情 | `docs/targets/evm.md`, `Examples/Backend/Evm/README.md` |
 | 共享的跨目标 Counter 场景 | `docs/shared-scenario.md` |
 | 执行积压工作与验收标准 | `docs/implementation-backlog.md` |
 | 验证命令与工具先决条件 | `docs/validation-gates.md` |
@@ -113,7 +113,7 @@
 | `ProofForge/Cli/Fixture.lean`（支持的 targets/fixtures） | README emit examples、`docs/validation-gates.md`、AGENTS.md registry vs CLI table |
 | 根 `justfile` 中 CI 跟踪的 recipe | `docs/validation-gates.md`；如果进入 `just check`，还要更新 AGENTS.md |
 | `ProofForge/Contract/Stdlib/*` | `docs/sdk-ecosystem-gaps-2026-07.md`；若用户可见，还要更新 README stdlib bullet |
-| `Examples/Shared/*` 或 portable scenario smokes | `docs/shared-scenario.md`、`docs/validation-gates.md` |
+| `Examples/Product/*` 或 portable scenario smokes | `docs/shared-scenario.md`、`docs/validation-gates.md` |
 | Gate closure（G0/P0/G1） | `docs/gate-status.md`、`docs/implementation-backlog.md` |
 | Accepted RFC / decision | RFC status line、`docs/decisions.md`、最近的 target note |
 

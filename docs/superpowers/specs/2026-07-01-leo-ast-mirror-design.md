@@ -218,7 +218,7 @@ For AST nodes that are defined but not yet supported, the printer returns `EmitE
 
 | File | Reason |
 |---|---|
-| `Examples/Aleo/Counter.golden.leo` | Printer output must remain identical. |
+| `Examples/Backend/Aleo/Counter.golden.leo` | Printer output must remain identical. |
 | `scripts/aleo/counter-smoke.sh` | Smoke command and acceptance criteria do not change. |
 | `ProofForge/IR/Contract.lean` | IR is the input; not modified. |
 | `ProofForge/Target/Capability.lean`, `ProofForge/Target/Registry.lean` | Still out of scope. |
@@ -228,7 +228,7 @@ For AST nodes that are defined but not yet supported, the printer returns `EmitE
 ## 6. Acceptance Criteria
 
 1. `lake build` succeeds.
-2. `proof-forge --emit-counter-ir-leo` still emits output byte-for-byte equal to `Examples/Aleo/Counter.golden.leo`.
+2. `proof-forge --emit-counter-ir-leo` still emits output byte-for-byte equal to `Examples/Backend/Aleo/Counter.golden.leo`.
 3. `./scripts/aleo/counter-smoke.sh` passes (`leo build`, `leo test`, artifact metadata validation).
 4. The new AST modules compile and expose a `Program` type, a `Printer.printProgram : Program → Except EmitError String`, and an `Emit.emitModule : IR.Module → Except EmitError Program`.
 5. Every AST node that is not yet supported by the printer has an explicit `unsupportedNode` error path rather than crashing or silently omitting output.

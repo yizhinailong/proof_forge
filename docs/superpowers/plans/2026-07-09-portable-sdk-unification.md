@@ -71,7 +71,7 @@ documented.
 | ID | Task | Work | Acceptance | Size | Deps | Status |
 |----|------|------|------------|------|------|--------|
 | **T1.1** | Expand policy smoke | Extend `Tests/PortableAuthMaterialize.lean` (or add `Tests/PortablePolicyMaterialize.lean`) for `Pausable` (+ Reentrancy if in-scope) on EVM plan/Yul, Solana SbpfAsm, NEAR/Soroban EmitWat | `lake env lean --run …` green; native fail shapes asserted | S | — | **done** |
-| **T1.2** | Pausable multi-target gaps | Fix lower/validate for `Examples/Shared/Pausable` / `Stdlib.Pausable` so all four hosts render; pause flag + `guard_not_paused` materialize | Four-host render + smoke checks | M | T1.1 (TDD ok) | **done** (already materializing; smoke locked) |
+| **T1.2** | Pausable multi-target gaps | Fix lower/validate for `Examples/Product/Pausable` / `Stdlib.Pausable` so all four hosts render; pause flag + `guard_not_paused` materialize | Four-host render + smoke checks | M | T1.1 (TDD ok) | **done** (already materializing; smoke locked) |
 | **T1.3** | Ownable + Pausable compose | Shared portable composition: only owner can pause/unpause | Shared source + multi-target smoke; no chain Surface import | M | T1.2 | **done** (`Stdlib.OwnablePausable` + Shared facade) |
 | **T1.4** | AccessControl / Roles MVP | Decide nested role map portable vs EVM-first; implement MVP or honest reject on non-EVM | Decision in this doc §6 + architecture note; EVM green; non-EVM reject or minimal lower | M–L | T1.2 | **done** (portable nested maps; EmitWat compound key + Soroban map `_get`/`_put`) |
 | **T1.5** | ReentrancyGuard boundary | EVM full; Solana/NEAR/Soroban: reject, no-op+warn, or lock-state — pick one product rule | Docs + capability/diagnostic consistency; Shared does not claim false four-host parity | S | — | **done** (lock-state four-host; EVM primary semantics in stdlib header) |
@@ -92,7 +92,7 @@ Soroban token explicitly unsupported.
 | **T2.1** | NEAR NEP-141 plan → emit | Beyond `near-token-plan.json`: core features → IR and/or EmitWat (or staged plan-only milestone if blocked) | `build --target wasm-near --token` produces `.wat` (or documented two-step); smoke step checks `ft_*` / storage symbols | L | T2.0 | **done** (two-step: TokenSpec plan + `NearFungibleToken` body; smoke step 10) |
 | **T2.2** | EVM extended features policy | For `transfer_fee` / `non_transferable` / `permit`: (A) implement in-contract or (B) keep reject with pointer to Solana; land at least one feature’s permanent policy + tests | `validateEvmTokenFeatures` + smoke/docs agree | M–L | T2.0 | **done** (permanent reject + Solana pointer; permit rejected on EVM) |
 | **T2.3** | Feature matrix productization | Human-readable matrix from `featureSupportOnTarget`; wire `just token-feature-matrix` / portable aggregate as appropriate | One command lists EVM/Solana/NEAR support per feature | S | existing matrix fn | **done** (`just token-feature-matrix` + tests) |
-| **T2.4** | Shared Fungible multi-target docs | Document single health path for three-host token (intent smoke + EVM vm smoke) | `Examples/Shared/README` or tutorial step | S | T2.1 | **done** |
+| **T2.4** | Shared Fungible multi-target docs | Document single health path for three-host token (intent smoke + EVM vm smoke) | `Examples/Product/README` or tutorial step | S | T2.1 | **done** |
 | **T2.5** | Portable token author entry | Clarify TokenSpec as portable entry; ERC-20 as EVM materialization (facade or docs only — no hard rename required) | Shared README + `Token.lean` header | S | — | **done** (Token.lean header table) |
 
 **Suggested PR slice:** PR-C = T2.0+T2.3+T2.5 · PR-D = T2.1 · then T2.2.
@@ -116,7 +116,7 @@ Soroban token explicitly unsupported.
 | ID | Task | Work | Acceptance | Size | Deps | Status |
 |----|------|------|------------|------|------|--------|
 | **T4.1** | de-EVM naming pass 2 | Document `entrySelector` as EVM materialization; tutorials default without selectors | authoring-model updated | S | partial de-EVM done | **done** (`authoring-model` § selectors; Builder/Surface docs; Shared bans) |
-| **T4.2** | Shared tutorial path | Counter → Ownable → Token → Remote Shared-only tutorial with `just` steps | `Examples/Shared/README` runnable from zero | M | W1/W2 progress | **done** (`portable-shared-path.md` + `just portable-tutorial`) |
+| **T4.2** | Shared tutorial path | Counter → Ownable → Token → Remote Shared-only tutorial with `just` steps | `Examples/Product/README` runnable from zero | M | W1/W2 progress | **done** (`portable-shared-path.md` + `just portable-tutorial`) |
 | **T4.3** | IR chain ctor visibility (optional) | Keep create2/promise out of author path; portability classification | portability smoke no regress | M | — | **done** (portable-default bans CREATE2/selectors; Portability already classifies) |
 
 ---

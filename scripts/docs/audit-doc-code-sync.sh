@@ -289,13 +289,13 @@ stdlib_files = {p.stem for p in (repo / "ProofForge/Contract/Stdlib").glob("*.le
 
 # Example paths on disk
 example_paths = {
-    "CosmWasm Counter.lean": (repo / "Examples/CosmWasm/Counter.lean").is_file(),
-    "CosmWasm golden.wat": (repo / "Examples/CosmWasm/Counter.golden.wat").is_file(),
+    "CosmWasm Counter.lean": (repo / "Examples/Backend/CosmWasm/Counter.lean").is_file(),
+    "CosmWasm golden.wat": (repo / "Examples/Backend/CosmWasm/Counter.golden.wat").is_file(),
     "Aptos Move/Aptos": (repo / "Examples/Move/Aptos/Counter").is_dir(),
-    "Aptos Counter/golden": (repo / "Examples/Aptos/Counter/golden").is_dir(),
-    "CF Counter.lean": (repo / "Examples/CloudflareWorkers/Counter.lean").is_file(),
-    "CF Counter dir": (repo / "Examples/CloudflareWorkers/Counter").is_dir(),
-    "Shared Counter.lean": (repo / "Examples/Shared/Counter.lean").is_file(),
+    "Aptos Counter/golden": (repo / "Examples/Backend/Aptos/Counter/golden").is_dir(),
+    "CF Counter.lean": (repo / "Examples/Backend/CloudflareWorkers/Counter.lean").is_file(),
+    "CF Counter dir": (repo / "Examples/Backend/CloudflareWorkers/Counter").is_dir(),
+    "Shared Counter.lean": (repo / "Examples/Product/Counter.lean").is_file(),
 }
 
 # --- A. Target inventory ---
@@ -357,7 +357,7 @@ if shared_examples.get("CosmWasm", "").lower().find("planned") >= 0 and example_
         "examples",
         "P0",
         "docs/shared-scenario.md: CosmWasm Counter.lean Planned, not in repo",
-        "Examples/CosmWasm/Counter.golden.wat exists; emit via fixture counter",
+        "Examples/Backend/CosmWasm/Counter.golden.wat exists; emit via fixture counter",
         "Update path to Counter.golden.wat; status Spike (golden fixture, no contract_source yet).",
     )
 
@@ -367,8 +367,8 @@ if shared_examples.get("Aptos", "").lower().find("planned") >= 0 and example_pat
         "examples",
         "P0",
         "docs/shared-scenario.md: Examples/Move/Aptos/Counter/ Planned",
-        "Examples/Aptos/Counter/golden/ exists",
-        "Update path to Examples/Aptos/Counter/golden/; status Spike.",
+        "Examples/Backend/Aptos/Counter/golden/ exists",
+        "Update path to Examples/Backend/Aptos/Counter/golden/; status Spike.",
     )
 
 if "Planned, not in repo" in cf_workers and example_paths["CF Counter dir"]:
@@ -377,7 +377,7 @@ if "Planned, not in repo" in cf_workers and example_paths["CF Counter dir"]:
         "examples",
         "P0",
         "docs/targets/cloudflare-workers.md Example Locations",
-        "Examples/CloudflareWorkers/Counter/ (wrangler package)",
+        "Examples/Backend/CloudflareWorkers/Counter/ (wrangler package)",
         "Mark In repo (TS spike package); note IR emit produces build/ts/Counter.ts.",
     )
 

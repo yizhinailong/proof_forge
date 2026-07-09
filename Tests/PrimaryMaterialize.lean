@@ -5,7 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Materialization + crosscall mapping for every implemented registry target
 (EVM · Solana · Wasm family · Move · Psy · Aleo).
 -/
-import Examples.Shared.Counter
+import Examples.Product.Counter
 import ProofForge.Target.CrosscallMaterialize
 import ProofForge.Target.Materialize
 import ProofForge.Target.Registry
@@ -18,7 +18,7 @@ def require (cond : Bool) (msg : String) : IO Unit :=
   if cond then pure () else throw (IO.userError msg)
 
 def main : IO Unit := do
-  let counter := Examples.Shared.Counter.module
+  let counter := Examples.Product.Counter.module
 
   -- Primary three
   let evmR := forEvm counter

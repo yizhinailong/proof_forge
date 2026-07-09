@@ -81,7 +81,7 @@ than Solana's `LowerCtx` split.
    There is no mutable per-entrypoint state to split out.
 4. **WAT golden churn risk is bounded.** EmitWat already has a `wasm-near-plan` smoke
    (`Tests/WasmNearPlan.lean`) that asserts host-import/helper pruning. The frozen
-   WAT golden (`Examples/WasmNear/Counter.golden.wat`, `ValueVault.golden.wat`) pins
+   WAT golden (`Examples/Backend/WasmNear/Counter.golden.wat`, `ValueVault.golden.wat`) pins
    byte-stable output. The migration can land behind the same feature-flag strategy
    Solana uses.
 5. **The Rust sourcegen path (`WasmNear/IR.lean`) is out of scope.** It is a parallel,
@@ -290,7 +290,7 @@ construction is replaced by `Ctx.fromSeed`, which produces the same fields).
 - Extend `scripts/near/plan-smoke.sh` to loop over all four fixtures
   (Counter + three new), generating + diffing each plan golden AND running the
   parity check per fixture. New golden `plan.txt` files added under
-  `Examples/WasmNear/<Fixture>/golden/`.
+  `Examples/Backend/WasmNear/<Fixture>/golden/`.
 - Parity results (plan-driven WAT == inline WAT, byte-identical):
   `Counter: MATCH 2228 chars`, `EvmMapProbe: MATCH 3498 chars`,
   `EvmStorageArrayProbe: MATCH 4703 chars`, `EvmStorageStructProbe: MATCH 3375 chars`.
@@ -339,7 +339,7 @@ construction is replaced by `Ctx.fromSeed`, which produces the same fields).
   (Counter 2228, EvmMapProbe 3498, EvmStorageArrayProbe 4703,
   EvmStorageStructProbe 3375), confirming byte-stability.
 
-**Byte-stability guard.** The existing `Examples/WasmNear/Counter.golden.wat` and
+**Byte-stability guard.** The existing `Examples/Backend/WasmNear/Counter.golden.wat` and
 `ValueVault.golden.wat` pin the WAT output. The `just wasm-near-plan` smoke pins the
 host-import/helper surface. `just near-plan-smoke` pins the layout plan as a golden
 text artifact (Step A) and, since Step C, asserts the plan-driven lowering still
@@ -406,7 +406,7 @@ Step A (commit 61cfa7a9):
   `STRING_BASE`, `CROSSCALL_STRING_BASE`).
 - `Tests/NearModulePlan.lean` — builds the plan for `Counter.module` and renders it
   to a stable text format.
-- `Examples/WasmNear/Counter/golden/plan.txt` — the golden plan output.
+- `Examples/Backend/WasmNear/Counter/golden/plan.txt` — the golden plan output.
 - `scripts/near/plan-smoke.sh` — mirrors `scripts/solana/plan-smoke.sh`.
 - `justfile` recipe `near-plan-smoke`, wired into `just check`.
 
@@ -431,7 +431,7 @@ Step B.2 (2026-07-07):
 - `scripts/near/plan-smoke.sh` loops over all four fixtures (Counter + three
   new), generating + diffing each plan golden and running the parity check per
   fixture. New golden `plan.txt` files added under
-  `Examples/WasmNear/<Fixture>/golden/`.
+  `Examples/Backend/WasmNear/<Fixture>/golden/`.
 - Parity results (plan-driven WAT == inline WAT, byte-identical):
   `Counter: MATCH 2228 chars`, `EvmMapProbe: MATCH 3498 chars`,
   `EvmStorageArrayProbe: MATCH 4703 chars`,
@@ -680,7 +680,7 @@ have been busywork that risked the frozen EVM goldens for no gain.
 - `just evm-semantic-plan` passes (`Tests/EvmSemanticPlan.lean`).
 - `just evm-build-examples` passes — bytecode emitted for all examples
   (Counter, ValueVault, ReentrancyGuard, UUPSProxy, VerifiedVault, …);
-  frozen EVM goldens (`Examples/Evm/*.golden.yul`) unchanged.
+  frozen EVM goldens (`Examples/Backend/Evm/*.golden.yul`) unchanged.
 - Working tree clean before and after the gate runs (no golden churn).
 - No `IR.lean` change, so byte-stability is trivially preserved.
 
@@ -707,5 +707,5 @@ have been busywork that risked the frozen EVM goldens for no gain.
 - `Tests/WasmNearPlan.lean` — existing `wasm-near-plan` smoke (658 LOC).
 - `Tests/SolanaModulePlan.lean` + `scripts/solana/plan-smoke.sh` — the golden plan
   smoke template this step mirrors.
-- `Examples/Solana/Counter/golden/plan.txt` — the golden plan format.
+- `Examples/Backend/Solana/Counter/golden/plan.txt` — the golden plan format.
 - `ProofForge/IR/Examples/Counter.lean` — the `Counter.module` fixture.

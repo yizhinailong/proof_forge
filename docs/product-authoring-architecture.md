@@ -157,11 +157,11 @@ EVM + Solana without extension syntax in shared examples.
 | Item | Evidence |
 |---|---|
 | Shared portable-default lint | `just portable-default` → `scripts/portable/check-portable-default.py` + topology |
-| No chain Surface / TokenStandard in `Examples/Shared` | Gate rejects forbidden imports and `TokenStandard.*` |
+| No chain Surface / TokenStandard in `Examples/Product` | Gate rejects forbidden imports and `TokenStandard.*` |
 | TokenSpec has no author `standard` field | Structure is features-only; `resolveTokenStandard` is adapter-only |
 | Feature → standard is target-resolved | FungibleToken → erc20 / spl-token; FeeToken → spl-token-2022 on Solana |
 | Unsupported features **reject** (no silent drop) | FeeToken / Soulbound on `evm` error citing `transfer_fee` / `non_transferable` |
-| Product docs | `Examples/Shared/README.md`, Token.lean module header |
+| Product docs | `Examples/Product/README.md`, Token.lean module header |
 
 **Phase B.1 (2026-07-09) — Solana Source opt-in:**
 
@@ -449,7 +449,7 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 | C.1 | **RemoteCall: no host string-pool APIs in Shared** | ✅ `declareRemoteUnit` / `peerHandle` / `remoteCall`; gate bans `registerNearCrosscallString` / `nearAddressLit` |
 | C.2 | **Business checks → native fail on four hosts** | ✅ Ownable: EVM plan · Solana assert · NEAR/Soroban `unreachable`/`panic`; `Tests/PortableAuthMaterialize` |
 | C.3 | **Auth policy materialize** (owner/signer) | ✅ Solana `ensurePortableAuthAccounts`: leading `authority` signer when `callerSender`; state data offset by name; **T3.2** + `ensurePortableNativeValueAccounts` (writable fee payer) + remote `callee_program` for transfer/remote intents (`AuthRemoteCall`) |
-| C.4 | **Source.Solana fixture-only demotion** | ✅ module header + `Examples/Solana/README`; Shared already gated |
+| C.4 | **Source.Solana fixture-only demotion** | ✅ module header + `Examples/Backend/Solana/README`; Shared already gated |
 | C.5 | **Soroban in portable multi-target scripts** | ✅ `remote-call-multi-target` + `crosscall-materialize` run portable-auth (Soroban invoke) |
 | C.6 | **Deploy-time peer map** (logical peer → account id) | ✅ `Target.PeerMap`; CLI `--peer` / `--peers-demo` (default **identity**, no silent rewrite) |
 | P0 | **Explicit peers + named RemoteRef + honest Solana caller handle** | ✅ `--peer`; Shared `declareRemote`→`remoteCallRef`; Solana notes pubkey[0..8] u64-le limit |
@@ -511,7 +511,7 @@ Default execution order: **PR-A** (Pausable four-host) → PR-B → PR-C → PR-
 
 ## 8. Success metrics
 
-- Shared examples under `Examples/Shared/` import **no** chain Surface modules.
+- Shared examples under `Examples/Product/` import **no** chain Surface modules.
 - `TokenSpec` → EVM + Solana (+ later NEAR) without author-selected standard.
 - New contributor tutorial: “write logic → pick target → deploy” with zero
   account/PDA/CPI mentions until the Extension chapter.

@@ -479,7 +479,7 @@ spike、没有真正的 lowering（`SuiModulePlan` 需要先于真正的 Move lo
   `ProofForge/Backend/WasmHost/NearModulePlan.lean`，包含 `NearModulePlan`、
   `NearLayoutPlan`、`NearLowerCtxSeed`，以及一个针对
   `ProofForge.IR.Examples.Counter.module` 的 `buildNearModulePlan`。不接入 EmitWat。
-  添加了 `Tests/NearModulePlan.lean`、`Examples/WasmNear/Counter/golden/plan.txt`、
+  添加了 `Tests/NearModulePlan.lean`、`Examples/Backend/WasmNear/Counter/golden/plan.txt`、
   `just near-plan-smoke`（镜像 `solana-plan-smoke`）。
 - Step B（plan 构建 + `Ctx.fromSeed`，增量）—— **已落地（2026-07-07）。**
   实现了 `Ctx.fromPlanSeed`（从 plan 的 seed + layout 重建 `EmitWat.Ctx`；整个
@@ -498,7 +498,7 @@ spike、没有真正的 lowering（`SuiModulePlan` 需要先于真正的 Move lo
   `EvmStorageStructProbe`（struct 状态，`current : Point`）。每个子模块只使用
   NEAR 后端已支持的 lowering 路径。`scripts/near/plan-smoke.sh` 现在遍历全部四个
   fixture（Counter + 三个新增），生成并 diff 每个 plan golden 并逐个运行 parity
-  检查。在 `Examples/WasmNear/<Fixture>/golden/` 下添加新的 golden `plan.txt`。
+  检查。在 `Examples/Backend/WasmNear/<Fixture>/golden/` 下添加新的 golden `plan.txt`。
   Parity 结果（plan 驱动 WAT == 内联 WAT，字节一致）：`Counter: MATCH 2228 chars`、
   `EvmMapProbe: MATCH 3498 chars`、`EvmStorageArrayProbe: MATCH 4703 chars`、
   `EvmStorageStructProbe: MATCH 3375 chars`。覆盖现已横跨标量 / map / array /
@@ -524,7 +524,7 @@ spike、没有真正的 lowering（`SuiModulePlan` 需要先于真正的 Move lo
 **改动清单：**
 
 - Step A：`ProofForge/Backend/WasmHost/NearModulePlan.lean`（新增）、
-  `Tests/NearModulePlan.lean`（新增）、`Examples/WasmNear/Counter/golden/plan.txt`
+  `Tests/NearModulePlan.lean`（新增）、`Examples/Backend/WasmNear/Counter/golden/plan.txt`
   （新增）、`scripts/near/plan-smoke.sh`（新增）、`justfile`。
 - Step B：`ProofForge/Backend/WasmHost/NearModulePlan.lean`（`Ctx.fromPlanSeed`、
   `lowerModuleFromPlan`、`renderModuleFromPlan`；`NearStatePlan`/`NearMapPlan` 现在
@@ -534,7 +534,7 @@ spike、没有真正的 lowering（`SuiModulePlan` 需要先于真正的 Move lo
   parity 检查）、`scripts/near/plan-smoke.sh`（`--parity`）、`justfile`。
 - Step B.2：`Tests/NearModulePlan.lean`（`moduleFor` + `mapSubModule` /
   `arraySubModule` / `structSubModule`）、`scripts/near/plan-smoke.sh`
-  （多 fixture 循环）、`Examples/WasmNear/{EvmMapProbe,EvmStorageArrayProbe,
+  （多 fixture 循环）、`Examples/Backend/WasmNear/{EvmMapProbe,EvmStorageArrayProbe,
   EvmStorageStructProbe}/golden/plan.txt`（新 golden）。
 - Step C：`ProofForge/Backend/WasmHost/EmitWat.lean`（新增 `Ctx.fromPlanSeed` +
   `buildLowerCtx`；删除 `lowerModule` 中的内联 `Ctx` 装配，改为通过 `buildLowerCtx`

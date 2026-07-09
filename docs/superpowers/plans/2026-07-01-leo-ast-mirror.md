@@ -1187,7 +1187,7 @@ Expected: `Build completed successfully`.
 Run: `./scripts/aleo/counter-smoke.sh`
 
 Expected:
-- Diff against `Examples/Aleo/Counter.golden.leo` passes.
+- Diff against `Examples/Backend/Aleo/Counter.golden.leo` passes.
 - `leo build` succeeds.
 - `leo test` reports `1 / 1 tests passed`.
 - Artifact metadata validates.

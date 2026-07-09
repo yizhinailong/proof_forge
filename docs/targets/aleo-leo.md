@@ -16,7 +16,7 @@ Primary deliverables:
 - `ProofForge.Backend.Aleo.IR` lowers the portable IR `Counter` fixture to Leo.
 - `proof-forge emit --target aleo-leo --fixture counter --format leo` emits
   `Counter.leo`.
-- `Examples/Aleo/Counter.golden.leo` is the tracked golden fixture.
+- `Examples/Backend/Aleo/Counter.golden.leo` is the tracked golden fixture.
 - `scripts/aleo/counter-smoke.sh` generates a Leo package, runs `leo build` and
   `leo test`, writes `proof-forge-artifact.json`, and validates the metadata.
 - `ProofForge.Compiler.Leo.Emit` additionally supports pure entrypoints with
@@ -24,7 +24,7 @@ Primary deliverables:
   `boundedFor`, `assign`, `assignOp`).
 - `proof-forge emit --target aleo-leo --fixture pure-math --format leo` emits
   `PureMath.leo`.
-- `Examples/Aleo/PureMath.golden.leo` is the tracked golden fixture.
+- `Examples/Backend/Aleo/PureMath.golden.leo` is the tracked golden fixture.
 - `scripts/aleo/pure-math-smoke.sh` validates the PureMath fixture end-to-end.
 
 
@@ -63,7 +63,7 @@ What it proves:
   a public `mapping`, `@noupgrade constructor`, and `fn ... -> Final` entry
   points whose `final` blocks read/write the mapping.
 - Generated Leo source matches the tracked golden fixture
-  `Examples/Aleo/Counter.golden.leo`.
+  `Examples/Backend/Aleo/Counter.golden.leo`.
 - `leo build` produces Aleo Instructions (`build/main.aleo`) and ABI JSON
   (`build/abi.json`).
 - `leo test` passes.

@@ -183,7 +183,7 @@ installed, but the account-model translation is more involved).
    (`portable_input_bytes_le` already used by the testkit). The offline-host returns
    `return_hex`/`return_u64`/`return_bool`/`return=<none>` per call, which maps to
    `IR.Semantics.Value`.
-4. **The WAT artifact is already gated.** `Examples/WasmNear/Counter.golden.wat` and
+4. **The WAT artifact is already gated.** `Examples/Backend/WasmNear/Counter.golden.wat` and
    `ValueVault.golden.wat` pin byte-stable output; `just wasm-near-plan` and
    `just near-plan-smoke` gate the plan surface. The `NearModulePlan` (Phase 4 Step A)
    makes the layout inspectable. A C-diff replay consumes the *emitted WAT*, not the
@@ -641,7 +641,7 @@ external tool execution, no new gates wired into `just check`.
 | Shim | Modules | Why chosen | Non-scalar state? |
 |---|---|---|---|
 | `EvmReplay` | `Counter` (scalar, nullary), `ValueVault` (6 scalars, entrypoints with args) | ValueVault is the natural C-diff target `Evm.Refinement` already builds trace obligations for; its entrypoints take ABI args (`initialize(uint256)`, `deposit(uint256)`, `charge_fee(uint256,uint256)`, `release(uint256)`), exercising the generalized arg encoder | No (multi-scalar) |
-| `NearReplay` | `Counter`, `ValueVault` | ValueVault WAT exists (`Examples/WasmNear/ValueVault.golden.wat`); the render is already module-agnostic, so multi-module coverage comes from the smoke supplying a ValueVault config + trace | No (multi-scalar) |
+| `NearReplay` | `Counter`, `ValueVault` | ValueVault WAT exists (`Examples/Backend/WasmNear/ValueVault.golden.wat`); the render is already module-agnostic, so multi-module coverage comes from the smoke supplying a ValueVault config + trace | No (multi-scalar) |
 | `SolanaReplay` | `Counter`, `ValueVault`, `EvmMapProbe` (sub-module) | ValueVault exercises plan-driven multi-scalar account seeding (6 u64 scalars, account `balance` dataSize=48); EvmMapProbe exercises non-scalar (map) state and the v1 degradation path | Yes (map: `balances`) |
 
 ### 15.3 Routing through the `*ModulePlan`

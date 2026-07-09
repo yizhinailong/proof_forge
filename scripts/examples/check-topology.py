@@ -2,7 +2,7 @@
 """Check that example sources follow the shared-vs-target topology.
 
 The goal is narrow and structural: reusable product examples live under
-Examples/Shared, while historical target paths stay as wrappers or
+Examples/Product, while historical target paths stay as wrappers or
 target-specific fixtures.
 """
 
@@ -33,12 +33,12 @@ def require_contains(rel: str, text: str, needle: str, label: str) -> None:
 
 
 def check_shared_sources() -> None:
-    shared_dir = REPO_ROOT / "Examples" / "Shared"
+    shared_dir = REPO_ROOT / "Examples" / "Product"
     sources = sorted(shared_dir.glob("*.lean"))
     if not sources:
-        fail("Examples/Shared has no Lean sources")
+        fail("Examples/Product has no Lean sources")
 
-    shared_readme = read("Examples/Shared/README.md")
+    shared_readme = read("Examples/Product/README.md")
     root_readme = read("Examples/README.md")
 
     for path in sources:
@@ -46,8 +46,8 @@ def check_shared_sources() -> None:
         name = path.stem
         text = path.read_text(encoding="utf-8")
 
-        require_contains(rel, text, f"namespace Examples.Shared.{name}", "shared namespace")
-        require_contains("Examples/Shared/README.md", shared_readme, f"[{name}.lean]({name}.lean)", "shared README entry")
+        require_contains(rel, text, f"namespace Examples.Product.{name}", "shared namespace")
+        require_contains("Examples/Product/README.md", shared_readme, f"[{name}.lean]({name}.lean)", "shared README entry")
         require_contains("Examples/README.md", root_readme, f"{name}.lean", "root README shared entry")
 
         if "contract_source " in text:
@@ -82,20 +82,20 @@ def check_shared_sources() -> None:
 
 def check_wrapper(rel: str, shared_name: str) -> None:
     text = read(rel)
-    require_contains(rel, text, f"import Examples.Shared.{shared_name}", "shared import")
-    require_contains(rel, text, f"Examples.Shared.{shared_name}.spec", "shared spec reference")
+    require_contains(rel, text, f"import Examples.Product.{shared_name}", "shared import")
+    require_contains(rel, text, f"Examples.Product.{shared_name}.spec", "shared spec reference")
     if "contract_source " in text:
         fail(f"{rel}: compatibility wrapper must not duplicate contract_source logic")
 
 
 def check_compatibility_wrappers() -> None:
     wrappers = {
-        "Examples/Evm/Contracts/ArrayExample.lean": "ArrayExample",
-        "Examples/Evm/Contracts/Counter.lean": "Counter",
-        "Examples/Evm/Contracts/stdlib/Ownable.lean": "Ownable",
-        "Examples/Evm/Contracts/stdlib/Pausable.lean": "Pausable",
-        "Examples/Evm/Contracts/stdlib/ReentrancyGuard.lean": "ReentrancyGuard",
-        "Examples/Solana/Counter.lean": "Counter",
+        "Examples/Backend/Evm/Contracts/ArrayExample.lean": "ArrayExample",
+        "Examples/Backend/Evm/Contracts/Counter.lean": "Counter",
+        "Examples/Backend/Evm/Contracts/stdlib/Ownable.lean": "Ownable",
+        "Examples/Backend/Evm/Contracts/stdlib/Pausable.lean": "Pausable",
+        "Examples/Backend/Evm/Contracts/stdlib/ReentrancyGuard.lean": "ReentrancyGuard",
+        "Examples/Backend/Solana/Counter.lean": "Counter",
         "ProofForge/Contract/Examples/Counter.lean": "Counter",
         "ProofForge/Contract/Examples/ValueVault.lean": "ValueVault",
         "ProofForge/Contract/Token/Examples/SoulboundToken.lean": "SoulboundToken",

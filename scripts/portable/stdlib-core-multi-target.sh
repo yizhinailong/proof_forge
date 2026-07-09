@@ -32,7 +32,7 @@ command -v cast >/dev/null 2>&1 || fail "cast not on PATH"
 rm -rf "$OUT"
 mkdir -p "$OUT"
 
-(cd "$ROOT" && lake build proof-forge Examples.Shared.Ownable Examples.Shared.Pausable Examples.Shared.ReentrancyGuard >/dev/null)
+(cd "$ROOT" && lake build proof-forge Examples.Product.Ownable Examples.Product.Pausable Examples.Product.ReentrancyGuard >/dev/null)
 
 expected_entries() {
   case "$1" in
@@ -72,7 +72,7 @@ set_evm_metadata_args() {
 }
 
 for module in "${MODULES[@]}"; do
-  source="Examples/Shared/${module}.lean"
+  source="Examples/Product/${module}.lean"
   module_out="$OUT/$module"
   mkdir -p "$module_out/evm" "$module_out/solana" "$module_out/near"
 
@@ -82,7 +82,7 @@ for module in "${MODULES[@]}"; do
     --yul-output "$module_out/evm/${module}.yul" \
     --artifact-output "$module_out/evm/${module}.proof-forge-artifact.json" \
     "$source"
-  diff -u "Examples/Evm/Contracts/stdlib/${module}.golden.yul" "$module_out/evm/${module}.yul"
+  diff -u "Examples/Backend/Evm/Contracts/stdlib/${module}.golden.yul" "$module_out/evm/${module}.yul"
   metadata_args=()
   set_evm_metadata_args "$module"
   python3 scripts/evm/validate-artifact-metadata.py \

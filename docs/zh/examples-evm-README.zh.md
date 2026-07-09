@@ -5,7 +5,7 @@
 composition 示例。
 
 只需改变 `--target` 就应编译到不同链的 portable 示例，应放在
-[Examples/Shared](../../Examples/Shared/README.md)。
+[Examples/Product](../../Examples/Product/README.md)。
 
 ## 统一入口
 
@@ -35,15 +35,15 @@ end MyContract
 lake env proof-forge build --target evm \
   --root . \
   -o build/evm/Counter.bin \
-  Examples/Shared/Counter.lean
+  Examples/Product/Counter.lean
 ```
 
 `Counter`、`ArrayExample`、`Ownable`、`Pausable`、`ReentrancyGuard`、
 `ValueVault`、`RoleGatedToken` 和 `StakingVault` 是主要的多目标 shared
 contract 场景。
 
-`Examples/Evm/Contracts/Counter.lean` 和
-`Examples/Evm/Contracts/ArrayExample.lean` 是对应 `Examples/Shared` 模块的兼容
+`Examples/Backend/Evm/Contracts/Counter.lean` 和
+`Examples/Backend/Evm/Contracts/ArrayExample.lean` 是对应 `Examples/Product` 模块的兼容
 wrapper。Counter 只添加 constructor-init smoke 所需的 EVM 部署期 constructor
 metadata；ArrayExample 保留历史 EVM golden Yul 路径。
 `stdlib/Ownable.lean`、`stdlib/Pausable.lean` 和
@@ -54,7 +54,7 @@ facade 的兼容 wrapper。
 constructor probe、proxy probe 和其余 `stdlib/` wrapper 是 EVM-focused fixture，
 因为它们覆盖 EVM ABI、ERC-style stdlib composition、部署、
 callvalue/native-transfer 或 golden-output 行为。Chain-neutral token intent 位于
-`Examples/Shared/FungibleToken.lean`，形式是 `TokenSpec`；EVM target 会把该 intent
+`Examples/Product/FungibleToken.lean`，形式是 `TokenSpec`；EVM target 会把该 intent
 降低为 ERC-20-compatible artifact。
 
 不需要 `.evm-methods` sidecar。CLI 会从 Lean 模块加载 `spec : ContractSpec`，并通过 portable IR EVM 后端降级。
@@ -80,7 +80,7 @@ scripts/evm/foundry-smoke.sh
 
 ## Shared 场景
 
-canonical shared 示例位于 [Examples/Shared](../../Examples/Shared/README.md)。
+canonical shared 示例位于 [Examples/Product](../../Examples/Product/README.md)。
 Counter 和 ValueVault 场景细节见
 [docs/shared-scenario.md](../../docs/shared-scenario.md)。Target-neutral token-intent
-示例见 [Examples/Shared/FungibleToken.lean](../../Examples/Shared/FungibleToken.lean)。
+示例见 [Examples/Product/FungibleToken.lean](../../Examples/Product/FungibleToken.lean)。

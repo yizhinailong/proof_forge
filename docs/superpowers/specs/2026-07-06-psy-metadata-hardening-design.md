@@ -99,7 +99,7 @@ lake env proof-forge metadata \
   --target psy \
   --root . \
   --module contract \
-  Examples/Psy/Contracts/Counter.lean
+  Examples/Backend/Psy/Contracts/Counter.lean
 ```
 
 It prints the same JSON that `Tests/PsyMetadataExport.lean` currently writes, with options:

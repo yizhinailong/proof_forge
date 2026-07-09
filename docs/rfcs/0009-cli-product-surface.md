@@ -107,7 +107,7 @@ Non-goals:
 
 ```sh
 # Compile a Lean contract to EVM bytecode.
-proof-forge build --target evm -o build/evm/Counter.bin Examples/Evm/Contracts/Counter.lean
+proof-forge build --target evm -o build/evm/Counter.bin Examples/Backend/Evm/Contracts/Counter.lean
 
 # Build the built-in Counter fixture for NEAR.
 proof-forge build --target wasm-near --fixture counter -o build/near
@@ -250,7 +250,7 @@ add constructors to it. Once aliases are removed, `EmitMode` is deleted.
 
 ## Acceptance Criteria
 
-- `proof-forge build --target evm Examples/Evm/Contracts/Counter.lean` produces
+- `proof-forge build --target evm Examples/Backend/Evm/Contracts/Counter.lean` produces
   the same bytecode as the old `--evm-bytecode` path.
 - `proof-forge emit --target evm --fixture counter --format yul` produces the
   same Yul as the old `--emit-counter-ir-yul` path.

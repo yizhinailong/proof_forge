@@ -7,7 +7,7 @@ Phase B.3: portable crosscall materialization on primary chains.
 import ProofForge.IR.Examples.CrosscallProbe
 import ProofForge.IR.Examples.NearCrosscallProbe
 import ProofForge.IR.Examples.Counter
-import Examples.Shared.RemoteCall
+import Examples.Product.RemoteCall
 import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Evm.Plan
 import ProofForge.Backend.Solana.Manifest
@@ -182,7 +182,7 @@ def main : IO Unit := do
         "Counter storage-only Soroban WAT should not import invoke_contract"
 
   -- Shared portable RemoteCall (contract_source + remoteCall) multi-target.
-  let shared := Examples.Shared.RemoteCall.module
+  let shared := Examples.Product.RemoteCall.module
   require (moduleHasPortableCrosscall shared) "Shared.RemoteCall has portable crosscall"
   -- L0+L1 preflight on primary targets before materialize/emit.
   let pref := runPrimary shared

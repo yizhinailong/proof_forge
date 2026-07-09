@@ -10,12 +10,12 @@ Related:
 
 - [Authoring model](../authoring-model.md)
 - [Shared scenario](../shared-scenario.md)
-- [Examples/Shared/Counter.lean](../../Examples/Shared/Counter.lean)
+- [Examples/Product/Counter.lean](../../Examples/Product/Counter.lean)
 
 ## What you will build
 
 You will use the canonical Counter module at
-`Examples/Shared/Counter.lean`. It exposes three entrypoints:
+`Examples/Product/Counter.lean`. It exposes three entrypoints:
 
 | Call | Effect |
 |---|---|
@@ -28,7 +28,7 @@ Solana account layout, or NEAR host imports appear in the source.
 
 ## Step 1 — Read the source (no target forks)
 
-Open `Examples/Shared/Counter.lean`:
+Open `Examples/Product/Counter.lean`:
 
 ```lean
 contract_source Counter do
@@ -43,7 +43,7 @@ contract_source Counter do
 
   query get returns(.u64) do
     return count;
-end Examples.Shared.Counter
+end Examples.Product.Counter
 ```
 
 Notice:
@@ -61,17 +61,17 @@ lake env proof-forge build --target evm --root . \
   -o build/tutorial-counter/Counter.bin \
   --yul-output build/tutorial-counter/Counter.yul \
   --artifact-output build/tutorial-counter/Counter.proof-forge-artifact.json \
-  Examples/Shared/Counter.lean
+  Examples/Product/Counter.lean
 
 lake env proof-forge build --target solana-sbpf-asm --root . \
   -o build/tutorial-counter/Counter.s \
   --artifact-output build/tutorial-counter/Counter.solana-artifact.json \
-  Examples/Shared/Counter.lean
+  Examples/Product/Counter.lean
 
 lake env proof-forge build --target wasm-near --root . \
   -o build/tutorial-counter/near \
   --artifact-output build/tutorial-counter/Counter.near-artifact.json \
-  Examples/Shared/Counter.lean
+  Examples/Product/Counter.lean
 ```
 
 Each command emits target-native artifacts plus structured metadata JSON. The
@@ -117,7 +117,7 @@ just testkit-budget-gate
 ## Step 5 — Extend to richer portable logic (ValueVault)
 
 When a contract needs events and block context, the same pattern applies.
-`Examples/Shared/ValueVault.lean` adds `events.emit` and `env.block` while
+`Examples/Product/ValueVault.lean` adds `events.emit` and `env.block` while
 remaining chain-neutral in source form.
 
 Build and validate:
@@ -139,20 +139,20 @@ chain protocol in source:
 lake env proof-forge build --target evm --token --root . \
   -o build/shared-fungible-token/FungibleToken.erc20.bin \
   --yul-output build/shared-fungible-token/FungibleToken.erc20.yul \
-  Examples/Shared/FungibleToken.lean
+  Examples/Product/FungibleToken.lean
 
 lake env proof-forge build --target solana-sbpf-asm --token --root . \
   -o build/shared-fungible-token/FungibleToken.solana-token-plan.json \
-  Examples/Shared/FungibleToken.lean
+  Examples/Product/FungibleToken.lean
 ```
 
 The source stays target-neutral; the EVM target chooses an ERC-20-compatible
 artifact and the Solana target chooses an SPL Token / Token-2022 plan. EVM
-stdlib composition examples remain under `Examples/Evm/Contracts/`.
+stdlib composition examples remain under `Examples/Backend/Evm/Contracts/`.
 
 ## Checklist
 
-- [ ] One Lean module under `Examples/Shared/` (or your project root) with no
+- [ ] One Lean module under `Examples/Product/` (or your project root) with no
       per-target source copies.
 - [ ] Three `proof-forge build --target ...` commands succeed for
       `evm`, `solana-sbpf-asm`, and `wasm-near`.

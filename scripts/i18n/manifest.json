@@ -125,7 +125,7 @@
     "zh": "docs/zh/targets/move-family.zh.md",
     "model": "gemini-3-flash-preview"
   },
-  "Examples/Evm/README.md": {
+  "Examples/Backend/Evm/README.md": {
     "sha256": "31a43cd22da79d7889ab3442fd5687288238fc818eda390205d87d0ccd30c21b",
     "zh": "docs/zh/examples-evm-README.zh.md",
     "model": "gemini-3-flash-preview"
