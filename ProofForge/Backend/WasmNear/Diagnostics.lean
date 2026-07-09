@@ -24,13 +24,10 @@ def crosscallEvmOnlyMessage (kind : String) : String :=
 def crosscallTypedUnsupportedMessage : String :=
   "EmitWat: typed crosscall returns are not supported on NEAR; use untyped `crosscallInvoke` (Promise materialization returns promise id u64)"
 
-/-- Honest Soroban path: host adapter has storage/auth only; do not silently
-emit NEAR `promise_create` when `bridge = .soroban`. -/
-def sorobanCrosscallNotLoweredMessage : String :=
-  "EmitWat: Soroban host adapter does not lower portable crosscall.invoke yet (native form: soroban-invoke). Host surface is _put/_get/require_auth_for_args; client-style contract invoke is the next spike — not NEAR promise_create"
-
+/-- NEAR Promise host-extension constructors never lower on Soroban. Portable
+`crosscall.invoke` materializes as `invoke_contract` instead of `promise_create`. -/
 def sorobanNearPromiseUnsupportedMessage : String :=
-  "EmitWat: NEAR Promise constructors are not materializable on Soroban host bridge; use portable crosscall only after soroban-invoke lowering lands"
+  "EmitWat: NEAR Promise constructors are not materializable on Soroban host bridge; use portable crosscall.invoke → soroban-invoke (`invoke_contract`)"
 
 structure EmitError where
   message : String

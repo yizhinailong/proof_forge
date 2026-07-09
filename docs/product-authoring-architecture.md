@@ -416,7 +416,7 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 | 5c | Portable CPI pack up to **64** (heap infos + stack metas) | ✅ `HEAP_START_ADDRESS` infos; ptr table 64 |
 | 5d | Wire Preflight into CLI artifact + `proof-forge check` | ✅ Solana/EVM/NEAR artifacts; Check preflight.failed |
 | 5e | **Product close-out triad** EVM · Solana · NEAR | ✅ Shared.RemoteCall multi-target + preflight + crosscall map |
-| 5f | **Soroban** honest crosscall form + next spike (not CosmWasm/Workers) | ✅ `soroban-invoke` form; EmitWat invoke lower still next |
+| 5f | **Soroban** portable crosscall → `invoke_contract` (not CosmWasm/Workers) | ✅ `soroban-invoke`; EmitWat + host stub; Promise extensions rejected |
 | 5g | CosmWasm / Workers advancement | **Deferred** (explicit non-goals this phase) |
 
 ### Phase close-out — what is “done” vs “next”
@@ -428,14 +428,14 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 | `evm` | CALL | yes | `Shared.RemoteCall` |
 | `solana-sbpf-asm` | CPI ≤64 | yes | `Shared.RemoteCall` |
 | `wasm-near` | `promise_create` | yes | `Shared.RemoteCall` |
+| `wasm-stellar-soroban` (host bridge) | `invoke_contract` | form map | portable probe via EmitWat `.soroban` |
 
-**Next (Wasm host family, after triad):**
+**Next (Wasm host family, after triad + Soroban invoke spike):**
 
-- **`wasm-stellar-soroban`**: host adapter (`SorobanHost` + Counter refinement)
-  already reuses EmitWat/WasmExec for storage/auth; **do not** map portable
-  crosscall to NEAR Promise. Native form is `soroban-invoke` (honest spike).
-  Next engineering: client-style host invoke + contract-spec/auth context, then
-  optional registry id.
+- **`wasm-stellar-soroban`**: storage/auth + portable `invoke_contract` landed on
+  shared EmitWat/WasmExec. Remaining: real Env API (TTL storage, true
+  `require_auth`, `Address`/`Symbol`/`Vec<Val>`), storage name remap off NEAR
+  `storage_*`, contract-spec, optional separate registry id.
 
 **Deferred (do not open until Soroban spike is real or triad needs change):**
 

@@ -120,8 +120,23 @@ def hostAllocatorImportsForModulePlan (plan : ModulePlan) (cfg : ProofForge.IR.A
     (if plan.usesArrAlloc then #[allocImport] else #[]) ++
       (if plan.usesArrDealloc then #[deallocImport] else #[])
 
+/-- Host import for portable `crosscall.invoke` on the Soroban bridge.
+Signature matches `HostBridge.hostFunctions .soroban` / EmitWat packing
+(contract len/ptr, method len/ptr, args len/ptr → result handle i64). -/
+def sorobanInvokeContractImport : Import :=
+  hostImport "invoke_contract" #[.i64, .i64, .i64, .i64, .i64, .i64] #[.i64]
+
+/-- Drop NEAR Promise host imports — Soroban never materializes them. -/
+def stripNearPromiseImports (imports : Array Import) : Array Import :=
+  imports.filter fun import_ =>
+    match import_.name with
+    | "promise_create" | "promise_then" | "promise_results_count"
+    | "promise_result" | "promise_return" => false
+    | _ => true
+
 def importsForModulePlan
-    (plan : ModulePlan) (cfg : ProofForge.IR.AllocatorConfig) (hasPanic : Bool) : Array Import :=
+    (plan : ModulePlan) (cfg : ProofForge.IR.AllocatorConfig) (hasPanic : Bool)
+    (bridge : ProofForge.Target.HostBridge := .near) : Array Import :=
   let sha256Imports := if modulePlanUsesSha256 plan then #[sha256Import] else #[]
   let baseImportsCore :=
     (nearImportsForModulePlan plan ++ sha256Imports).push inputImport
@@ -131,7 +146,7 @@ def importsForModulePlan
         else
           imports
   let baseImports := baseImportsCore ++ (if hasPanic then #[panicImport] else #[])
-  dedupeImports <|
+  let nearFamily :=
     baseImports ++ ctxImportsForModulePlan plan ++ promiseCtxImportsForModulePlan plan ++
       promiseResultImportsForModulePlan plan ++
       (if plan.usesU64IndexedContains || plan.usesHashIndexedContains then
@@ -139,5 +154,16 @@ def importsForModulePlan
       else
         #[]) ++
       hostAllocatorImportsForModulePlan plan cfg
+  match bridge with
+  | .soroban =>
+      -- Storage helpers still emit NEAR storage_* names (shared EmitWat core /
+      -- Counter spike). Promise_* is never imported; portable crosscall uses
+      -- invoke_contract. Full Env storage remap is a later spike.
+      let withoutPromise := stripNearPromiseImports nearFamily
+      let withInvoke :=
+        if plan.usesPromiseCreate then withoutPromise.push sorobanInvokeContractImport
+        else withoutPromise
+      dedupeImports withInvoke
+  | _ => dedupeImports nearFamily
 
 end ProofForge.Backend.WasmNear.Imports

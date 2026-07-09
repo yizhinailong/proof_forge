@@ -44,7 +44,6 @@ import ProofForge.Backend.WasmNear.Scalar
 import ProofForge.Backend.WasmNear.Statement
 import ProofForge.Backend.WasmNear.Struct
 import ProofForge.Backend.WasmNear.Types
-import ProofForge.Target.CrosscallMaterialize
 import ProofForge.Target.Plan
 import ProofForge.Target.Registry
 
@@ -130,7 +129,7 @@ export ProofForge.Backend.WasmNear.Diagnostics (
   nativeValueUnsupportedMessage indexedEventUnsupportedMessage
   crosscallUnsupportedMessage crosscallEvmOnlyMessage
   crosscallTypedUnsupportedMessage
-  sorobanCrosscallNotLoweredMessage sorobanNearPromiseUnsupportedMessage
+  sorobanNearPromiseUnsupportedMessage
   EmitError err
 )
 
@@ -397,8 +396,27 @@ mutual
       .call "promise_create"
     ], .u64)
 
-  partial def lowerCrosscallInvoke (ctx : Ctx) (env : LocalTypes) (target method : Expr) (args : Array Expr)
-      (deposit : Expr) : Except EmitError (Array Insn × ValueType) := do
+  /-- Portable crosscall → Soroban host `invoke_contract` (not NEAR promise).
+  Reuses the shared string pool + JSON args scratch; deposit/gas are NEAR-only
+  and are not passed to the Soroban host surface. -/
+  partial def lowerSorobanInvoke (ctx : Ctx) (env : LocalTypes) (target method : Expr)
+      (args : Array Expr) : Except EmitError (Array Insn × ValueType) := do
+    if ctx.crosscallStrings.isEmpty then
+      err "EmitWat: Soroban invoke requires `module.nearCrosscallStrings` for contract/method names"
+    let contract ← resolveCrosscallStringRef ctx target "target contract id"
+    let methodSi ← resolveCrosscallStringRef ctx method "method name"
+    let (argBuildInsns, argsPtr, argsLenMarker) ← lowerCrosscallArgsJson ctx env args
+    let argsLenInsns := crosscallArgsLenInsns args argsLenMarker
+    let argsPtrInsns := crosscallArgsPtrInsns argsPtr
+    .ok (argBuildInsns ++
+      stringInfoLenPtrInsns contract ++
+      stringInfoLenPtrInsns methodSi ++
+      argsLenInsns ++ argsPtrInsns ++ #[
+      .call "invoke_contract"
+    ], .u64)
+
+  partial def lowerNearPromiseCreate (ctx : Ctx) (env : LocalTypes) (target method : Expr)
+      (args : Array Expr) (deposit : Expr) : Except EmitError (Array Insn × ValueType) := do
     if ctx.crosscallStrings.isEmpty then
       err "EmitWat: NEAR crosscall requires `module.nearCrosscallStrings` to be populated"
     let account ← resolveCrosscallStringRef ctx target "target account id"
@@ -414,6 +432,14 @@ mutual
       .i64Const crosscallDefaultGas,
       .call "promise_create"
     ], .u64)
+
+  partial def lowerCrosscallInvoke (ctx : Ctx) (env : LocalTypes) (target method : Expr) (args : Array Expr)
+      (deposit : Expr) : Except EmitError (Array Insn × ValueType) :=
+    match ctx.bridge with
+    | .soroban => lowerSorobanInvoke ctx env target method args
+    | .cosmWasm =>
+        err "EmitWat: CosmWasm portable crosscall is deferred; use Backend.CosmWasm.EmitWat for that adapter"
+    | .near => lowerNearPromiseCreate ctx env target method args deposit
 
   partial def lowerNearPromiseThen (ctx : Ctx) (env : LocalTypes) (parentPromise callbackMethod : Expr)
       (args : Array Expr) (deposit : Expr) : Except EmitError (Array Insn × ValueType) := do
@@ -584,17 +610,24 @@ mutual
     | .crosscallCreate2 _ _ _ =>
       err (crosscallEvmOnlyMessage "crosscallCreate2")
     | .nearCrosscallInvokePool accountIndex methodId args deposit =>
-      lowerNearCrosscallInvokePool ctx env accountIndex methodId args deposit
+      if ctx.bridge == .soroban then err sorobanNearPromiseUnsupportedMessage
+      else lowerNearCrosscallInvokePool ctx env accountIndex methodId args deposit
     | .nearPromiseThen parentPromise callbackMethod args deposit =>
-      lowerNearPromiseThen ctx env parentPromise callbackMethod args deposit
+      if ctx.bridge == .soroban then err sorobanNearPromiseUnsupportedMessage
+      else lowerNearPromiseThen ctx env parentPromise callbackMethod args deposit
     | .nearPromiseResultsCount =>
-      .ok (#[.call "promise_results_count"], .u64)
-    | .nearPromiseResultStatus index => do
-      let indexInsns ← lowerNearPromiseResultIndex ctx env index
-      .ok (indexInsns ++ #[.i64Const 0, .call "promise_result"], .u64)
-    | .nearPromiseResultU64 index => do
-      let indexInsns ← lowerNearPromiseResultIndex ctx env index
-      .ok (indexInsns ++ #[.call promiseResultU64Name], .u64)
+      if ctx.bridge == .soroban then err sorobanNearPromiseUnsupportedMessage
+      else .ok (#[.call "promise_results_count"], .u64)
+    | .nearPromiseResultStatus index =>
+      if ctx.bridge == .soroban then err sorobanNearPromiseUnsupportedMessage
+      else do
+        let indexInsns ← lowerNearPromiseResultIndex ctx env index
+        .ok (indexInsns ++ #[.i64Const 0, .call "promise_result"], .u64)
+    | .nearPromiseResultU64 index =>
+      if ctx.bridge == .soroban then err sorobanNearPromiseUnsupportedMessage
+      else do
+        let indexInsns ← lowerNearPromiseResultIndex ctx env index
+        .ok (indexInsns ++ #[.call promiseResultU64Name], .u64)
     | _ => err "EmitWat: this expression form is not yet supported"
 
   partial def lowerMatchingNumericOperands (ctx : Ctx) (env : LocalTypes) (op : String) (a b : Expr)
@@ -976,7 +1009,7 @@ def lowerModuleCoreWithCtx (mod : ProofForge.IR.Module) (modulePlan : ModulePlan
     (ctx : Ctx) : Except EmitError ProofForge.Compiler.Wasm.Module := do
   let entryFuncs ← mod.entrypoints.mapM (lowerEntrypoint ctx)
   let hasPanic := !ctx.panics.isEmpty
-  let imports := importsForModulePlan modulePlan mod.allocator hasPanic
+  let imports := importsForModulePlan modulePlan mod.allocator hasPanic ctx.bridge
   let funcs := helperFuncsForModulePlan modulePlan mod ctx entryFuncs
   let globals := globalsForModulePlan modulePlan mod.allocator
   .ok { imports := imports, globals := globals, funcs := funcs,
@@ -988,17 +1021,16 @@ def lowerModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBri
     err "EmitWat: CosmWasm bridge lowering is implemented in Backend.CosmWasm.EmitWat; use that module for wasm-cosmwasm"
   if mod.allocator.isCosmWasmRegion then
     err "EmitWat: alloc.cosmwasm_region is for the CosmWasm adapter, not wasm-near EmitWat"
-  -- Soroban host adapter: storage/auth only. Never silently emit NEAR promise_*.
+  -- Soroban: NEAR Promise host-extension constructors never lower.
+  -- Portable crosscall.invoke → invoke_contract (threaded via ctx.bridge).
   if bridge == ProofForge.Target.HostBridge.soroban then
-    if ProofForge.Target.CrosscallMaterialize.moduleUsesPortableCrosscall mod then
-      err sorobanCrosscallNotLoweredMessage
     if ProofForge.Backend.WasmNear.PortableCrosscall.moduleUsesPromiseExtension mod then
       err sorobanNearPromiseUnsupportedMessage
   let modulePlan ←
     match buildModulePlan mod with
     | .ok plan => pure plan
     | .error planErr => err s!"EmitWat: {planErr.message}"
-  let ctx := loweringCtxForModule mod
+  let ctx := loweringCtxForModule mod bridge
   validateScratchCapacities mod ctx.strings ctx.panics ctx.crosscallStrings
   lowerModuleCoreWithCtx mod modulePlan ctx
 

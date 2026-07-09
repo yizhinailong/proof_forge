@@ -4,11 +4,11 @@ import ProofForge.Backend.WasmNear.WasmExec
 Soroban host-model lemmas for the generic Wasm execution core (Phase 4 WASM host family).
 
 `WasmExec.lean` stays chain-agnostic; this file instantiates the host-call hook
-for the Stellar Soroban first-spike surface (`_put` / `_get` / `set_return_data` /
-`log_from_slice` / `require_auth_for_args`). The storage model is intentionally
-identical to NEAR's and CosmWasm's (`lookupStorage?` / `writeStorage`) so
-contract-axis proofs can reuse the same abstract scalar reasoning; only host-call
-names and stack arities differ.
+for the Stellar Soroban host surface (`_put` / `_get` / `set_return_data` /
+`log_from_slice` / `require_auth_for_args` / `invoke_contract`). The storage
+model is intentionally identical to NEAR's and CosmWasm's (`lookupStorage?` /
+`writeStorage`) so contract-axis proofs can reuse the same abstract scalar
+reasoning; only host-call names and stack arities differ.
 
 This is the third WASM host adapter (after `NearHost` facts embedded in
 `WasmInterpreter` and `CosmWasmHost.lean`). It proves the WASM host-family
@@ -81,6 +81,16 @@ theorem sorobanHost_require_auth_ok
       .ok (stackPush state 1) := by
   simp [runSorobanHostCall]
 
+/-- Spike stub: arity-checked host invoke returns handle `0` after reading the
+three packed slices (contract id / method / args) from linear memory. -/
+theorem sorobanHost_invoke_contract_ok
+    (state : State)
+    (contractLen contractPtr methodLen methodPtr argsLen argsPtr : Nat) :
+    runSorobanHostCall "invoke_contract"
+        #[contractLen, contractPtr, methodLen, methodPtr, argsLen, argsPtr] state =
+      .ok (stackPush state 0) := by
+  simp [runSorobanHostCall, stackPush]
+
 theorem sorobanHost_hook_ok
     (name : String) (state argsState finalState : State)
     (argCount : Nat) (args : Array Nat)
@@ -144,10 +154,10 @@ theorem runHostCall_soroban_put_stack_ok
     (splitStackArgs_stackPush4 state keyPtr keyLen valuePtr valueLen)
     (sorobanHost_put_ok state keyPtr keyLen valuePtr valueLen key value hkey hvalue)
 
-/-- Smoke: the Soroban host bridge dispatches `_get` (miss) / `log_from_slice` /
-`require_auth_for_args` on a `.soroban`-bridged state without error. This is the
-machine-checked witness that the third WASM host adapter plugs into the shared
-`runHostCall` dispatch. -/
+/-- Smoke: the Soroban host bridge dispatches `_get` / `log_from_slice` /
+`require_auth_for_args` / `invoke_contract` on a `.soroban`-bridged state without
+error. Machine-checked witness that the third WASM host adapter plugs into the
+shared `runHostCall` dispatch, including portable crosscall materialization. -/
 def sorobanHostSmoke : Bool :=
   let state : State := { host := { bridge := .soroban } }
   match runHostCall "_get" (stackPush (stackPush state 0) 0) with
@@ -155,7 +165,13 @@ def sorobanHostSmoke : Bool :=
       match runHostCall "log_from_slice" (stackPush (stackPush state 0) 0) with
       | .ok _ =>
           match runHostCall "require_auth_for_args" (stackPush (stackPush state 0) 0) with
-          | .ok _ => true
+          | .ok _ =>
+              -- invoke_contract: 6 stack args all zero → empty slices, handle 0
+              let st6 :=
+                stackPush (stackPush (stackPush (stackPush (stackPush (stackPush state 0) 0) 0) 0) 0) 0
+              match runHostCall "invoke_contract" st6 with
+              | .ok _ => true
+              | .error _ => false
           | .error _ => false
       | .error _ => false
   | .error _ => false

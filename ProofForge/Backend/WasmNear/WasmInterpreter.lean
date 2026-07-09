@@ -382,6 +382,7 @@ def sorobanHostArity (name : String) : Except String Nat :=
   | "log_from_slice" => .ok 2
   | "require_auth_for_args" => .ok 2
   | "set_return_data" => .ok 2
+  | "invoke_contract" => .ok 6
   | other => .error s!"unsupported Soroban host call `{other}`"
 
 def runSorobanHostCall (name : String) (args : Array Nat) (state : WasmState) :
@@ -409,6 +410,16 @@ def runSorobanHostCall (name : String) (args : Array Nat) (state : WasmState) :
         let value := readBytes state.memory args[0] args[1]
         .ok { state with host := { state.host with returnValue := value } }
       else .error s!"set_return_data expected 2 arguments, got {args.size}"
+  -- Spike stub: real Env::invoke_contract (Address + Symbol + Vec<Val>) lands later.
+  -- Validate arity, force memory reads of the packed contract/method/args slices
+  -- so mis-sized ptr/len fail like other host reads, and return handle `0`.
+  | "invoke_contract" =>
+      if h : args.size = 6 then
+        let _contract := readBytes state.memory args[1] args[0]
+        let _method := readBytes state.memory args[3] args[2]
+        let _args := readBytes state.memory args[5] args[4]
+        .ok (stackPush state 0)
+      else .error s!"invoke_contract expected 6 arguments, got {args.size}"
   | other => .error s!"unsupported Soroban host call `{other}`"
 
 def hostArity (bridge : ProofForge.Target.HostBridge) (name : String) :

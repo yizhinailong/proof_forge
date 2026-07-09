@@ -72,7 +72,8 @@ def HostBridge.requiredImports : HostBridge → Array String
       "env._put",
       "env._get",
       "env.log_from_slice",
-      "env.require_auth_for_args"
+      "env.require_auth_for_args",
+      "env.invoke_contract"
     ]
 
 /-- Full host-function signatures for each bridge. Used by generic Wasm
@@ -107,7 +108,14 @@ def HostBridge.hostFunctions : HostBridge → Array HostFunction
       { name := "_put",  params := #["i32", "i32", "i32", "i32"], results := #[] },
       { name := "_get",  params := #["i32", "i32"], results := #["i32"] },
       { name := "log_from_slice", params := #["i32", "i32"], results := #[] },
-      { name := "require_auth_for_args", params := #["i32", "i32"], results := #["i32"] }
+      { name := "require_auth_for_args", params := #["i32", "i32"], results := #["i32"] },
+      -- Portable crosscall.invoke materializes here (not NEAR promise_create).
+      -- Contract/method names come from the shared nearCrosscallStrings pool;
+      -- args are the same JSON scratch buffer used by NEAR. Returns a host
+      -- result handle (i64) — real Env::invoke_contract lands as a later spike.
+      { name := "invoke_contract",
+        params := #["i64", "i64", "i64", "i64", "i64", "i64"],
+        results := #["i64"] }
     ]
 
 end ProofForge.Target

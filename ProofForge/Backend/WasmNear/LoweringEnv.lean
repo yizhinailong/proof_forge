@@ -6,6 +6,7 @@ import ProofForge.IR.Contract
 import ProofForge.Backend.WasmNear.Diagnostics
 import ProofForge.Backend.WasmNear.Layout
 import ProofForge.Backend.WasmNear.Types
+import ProofForge.Target.HostBridge
 
 namespace ProofForge.Backend.WasmNear.LoweringEnv
 
@@ -24,6 +25,9 @@ structure Ctx where
   crosscallStrings : Array StringInfo
   structs : Array ProofForge.IR.StructDecl
   allocator : ProofForge.IR.AllocatorConfig
+  /-- Host bridge selects native crosscall materialization
+  (NEAR `promise_create` vs Soroban `invoke_contract`). Defaults to NEAR. -/
+  bridge : ProofForge.Target.HostBridge := .near
 
 structure LBind where
   name : String

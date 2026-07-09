@@ -191,22 +191,30 @@ Landed:
 
 - `ProofForge.Target.HostBridge.soroban` — third `HostBridge` variant (after
   `.near` / `.cosmWasm`) with `requiredExports`, `requiredImports`, and
-  `hostFunctions` for the minimal first-spike surface (`_put` / `_get` /
-  `log_from_slice` / `require_auth_for_args`).
+  `hostFunctions` for storage/auth plus portable crosscall
+  (`_put` / `_get` / `log_from_slice` / `require_auth_for_args` /
+  `invoke_contract`).
 - `ProofForge.Backend.WasmNear.WasmInterpreter.runSorobanHostCall` +
   `sorobanHostArity` + `runHostCall` dispatch arm. The storage model is the
   same byte-keyed `lookupStorage?` / `writeStorage` table NEAR and CosmWasm
   use, so contract-axis proofs reuse the same abstract scalar reasoning.
+  `invoke_contract` is a spike stub (reads packed slices, returns handle `0`).
+- EmitWat with `bridge = .soroban`: portable `crosscall.invoke` → host
+  `invoke_contract` (shared string pool + JSON args); NEAR `promise_*` never
+  imported; Promise host-extension constructors rejected.
 - `ProofForge.Backend.WasmNear.SorobanHost.lean` — thin host-call lemmas
-  (`_get` hit/miss, `_put`, `set_return_data`, `log`, `require_auth`) +
-  `soroban_host_smoke_ok`.
+  (`_get` hit/miss, `_put`, `set_return_data`, `log`, `require_auth`,
+  `invoke_contract`) + `soroban_host_smoke_ok`.
 - `ProofForge.Backend.WasmNear.CounterSorobanRefinement.lean` — Counter
   universal C-proof reusing the SAME host-agnostic
   `counterWasmCoreTraceStep` core as NEAR/CosmWasm; only the host
   instantiation differs.
 - `just wasm-soroban-host-smoke` (in `just check`) — machine-checked witness.
+- `just crosscall-materialize` — asserts Soroban WAT contains `invoke_contract`
+  and never `promise_create`.
 
 Not yet done (future Soroban spikes): real Soroban `Env` API (instance /
 persistent / temporary storage with TTL, real `require_auth`, ledger reads,
-cross-contract calls), `wasm32v1-none` artifact emit, Stellar CLI
-build/deploy/invoke validation, separate `wasm-stellar-soroban` registry id.
+`Address`/`Symbol`/`Vec<Val>` invoke), EmitWat storage name remap off NEAR
+`storage_*`, `wasm32v1-none` artifact emit, Stellar CLI build/deploy/invoke
+validation, separate `wasm-stellar-soroban` registry id.

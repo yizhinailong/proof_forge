@@ -17,6 +17,7 @@ import ProofForge.Backend.WasmNear.Memory
 import ProofForge.Backend.WasmNear.Plan
 import ProofForge.Backend.WasmNear.Promise
 import ProofForge.Backend.WasmNear.Scalar
+import ProofForge.Target.HostBridge
 
 namespace ProofForge.Backend.WasmNear.ModuleAssembly
 
@@ -40,7 +41,8 @@ open ProofForge.Backend.WasmNear.Scalar
 def moduleStringPoolEnd (strings : Array StringInfo) : Nat :=
   strings.foldl (init := STRING_BASE) fun acc s => max acc (s.ptr + s.len + 1)
 
-def loweringCtxForModule (mod : ProofForge.IR.Module) : Ctx :=
+def loweringCtxForModule (mod : ProofForge.IR.Module)
+    (bridge : ProofForge.Target.HostBridge := .near) : Ctx :=
   let strings := stringPool mod
   let panics := panicPool mod (moduleStringPoolEnd strings)
   {
@@ -51,6 +53,7 @@ def loweringCtxForModule (mod : ProofForge.IR.Module) : Ctx :=
     crosscallStrings := crosscallStringInfos mod.nearCrosscallStrings CROSSCALL_STRING_BASE
     structs := mod.structs
     allocator := mod.allocator
+    bridge := bridge
   }
 
 def dataSegmentsForModulePlan (modulePlan : ModulePlan) (ctx : Ctx) : Array DataSegment :=

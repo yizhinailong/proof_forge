@@ -59,7 +59,7 @@ def sorobanMaterializationNote (module : Module) : String :=
   if moduleUsesPromiseExtension module then
     "Soroban: NEAR Promise constructors unsupported on this host bridge"
   else if moduleUsesPortableInvoke module then
-    "Soroban: portable crosscall.invoke recognized as soroban-invoke (EmitWat lower not landed; host has _put/_get/require_auth)"
+    "Soroban: portable crosscall.invoke → invoke_contract (soroban-invoke; nearCrosscallStrings pool)"
   else
     "Soroban: no portable crosscall sites (storage/auth host surface only)"
 

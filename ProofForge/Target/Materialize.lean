@@ -144,7 +144,7 @@ def forWasmHost (module : Module) (profile : TargetProfile) : Report :=
     | some .cosmWasm, _ =>
         "CosmWasm host storage/msgs synthesized from portable IR (EmitWat host adapter)"
     | some .soroban, _ =>
-        "Soroban host storage (_put/_get) from portable IR; crosscall/auth invoke is next spike"
+        "Soroban host storage (_put/_get) + portable crosscall → invoke_contract (soroban-invoke)"
     | none, _ =>
         if profile.id == "wasm-cloudflare-workers" then
           "Cloudflare Workers bindings / off-chain host from portable IR (TS emit path)"

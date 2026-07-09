@@ -145,7 +145,7 @@ def forProfile (profile : TargetProfile) : Report :=
     | .workersBinding =>
         "Portable crosscall.invoke reinterpreted as Workers binding/fetch (deferred off-chain host)"
     | .sorobanInvoke =>
-        "Soroban host adapter: storage/auth (_put/_get/require_auth) landed; portable crosscall → client-style host invoke is the next spike (not NEAR promise)"
+        "Portable crosscall.invoke → Soroban host invoke_contract (string pool + JSON args; not NEAR promise_create)"
     | .moveCall =>
         "Portable crosscall.invoke → Move package call shape (spike; limited coverage)"
     | .zkCircuitCall =>

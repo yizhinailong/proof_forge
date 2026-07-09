@@ -154,12 +154,16 @@ def main : IO Unit := do
   require ((forProfile wasmCosmWasm).note.contains "deferred" ||
       (forProfile wasmCosmWasm).nativeForm == NativeForm.cosmWasmMsg)
     "CosmWasm remains deferred spike form"
-  -- EmitWat with bridge=.soroban must not silently emit NEAR promise_create.
+  -- Soroban: portable crosscall → invoke_contract, never promise_create.
   match ProofForge.Backend.WasmNear.EmitWat.renderModule nearPortable .soroban with
-  | .ok _ => throw (IO.userError "Soroban bridge must not lower portable crosscall as promise yet")
-  | .error e =>
-      require (e.message.contains "Soroban" || e.message.contains "soroban-invoke")
-        s!"expected Soroban crosscall diagnostic, got: {e.message}"
+  | .error e => throw (IO.userError s!"Soroban should lower portable crosscall to invoke_contract: {e.message}")
+  | .ok wat =>
+      require (wat.contains "invoke_contract")
+        "Soroban WAT must import/call invoke_contract for portable crosscall"
+      require (!wat.contains "promise_create")
+        "Soroban WAT must not emit NEAR promise_create"
+      require (!wat.contains "promise_then")
+        "Soroban portable path must not emit promise_then"
   match ProofForge.Backend.WasmNear.EmitWat.renderModule
       ProofForge.IR.Examples.NearCrosscallProbe.promiseExtensionModule .soroban with
   | .ok _ => throw (IO.userError "Soroban bridge must reject NEAR Promise constructors")
@@ -173,6 +177,8 @@ def main : IO Unit := do
   | .ok wat =>
       require (!wat.contains "promise_create")
         "Counter Soroban WAT should not import NEAR promise_create for storage-only module"
+      require (!wat.contains "invoke_contract")
+        "Counter storage-only Soroban WAT should not import invoke_contract"
 
   -- Shared portable RemoteCall (contract_source + remoteCall) multi-target.
   let shared := Examples.Shared.RemoteCall.module
@@ -208,4 +214,4 @@ def main : IO Unit := do
   | .error e => throw (IO.userError s!"NEAR portable path for multi-target failed: {e.message}")
   | .ok wat => require (wat.contains "promise_create") "NEAR multi-target promise_create"
 
-  IO.println "crosscall-materialize: ok (evm·solana·near + shared RemoteCall + honest secondary)"
+  IO.println "crosscall-materialize: ok (evm·solana·near + soroban-invoke + shared RemoteCall)"
