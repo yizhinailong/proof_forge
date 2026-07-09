@@ -186,9 +186,10 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 | ε.16 | ERC-4626 exit FOT (vault balance down-delta on push) | **done** |
 | ε.17 | Call[] runtime targets + static calldata templates | **done** |
 | ε.18 | ERC-4626 recipient-side FOT (recv balance up-delta) | **done** |
+| ε.19 | Call[] runtime selector‖uint256* args (`aggregateIrDynCalls`) | **done** |
 
-**Honesty still open:** fee-recipient push re-measure; fully dynamic per-call
-bytes (runtime calldata blobs, not only targets/length/static templates).
+**Honesty still open:** fee-recipient push re-measure; free-form runtime
+calldata blobs (non ABI-word shapes / dynamic nested bytes).
 
 ---
 

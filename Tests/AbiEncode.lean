@@ -188,7 +188,30 @@ def main : IO UInt32 := do
   require (contains tgtYul "t1") "second target param"
   require (contains tgtYul "call(") "dyn-targets helper CALL"
 
-  IO.println s!"abi-encode: ok (layout + yul + IR packed/dyn/tgts empty={empty.size} one={one.size} two={two.size})"
+  -- Runtime targets + runtime ABI arg words (selector ‖ uint256*)
+  let dynCalls : Array ProofForge.Backend.Evm.ToYul.AbiEncode.DynCall := #[
+    { target := .literal (.u64 0xaaa), selector := 0xa9059cbb,
+      args := #[.literal (.u64 1), .literal (.u64 2)] },
+    { target := .literal (.u64 0xbbb), selector := 0x23b872dd,
+      args := #[.literal (.u64 3), .literal (.u64 4), .literal (.u64 5)] }
+  ]
+  let irWords := irAggregateDynCalls (.literal (.u64 0xcA11)) dynCalls none 32
+  match irWords with
+  | .crosscallAbiPacked _ _ _ _ _ none none offs vals =>
+      -- 2 targets + 2 + 3 args = 7 runtime patches
+      require (offs.size == 7 && vals.size == 7) s!"dyn call patches offs={offs.size}"
+  | _ => throw (IO.userError "expected dyn-calls packed")
+  let wordSpec : ProofForge.Backend.Evm.Plan.AbiPackedHelperSpec :=
+    match irWords with
+    | .crosscallAbiPacked _ sel stores argsSize outSize dynOff _ offs _ =>
+        { selector := sel, stores := stores, argsSize := argsSize, outSize := outSize,
+          dynLenOffset? := dynOff, dynTargetOffsets := offs }
+    | _ => { selector := 0, stores := #[], argsSize := 0, outSize := 0 }
+  let wordYul := renderStatements #[abiPackedHelperFunction wordSpec]
+  require (contains wordYul "t0" && contains wordYul "t6") "dyn call params t0..t6"
+  require (contains wordYul "call(") "dyn-calls helper CALL"
+
+  IO.println s!"abi-encode: ok (layout + yul + IR packed/dyn/tgts/words empty={empty.size} one={one.size} two={two.size})"
   pure 0
 
 end ProofForge.Tests.AbiEncode
