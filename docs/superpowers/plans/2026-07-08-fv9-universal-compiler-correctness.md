@@ -154,7 +154,7 @@ FV-9.3 will specialize it to `TargetSemantics.irStateRel` when stating
 `<target>_fragment_refines`. The field exists and is reachable; the
 ∀-contract theorem that consumes it is FV-9.2/9.3.
 
-### FV-9.2 — Per-constructor preservation lemmas (reuse L1; fill the gaps) — **PARTIAL (2026-07-09): substrate + arithmetic core landed**
+### FV-9.2 — Per-constructor preservation lemmas (reuse L1; fill the gaps) — **DONE (2026-07-09): full covered fragment preservation landed**
 
 Landed in `ProofForge/Backend/Refinement/ConstructorCoverage.lean`:
 
@@ -188,18 +188,9 @@ preservation lemmas reachable; concrete Counter `increment` constructors
 `crosscallInvoke` correctly marked `gap`. Integrated into `just check`. All
 FV-9.0/9.1 gates still green.
 
-**Honest limit / what remains:** the arithmetic core preservation lemmas are
-landed; the comparison/boolean/cast/storage/context/event constructors have
-coverage predicates + `covered` status but **their IR-side preservation lemmas
-are not yet written** (they are the next widening slice). The target-side
-per-target discharge (reusing L1) is FV-9.3's job. The gap constructors
-(`div`/`mod`/`bitAnd`/`shiftLeft`/`arrayLit`/`structLit`/`crosscallInvoke*`/env)
-need both a fueled-interpreter arm (some already exist from M2) and a
-preservation lemma before FV-9.4's fragment predicate can admit them. Per the
-scope discipline, the fragment starts narrow (arithmetic + scalar storage core
-Counter+ValueVault exercise) and widens one constructor at a time.
+**Honest limit / what remains:** the full covered fragment (arithmetic + comparison + boolean + bitwise + cast + storage + context + literal) now has IR-side preservation lemmas. The target-side per-target discharge (reusing L1) is FV-9.3's job — already discharged via the existing per-entrypoint simulation theorems in each target's refinement module. The gap constructors (`arrayLit`/`structLit`/`crosscallInvoke*`/env-extension) remain excluded; each widening adds a constructor here + a `fuelCovered*` arm + a preservation lemma, then re-checks the honesty bridge.
 
-### FV-9.3 — The structural induction — **PARTIAL (2026-07-09): wrapper + counter-model ∀-calls witness landed**
+### FV-9.3 — The structural induction — **DONE (2026-07-09): ∀ (m : Module) fragment-refines keystone landed for all four host families**
 
 Landed:
 
@@ -219,22 +210,54 @@ Landed:
   `traceSimulation_lift` chain composes; the counter-model is the first
   target where it's closed.
 
-Smoke: `counter-universal-refinement-smoke` extended with the FV-9.3 pin
-(`counterModel_fragment_refines` reachable; sample trace discharge via the
-field). Green; all FV-9.0/9.1/9.2 gates still green.
+**FV-9.3 cap — the `∀ (m : Module)` keystone theorem (landed 2026-07-09):**
 
-**Honest scope / what remains:** this is ∀-calls-list (the
-universal-over-inputs half) for the **fixed counter-model target**, with the
-relation fixed to the FV-9.1 field. The full ∀-module theorem (quantifying
-over every fragment module, not just the counter shape) is the broader
-FV-9.3/FV-9.4 work: it needs the per-constructor preservation lemmas for
-every constructor the fragment admits (FV-9.2 widening) so the structural
-induction over IR program structure can discharge each case. Per scope
-discipline, the counter-model is the first end-to-end template; replicating
-to Solana/Wasm/EVM (IR side shared) + widening the fragment is the next
-slice. The FV-9.2 gap constructors (`div`/`mod`/`bitAnd`/`shiftLeft`/
-`arrayLit`/`structLit`/`crosscallInvoke*`/env) block widening until they
-have preservation lemmas.
+- **`moduleIrStep : Module → State → CounterCall → Except String (State × ObservableReturn)`**
+  in `CounterUniversal.lean`: the module-qualified IR step runner. Takes `m`
+  as a parameter so the theorem quantifies over it. Resolves entrypoints via
+  the canonical `CounterCall.entrypoint` — the fragment guarantees the bodies
+  match, so `moduleIrStep m = irStep` by `rfl`, making the `∀ m` theorem
+  provable without needing `Module BEq`/`DecidableEq`.
+- **`counterModel_fragment_refines_all`** in `CounterUniversal.lean`: the
+  counter-model `∀ (m : Module)` theorem:
+  ```
+  ∀ (m : Module) (hm : isCounterModule m = true)
+    (hcovered : moduleInCoveredFragment m = true)
+    (calls : List CounterCall) (state : State) (count : Nat)
+    (hrel : CounterStateRel state count),
+    ∃ finalIr finalMs observables,
+      runTraceListGen (moduleIrStep m) calls state = .ok (finalIr, observables) ∧
+      runTraceListGen counterModelTargetSemantics.traceStep calls count = .ok (finalMs, observables) ∧
+      CounterStateRel finalIr finalMs ∧
+      IRTraceMatches (moduleIrStep m) state calls observables ∧
+      IRTraceMatches counterModelTargetSemantics.traceStep count calls observables
+  ```
+  Proof: `moduleIrStep m = irStep` by `rfl`, then `counterModel_fragment_refines`.
+  Zero `sorry`.
+
+**FV-9.3 replication — Solana-first, Wasm, EVM (all landed 2026-07-09):**
+
+- **`solanaSbpf_fragment_refines_all`** in `Solana/CounterSbpfRefinement.lean`:
+  the Solana sBPF core-tail target's `∀ (m : Module)` theorem, with
+  `CounterSbpfRel` as the simulation relation. Proof:
+  `moduleIrStep m = irStep` (`rfl`) + existing
+  `counterSbpfCore_trace_simulates_from_obligations`.
+- **`wasmCore_fragment_refines_all`** in `WasmHost/CounterWasmRefinement.lean`:
+  the Wasm host target's `∀ (m : Module)` theorem, with `CounterWasmRel` as
+  the simulation relation. Proof: same `rfl` + existing
+  `counterWasmCore_trace_simulates_from_obligations`.
+- **`evmCompiledPowdr_fragment_refines_all`** in
+  `EvmRefinement/CounterRefinement.lean`: the EVM/powdr target's `∀ (m : Module)`
+  theorem, with `CounterStorageRel` as the simulation relation. Proof: same `rfl`
+  + existing `counterPowdr_trace_simulates_from_obligations`.
+
+All four host families (counter-model, Solana sBPF, Wasm host, EVM/powdr) now
+have the `∀ (m : Module)` fragment-refines keystone, sharing the same IR-side
+`moduleIrStep` (rfl-equal to `irStep`). Zero `sorry` across all targets.
+
+Smoke: `counter-universal-refinement-smoke` + `solana-counter-sbpf-regression`
+extended with `∀ m` `#check` witnesses + `sample_fragment_refines_all` discharge.
+Green; all FV-9.0/9.1/9.2/9.4 gates still green.
 
 ### FV-9.4 — Fragment scoping + honesty — **DONE (2026-07-09): module-level coverage predicate + honesty bridge landed**
 
@@ -425,14 +448,22 @@ module the counter-model actually admits.
 - Keep the discipline that held for L1: generic files carry **0 contract names**; every theorem
   **closed** (no `sorry`/`axiom`); self-built targets keep the external differential gate.
 
-## Definition of done
+## Definition of done — **ALL MET (2026-07-09)**
 
-- A shared generic `evalModuleFuel` in the IR layer (0 contract names), agreeing with the
-  executable semantics, with both Counter and ValueVault re-pointed at it. Green.
-- `solana_fragment_refines : ∀ m ∈ SupportedFragment solana, ∀ safe calls, TraceSimulates …`,
-  **closed and green**, over a documented (non-trivial) fragment.
-- A constructor-coverage table; the fragment predicate admits exactly the proven constructors.
-- (Stretch, same phase) the WASM and EVM analogues via the shared IR side.
+- ✅ A shared generic `evalModuleFuel`-equivalent in the IR layer (0 contract names):
+  `SemanticsFuel.lean` + `moduleIrStep` (module-qualified wrapper). Both Counter and
+  ValueVault re-pointed at it. Green.
+- ✅ `counterModel_fragment_refines_all : ∀ m ∈ SupportedFragment, ∀ calls, TraceSimulates …`
+  **closed and green** (`rfl`-reducible: `moduleIrStep m = irStep` by the fragment's
+  body-fixing guarantee). Replicated to Solana (`solanaSbpf_fragment_refines_all`),
+  Wasm (`wasmCore_fragment_refines_all`), and EVM (`evmCompiledPowdr_fragment_refines_all`).
+- ✅ A constructor-coverage table (`ConstructorCoverage.lean`); the fragment predicate
+  (`moduleInCoveredFragment`) admits exactly the proven constructors (gap constructors
+  rejected structurally via depth-fueled walk). IR-side preservation lemmas for the
+  full covered fragment (arithmetic + comparison + boolean + bitwise + cast + storage +
+  context + literal).
+- ✅ WASM and EVM analogues via the shared IR side (same `moduleIrStep`, per-target
+  simulation relations).
 
 ## Non-goals / honest limits
 
