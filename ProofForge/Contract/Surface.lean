@@ -326,11 +326,47 @@ def nativeTransfer (recipient amount : ProofForge.IR.Expr) : EntryM Unit :=
     (.crosscallInvokeValueTyped recipient (u64 0) amount #[] .u64)
 
 /-- Portable cross-contract intent (family-shared). Backends materialize as
-EVM CALL / Solana CPI / NEAR `promise_create` — authors never write CPI metas
-or Promise chains here. -/
+EVM CALL / Solana CPI / NEAR `promise_create` / Soroban `invoke_contract` —
+authors never write CPI metas or Promise chains here. Prefer `declareRemote`
++ this call so Shared sources never mention host string pools. -/
 def remoteCall (target method : ProofForge.IR.Expr) (args : Array ProofForge.IR.Expr) :
     ProofForge.IR.Expr :=
   .crosscallInvoke target method args
+
+/-- Opaque peer/method handle used by `remoteCall` (materializes as address
+literal index into the host string pool on Wasm hosts; numeric handle on
+EVM/Solana). Authors obtain handles only via `declareRemote` — not by
+hand-indexing NEAR pools. -/
+def peerHandle (idx : Nat) : ProofForge.IR.Expr :=
+  ProofForge.Contract.Builder.nearAddressLit idx
+
+structure RemoteRef where
+  target : ProofForge.IR.Expr
+  method : ProofForge.IR.Expr
+  deriving Repr
+
+/-- Declare a portable remote peer + method once at module scope.
+Auto-fills host string pool for Wasm-NEAR/Soroban; EVM/Solana ignore the
+strings and use the handle indices. **This is the product path** — do not
+call `registerNearCrosscallString` from Shared examples.
+
+`peerId` is a **deployment identity string** (e.g. NEAR account id, or a
+logical peer name resolved at deploy time) — not a chain-specific API call. -/
+def declareRemote (peerId methodId : String) : ModuleM RemoteRef := do
+  let tIdx ← ProofForge.Contract.Builder.ensureCrosscallString peerId
+  let mIdx ← ProofForge.Contract.Builder.ensureCrosscallString methodId
+  pure { target := peerHandle tIdx, method := peerHandle mIdx }
+
+/-- Module-scope form for `contract_source` (`do declareRemoteUnit …;`).
+Registers peer then method (deduped). First remote is handles 0 and 1. -/
+def declareRemoteUnit (peerId methodId : String) : ModuleM Unit := do
+  let _ ← declareRemote peerId methodId
+  pure ()
+
+/-- Sugar: `remoteCall` through a `RemoteRef` from `declareRemote`. -/
+def remoteCallRef (remote : RemoteRef) (args : Array ProofForge.IR.Expr) :
+    ProofForge.IR.Expr :=
+  remoteCall remote.target remote.method args
 
 def hash4 (a b c d : Nat) : ProofForge.IR.Expr :=
   .literal (.hash4 a b c d)
@@ -339,14 +375,15 @@ def hash4 (a b c d : Nat) : ProofForge.IR.Expr :=
 def create2Deploy (callValue salt : ProofForge.IR.Expr) (initCodeHex : String) : ProofForge.IR.Expr :=
   .crosscallCreate2 callValue salt initCodeHex
 
-/-- Register a NEAR host string-pool entry (target metadata for `wasm-near`).
-Prefer this over Promise constructors on the portable path. -/
+/-- Low-level host string-pool registration (Wasm-NEAR/Soroban materialize).
+Prefer `declareRemote` on the portable product path. -/
 def registerNearCrosscallString (value : String) : ModuleM Unit := do
-  let _ ← ProofForge.Contract.Builder.nearCrosscallString value
+  let _ ← ProofForge.Contract.Builder.ensureCrosscallString value
   pure ()
 
+/-- Low-level handle; prefer `peerHandle` / `declareRemote` on portable path. -/
 def nearAddressLit (idx : Nat) : ProofForge.IR.Expr :=
-  ProofForge.Contract.Builder.nearAddressLit idx
+  peerHandle idx
 
 /-- NEAR host-extension: low-level pool invoke. Prefer `remoteCall` + string pool. -/
 def nearCrosscallPool (accountIndex methodId : ProofForge.IR.Expr) (args : Array ProofForge.IR.Expr)

@@ -439,24 +439,42 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 | `near-promise` | `promise_create` + string pool |
 | `soroban-invoke` | `invoke_contract` + string pool (host bridge; not in `--list-targets` yet) |
 
-**Next (after unify):**
+### Phase C — Pure business authoring (in progress, 2026-07-09)
 
-- Promote `wasm-stellar-soroban` into `Registry.all` when Stellar CLI + contract-spec land
-- Real Env API (TTL storage, true `require_auth`, `Address`/`Symbol`/`Vec<Val>`)
-- EmitWat storage name remap off NEAR `storage_*`
+**Goal:** For EVM · Solana · NEAR · Soroban, authors never touch chain DSL;
+`--target` (or host bridge) is the only chain choice.
 
-**Deferred:**
+| Order | Slice | Status |
+|---|---|---|
+| C.1 | **RemoteCall: no host string-pool APIs in Shared** | ✅ `declareRemoteUnit` / `peerHandle` / `remoteCall`; gate bans `registerNearCrosscallString` / `nearAddressLit` |
+| C.2 | **Business checks → native fail on four hosts** | ✅ Ownable: EVM plan · Solana assert trap · NEAR/Soroban `panic`; `Tests/PortableAuthMaterialize` |
+| C.3 | **Auth policy materialize table** (owner/signer/require_auth) | 🔲 document + deepen Solana signer schema / Soroban require_auth beyond assert |
+| C.4 | **Source.Solana fixture-only demotion** | 🔲 product docs + lint outside Shared |
+| C.5 | **Soroban in portable multi-target scripts** | 🔲 extend `stdlib-core` / `remote-call` smoke (bridge, not list-targets) |
+| C.6 | **Deploy-time peer map** (logical peer → account id) | 🔲 replace hard-coded deployment strings in source |
+| C.7 | Promote `wasm-stellar-soroban` to `Registry.all` | 🔲 needs Stellar CLI + contract-spec |
+| C.8 | EmitWat storage remap off NEAR `storage_*` | 🔲 Env-shaped `_put`/`_get` only |
+
+**Business-check materialization (C.2):**
+
+| Author surface | EVM | Solana | NEAR | Soroban |
+|---|---|---|---|---|
+| `require*` / `assert` / `guard_owner` | revert | assert trap | `env.panic` | `env.panic` (shared EmitWat) |
+| `remoteCall` + `declareRemoteUnit` | CALL | CPI | `promise_create` | `invoke_contract` |
+
+**Deferred (new chains):**
 
 - CosmWasm WasmMsg full lower  
 - Cloudflare Workers binding/fetch product path  
 
 Gates: `just crosscall-materialize`, `just portable-remote-call-multi-target`,
-`just primary-materialize`, `just ir-portability-smoke`.
+`just primary-materialize`, `just ir-portability-smoke`,
+`lake env lean --run Tests/PortableAuthMaterialize.lean`.
 
 | Order | Slice | Status / why |
 |---|---|---|
-| 6 | Mark `Source.Solana` fixture-only; demote from product docs | After auto-materialize works for Counter/Vault |
-| 7 | Stdlib portable policies → multi-target lowering | One Ownable/Token intent |
+| 6 | Mark `Source.Solana` fixture-only; demote from product docs | Phase C.4 |
+| 7 | Stdlib portable policies → multi-target lowering | Phase C.2–C.3 |
 | 8 | Spec/Builder de-EVM naming | Product surface cleanup |
 
 ## 8. Success metrics

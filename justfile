@@ -671,6 +671,11 @@ crosscall-materialize:
     lake env lean --run Tests/CrosscallMaterialize.lean
     just portable-remote-call-multi-target
 
+# Portable business checks (Ownable) + declareRemote RemoteCall on EVM·Solana·NEAR·Soroban.
+portable-auth-materialize:
+    lake build Examples.Shared.Ownable Examples.Shared.RemoteCall ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmNear.EmitWat ProofForge.Target.Preflight
+    lake env lean --run Tests/PortableAuthMaterialize.lean
+
 
 # Check translated documentation freshness and example topology.
 docs-check: examples-topology portable-default

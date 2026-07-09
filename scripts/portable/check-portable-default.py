@@ -37,6 +37,15 @@ FORBIDDEN_NEAR_EXTENSION = [
     "nearCrosscallInvokePool",
 ]
 
+# Host string-pool / index APIs are materializer concerns. Shared must use
+# declareRemote / declareRemoteUnit / peerHandle / remoteCall only.
+FORBIDDEN_NEAR_METADATA = [
+    "registerNearCrosscallString",
+    "nearAddressLit",
+    "nearCrosscallString",
+    "ensureCrosscallString",
+]
+
 # Author must not select a chain token standard in Shared sources.
 FORBIDDEN_STANDARD_RE = re.compile(
     r"TokenStandard\.(erc20|splToken|splToken2022)"
@@ -102,6 +111,14 @@ def check_shared_file(path: Path) -> None:
                 f"{rel}: portable Shared must not use NEAR Promise host-extension `{needle}`; "
                 "use remoteCall (portable crosscall.invoke) and let --target materialize "
                 "(or import ProofForge.Contract.Source.Near only in NEAR fixtures)"
+            )
+
+    for needle in FORBIDDEN_NEAR_METADATA:
+        if needle in text:
+            fail(
+                f"{rel}: portable Shared must not use host string-pool API `{needle}`; "
+                "use declareRemoteUnit / peerHandle / remoteCall so Wasm-NEAR/Soroban "
+                "materialize the pool from deployment peer ids"
             )
 
     if FORBIDDEN_SOLANA_DSL_RE.search(text):

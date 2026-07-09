@@ -15,6 +15,9 @@ materializes chain form (EVM slots/ABI, Solana accounts/CPI/SPL, NEAR host, …)
 - No Account/PDA/CPI DSL (`account` / `pda` / `cpi` / `invoke` …) — those
   require `import ProofForge.Contract.Source.Solana` under `ProofForge/Solana/Examples`.
 - No NEAR Promise constructors (`nearPromiseThen` …) — use portable `remoteCall`.
+- No host string-pool APIs (`registerNearCrosscallString`, `nearAddressLit`) —
+  use `declareRemoteUnit` + `peerHandle` + `remoteCall` (pool auto-filled for
+  Wasm-NEAR / Soroban).
 
 Target directories such as `Examples/Evm`, `Examples/Solana`, and
 `Examples/WasmNear` keep chain-specific fixtures, golden files, and

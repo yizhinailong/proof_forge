@@ -4,12 +4,17 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Portable cross-contract intent shared across primary targets.
 
-Authors write `remoteCall` only — never CPI metas, Promise chains, or
-STATICCALL. Backends materialize:
+Authors write **business** remote intent only:
+  - `declareRemoteUnit peer method`  (deployment peer id + method name)
+  - `remoteCall (peerHandle …) (peerHandle …) args`
+
+Never CPI metas, Promise chains, STATICCALL, or host string-pool APIs.
+Backends materialize:
 
   --target evm              → CALL
   --target solana-sbpf-asm  → sol_invoke_signed_c CPI packing
-  --target wasm-near        → promise_create (string pool via registerNearCrosscallString)
+  --target wasm-near        → promise_create (string pool auto-filled)
+  --target host .soroban    → invoke_contract (string pool auto-filled)
 
   lake env proof-forge build --target evm --root . \
     -o build/portable-remote-call/RemoteCall.bin \
@@ -32,29 +37,26 @@ namespace Examples.Shared.RemoteCall
 open ProofForge.Contract.Source
 
 contract_source RemoteCall do
-  -- NEAR host string pool (target metadata). Harmless on EVM/Solana; required
-  -- for wasm-near promise_create account/method name resolution.
-  do ProofForge.Contract.Surface.registerNearCrosscallString "callee.example.near";
-  do ProofForge.Contract.Surface.registerNearCrosscallString "remote_call";
+  -- Portable peer + method (deployment identity strings). Host string pool
+  -- for Wasm-NEAR / Soroban is filled automatically — no registerNear*.
+  do ProofForge.Contract.Surface.declareRemoteUnit "callee.example.near" "remote_call";
 
   state marker : .u64
 
   entry «initialize» do
     marker := u64 0;
 
-  -- Portable remote invoke: address-literal indices into nearCrosscallStrings
-  -- (also fine as numeric handles on EVM/Solana).
+  -- Handles 0/1 = peer/method from the declareRemoteUnit above.
   entry call_remote returns(.u64) do
     return ProofForge.Contract.Surface.remoteCall
-      (ProofForge.Contract.Surface.nearAddressLit 0)
-      (ProofForge.Contract.Surface.nearAddressLit 1)
+      (ProofForge.Contract.Surface.peerHandle 0)
+      (ProofForge.Contract.Surface.peerHandle 1)
       #[];
 
-  -- Portable remote invoke with two constant u64 args.
   entry call_with_args returns(.u64) do
     return ProofForge.Contract.Surface.remoteCall
-      (ProofForge.Contract.Surface.nearAddressLit 0)
-      (ProofForge.Contract.Surface.nearAddressLit 1)
+      (ProofForge.Contract.Surface.peerHandle 0)
+      (ProofForge.Contract.Surface.peerHandle 1)
       #[u64 42, u64 7];
 
 end Examples.Shared.RemoteCall

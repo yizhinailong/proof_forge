@@ -17,7 +17,8 @@ import ProofForge.Contract.Source.Near
 ```
 
 Portable Shared files must not import `Source.Solana` or `Source.Near`
-(`just portable-default`). Use `remoteCall` for portable cross-contract intent.
+(`just portable-default`). Use `declareRemoteUnit` + `peerHandle` + `remoteCall`
+for portable cross-contract intent (no host string-pool APIs in Shared).
 -/
 import Lean
 import ProofForge.Contract.Surface

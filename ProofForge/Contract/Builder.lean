@@ -77,12 +77,21 @@ def capability (capability : Capability) (operation : String := capability.id)
     (source? : Option String := none) (metadata : Array TargetMetadata := #[]) : ModuleM Unit :=
   intent (Intent.capability capability operation source? metadata)
 
-/-- Register a compile-time NEAR account/method string for `module.nearCrosscallStrings`. -/
-def nearCrosscallString (value : String) : ModuleM Nat := do
+/-- Register a compile-time host string for `module.nearCrosscallStrings`
+(Wasm-NEAR `promise_create` / Soroban `invoke_contract` name pool).
+Dedupes by value so portable `declareRemote` can re-use peer/method ids. -/
+def ensureCrosscallString (value : String) : ModuleM Nat := do
   let builder ← get
-  let idx := builder.nearCrosscallStrings.size
-  modify fun b => { b with nearCrosscallStrings := b.nearCrosscallStrings.push value }
-  pure idx
+  match builder.nearCrosscallStrings.findIdx? (· == value) with
+  | some idx => pure idx
+  | none =>
+      let idx := builder.nearCrosscallStrings.size
+      modify fun b => { b with nearCrosscallStrings := b.nearCrosscallStrings.push value }
+      pure idx
+
+/-- Compatibility alias — prefer `ensureCrosscallString` / Surface `declareRemote`. -/
+def nearCrosscallString (value : String) : ModuleM Nat :=
+  ensureCrosscallString value
 
 def entryIntent (intent : Intent) : EntryM Unit := do
   modify fun builder => { builder with intents := builder.intents.push intent }
