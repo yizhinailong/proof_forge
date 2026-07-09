@@ -191,6 +191,7 @@ scoped syntax "constructor_param " ident " : " "u256array" ";" : contractItem
 scoped syntax "quint_invariant " ident " := " str : contractItem
 scoped syntax "quint_liveness " ident " := " str : contractItem
 scoped syntax "lean_invariant " ident " := " str : contractItem
+scoped syntax "remote " ident str str ";" : contractItem
 scoped syntax "do " term ";" : contractItem
 scoped syntax "entry " ident " do" ppLine entryStmt* : contractItem
 scoped syntax "entry " ident " returns" "(" term ")" " do" ppLine entryStmt* : contractItem
@@ -641,6 +642,16 @@ private def lowerItem (item : TSyntax `contractItem) : MacroM LoweredItem := do
       let predLit := Syntax.mkStrLit predStr
       let action ← `(ProofForge.Contract.Surface.declareLeanInvariant $nameLit $predLit)
       return { action? := some action }
+  | `(contractItem| remote $name:ident $peer:str $method:str;) => do
+      let peerS ← strLitValue peer
+      let methodS ← strLitValue method
+      let peerLit : TSyntax `term := quote peerS
+      let methodLit : TSyntax `term := quote methodS
+      return {
+        binder := fun body =>
+          `(bind (ProofForge.Contract.Surface.declareRemote $peerLit $methodLit)
+              (fun ($name : ProofForge.Contract.Surface.RemoteRef) => $body))
+      }
   | `(contractItem| do $action:term;) =>
       return { action? := some action }
   | `(contractItem| constructor_param $name:ident : $type:term;) =>

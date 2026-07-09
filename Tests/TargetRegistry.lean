@@ -1,8 +1,10 @@
 import ProofForge.Target.Registry
+import ProofForge.Target.CrosscallMaterialize
 
 namespace ProofForge.Tests.TargetRegistry
 
 open ProofForge.Target
+open ProofForge.Target.CrosscallMaterialize
 
 def require (condition : Bool) (message : String) : IO Unit :=
   if condition then
@@ -46,6 +48,14 @@ def main : IO UInt32 := do
   let cosmwasmProfile ← requireSome (find? "wasm-cosmwasm") "missing wasm-cosmwasm target profile"
   require (cosmwasmProfile.hostBridge? == some HostBridge.cosmWasm)
     "wasm-cosmwasm must declare the CosmWasm host bridge"
+
+  let sorobanProfile ← requireSome (find? "wasm-stellar-soroban") "missing wasm-stellar-soroban target profile"
+  require (sorobanProfile.hostBridge? == some HostBridge.soroban)
+    "wasm-stellar-soroban must declare the Soroban host bridge"
+  require (knownIds.contains "wasm-stellar-soroban")
+    "wasm-stellar-soroban must appear in knownIds / --list-targets"
+  require ((forProfile sorobanProfile).nativeForm == NativeForm.sorobanInvoke)
+    "soroban crosscall form is soroban-invoke"
 
   let suiProfile ← requireSome (find? "move-sui") "missing move-sui target profile"
   require (suiProfile.capabilities.contains .storageScalar)

@@ -47,11 +47,24 @@ def main : IO Unit := do
       require (planSucceedsForFeature solanaSbpfAsm f)
         s!"solana single-feature plan ok for {f.id}"
 
-  -- NEAR / other wasm: no TokenSpec lane yet (honest no-lane, not silent ERC).
-  require (featureSupportOnTarget "wasm-near" .mintable == .noLane)
-    "wasm-near has no TokenSpec lane yet"
-  require (!planSucceedsForFeature wasmNear .mintable)
-    "wasm-near planForTarget must not pretend ERC-20/SPL"
+  -- NEAR: core NEP-141 plan lane; extension features reject.
+  for f in corePortableFeatures do
+    require (featureSupportOnTarget "wasm-near" f == .full)
+      s!"wasm-near should plan core {f.id}"
+    require (planSucceedsForFeature wasmNear f)
+      s!"wasm-near planForTarget should succeed for {f.id}"
+  for f in solanaExtensionFeatures do
+    require (featureSupportOnTarget "wasm-near" f == .reject)
+      s!"wasm-near should reject extension {f.id}"
+    require (!planSucceedsForFeature wasmNear f)
+      s!"wasm-near plan must fail for {f.id}"
+  match planForTarget wasmNear {
+    name := "NearFT", symbol := "NFT", decimals := 18, features := #[.mintable, .burnable]
+  } with
+  | .error e => throw (IO.userError s!"NEAR mintable+burnable plan: {e}")
+  | .ok p =>
+      require (p.standard == .nep141) "NEAR plan standard is nep-141"
+      require (p.artifactKind == .nearNep141Plan) "NEAR plan artifact kind"
   require (featureSupportOnTarget "wasm-stellar-soroban" .mintable == .noLane)
     "soroban has no TokenSpec lane yet"
 

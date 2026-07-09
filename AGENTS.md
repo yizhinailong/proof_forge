@@ -18,8 +18,8 @@ tools (see below).
 
 | Surface | Targets |
 |---------|---------|
-| `proof-forge --list-targets` / `ProofForge.Target.knownIds` | `evm`, `solana-sbpf-asm`, `wasm-near`, `wasm-cosmwasm`, `wasm-cloudflare-workers`, `move-aptos`, `move-sui`, `psy-dpn`, `aleo-leo` |
-| `proof-forge emit --target …` (fixture whitelist) | above plus `quint` (verification; CLI-only, not a deployment registry entry). `wasm-stellar-soroban` is a host-family adapter on the `wasm-near` EmitWat core (`Registry.wasmStellarSoroban` constant + `HostBridge.soroban`); not in `knownIds` / `--list-targets` yet. |
+| `proof-forge --list-targets` / `ProofForge.Target.knownIds` | `evm`, `solana-sbpf-asm`, `wasm-near`, `wasm-cosmwasm`, `wasm-cloudflare-workers`, `wasm-stellar-soroban`, `move-aptos`, `move-sui`, `psy-dpn`, `aleo-leo` |
+| `proof-forge emit --target …` (fixture whitelist) | above plus `quint` (verification; CLI-only). `wasm-stellar-soroban` uses EmitWat + `HostBridge.soroban` (not a separate codegen core). |
 
 ### `just check` vs GitHub `build-test`
 

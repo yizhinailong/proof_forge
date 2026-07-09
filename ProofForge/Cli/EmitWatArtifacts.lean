@@ -291,23 +291,34 @@ Default is identity: logical ids stay as declared in Shared. -/
 def emitWatPeerMap (opts : CliOptions) : ProofForge.Target.PeerMap.Map :=
   opts.peerMap
 
+/-- Host bridge for EmitWat from `--target` (Soroban vs NEAR vs CosmWasm). -/
+def emitWatBridge (opts : CliOptions) : ProofForge.Target.HostBridge :=
+  match opts.targetId? with
+  | some "wasm-stellar-soroban" => ProofForge.Target.HostBridge.soroban
+  | some id =>
+      if id == ProofForge.Target.wasmCosmWasm.id then
+        ProofForge.Target.HostBridge.cosmWasm
+      else
+        ProofForge.Target.HostBridge.near
+  | none => ProofForge.Target.HostBridge.near
+
 def compileEmitWat (opts : CliOptions) (name : String) (mod : ProofForge.IR.Module) : IO UInt32 := do
   let some output := opts.output?
     | throw <| IO.userError "emitwat mode requires -o output directory"
-  let isCosmWasm := opts.targetId? == some ProofForge.Target.wasmCosmWasm.id
+  let bridge := emitWatBridge opts
   let peerMap := emitWatPeerMap opts
   let mod := ProofForge.Target.PeerMap.applyToModule mod peerMap
   let renderResult : Except String String :=
-    if isCosmWasm then
-      match ProofForge.Backend.CosmWasm.EmitWat.renderModule mod with
-      | .ok wat => .ok wat
-      | .error e => .error e.message
-    else
-      -- Module already rewritten by peerMap above; pass identity into EmitWat.
-      match ProofForge.Backend.WasmNear.EmitWat.renderModule mod .near
-          ProofForge.Target.PeerMap.identity with
-      | .ok wat => .ok wat
-      | .error e => .error e.message
+    match bridge with
+    | .cosmWasm =>
+        match ProofForge.Backend.CosmWasm.EmitWat.renderModule mod with
+        | .ok wat => .ok wat
+        | .error e => .error e.message
+    | .soroban | .near =>
+        match ProofForge.Backend.WasmNear.EmitWat.renderModule mod bridge
+            ProofForge.Target.PeerMap.identity with
+        | .ok wat => .ok wat
+        | .error e => .error e.message
   match renderResult with
   | .ok wat =>
       let (watPath, wasmPath?) ← writeWatPackage output name wat
@@ -323,16 +334,22 @@ def compileEmitWatWithPlan
     (plan : ProofForge.Target.CapabilityPlan) : IO UInt32 := do
   let some output := opts.output?
     | throw <| IO.userError "emitwat mode requires -o output directory"
+  let bridge := emitWatBridge opts
   let peerMap := emitWatPeerMap opts
   let mod := ProofForge.Target.PeerMap.applyToModule mod peerMap
-  match ProofForge.Backend.WasmNear.EmitWat.renderModuleWithPlan mod plan .near
-      ProofForge.Target.PeerMap.identity with
-  | .ok wat =>
-      let (watPath, wasmPath?) ← writeWatPackage output name wat
-      writeEmitWatArtifactMetadata opts (emitWatTargetId opts) name "contract-sdk" mod output watPath wasmPath?
-      return 0
-  | .error err =>
-      throw <| IO.userError err.message
+  match bridge with
+  | .cosmWasm =>
+      throw <| IO.userError "contract-source EmitWat with plan is not used for CosmWasm"
+  | .soroban | .near =>
+      match ProofForge.Backend.WasmNear.EmitWat.renderModuleWithPlan mod plan bridge
+          ProofForge.Target.PeerMap.identity with
+      | .ok wat =>
+          let (watPath, wasmPath?) ← writeWatPackage output name wat
+          writeEmitWatArtifactMetadata opts (emitWatTargetId opts) name "contract-sdk" mod
+            output watPath wasmPath?
+          return 0
+      | .error err =>
+          throw <| IO.userError err.message
 
 def compileCounterEmitWat (opts : CliOptions) : IO UInt32 := compileEmitWat opts "counter" ProofForge.IR.Examples.Counter.module
 def compileErrorRefEmitWat (opts : CliOptions) : IO UInt32 := compileEmitWat opts "error-ref" ProofForge.IR.Examples.ErrorRefProbe.module

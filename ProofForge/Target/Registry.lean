@@ -172,11 +172,11 @@ def wasmCloudflareWorkers : TargetProfile := {
   requiredTools := #["zig", "wrangler"]
 }
 
-/-- Stellar Soroban host-family adapter (Phase 4). **Not** in `all` /
-`--list-targets` / `knownIds` until full registry promotion (Stellar CLI +
-contract-spec). Import this constant for materialize / preflight / EmitWat
-`HostBridge.soroban` tests. Portable crosscall → `invoke_contract`
-(soroban-invoke), never NEAR `promise_create`. -/
+/-- Stellar Soroban host-family adapter (Phase 4). In `Registry.all` /
+`--list-targets` as a **host-bridge product target** on the shared EmitWat
+core (`HostBridge.soroban`: `_get`/`_put`, `invoke_contract`,
+`require_auth_for_args`). Full Stellar CLI / contract-spec / TTL storage
+remain follow-on work; portable authors still only write business logic. -/
 def wasmStellarSoroban : TargetProfile := {
   id := "wasm-stellar-soroban"
   family := .wasmHost
@@ -371,6 +371,7 @@ def allIncludingDeprecated : Array TargetProfile := #[
   wasmCosmWasm,
   solanaSbpfAsm,
   wasmCloudflareWorkers,
+  wasmStellarSoroban,
   solanaSbpfLinker,
   solanaZigFork,
   moveAptos,

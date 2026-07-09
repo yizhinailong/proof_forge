@@ -25,12 +25,14 @@ inductive TokenStandard where
   | erc20
   | splToken
   | splToken2022
+  | nep141
   deriving BEq, DecidableEq, Repr
 
 def TokenStandard.id : TokenStandard → String
   | .erc20 => "erc20"
   | .splToken => "spl-token"
   | .splToken2022 => "spl-token-2022"
+  | .nep141 => "nep-141"
 
 /-- Portable business features. Chain programs (Token-2022, ERC-20 hooks, …)
 are selected by the target, not by feature id naming. -/
@@ -134,12 +136,14 @@ inductive TokenArtifactKind where
   | evmErc20Contract
   | solanaSplTokenPlan
   | solanaToken2022Plan
+  | nearNep141Plan
   deriving BEq, DecidableEq, Repr
 
 def TokenArtifactKind.id : TokenArtifactKind → String
   | .evmErc20Contract => "evm-erc20-contract"
   | .solanaSplTokenPlan => "solana-spl-token-plan"
   | .solanaToken2022Plan => "solana-token-2022-plan"
+  | .nearNep141Plan => "near-nep141-plan"
 
 structure TokenPlan where
   targetId : String
@@ -294,7 +298,7 @@ def solanaRentSysvarId : String :=
 def TokenStandard.solanaProgramId : TokenStandard → String
   | .splToken => solanaSplTokenProgramId
   | .splToken2022 => solanaToken2022ProgramId
-  | .erc20 => ""
+  | .erc20 | .nep141 => ""
 
 def validateSolanaTokenFeatures (spec : TokenSpec) : Except String Unit := do
   if spec.hasFeature .transferFee && spec.hasFeature .nonTransferable then
@@ -313,6 +317,23 @@ def validateEvmTokenFeatures (spec : TokenSpec) : Except String Unit :=
         "; keep the intent portable and build with a target that materializes them " ++
         "(e.g. `solana-sbpf-asm` for transfer_fee / non_transferable), or drop the feature"
 
+/-- NEAR NEP-141 plan lane: core fungible features only (mintable/burnable/capped/
+pausable/permit). Token-2022-shaped extension features reject honestly. -/
+def TokenSpec.nearUnsupportedFeatures (spec : TokenSpec) : Array TokenFeature :=
+  #[.transferFee, .nonTransferable, .confidentialTransfer, .transferHook,
+    .metadataPointer, .defaultAccountState, .immutableOwner].filter spec.hasFeature
+
+def validateNearTokenFeatures (spec : TokenSpec) : Except String Unit :=
+  match spec.nearUnsupportedFeatures.toList with
+  | [] => .ok ()
+  | feature :: rest =>
+      let ids := (feature :: rest).map TokenFeature.id
+      .error <|
+        "target `wasm-near` TokenSpec plan does not yet materialize feature(s) " ++
+        String.intercalate ", " (ids.map (fun id => s!"`{id}`")) ++
+        "; use core features (mintable/burnable/capped/pausable/permit) or " ++
+        "`solana-sbpf-asm` for Token-2022-shaped extensions"
+
 /-- Resolve the native token standard for a target + intent.
 
 This is the single product entrypoint for "which chain program/standard?".
@@ -323,6 +344,8 @@ def resolveTokenStandard (target : TargetProfile) (spec : TokenSpec) : Except St
   else if target.family == .solana then
     validateSolanaTokenFeatures spec *>
       .ok (if spec.needsToken2022 then .splToken2022 else .splToken)
+  else if target.id == "wasm-near" then
+    validateNearTokenFeatures spec *> .ok .nep141
   else
     .error s!"target `{target.id}` does not have a TokenSpec lowering plan yet"
 
@@ -752,12 +775,43 @@ def solanaTokenPlan (target : TargetProfile) (spec : TokenSpec) : TokenPlan :=
     ]
   }
 
+/-- Honest NEAR NEP-141 **plan** (not full EmitWat FT codegen yet).
+Points authors at `Stdlib.NearFungibleToken` for mixin composition; TokenSpec
+lane records standard + supported operations for deploy tooling. -/
+def nearNep141Plan (target : TargetProfile) (spec : TokenSpec) : TokenPlan :=
+  let ops :=
+    #["ft_total_supply", "ft_balance_of", "ft_transfer", "ft_metadata"] ++
+      (if spec.hasFeature .mintable then #["ft_mint"] else #[]) ++
+      (if spec.hasFeature .burnable then #["ft_burn"] else #[]) ++
+      (if spec.hasFeature .pausable then #["ft_pause", "ft_unpause"] else #[])
+  {
+    targetId := target.id
+    standard := .nep141
+    artifactKind := .nearNep141Plan
+    capabilities := #[
+      .storageScalar,
+      .storageMap,
+      .callerSender,
+      .crosscallInvoke,
+      .assertions,
+      .controlConditional
+    ]
+    operations := ops
+    notes := #[
+      "NEAR TokenSpec lowers to a NEP-141 plan (standard + operations metadata).",
+      "Full contract body: compose ProofForge.Contract.Stdlib.NearFungibleToken with --target wasm-near.",
+      "Peer receivers for ft_transfer_call use declareRemote / PeerMap (no chain DSL in Shared)."
+    ]
+  }
+
 def planForTarget (target : TargetProfile) (spec : TokenSpec) : Except String TokenPlan := do
   let _standard ← resolveTokenStandard target spec
   if target.family == .evm then
     .ok (evmErc20Plan target spec)
   else if target.family == .solana then
     .ok (solanaTokenPlan target spec)
+  else if target.id == "wasm-near" then
+    .ok (nearNep141Plan target spec)
   else
     .error s!"target `{target.id}` does not have a TokenSpec lowering plan yet"
 
@@ -808,7 +862,14 @@ def featureSupportOnTarget (targetId : String) (feature : TokenFeature) : Featur
         .full
       else
         .reject
-  | "wasm-near" | "wasm-cosmwasm" | "wasm-cloudflare-workers"
+  | "wasm-near" =>
+      if solanaExtensionFeatures.contains feature then
+        .reject
+      else if corePortableFeatures.contains feature then
+        .full
+      else
+        .reject
+  | "wasm-cosmwasm" | "wasm-cloudflare-workers"
   | "wasm-stellar-soroban" | "move-aptos" | "move-sui"
   | "psy-dpn" | "aleo-leo" =>
       .noLane

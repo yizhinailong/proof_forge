@@ -4,50 +4,37 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Portable cross-contract intent shared across primary targets.
 
-Authors write **logical** peer + method once, then call through the ref —
-no bare pool indices, no host string-pool APIs:
+Authors declare a logical peer once, then call through the bound `RemoteRef`:
 
-  let remote ← declareRemote "peer.callee" "remote_call"
-  return remoteCallRef remote #[]
+  remote callee "peer.callee" "remote_call";
+  return remoteCallRef callee #[];
 
-Host account strings (e.g. NEAR `*.near`) are **deploy-time** via
-`proof-forge … --peer peer.callee=alice.testnet` or `--peers-demo`.
+Host account strings are deploy-time: `--peer peer.callee=alice.testnet` or
+`--peers-demo`.
 
-  --target evm              → CALL
-  --target solana-sbpf-asm  → sol_invoke_signed_c CPI packing
-  --target wasm-near        → promise_create (+ optional PeerMap)
-  --target host .soroban    → invoke_contract (+ optional PeerMap)
-
-  lake env proof-forge build --target wasm-near --root . \
-    --peers-demo \
-    -o build/portable-remote-call/near \
-    Examples/Shared/RemoteCall.lean
+  --target evm · solana-sbpf-asm · wasm-near · wasm-stellar-soroban
 
 See `just portable-remote-call-multi-target` / `just crosscall-materialize`.
 -/
-import ProofForge.Contract.Builder
-import ProofForge.Contract.Surface
+import ProofForge.Contract.Source
 
 namespace Examples.Shared.RemoteCall
 
-/-- Portable product path: named `RemoteRef`, never `peerHandle 0/1`. -/
-def spec : ProofForge.Contract.ContractSpec :=
-  ProofForge.Contract.Builder.build "RemoteCall" do
-    let remote ← ProofForge.Contract.Surface.declareRemote "peer.callee" "remote_call"
-    ProofForge.Contract.Builder.scalarState "marker" .u64
-    ProofForge.Contract.Builder.entry "initialize" do
-      ProofForge.Contract.Builder.effect
-        (ProofForge.Contract.Builder.storageScalarWrite "marker"
-          (ProofForge.Contract.Builder.u64 0))
-    ProofForge.Contract.Builder.entryReturns "call_remote" .u64 do
-      ProofForge.Contract.Builder.ret
-        (ProofForge.Contract.Surface.remoteCallRef remote #[])
-    ProofForge.Contract.Builder.entryReturns "call_with_args" .u64 do
-      ProofForge.Contract.Builder.ret
-        (ProofForge.Contract.Surface.remoteCallRef remote
-          #[ProofForge.Contract.Builder.u64 42, ProofForge.Contract.Builder.u64 7])
+open ProofForge.Contract.Source
 
-def module : ProofForge.IR.Module :=
-  spec.module
+contract_source RemoteCall do
+  remote callee "peer.callee" "remote_call";
+
+  state marker : .u64
+
+  entry «initialize» do
+    marker := u64 0;
+
+  entry call_remote returns(.u64) do
+    return ProofForge.Contract.Surface.remoteCallRef callee #[];
+
+  entry call_with_args returns(.u64) do
+    return ProofForge.Contract.Surface.remoteCallRef callee
+      #[u64 42, u64 7];
 
 end Examples.Shared.RemoteCall

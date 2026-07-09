@@ -204,6 +204,16 @@ def buildLegacyFlag (target : String) (input? : Option String) (fixture? : Optio
             Except.ok s!"--emit-{fixture}-emitwat"
           else
             Except.error s!"proof-forge build --target wasm-near --fixture {fixture} is not yet implemented"
+  | "wasm-stellar-soroban", true, _, _, _ =>
+      Except.error "proof-forge build --target wasm-stellar-soroban from .learn source is not yet implemented"
+  | "wasm-stellar-soroban", false, _, format?, _ =>
+      if isLeanSource then
+        if format?.isSome && format? != some "wat" then
+          Except.error s!"proof-forge build --target wasm-stellar-soroban does not support format '{format?.getD ""}'; use --format wat"
+        else
+          Except.ok "--contract-source-emitwat"
+      else
+        Except.error "proof-forge build --target wasm-stellar-soroban requires a .lean contract_source module"
   | "wasm-cosmwasm", true, _, _, _ =>
       Except.error "proof-forge build --target wasm-cosmwasm from .learn source is not yet implemented"
   | "wasm-cosmwasm", false, _, _, _ => Except.ok "--emit-counter-ir-cosmwasm"
@@ -361,6 +371,9 @@ def newCommandArgsToLegacy (state : NewCommandParseState) (cmd : String) : Excep
     if flag == "--evm-bytecode" || flag.endsWith "-bytecode" then
       legacy := legacy ++ ["--solc", state.solc, "--cast", state.cast]
     if flag == "--learn" || flag == "--learn-token" then
+      legacy := legacy ++ ["--target", target]
+    -- EmitWat host bridge (NEAR vs Soroban) is selected from --target.
+    if flag == "--contract-source-emitwat" then
       legacy := legacy ++ ["--target", target]
     if target == "solana-sbpf-asm" then
       if let some arch := state.solanaSbpfArch? then
