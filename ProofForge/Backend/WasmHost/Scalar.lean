@@ -148,23 +148,44 @@ def writeFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := .near) 
   | .cosmWasm => writeFuncCosmWasm vt
   | .near => writeFuncNear vt
 
-def returnU64Func : Func :=
-  { name := returnU64Name, params := #[{ name := "v", type := .i64 }],
-    body := { insns := #[
-      .i32Const RET_BUF, .localGet "v", .store "i64.store" 0,
-      .i64Const 8, .i64Const RET_BUF, .call "value_return" ] } }
+def returnU64Func (bridge : ProofForge.Target.HostBridge := .near) : Func :=
+  match bridge with
+  | .cosmWasm =>
+      { name := returnU64Name, params := #[{ name := "v", type := .i64 }],
+        body := { insns := #[
+          .i32Const RET_BUF, .localGet "v", .store "i64.store" 0,
+          .i32Const RET_BUF, .i32Const 8, .call "set_return_data" ] } }
+  | _ =>
+      { name := returnU64Name, params := #[{ name := "v", type := .i64 }],
+        body := { insns := #[
+          .i32Const RET_BUF, .localGet "v", .store "i64.store" 0,
+          .i64Const 8, .i64Const RET_BUF, .call "value_return" ] } }
 
-def returnU32Func : Func :=
-  { name := returnU32Name, params := #[{ name := "v", type := .i32 }],
-    body := { insns := #[
-      .i32Const RET_BUF, .localGet "v", .store "i32.store" 0,
-      .i64Const 4, .i64Const RET_BUF, .call "value_return" ] } }
+def returnU32Func (bridge : ProofForge.Target.HostBridge := .near) : Func :=
+  match bridge with
+  | .cosmWasm =>
+      { name := returnU32Name, params := #[{ name := "v", type := .i32 }],
+        body := { insns := #[
+          .i32Const RET_BUF, .localGet "v", .store "i32.store" 0,
+          .i32Const RET_BUF, .i32Const 4, .call "set_return_data" ] } }
+  | _ =>
+      { name := returnU32Name, params := #[{ name := "v", type := .i32 }],
+        body := { insns := #[
+          .i32Const RET_BUF, .localGet "v", .store "i32.store" 0,
+          .i64Const 4, .i64Const RET_BUF, .call "value_return" ] } }
 
-def returnBoolFunc : Func :=
-  { name := returnBoolName, params := #[{ name := "v", type := .i32 }],
-    body := { insns := #[
-      .i32Const RET_BUF, .localGet "v", .store "i32.store8" 0,
-      .i64Const 1, .i64Const RET_BUF, .call "value_return" ] } }
+def returnBoolFunc (bridge : ProofForge.Target.HostBridge := .near) : Func :=
+  match bridge with
+  | .cosmWasm =>
+      { name := returnBoolName, params := #[{ name := "v", type := .i32 }],
+        body := { insns := #[
+          .i32Const RET_BUF, .localGet "v", .store "i32.store8" 0,
+          .i32Const RET_BUF, .i32Const 1, .call "set_return_data" ] } }
+  | _ =>
+      { name := returnBoolName, params := #[{ name := "v", type := .i32 }],
+        body := { insns := #[
+          .i32Const RET_BUF, .localGet "v", .store "i32.store8" 0,
+          .i64Const 1, .i64Const RET_BUF, .call "value_return" ] } }
 
 def powName (vt : ValueType) : String := "__pf_pow_" ++ typeSuffix vt
 
@@ -201,10 +222,11 @@ def scalarStorageHelperFuncsForModulePlan (plan : ModulePlan)
       acc
   funcs
 
-def returnHelperFuncsForModulePlan (plan : ModulePlan) : Array Func :=
-  (if plan.returnTypes.contains .u64 then #[returnU64Func] else #[]) ++
-    (if plan.returnTypes.contains .u32 then #[returnU32Func] else #[]) ++
-    (if plan.returnTypes.contains .bool then #[returnBoolFunc] else #[])
+def returnHelperFuncsForModulePlan (plan : ModulePlan)
+    (bridge : ProofForge.Target.HostBridge := .near) : Array Func :=
+  (if plan.returnTypes.contains .u64 then #[returnU64Func bridge] else #[]) ++
+    (if plan.returnTypes.contains .u32 then #[returnU32Func bridge] else #[]) ++
+    (if plan.returnTypes.contains .bool then #[returnBoolFunc bridge] else #[])
 
 def powHelperFuncsForModulePlan (plan : ModulePlan) : Array Func :=
   (if plan.usesPowU32 then #[powFunc .u32] else #[]) ++
