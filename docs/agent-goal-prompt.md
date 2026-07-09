@@ -8,8 +8,7 @@ Status: **Active**
 Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
 
-Baseline: Wave 0 partial — PF-P0-01..04 done on main; PF-P0-05 closes mechanical
-doc-sync drift via `just doc-sync-audit-strict`.
+Baseline: Wave 0 complete (PF-P0-01..08 done). Wave 1 open at PF-P1-01 TargetBackend driver.
 
 ---
 
