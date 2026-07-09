@@ -435,16 +435,15 @@ def buildEntrypointAccounts (module : Module) (extensions : ProgramExtensions)
   alignInstructionAccountsWithModuleOrder moduleAccounts
     (buildInstructionAccounts module extensions entrypoint)
 
-/-- Portable caller identity on Solana (honest model, not full Pubkey equality).
+/-- Portable caller identity on Solana.
 
-`context.userId` / `origin` lower as **little-endian u64 of account[0]'s
-pubkey first 8 bytes**. That is a stable *handle* for portable Ownable /
-role checks in IR v0, **not** full 32-byte Pubkey equality. Future work:
-address/hash-width owner slots or explicit identity capability.
+`context.userId` / `origin` lower as **u64-le of sha256(account[0] full 32-byte
+pubkey)[0..8]** — the whole Pubkey is hashed so the handle commits to full
+identity (not a raw 8-byte slice of the key). Ownable still stores a portable
+u64 handle in IR v0; future work may use hash/address-width owner slots.
 
-Phase C.3 materialize: when IR reads caller (`callerSender`), ensure a
-**leading signer** `authority` so account[0] is the tx authority (not program
-state data):
+Materialize: when IR reads caller (`callerSender`), ensure a **leading signer**
+`authority` so account[0] is the tx authority (not program state data):
 
 * account[0] = `authority` (signer) ← portable caller handle
 * account[1+] = program state / other roles

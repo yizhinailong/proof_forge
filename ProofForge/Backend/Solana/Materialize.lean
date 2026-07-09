@@ -79,9 +79,9 @@ structure MaterializationReport where
 def callerIdentityNote (module : Module) (accounts : Array AccountEntry) : String :=
   if module.capabilities.any (fun c => c == .callerSender) &&
       accounts.any (fun a => a.name == "authority" && a.signer) then
-    "callerIdentity=authority@0 pubkey[0..8] as u64-le (portable handle; not full Pubkey)"
+    "callerIdentity=sha256(authority@0 full pubkey)→u64-le (portable handle from full identity)"
   else if module.capabilities.any (fun c => c == .callerSender) then
-    "callerIdentity=account[0] pubkey[0..8] as u64-le (portable handle; not full Pubkey)"
+    "callerIdentity=sha256(account[0] full pubkey)→u64-le (portable handle from full identity)"
   else
     ""
 

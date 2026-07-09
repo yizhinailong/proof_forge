@@ -453,6 +453,9 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 | C.5 | **Soroban in portable multi-target scripts** | ✅ `remote-call-multi-target` + `crosscall-materialize` run portable-auth (Soroban invoke) |
 | C.6 | **Deploy-time peer map** (logical peer → account id) | ✅ `Target.PeerMap`; CLI `--peer` / `--peers-demo` (default **identity**, no silent rewrite) |
 | P0 | **Explicit peers + named RemoteRef + honest Solana caller handle** | ✅ `--peer`; Shared `declareRemote`→`remoteCallRef`; Solana notes pubkey[0..8] u64-le limit |
+| P0b | **Solana caller = sha256(full 32-byte pubkey)→u64** | ✅ full identity commit (not raw 8-byte slice) |
+| P0c | **TokenFeature × target matrix** | ✅ `Token.featureSupportOnTarget` + `just token-feature-matrix` |
+| P1a | **Soroban auth deny + invoke log** | ✅ `host.sorobanAuthDenied`; `sorobanInvokes` call log |
 | C.7 | Promote `wasm-stellar-soroban` to `Registry.all` | 🔲 profile constant ready; wait Stellar CLI + contract-spec |
 | C.8 | EmitWat storage remap off NEAR `storage_*` | ✅ Soroban bridge: scalar read/write → `_get`/`_put` |
 | C.9 | Soroban `require_auth` for caller entrypoints | ✅ prologue `require_auth_for_args` when entry uses `callerSender` |

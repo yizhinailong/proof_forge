@@ -46,7 +46,8 @@ def entrypointHasReturn (ep : IR.Entrypoint) : Bool :=
   ep.body.any fun stmt => match stmt with | .return _ => true | _ => false
 
 def moduleNeedsSyscallError (module : IR.Module) : Bool :=
-  module.capabilities.any (fun capability => capability == .envBlock)
+  module.capabilities.any (fun capability =>
+    capability == .envBlock || capability == .callerSender || capability == .cryptoHash)
 
 def lowerProgramOwnerValidation (layout : AccountInputLayout) : Array AstNode :=
   loadCurrentProgramIdPtr .r4 .r2 ++ #[

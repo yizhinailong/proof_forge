@@ -319,6 +319,11 @@ token-compat-wrappers:
 token-intent-smoke: token-compat-wrappers
     scripts/portable/token-intent-smoke.sh
 
+# TokenFeature × target support matrix (EVM full/reject · Solana full · NEAR no-lane).
+token-feature-matrix:
+    lake build ProofForge.Contract.Token
+    lake env lean --run Tests/TokenFeatureMatrix.lean
+
 # Compatibility alias for the former Learn-token-centric smoke name.
 learn-token-smoke: token-intent-smoke
 

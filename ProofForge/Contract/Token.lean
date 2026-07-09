@@ -761,4 +761,95 @@ def planForTarget (target : TargetProfile) (spec : TokenSpec) : Except String To
   else
     .error s!"target `{target.id}` does not have a TokenSpec lowering plan yet"
 
+/-! ## Feature × target support matrix (product honesty)
+
+Authors write features only. This table is the machine-checked product map of
+what each **primary** target does today: full plan, reject (no silent drop),
+or no TokenSpec lane yet.
+-/
+
+/-- How a target treats a portable TokenFeature. -/
+inductive FeatureSupport where
+  /-- Materializes in TokenSpec plan / codegen for this target. -/
+  | full
+  /-- Capability-style reject (no silent drop). -/
+  | reject
+  /-- Target has no TokenSpec plan yet (use another target or wait). -/
+  | noLane
+  deriving BEq, DecidableEq, Repr
+
+def FeatureSupport.id : FeatureSupport → String
+  | .full => "full"
+  | .reject => "reject"
+  | .noLane => "no-lane"
+
+/-- Core portable features shared by EVM ERC-20 and Solana SPL base plans. -/
+def corePortableFeatures : Array TokenFeature :=
+  #[.mintable, .burnable, .capped, .pausable, .permit]
+
+/-- Solana-first extension features (Token-2022 when present). -/
+def solanaExtensionFeatures : Array TokenFeature :=
+  #[.transferFee, .nonTransferable, .confidentialTransfer, .transferHook,
+    .metadataPointer, .defaultAccountState, .immutableOwner]
+
+/-- Look up support for one feature on a registry target id. -/
+def featureSupportOnTarget (targetId : String) (feature : TokenFeature) : FeatureSupport :=
+  match targetId with
+  | "evm" =>
+      if TokenSpec.evmUnsupportedFeatures { name := "", symbol := "", decimals := 0, features := #[feature] }
+          |>.contains feature then
+        .reject
+      else if corePortableFeatures.contains feature then
+        .full
+      else
+        .reject
+  | "solana-sbpf-asm" =>
+      if corePortableFeatures.contains feature || solanaExtensionFeatures.contains feature then
+        .full
+      else
+        .reject
+  | "wasm-near" | "wasm-cosmwasm" | "wasm-cloudflare-workers"
+  | "wasm-stellar-soroban" | "move-aptos" | "move-sui"
+  | "psy-dpn" | "aleo-leo" =>
+      .noLane
+  | _ => .noLane
+
+/-- One row of the product matrix for tests/docs. -/
+structure FeatureMatrixRow where
+  targetId : String
+  featureId : String
+  support : FeatureSupport
+  deriving Repr
+
+def featureMatrixForTargets (targetIds : Array String) : Array FeatureMatrixRow :=
+  targetIds.foldl (init := #[]) fun acc tid =>
+    knownFeatureIds.foldl (init := acc) fun acc2 fid =>
+      match TokenFeature.ofId? fid with
+      | none => acc2
+      | some f =>
+          acc2.push {
+            targetId := tid
+            featureId := fid
+            support := featureSupportOnTarget tid f
+          }
+
+/-- Primary multi-target product surface for TokenSpec. -/
+def primaryTokenTargetIds : Array String :=
+  #["evm", "solana-sbpf-asm", "wasm-near"]
+
+def primaryFeatureMatrix : Array FeatureMatrixRow :=
+  featureMatrixForTargets primaryTokenTargetIds
+
+/-- True when planForTarget would succeed for this target + single-feature intent. -/
+def planSucceedsForFeature (target : TargetProfile) (feature : TokenFeature) : Bool :=
+  let spec : TokenSpec := {
+    name := "MatrixProbe"
+    symbol := "MP"
+    decimals := 9
+    features := #[feature]
+  }
+  match planForTarget target spec with
+  | .ok _ => true
+  | .error _ => false
+
 end ProofForge.Contract.Token

@@ -76,20 +76,37 @@ theorem sorobanHost_log_ok
   simp [runSorobanHostCall]
 
 theorem sorobanHost_require_auth_ok
-    (state : State) (argsPtr argsLen : Nat) :
+    (state : State) (argsPtr argsLen : Nat)
+    (hauth : state.host.sorobanAuthDenied = false := by rfl) :
     runSorobanHostCall "require_auth_for_args" #[argsPtr, argsLen] state =
       .ok (stackPush state 1) := by
-  simp [runSorobanHostCall]
+  simp [runSorobanHostCall, hauth]
 
-/-- Spike stub: arity-checked host invoke returns handle `0` after reading the
-three packed slices (contract id / method / args) from linear memory. -/
+theorem sorobanHost_require_auth_denied
+    (state : State) (argsPtr argsLen : Nat)
+    (hauth : state.host.sorobanAuthDenied = true) :
+    runSorobanHostCall "require_auth_for_args" #[argsPtr, argsLen] state =
+      .error "soroban require_auth_for_args denied (host.sorobanAuthDenied)" := by
+  simp [runSorobanHostCall, hauth]
+
+/-- Host invoke records packed slices and returns handle `0`. -/
 theorem sorobanHost_invoke_contract_ok
     (state : State)
-    (contractLen contractPtr methodLen methodPtr argsLen argsPtr : Nat) :
+    (contractLen contractPtr methodLen methodPtr argsLen argsPtr : Nat)
+    (contract method callArgs : Bytes)
+    (hc : readBytes state.memory contractPtr contractLen = contract)
+    (hm : readBytes state.memory methodPtr methodLen = method)
+    (ha : readBytes state.memory argsPtr argsLen = callArgs) :
     runSorobanHostCall "invoke_contract"
         #[contractLen, contractPtr, methodLen, methodPtr, argsLen, argsPtr] state =
-      .ok (stackPush state 0) := by
-  simp [runSorobanHostCall, stackPush]
+      .ok (stackPush {
+        state with
+        host := {
+          state.host with
+          sorobanInvokes := state.host.sorobanInvokes.push (contract, method, callArgs)
+        }
+      } 0) := by
+  simp [runSorobanHostCall, stackPush, hc, hm, ha]
 
 theorem sorobanHost_hook_ok
     (name : String) (state argsState finalState : State)

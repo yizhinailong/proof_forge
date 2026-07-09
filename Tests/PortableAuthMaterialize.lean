@@ -59,8 +59,8 @@ def main : IO Unit := do
   require (ownableAccounts.any (fun a => a.name == "owner" && a.owner == "program"))
     "Ownable state account remains program-owned data"
   let ownableMat := ProofForge.Backend.Solana.Materialize.report ownable {}
-  require (ownableMat.note.contains "callerIdentity" || ownableMat.note.contains "pubkey[0..8]")
-    "Solana materialize note must document portable caller identity limitation"
+  require (ownableMat.note.contains "callerIdentity" || ownableMat.note.contains "sha256")
+    "Solana materialize note must document sha256(full pubkey) caller identity"
 
   match ProofForge.Backend.Solana.SbpfAsm.renderModule ownable with
   | .error e => throw (IO.userError s!"Solana Ownable lower: {e.message}")
@@ -73,6 +73,10 @@ def main : IO Unit := do
       require (src.contains "control.assert" || src.contains "assert_eq" ||
           src.contains "assert_fail")
         "guard_owner materializes as control.assert"
+      require (src.contains "sol_sha256")
+        "Ownable caller identity must hash full authority pubkey"
+      require (src.contains "error_syscall")
+        "sha256 path must include error_syscall trap"
 
   match ProofForge.Backend.WasmNear.EmitWat.renderModule ownable with
   | .error e => throw (IO.userError s!"NEAR Ownable lower: {e.message}")

@@ -34,10 +34,23 @@ theorem runSorobanHostCall_log_id :
     runSorobanHostCall "log_from_slice" #[0, 0] sorobanState = .ok sorobanState := by
   rfl
 
-theorem runSorobanHostCall_invoke_id :
-    runSorobanHostCall "invoke_contract" #[0, 0, 0, 0, 0, 0] sorobanState =
-      .ok { sorobanState with valueStack := #[0] } := by
-  rfl
+def invokeRecordsCall : Bool :=
+  match runSorobanHostCall "invoke_contract" #[0, 0, 0, 0, 0, 0] sorobanState with
+  | .ok s =>
+      s.valueStack == #[0] && s.host.sorobanInvokes.size == 1
+  | .error _ => false
+
+theorem invokeRecordsCall_ok : invokeRecordsCall = true := by
+  native_decide
+
+def authDeniedFails : Bool :=
+  match runSorobanHostCall "require_auth_for_args" #[0, 0]
+      { sorobanState with host := { sorobanState.host with sorobanAuthDenied := true } } with
+  | .error msg => msg.startsWith "soroban require_auth"
+  | .ok _ => false
+
+theorem authDeniedFails_ok : authDeniedFails = true := by
+  native_decide
 
 example : True := by
   have _ := @sorobanHostArity_get
@@ -46,7 +59,8 @@ example : True := by
   have _ := @hostArity_soroban_put
   have _ := @hostArity_soroban_invoke
   have _ := @runSorobanHostCall_log_id
-  have _ := @runSorobanHostCall_invoke_id
+  have _ := @invokeRecordsCall_ok
+  have _ := @authDeniedFails_ok
   have _ := @soroban_host_smoke_ok
   have _ := @counterSoroban_canonical_safe_trace_simulates
   have _ := @counterSoroban_host_put_preserves_count_storage

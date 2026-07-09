@@ -107,6 +107,11 @@ structure HostState where
   signerAccountId : Bytes := stringBytes "alice.testnet"
   attachedDeposit : Nat := 0
   blockIndex : Nat := 0
+  /-- When true, Soroban `require_auth_for_args` fails (product test hook).
+  Default false = authorised (spike). -/
+  sorobanAuthDenied : Bool := false
+  /-- Log of `invoke_contract` host calls (contract/method/args byte slices). -/
+  sorobanInvokes : Array (Bytes × Bytes × Bytes) := #[]
   deriving Repr, Inhabited
 
 def HostState.beginCall (host : HostState) (input : Bytes := #[]) : HostState :=
@@ -404,21 +409,28 @@ def runSorobanHostCall (name : String) (args : Array Nat) (state : WasmState) :
         .ok { state with host := { state.host with storage := writeStorage state.host.storage key value } }
       else .error s!"_put expected 4 arguments, got {args.size}"
   | "log_from_slice" => .ok state
-  | "require_auth_for_args" => .ok (stackPush state 1)
+  | "require_auth_for_args" =>
+      if state.host.sorobanAuthDenied then
+        .error "soroban require_auth_for_args denied (host.sorobanAuthDenied)"
+      else
+        .ok (stackPush state 1)
   | "set_return_data" =>
       if h : args.size = 2 then
         let value := readBytes state.memory args[0] args[1]
         .ok { state with host := { state.host with returnValue := value } }
       else .error s!"set_return_data expected 2 arguments, got {args.size}"
-  -- Spike stub: real Env::invoke_contract (Address + Symbol + Vec<Val>) lands later.
-  -- Validate arity, force memory reads of the packed contract/method/args slices
-  -- so mis-sized ptr/len fail like other host reads, and return handle `0`.
+  -- Records contract/method/args slices for tests; returns handle `0`.
+  -- Real Env::invoke_contract (Address + Symbol + Vec<Val>) lands later.
   | "invoke_contract" =>
       if h : args.size = 6 then
-        let _contract := readBytes state.memory args[1] args[0]
-        let _method := readBytes state.memory args[3] args[2]
-        let _args := readBytes state.memory args[5] args[4]
-        .ok (stackPush state 0)
+        let contract := readBytes state.memory args[1] args[0]
+        let method := readBytes state.memory args[3] args[2]
+        let callArgs := readBytes state.memory args[5] args[4]
+        let host := {
+          state.host with
+          sorobanInvokes := state.host.sorobanInvokes.push (contract, method, callArgs)
+        }
+        .ok (stackPush { state with host := host } 0)
       else .error s!"invoke_contract expected 6 arguments, got {args.size}"
   | other => .error s!"unsupported Soroban host call `{other}`"
 
