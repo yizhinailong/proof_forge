@@ -112,12 +112,13 @@ After `1.0.0`:
 
 ## Milestones
 
-1. **M1:** Document the policy in this RFC and record D-042.
-2. **M2:** Add policy references to artifact/deploy JSON emitters and the
-   capability registry.
+1. **M1:** Document the policy in this RFC and record D-042. ✅
+2. **M2:** Align all emitters to the same `irVersion` string and
+   `schemaVersion` integer. ✅ constants + `just versioning-policy` /
+   `Tests/VersioningPolicy.lean` freeze current values (U6.1).
 3. **M3:** Add a CI check that warns when a PR changes IR constructors
-   without updating `irVersion` or coverage manifests.
-4. **M4:** Apply the policy to the first IR change after acceptance.
+   without updating `irVersion` or coverage manifests. (open)
+4. **M4:** Apply the policy to the first IR change after acceptance. (open)
 
 ## Non-goals
 

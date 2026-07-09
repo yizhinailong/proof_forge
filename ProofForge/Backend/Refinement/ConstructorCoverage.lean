@@ -708,6 +708,7 @@ which `moduleInCoveredFragment` checks modules stay within):
 
 Each widening adds a constructor here + a FV-9.2 preservation lemma + a
 `fuelCovered*` arm, then re-checks the honesty bridge.
+-/
 
 /-! ### Product module → covered-fragment map (U5.1 / U5.3)
 

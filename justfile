@@ -21,6 +21,11 @@ contract-client:
     lake env lean --run Tests/ContractClient.lean
 
 # Check unified SDK schema generation, target extensions, diagnostics, and refs.
+# U6.1 / RFC 0012: freeze IR + artifact version constants (portable-ir-v0, schemaVersion).
+versioning-policy:
+    lake build ProofForge.Contract.SdkSchema ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.Solana.Idl
+    lake env lean --run Tests/VersioningPolicy.lean
+
 sdk-schema:
     lake env lean --run Tests/SdkSchema.lean
     lake env lean --run Tests/SdkSchemaExtensions.lean
