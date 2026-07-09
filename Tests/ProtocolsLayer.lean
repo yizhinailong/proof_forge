@@ -46,6 +46,12 @@ def main : IO UInt32 := do
     "multicall catalog"
   require (ProofForge.Protocols.Evm.Multicall.selectorAggregate3 == 0x82ad56cb)
     "multicall aggregate3 selector"
+  -- AbiEncode-backed aggregate layout (empty Call[]).
+  let agg0 := ProofForge.Protocols.Evm.Multicall.encodeAggregate #[]
+  require (ProofForge.Backend.Evm.AbiEncode.planWordAt? agg0 0 == some 0x20)
+    "aggregate layout head 0x20"
+  require (ProofForge.Backend.Evm.AbiEncode.planWordAt? agg0 0x20 == some 0)
+    "aggregate empty length"
   require (ProofForge.Protocols.Evm.Permit2.catalogId == "protocols.evm.permit2")
     "permit2 catalog"
   require (ProofForge.Protocols.Evm.Permit2.selectorTransferFrom == 0x36c78516)

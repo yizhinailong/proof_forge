@@ -51,6 +51,8 @@ Wasm adapters). Keep Layer **A Host / B Protocols / C Stdlib** honest.
       `ft_balance_of` / `ft_total_supply` (EmitWat + `Protocols.Near.FungibleToken`)
 - [x] WasmHost **JsonEncode** shared builder (`Node` / `Sink` / `lower`); NEP-141
       refactored off hand-rolled putc
+- [x] EVM **AbiEncode** shared layout planner (Call[] / Call3[] / bytes); Multicall
+      uses `encodeAggregate` (Solana CPI dataLayout remains the sBPF analogue)
 - [x] Solana confidential/crypto-hard layouts remain compile-reject
       (`rejectedLayoutExamples` + `isSupportedCpiDataLayout = false`)
 

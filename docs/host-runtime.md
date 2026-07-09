@@ -6,6 +6,17 @@ Related: [protocols-layer](protocols-layer.md), [capability-registry](capability
 `ProofForge.Target.HostRuntime`, `ProofForge.Target.HostBridge`,
 `ProofForge.Backend.Solana.Syscalls`.
 
+## 0. Host-native packing layers (siblings)
+
+| Host | Pack / encode layer | Role |
+|------|---------------------|------|
+| NEAR / Wasm | `WasmHost.JsonEncode` | promise / event JSON objects |
+| EVM | `Evm.AbiEncode` | calldata layouts (Call[], bytes, …) |
+| Solana | CPI `dataLayout` (`Extension.Cpi`) | instruction data words |
+
+Authors and Protocols build **schemas**; backends lower once. Do not hand-roll
+putc / mstore / ix bytes at call sites.
+
 ## 1. Question
 
 > Solana has syscalls, EVM has opcodes/precompiles, NEAR has host imports —
