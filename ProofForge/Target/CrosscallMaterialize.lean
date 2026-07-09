@@ -43,6 +43,7 @@ inductive NativeForm where
   | nearPromise
   | cosmWasmMsg
   | workersBinding
+  | sorobanInvoke
   | moveCall
   | zkCircuitCall
   | unsupported
@@ -54,6 +55,7 @@ def NativeForm.id : NativeForm → String
   | .nearPromise => "near-promise"
   | .cosmWasmMsg => "cosmwasm-msg"
   | .workersBinding => "workers-binding"
+  | .sorobanInvoke => "soroban-invoke"
   | .moveCall => "move-call"
   | .zkCircuitCall => "zk-circuit-call"
   | .unsupported => "unsupported"
@@ -64,6 +66,7 @@ def NativeForm.describe : NativeForm → String
   | .nearPromise => "NEAR Promise / host cross-contract call"
   | .cosmWasmMsg => "CosmWasm WasmMsg / submessage"
   | .workersBinding => "Cloudflare Workers service binding / fetch"
+  | .sorobanInvoke => "Soroban host contract invoke (Wasm host adapter; spike)"
   | .moveCall => "Move entry/object call (sourcegen)"
   | .zkCircuitCall => "ZK circuit/transition call (restricted subset)"
   | .unsupported => "target does not materialize portable crosscall yet"
@@ -96,6 +99,7 @@ def forProfile (profile : TargetProfile) : Report :=
     | "wasm-near" => NativeForm.nearPromise
     | "wasm-cosmwasm" => NativeForm.cosmWasmMsg
     | "wasm-cloudflare-workers" => NativeForm.workersBinding
+    | "wasm-stellar-soroban" => NativeForm.sorobanInvoke
     | "move-aptos" | "move-sui" => NativeForm.moveCall
     | "psy-dpn" | "aleo-leo" => NativeForm.zkCircuitCall
     | _ =>
@@ -106,7 +110,7 @@ def forProfile (profile : TargetProfile) : Report :=
             match profile.hostBridge? with
             | some .near => NativeForm.nearPromise
             | some .cosmWasm => NativeForm.cosmWasmMsg
-            | some .soroban => NativeForm.nearPromise
+            | some .soroban => NativeForm.sorobanInvoke
             | none => NativeForm.workersBinding
         | .move => NativeForm.moveCall
         | .zkCircuitSourcegen => NativeForm.zkCircuitCall
@@ -114,6 +118,7 @@ def forProfile (profile : TargetProfile) : Report :=
     match form with
     | .solanaCpi => Capability.crosscallCpi.id
     | .nearPromise => Capability.nearPromise.id
+    | .sorobanInvoke => Capability.crosscallInvoke.id
     | .unsupported => "crosscall.unsupported"
     | _ => Capability.crosscallInvoke.id
   let asyncSupport :=
@@ -123,6 +128,7 @@ def forProfile (profile : TargetProfile) : Report :=
     | .solanaCpi => "sync-cpi"
     | .evmCall => "sync-call"
     | .workersBinding => "async-fetch"
+    | .sorobanInvoke => "host-auth-context"
     | .moveCall => "sync-entry-call"
     | .zkCircuitCall => "circuit-static"
     | .unsupported => "none"
@@ -131,13 +137,15 @@ def forProfile (profile : TargetProfile) : Report :=
     | .evmCall =>
         "Portable crosscall.invoke → EVM CALL; STATICCALL/DELEGATECALL/create remain EVM extensions"
     | .solanaCpi =>
-        "Portable crosscall.invoke → Solana CPI materialization (method+args as ix data; callee_program account by index; Source.Solana CPI still for hand-tuned layouts)"
+        "Portable crosscall.invoke → Solana CPI materialization (method+args as ix data; up to 64 accounts; Source.Solana CPI still for hand-tuned layouts)"
     | .nearPromise =>
         "Portable crosscall.invoke → NEAR promise_create (nearCrosscallStrings string pool for account/method names)"
     | .cosmWasmMsg =>
-        "Portable crosscall.invoke → CosmWasm WasmMsg/submessage via host adapter (spike coverage)"
+        "Portable crosscall.invoke → CosmWasm WasmMsg/submessage (deferred; Counter spike only)"
     | .workersBinding =>
-        "Portable crosscall.invoke reinterpreted as Workers binding/fetch (off-chain host)"
+        "Portable crosscall.invoke reinterpreted as Workers binding/fetch (deferred off-chain host)"
+    | .sorobanInvoke =>
+        "Soroban host adapter: storage/auth (_put/_get/require_auth) landed; portable crosscall → client-style host invoke is the next spike (not NEAR promise)"
     | .moveCall =>
         "Portable crosscall.invoke → Move package call shape (spike; limited coverage)"
     | .zkCircuitCall =>

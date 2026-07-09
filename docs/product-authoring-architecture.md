@@ -240,13 +240,15 @@ Implementation sketch:
 Portable intent is one: **call method on peer**. Each backend owns the native
 frame — authors never write these frames:
 
-| Family | Native call form | “Accounts / identities” surface |
-|---|---|---|
-| **EVM** | `CALL` / optional STATIC/DELEGATE/create | address + calldata + value (no account metas) |
-| **Solana** | `sol_invoke_signed_c` **CPI** | explicit `AccountMeta` / `AccountInfo` vector (max locks 64; portable pack cap 16 today) |
-| **NEAR** | `promise_create` (+ optional `promise_then`) | account **id strings** + method name + gas/deposit (async) |
-| **CosmWasm** | WasmMsg / submessage | contract addr + msg JSON (spike) |
-| **Move** | entry/object call (sourcegen) | address / object handles (spike) |
+| Family | Native call form | “Accounts / identities” surface | Product status |
+|---|---|---|---|
+| **EVM** | `CALL` / optional STATIC/DELEGATE/create | address + calldata + value | **Product** (closed for this phase) |
+| **Solana** | `sol_invoke_signed_c` **CPI** | AccountMeta/Info vector (pack up to **64**) | **Product** (closed for this phase) |
+| **NEAR** | `promise_create` (+ optional `promise_then`) | account id strings + method + gas/deposit | **Product** (closed for this phase) |
+| **Soroban** | host contract invoke + `require_auth*` | Stellar addresses / auth context | **Next** host-adapter spike (not NEAR promise) |
+| **CosmWasm** | WasmMsg / submessage | contract addr + msg JSON | **Deferred** |
+| **Workers** | binding / fetch | off-chain service ids | **Deferred** |
+| **Move** | entry/object call (sourcegen) | address / object handles | spike |
 
 So “CPI 传参 / account metas” is **Solana-only materialization**, not portable
 IR. NEAR string pool and EVM ABI words are the parallel artifacts for those
@@ -413,6 +415,35 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 | 5b | **Layered preflight (L0 portability + L1 capability) before materialize** | ✅ `Target.Preflight`; L2 stays backend; L3/L4 = materialize + prologue |
 | 5c | Portable CPI pack up to **64** (heap infos + stack metas) | ✅ `HEAP_START_ADDRESS` infos; ptr table 64 |
 | 5d | Wire Preflight into CLI artifact + `proof-forge check` | ✅ Solana/EVM/NEAR artifacts; Check preflight.failed |
+| 5e | **Product close-out triad** EVM · Solana · NEAR | ✅ Shared.RemoteCall multi-target + preflight + crosscall map |
+| 5f | **Soroban** honest crosscall form + next spike (not CosmWasm/Workers) | ✅ `soroban-invoke` form; EmitWat invoke lower still next |
+| 5g | CosmWasm / Workers advancement | **Deferred** (explicit non-goals this phase) |
+
+### Phase close-out — what is “done” vs “next”
+
+**Closed for this product slice (authors write logic + `--target` only):**
+
+| Target | Crosscall | Preflight | Multi-target demo |
+|---|---|---|---|
+| `evm` | CALL | yes | `Shared.RemoteCall` |
+| `solana-sbpf-asm` | CPI ≤64 | yes | `Shared.RemoteCall` |
+| `wasm-near` | `promise_create` | yes | `Shared.RemoteCall` |
+
+**Next (Wasm host family, after triad):**
+
+- **`wasm-stellar-soroban`**: host adapter (`SorobanHost` + Counter refinement)
+  already reuses EmitWat/WasmExec for storage/auth; **do not** map portable
+  crosscall to NEAR Promise. Native form is `soroban-invoke` (honest spike).
+  Next engineering: client-style host invoke + contract-spec/auth context, then
+  optional registry id.
+
+**Deferred (do not open until Soroban spike is real or triad needs change):**
+
+- CosmWasm WasmMsg full lower  
+- Cloudflare Workers binding/fetch product path  
+
+Gates: `just crosscall-materialize`, `just portable-remote-call-multi-target`,
+`just primary-materialize`, `just ir-portability-smoke`.
 | 6 | Mark `Source.Solana` fixture-only; demote from product docs | After auto-materialize works for Counter/Vault |
 | 7 | Stdlib portable policies → multi-target lowering | One Ownable/Token intent |
 | 8 | Spec/Builder de-EVM naming | Product surface cleanup |

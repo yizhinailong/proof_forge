@@ -84,10 +84,15 @@ def main : IO Unit := do
   require (evmX.nativeForm == .evmCall) "EVM crosscall form"
   require (solX.nativeForm == .solanaCpi) "Solana crosscall form"
   require (nearX.nativeForm == .nearPromise) "NEAR crosscall form"
-  require (cosmwasmX.nativeForm == .cosmWasmMsg) "CosmWasm crosscall form"
-  require (cfX.nativeForm == .workersBinding) "CF crosscall form"
+  require (cosmwasmX.nativeForm == .cosmWasmMsg) "CosmWasm crosscall form (deferred spike)"
+  require (cfX.nativeForm == .workersBinding) "CF crosscall form (deferred)"
   require (psyX.nativeForm == .zkCircuitCall) "Psy crosscall form"
   require (aleoX.nativeForm == .zkCircuitCall) "Aleo crosscall form"
+  -- Soroban is host-bridge only (not yet a registry profile); family mapping
+  -- must not pretend NEAR promise_create.
+  require (NativeForm.sorobanInvoke.id == "soroban-invoke") "Soroban form id"
+  require (NativeForm.sorobanInvoke != NativeForm.nearPromise)
+    "Soroban must not alias NEAR promise"
   require (!(moduleUsesPortableCrosscall counter))
     "Counter fixture should not use portable crosscall nodes"
 

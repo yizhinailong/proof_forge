@@ -5,6 +5,14 @@ Status: **Phase 4 WASM host-family adapter landed (first spike) —
 + `ProofForge.Backend.WasmNear.SorobanHost.lean`, reusing the shared `WasmExec` core.
 Not yet a separate registry id; the Counter refinement reuses the host-agnostic core.**
 
+**Product queue (2026-07 close-out):** EVM · Solana · NEAR portable crosscall
+paths are the closed triad. **Soroban is the next Wasm-host spike** after that
+triad; CosmWasm full crosscall and Cloudflare Workers product path are
+**deferred**. Portable crosscall maps to native form `soroban-invoke` (honest)
+— **not** NEAR `promise_create`. Host surface today is storage/auth
+(`_put` / `_get` / `require_auth_for_args`); client-style cross-contract invoke
+is the next engineering step.
+
 Candidate target id: **`wasm-stellar-soroban`**
 
 This note records the first ProofForge classification for Stellar smart

@@ -146,6 +146,13 @@ def main : IO Unit := do
   require (PORTABLE_CPI_INFO_HEAP_BYTES == 64 * 56) "heap reserve for 64 AccountInfos"
   require ((forProfile moveAptos).nativeForm == NativeForm.moveCall) "Aptos form"
   require ((forProfile moveSui).nativeForm == NativeForm.moveCall) "Sui form"
+  -- Soroban is next host adapter: honest form, never alias NEAR promise.
+  require (NativeForm.sorobanInvoke.id == "soroban-invoke") "Soroban form id"
+  require (NativeForm.sorobanInvoke != NativeForm.nearPromise)
+    "Soroban must not be mapped as near-promise"
+  require ((forProfile wasmCosmWasm).note.contains "deferred" ||
+      (forProfile wasmCosmWasm).nativeForm == NativeForm.cosmWasmMsg)
+    "CosmWasm remains deferred spike form"
 
   -- Shared portable RemoteCall (contract_source + remoteCall) multi-target.
   let shared := Examples.Shared.RemoteCall.module
