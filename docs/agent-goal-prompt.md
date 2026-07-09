@@ -8,8 +8,8 @@ Status: **Active**
 Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
 
-Baseline: Wave 0 complete (PF-P0-01..08 done). Wave 1: PF-P1-01 registry + CLI drivers +
-primary validate/plan + check dispatch landed; remaining: package/emit ownership + secondary.
+Baseline: Wave 0 complete (PF-P0-01..08 done). Wave 1: PF-P1-01 TargetBackend driver for
+primary triad done; next PF-P1-02 TargetProfile support matrix.
 
 ---
 
@@ -109,7 +109,7 @@ implementation SHA is only known after the implementation commit exists.
 | 0 | PF-P0-06 | done: verified@e94bc185; just testkit; offline-host wasmtimeFuel* fields | immediately |
 | 0 | PF-P0-07 | done: verified@0334cbaa; just check-l2-parity | immediately |
 | 0 | PF-P0-08 | done: verified@0334cbaa; just wat2wasm-fail-closed | immediately |
-| 1 | PF-P1-01 | in_progress: registry + CLI drivers + primary validate/plan + check→backend; next: package/emit ownership on TargetBackend; secondary profile+resolve only | all Wave 0 tasks done |
+| 1 | PF-P1-01 | in_progress: package hooks + check path done; pending ledger done@ after impl SHA | all Wave 0 tasks done |
 | 1 | PF-P1-02 | pending | all Wave 0 tasks done; coordinate with PF-P1-01 |
 | 1 | PF-P1-03 | pending | PF-P1-01 and PF-P1-02 done |
 | 1 | PF-P1-04 | pending | PF-P1-01 through PF-P1-03 done |

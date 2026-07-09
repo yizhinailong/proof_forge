@@ -307,9 +307,20 @@ use `proof-forge emit --target {profile.id} --fixture <id>` for the Counter spik
                 }
               | .ok () =>
                   resolved := { resolved with validation := pushValidation resolved.validation "backendPlan" "passed" }
-            -- PF-P0-07: residual L2 package-path validation without writing artifacts.
-            if profile.id == ProofForge.Target.wasmNear.id ||
-               profile.id == ProofForge.Target.wasmStellarSoroban.id ||
+            -- PF-P1-01: package dry-run via TargetBackend when registered.
+            if backend.hasPackage then
+              match backend.ensurePackage spec.module plan with
+              | .error diag =>
+                return {
+                  resolved with
+                  diagnostics := pushDiagnostic resolved.diagnostics (diagnosticFromTarget diag "lowering.failed" .error)
+                  validation := pushValidation resolved.validation "lowering" "failed"
+                }
+              | .ok () =>
+                  return { resolved with validation := pushValidation resolved.validation "lowering" "passed" }
+            -- Residual secondary host-family package path (until those backends
+            -- register ensurePackage hooks).
+            if profile.id == ProofForge.Target.wasmStellarSoroban.id ||
                profile.id == ProofForge.Target.wasmCosmWasm.id then
               let bridge := profile.hostBridge?.getD ProofForge.Target.HostBridge.near
               match ProofForge.Backend.WasmHost.EmitWat.renderModuleWithPlan spec.module plan bridge with
@@ -326,25 +337,6 @@ use `proof-forge emit --target {profile.id} --fixture <id>` for the Counter spik
                   }
                   validation := pushValidation resolved.validation "lowering" "failed"
                 }
-            else if profile.id == ProofForge.Target.solanaSbpfAsm.id then
-              match ProofForge.Backend.Solana.SbpfAsm.renderModuleWithPlan spec.module plan with
-              | .ok _ =>
-                  return { resolved with validation := pushValidation resolved.validation "lowering" "passed" }
-              | .error err =>
-                return {
-                  resolved with
-                  diagnostics := pushDiagnostic resolved.diagnostics {
-                    severity := .error
-                    code := "lowering.failed"
-                    message := err.render
-                    file? := some input.toString
-                  }
-                  validation := pushValidation resolved.validation "lowering" "failed"
-                }
-            else if profile.id == ProofForge.Target.evm.id then
-              -- EVM: backend validate/plan above is the L2 surface; full Yul emission
-              -- still needs CLI ABI/constructor context and is covered by build smokes.
-              return { resolved with validation := pushValidation resolved.validation "lowering" "passed" }
             else
               return { resolved with validation := pushValidation resolved.validation "contractSource" "passed" }
 

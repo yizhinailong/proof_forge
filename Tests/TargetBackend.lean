@@ -31,12 +31,20 @@ def main : IO UInt32 := do
       s!"primary triad `{id}` must register validateModule on TargetBackend"
     require backend.hasPlan
       s!"primary triad `{id}` must register ensurePlan on TargetBackend"
+    require backend.hasPackage
+      s!"primary triad `{id}` must register ensurePackage on TargetBackend"
     match backend.validateModule ProofForge.IR.Examples.Counter.module with
     | .ok () => pure ()
     | .error err => throw <| IO.userError s!"`{id}` validateModule failed on Counter: {err.message}"
     match backend.ensurePlan ProofForge.IR.Examples.Counter.module with
     | .ok () => pure ()
     | .error err => throw <| IO.userError s!"`{id}` ensurePlan failed on Counter: {err.message}"
+    match backend.resolve (ProofForge.Contract.ContractSpec.fromIR ProofForge.IR.Examples.Counter.module) with
+    | .error err => throw <| IO.userError s!"`{id}` resolve failed on Counter: {err.message}"
+    | .ok plan =>
+        match backend.ensurePackage ProofForge.IR.Examples.Counter.module plan with
+        | .ok () => pure ()
+        | .error err => throw <| IO.userError s!"`{id}` ensurePackage failed on Counter: {err.message}"
 
   for id in knownIds do
     let backend ← requireSome (findBackend? id) s!"knownIds entry `{id}` has no TargetBackend"
@@ -44,8 +52,8 @@ def main : IO UInt32 := do
 
   -- Secondary targets keep profile+resolve until migrated; missing hooks fail closed.
   let cosmwasm ← requireSome (findBackend? "wasm-cosmwasm") "missing cosmwasm backend"
-  require (!cosmwasm.hasValidate && !cosmwasm.hasPlan)
-    "secondary wasm-cosmwasm must not claim unregistered validate/plan hooks yet"
+  require (!cosmwasm.hasValidate && !cosmwasm.hasPlan && !cosmwasm.hasPackage)
+    "secondary wasm-cosmwasm must not claim unregistered validate/plan/package hooks yet"
   match cosmwasm.validateModule ProofForge.IR.Examples.Counter.module with
   | .ok () => throw <| IO.userError "wasm-cosmwasm validateModule must fail closed without a hook"
   | .error err =>

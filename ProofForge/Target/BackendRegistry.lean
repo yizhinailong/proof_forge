@@ -2,9 +2,11 @@ import ProofForge.Backend.Evm.Plan
 import ProofForge.Backend.Evm.Validate
 import ProofForge.Backend.Solana.Plan
 import ProofForge.Backend.Solana.SbpfAsm
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.Backend.WasmHost.IR
 import ProofForge.Backend.WasmHost.Plan
 import ProofForge.Target.Backend
+import ProofForge.Target.HostBridge
 import ProofForge.Target.Registry
 
 namespace ProofForge.Target
@@ -54,22 +56,40 @@ def nearEnsurePlan (module : Module) : Except Diagnostic Unit :=
   mapPlanError (fun (e : ProofForge.Backend.WasmHost.Plan.PlanError) => e.message)
     (ProofForge.Backend.WasmHost.Plan.buildModulePlan module)
 
+/-- EVM package dry-run: capability plan + structural plan is the check L2 surface;
+full Yul emission still needs CLI ABI/constructor context (build smokes). -/
+def evmEnsurePackage (_module : Module) (_plan : CapabilityPlan) : Except Diagnostic Unit :=
+  .ok ()
+
+def solanaEnsurePackage (module : Module) (plan : CapabilityPlan) : Except Diagnostic Unit :=
+  match ProofForge.Backend.Solana.SbpfAsm.renderModuleWithPlan module plan with
+  | .ok _ => .ok ()
+  | .error err => .error (diagFromMessage err.render)
+
+def nearEnsurePackage (module : Module) (plan : CapabilityPlan) : Except Diagnostic Unit :=
+  match ProofForge.Backend.WasmHost.EmitWat.renderModuleWithPlan module plan HostBridge.near with
+  | .ok _ => .ok ()
+  | .error err => .error (diagFromMessage err.message)
+
 def evmBackend : TargetBackend := {
   TargetBackend.ofProfile evm with
   validateModule? := some evmValidateModule
   ensurePlan? := some evmEnsurePlan
+  ensurePackage? := some evmEnsurePackage
 }
 
 def solanaBackend : TargetBackend := {
   TargetBackend.ofProfile solanaSbpfAsm with
   validateModule? := some solanaValidateModule
   ensurePlan? := some solanaEnsurePlan
+  ensurePackage? := some solanaEnsurePackage
 }
 
 def nearBackend : TargetBackend := {
   TargetBackend.ofProfile wasmNear with
   validateModule? := some nearValidateModule
   ensurePlan? := some nearEnsurePlan
+  ensurePackage? := some nearEnsurePackage
 }
 
 def primaryTriadBackends : Array TargetBackend := #[

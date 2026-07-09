@@ -18,6 +18,10 @@ structure TargetBackend where
   validateModule? : Option (ProofForge.IR.Module → Except Diagnostic Unit) := none
   /-- Succeeds when a target-specific plan can be built (typed plan stays private). -/
   ensurePlan? : Option (ProofForge.IR.Module → Except Diagnostic Unit) := none
+  /-- Succeeds when package-path lowering can run without writing artifacts
+  (check L2 / dry-run package). Typed AST stays private to the backend. -/
+  ensurePackage? :
+      Option (ProofForge.IR.Module → CapabilityPlan → Except Diagnostic Unit) := none
 
 def TargetBackend.ofProfile (profile : TargetProfile) : TargetBackend := {
   profile := profile
@@ -29,6 +33,9 @@ def TargetBackend.hasValidate (backend : TargetBackend) : Bool :=
 
 def TargetBackend.hasPlan (backend : TargetBackend) : Bool :=
   backend.ensurePlan?.isSome
+
+def TargetBackend.hasPackage (backend : TargetBackend) : Bool :=
+  backend.ensurePackage?.isSome
 
 /-- Run validate when the backend exposes one; otherwise fail closed with a
 stable diagnostic (callers must not invent a silent pass). -/
@@ -51,6 +58,17 @@ def TargetBackend.ensurePlan (backend : TargetBackend) (module : ProofForge.IR.M
       message :=
         s!"target `{backend.profile.id}` has no TargetBackend.ensurePlan hook; \
 backend-owned plan stage is not registered"
+    }
+
+/-- Run package-path dry-run when the backend exposes one. -/
+def TargetBackend.ensurePackage (backend : TargetBackend) (module : ProofForge.IR.Module)
+    (plan : CapabilityPlan) : Except Diagnostic Unit :=
+  match backend.ensurePackage? with
+  | some ensure => ensure module plan
+  | none => .error {
+      message :=
+        s!"target `{backend.profile.id}` has no TargetBackend.ensurePackage hook; \
+backend-owned package stage is not registered"
     }
 
 end ProofForge.Target
