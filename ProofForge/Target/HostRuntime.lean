@@ -532,13 +532,13 @@ alias another field (e.g. `chainId` ↛ `block_index`) and never invent syscalls
 the lowerer does not emit. General-bucket membership is **portable intent**;
 triad coverage grows as lowers land — until then, reject.
 
-Primary triad matrix (context / nativeValue paths as of HostEnv step U1.2):
+Primary triad matrix (context / nativeValue paths as of HostEnv step U1.4):
 * `blockTime` — triad (EVM `timestamp` · Solana `Clock.unix_timestamp` · NEAR `block_timestamp`)
 * `blockHeight` — triad (EVM `number` · Solana `Clock.slot` · NEAR `block_index`)
 * `chainId` — EVM only (Solana/NEAR plan reject `contextRead.chainId`)
 * `caller` / `attachedValue` / `selfAddress` — triad
+* `gasOrComputeBudgetLeft` — EVM `gas` + Solana `sol_remaining_compute_units`; NEAR permanent reject
 * `epoch` — NEAR only (`epoch_height`); EVM/Solana reject
-* `gasOrComputeBudgetLeft` — EVM only (`gas`); Solana/NEAR context paths reject
 * `blockHash` — EVM only; Solana/NEAR reject
 * `randomness` — EVM `prevrandao` + NEAR `random_seed`; Solana reject
 -/
@@ -609,12 +609,13 @@ def materializeEnv (targetId : String) (env : HostEnv) :
   | .gasOrComputeBudgetLeft, "evm" =>
       .ok (mk .opcode "gas" none (some "gasleft()"))
   | .gasOrComputeBudgetLeft, "solana-sbpf-asm" =>
-      .error (hostEnvReject targetId env
-        "contextRead.gasLeft not supported; sol_remaining_compute_units is extension-only \
-(not HostEnv context path yet)")
+      .ok (mk .syscall "sol_remaining_compute_units"
+        (some "contextRead.gasLeft → remaining CU as portable u64")
+        (some "approximate: CU not EVM gas; extension compute_units path shares this syscall"))
   | .gasOrComputeBudgetLeft, "wasm-near" =>
       .error (hostEnvReject targetId env
-        "wasm-near plan rejects contextRead.gasLeft; prepaid_gas not wired as HostEnv lower")
+        "permanent reject: prepaid_gas not wired as HostEnv context lower \
+(use offline fuel budgets / host economics outside portable product path)")
   | .blockHash, "evm" =>
       .ok (mk .opcode "blockhash" none (some "only last 256 blocks"))
   | .blockHash, "solana-sbpf-asm" =>

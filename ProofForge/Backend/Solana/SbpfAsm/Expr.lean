@@ -457,8 +457,19 @@ partial def lowerExpr (ctx : LowerCtx) (expr : IR.Expr) : Except LowerError (Arr
       .ok (nodes ++ #[
         .comment "solana.context.contractId: program_id sha256 limb0 (HostEnv.selfAddress)"
       ], ctx)
+  | .effect (.contextRead .gasLeft) =>
+    -- HostEnv.gasOrComputeBudgetLeft: remaining CU as portable u64.
+    -- Uses sol_remaining_compute_units (same syscall as extension compute_units path).
+    let (inputPtrSave, ctx) := ctx.allocScratch
+    .ok (#[
+      .comment "solana.context.gasLeft: sol_remaining_compute_units → HostEnv.gasOrComputeBudgetLeft",
+      .instruction { opcode := .stxdw, dst := some .r10, off := some (.num inputPtrSave), src := some .r1 },
+      .instruction { opcode := .call, imm := some (.sym sol_remaining_compute_units) },
+      .instruction { opcode := .mov64, dst := some .r2, src := some .r0 },
+      .instruction { opcode := .ldxdw, dst := some .r1, src := some .r10, off := some (.num inputPtrSave) }
+    ], ctx)
   | .effect (.contextRead field) =>
-    .error { message := s!"Solana context read `{field.name}` is not supported; userId/origin/userIdHash are sha256(account[0] pubkey), contractId is sha256(program_id), checkpointId maps to Clock.slot, timestamp maps to Clock.unix_timestamp" }
+    .error { message := s!"Solana context read `{field.name}` is not supported; userId/origin/userIdHash are sha256(account[0] pubkey), contractId is sha256(program_id), checkpointId maps to Clock.slot, timestamp maps to Clock.unix_timestamp, gasLeft maps to sol_remaining_compute_units" }
   | .hashValue a b c d => do
     let (an, ctx) ← lowerExpr ctx a
     let (scratchA, ctx) := ctx.allocScratch

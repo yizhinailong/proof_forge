@@ -94,7 +94,7 @@ U7  Secondary hosts discipline (spike freeze / optional)     [LOW]
 | **U1.1** | Solana `blockTime` | Lower `contextRead .timestamp` via `sol_get_clock_sysvar` → `Clock.unix_timestamp` (i64 at offset in clock buffer); `materializeEnv .blockTime "solana-sbpf-asm" = .ok`; HostRuntime tests | `lake env lean --run Tests/HostRuntime.lean`; Solana fixture/smoke that reads timestamp; `just product` | M | — | **done** (`ac12d18d`) |
 | **U1.2** | Solana `selfAddress` | Lower `contextRead .contractId` to program id (32-byte / limb0 Hash policy matching OwnableHash); materializeEnv ok; honesty tests | Same gates + identity note in `docs/host-runtime.md` | M | U1.1 optional | **done** (`83ed411b`) |
 | **U1.3** | Solana `randomness` / `epoch` decision | Either wire SlotHashes / Clock.epoch **or** permanent reject + author doc | Decision row §Open decisions + tests match | S | — | **done** (permanent reject + host-runtime §) |
-| **U1.4** | Gas/compute HostEnv path | Document EVM-only vs extension-only CU; optional Solana `gasOrComputeBudgetLeft` via `sol_remaining_compute_units` **as HostEnv** (not only extension) | materializeEnv matrix + one smoke or permanent reject | M | U1.1 | pending |
+| **U1.4** | Gas/compute HostEnv path | Document EVM-only vs extension-only CU; optional Solana `gasOrComputeBudgetLeft` via `sol_remaining_compute_units` **as HostEnv** (not only extension) | materializeEnv matrix + one smoke or permanent reject | M | U1.1 | **done** (Solana wired; NEAR permanent reject) |
 | **U1.5** | NEAR HostEnv holes | Confirm prepaid_gas / chainId permanent reject; wire only if real host import exists | Docs + `Tests/HostRuntime.lean` | S | — | **done** (permanent reject confirmed) |
 | **U1.6** | Product example using triad HostEnv | Shared Product example (e.g. time-gated pause or self-check) × three targets | `just portable-*` or new smoke | M | U1.1–U1.2 | **done** |
 
@@ -130,7 +130,7 @@ U7  Secondary hosts discipline (spike freeze / optional)     [LOW]
 | **U2.2** | Code comments / API names | Rename or annotate `evalCrosscallInvokeSum` as `stub`; Quint Lower same | Grep “stub” consistent; no behavior change | S | U2.1 | **done** |
 | **U2.3** | Test split | Separate tests: (a) IR stub determinism (b) target remote materialize smokes | Tests do not claim IR==EVM CALL | M | U2.1 | **done** |
 | **U2.4** | Design real-peer oracle (spec only) | RFC/note: optional IR peer mock registry for FV later | Design doc only | M | U2.1 | **done** (note in portable-ir § Crosscall) |
-| **U2.5** | Portable return decode MVP | Typed scalar returns already partial; extend table or honest reject richer shapes | CrosscallMaterialize + multi-target smoke | L | U2.3 | pending |
+| **U2.5** | Portable return decode MVP | Typed scalar returns already partial; extend table or honest reject richer shapes | CrosscallMaterialize + multi-target smoke | L | U2.3 | **done** (policy: scalar u64 product; richer reject/deferred) |
 
 ---
 
@@ -257,7 +257,7 @@ U7 anytime (docs)
 | ID | Decision | Options | Default until decided |
 |----|----------|---------|------------------------|
 | **D-U1-Random** | Solana portable randomness | Wire SlotHashes vs permanent reject | **Decided:** permanent reject + doc until SlotHashes HostEnv lower |
-| **D-U1-Gas** | Portable gas/CU left | HostEnv on Solana/NEAR vs EVM-only | **Decided for now:** EVM-only HostEnv; CU stays extension until U1.4 |
+| **D-U1-Gas** | Portable gas/CU left | HostEnv on Solana/NEAR vs EVM-only | **Decided:** Solana HostEnv via `sol_remaining_compute_units`; NEAR permanent reject |
 | **D-U1-TimeUnit** | Solana timestamp unit | seconds (Clock) vs ns (NEAR-like) | **Decided:** **seconds** (Clock.unix_timestamp) + note NEAR ns |
 | **D-U2-Oracle** | IR real peer later? | Design-only vs implement mock | design-only in this roadmap |
 | **D-U4-721** | onERC721Received | implement vs permanent skip | permanent skip until product asks |

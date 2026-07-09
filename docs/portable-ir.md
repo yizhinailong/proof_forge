@@ -203,6 +203,15 @@ Optional future (U2.4): an IR peer-oracle registry for FV could replace the sum
 stub for selected modules; until then, stub crosscall stays **outside** the
 universal C-proof fragment (see FV-9 / U5.3).
 
+### Portable return decode (U2.5)
+
+Product portable remotes materialize **scalar returns** (primarily `u64` /
+bool-as-word). Solana portable CPI decodes return data as a **single u64**
+(`decodeReturnDataU64`). Richer aggregate / dynamic returns are **not** a
+portable product promise today: use target extensions or honest-reject at
+materialize/plan rather than inventing a cross-host ABI. IR stub typed
+returns remain cast-from-sum (not peer ABI).
+
 Related: `ProofForge/IR/Semantics.lean` (`evalCrosscallInvokeSum`),
 `ProofForge/Backend/Quint/Lower.lean`, `ProofForge/Target/CrosscallMaterialize.lean`,
 `Tests/IRCrosscallStub.lean`, `Tests/CrosscallMaterialize.lean`.

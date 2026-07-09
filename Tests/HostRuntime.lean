@@ -257,18 +257,26 @@ no silent wrong binding — especially not block_index / sol_get_cluster)")
         require (!supportsHostEnv tid .chainId)
           s!"chainId must not be supportsHostEnv on {tid}"
 
-  -- Approximate: gas/compute EVM-only; NEAR/Solana honest-reject (plan rejects gasLeft).
+  -- Approximate: gas/compute — EVM + Solana (U1.4); NEAR permanent reject.
   match materializeEnv "evm" .gasOrComputeBudgetLeft with
   | .ok m => require (m.binding.symbol == "gas") "evm gasOrComputeBudgetLeft → gas"
   | .error msg => throw (IO.userError s!"evm gasOrComputeBudgetLeft: {msg}")
-  for tid in #["solana-sbpf-asm", "wasm-near"] do
-    match materializeEnv tid .gasOrComputeBudgetLeft with
-    | .ok m =>
-        throw (IO.userError
-          s!"gasOrComputeBudgetLeft must reject on {tid} until context lower exists (got {m.binding.symbol})")
-    | .error msg =>
-        require (contains msg "HostEnv") s!"gas budget@{tid} names HostEnv"
-        require (contains msg "env.gasOrComputeBudgetLeft") s!"gas budget@{tid} names term"
+  match materializeEnv "solana-sbpf-asm" .gasOrComputeBudgetLeft with
+  | .error msg => throw (IO.userError s!"Solana gasOrComputeBudgetLeft: {msg}")
+  | .ok m =>
+      require (contains m.binding.symbol "remaining_compute" || contains m.binding.symbol "compute")
+        "solana gasOrComputeBudgetLeft → sol_remaining_compute_units"
+      require (supportsHostEnv "solana-sbpf-asm" .gasOrComputeBudgetLeft)
+        "supportsHostEnv Solana gasOrComputeBudgetLeft"
+  match materializeEnv "wasm-near" .gasOrComputeBudgetLeft with
+  | .ok m =>
+      throw (IO.userError
+        s!"gasOrComputeBudgetLeft must permanent-reject on NEAR (got {m.binding.symbol})")
+  | .error msg =>
+      require (contains msg "HostEnv") "NEAR gas budget names HostEnv"
+      require (contains msg "env.gasOrComputeBudgetLeft") "NEAR gas budget names term"
+      require (!supportsHostEnv "wasm-near" .gasOrComputeBudgetLeft)
+        "NEAR gas must not be supportsHostEnv"
   match materializeEnv "evm" .randomness with
   | .ok m => require (m.binding.symbol == "prevrandao") "evm randomness → prevrandao"
   | .error msg => throw (IO.userError s!"evm randomness: {msg}")
@@ -342,16 +350,14 @@ no silent wrong binding — especially not block_index / sol_get_cluster)")
   require (ContextField.randomSeed.toHostEnv == .randomness) "randomSeed→randomness"
   require ((ContextField.blockHash (.literal (.u64 0))).toHostEnv == .blockHash)
     "blockHash→blockHash"
-  -- Product portable-core env = HostRuntime triad materialize (U1.1–U1.2).
-  require ContextField.checkpointId.isPortableEnv "checkpointId portable-core (triad)"
+  require (!ContextField.baseFee.isPortableEnv) "baseFee still non-portable core"
+  require (!ContextField.gasLeft.isPortableEnv)
+    "gasLeft not triad portable-core (NEAR permanent reject; Solana CU is approximate)"
   require ContextField.userId.isPortableEnv "userId portable-core (triad)"
   require ContextField.timestamp.isPortableEnv
     "timestamp portable-core after Solana Clock.unix_timestamp lower (U1.1)"
   require ContextField.contractId.isPortableEnv
     "contractId portable-core after Solana program_id lower (U1.2)"
-  require (!ContextField.baseFee.isPortableEnv) "baseFee still non-portable core"
-  require (!ContextField.gasLeft.isPortableEnv)
-    "gasLeft stays non-core (approximate HostEnv, not portable-core)"
 
   -- Solana HostEnv U1.1: contextRead.timestamp lowers Clock.unix_timestamp.
   let tsModule : Module := {
@@ -404,6 +410,32 @@ no silent wrong binding — especially not block_index / sol_get_cluster)")
         "asm must mark program_id / contractId lower"
       require (contains asm "call sol_sha256")
         "asm must sha256 program_id for portable self handle"
+
+  -- Solana HostEnv U1.4: contextRead.gasLeft → sol_remaining_compute_units.
+  let gasModule : Module := {
+    name := "HostEnvGasLeft"
+    state := #[]
+    entrypoints := #[{
+      name := "cu"
+      body := #[
+        .letBind "g" .u64 (.effect (.contextRead .gasLeft))
+        , .return (.local "g")
+      ]
+    }]
+  }
+  match resolveModule solanaSbpfAsm gasModule with
+  | .error err => throw (IO.userError s!"resolve Solana gasLeft module: {err.render}")
+  | .ok _ => pure ()
+  match ProofForge.Backend.Solana.Package.renderPackage "hostenv-gas" gasModule with
+  | .error err => throw (IO.userError s!"render Solana gasLeft: {err.render}")
+  | .ok pkg =>
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw (IO.userError "gas package missing asm")
+      let asm := asmFile.contents
+      require (contains asm "sol_remaining_compute_units")
+        "asm must call sol_remaining_compute_units for gasLeft"
+      require (contains asm "gasLeft" || contains asm "gasOrCompute")
+        "asm must mark gasLeft / HostEnv path"
 
   IO.println s!"host-runtime: ok (effects={allEffects.size} hostEnvs={allHostEnvs.size} evm={evmN} solana={solN} near={nearN} soroban={sorobanN} cosmwasm={cosmwasmN}; adapters+catalog-ref+HostEnv)"
   pure 0
