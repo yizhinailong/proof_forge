@@ -14,8 +14,8 @@ Parallel to:
 | Solana | CPI `dataLayout` packing (`Extension.Cpi`) |
 
 Protocols describe a schema; one plan step materializes offsets + words.
-This module is **pure layout** (no Yul emit yet). Tests and Protocol clients
-consume `Plan`.
+This module is **pure layout**. Yul emit lives in `ToYul.AbiEncode`
+(Wave δ: Plan → `mstore` + CALL). Tests and Protocol clients consume `Plan`.
 
 ## Supported shapes (honest subset)
 
@@ -27,9 +27,10 @@ consume `Plan`.
 | `Call3` = `(address,bool,bytes)` | Multicall3 `aggregate3` element |
 | Dynamic array of Call / Call3 | `aggregate` / `aggregate3` args |
 | Selector ‖ static arg words | Inner `callDataFromSelectorArgs` |
+| Plan → Yul | `ToYul.AbiEncode.emitCall` / `renderAggregateCallYul` |
 
 Not yet: nested dynamic arrays beyond Call[], runtime-unknown lengths,
-string-as-UTF8 (treat as bytes), full Yul `mstore` emission.
+string-as-UTF8 (treat as bytes), IR auto-lower of Call[] from portable remote.
 -/
 import Init.Data.Array.Basic
 import Init.Data.Nat.Basic

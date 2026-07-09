@@ -66,8 +66,8 @@ Related: [product-authoring-architecture](product-authoring-architecture.md),
 
 | # | Gap | Desired |
 |---|-----|---------|
-| **P1.1** | AbiEncode `Plan` not yet → Yul `mstore` / CALL payload | Multicall Call[] becomes real bytecode, not layout-only. |
-| **P1.2** | Solana CPI still hand-written per layout | Optional `BinaryLayout`/`IxEncode` DSL (le_u8/u64/pubkey) so new layouts aren’t copy-paste stores—**still internal**. |
+| **P1.1** | ~~AbiEncode `Plan` not yet → Yul~~ | ✅ `ToYul.AbiEncode` mstore+CALL; IR Call[] auto-lower still open. |
+| **P1.2** | ~~Solana no BinaryLayout~~ | ✅ pure LE `BinaryLayout`; full Cpi rewrite still optional. |
 | **P1.3** | Portable remote = scalar ABI only | Extend intentional types; or honest reject richer shapes. |
 | **P1.4** | Solana account auto-fill incomplete for all product examples | Every Product example builds Solana without Surface. |
 
@@ -130,9 +130,12 @@ Related: [product-authoring-architecture](product-authoring-architecture.md),
 
 **Goal:** Internal pack layers fully drive emit.
 
-1. AbiEncode.Plan → Yul memory + CALL (Multicall real).  
-2. Solana BinaryLayout helper for new CPI layouts (optional hygiene).  
+1. AbiEncode.Plan → Yul memory + CALL (Multicall real). ✅  
+   `ToYul.AbiEncode.emitCall` / `renderAggregateCallYul`; Multicall facade.  
+2. Solana BinaryLayout helper for new CPI layouts (optional hygiene). ✅  
+   `Backend.Solana.BinaryLayout` pure LE field pack (sBPF still in Extension/Cpi).  
 3. Permit2 / richer remote only if product-intent needs them.
+   IR auto-lower of Call[] from portable `remoteCall` remains deferred.
 
 ### Wave ε — Ecosystem depth (selective)
 
@@ -159,8 +162,10 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 | β.2 | `just product-token-solana` (SPL plan one-command) | **done** |
 | γ.1 | Portable protocol intent (`external_token` + materialize) | **done** |
 | γ.2 | `just product-protocol-ft` multi-target smoke | **done** |
+| δ.1 | AbiEncode.Plan → Yul `mstore` + CALL (Multicall) | **done** |
+| δ.2 | Solana BinaryLayout pure LE pack helper | **done** |
 
-**Next:** Wave δ (AbiEncode → Yul CALL payload; optional Solana BinaryLayout hygiene).
+**Next:** IR Call[] auto-lower if product needs; Wave ε selective ecosystem depth.
 
 ---
 

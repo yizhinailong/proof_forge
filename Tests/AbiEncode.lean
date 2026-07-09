@@ -1,19 +1,27 @@
 /-
-Evm.AbiEncode layout smoke: pad32, bytes, Call[], aggregate / aggregate3.
+Evm.AbiEncode layout smoke: pad32, bytes, Call[], aggregate / aggregate3,
+plus Wave δ Plan → Yul mstore/CALL packing.
 -/
 import ProofForge.Backend.Evm.AbiEncode
+import ProofForge.Backend.Evm.ToYul.AbiEncode
 import ProofForge.Protocols.Evm.Multicall
 
 namespace ProofForge.Tests.AbiEncode
 
 open ProofForge.Backend.Evm.AbiEncode
+open ProofForge.Backend.Evm.ToYul.AbiEncode
 open ProofForge.Protocols.Evm.Multicall
 
 def require (condition : Bool) (message : String) : IO Unit :=
   if condition then pure () else throw (IO.userError message)
 
+def contains (haystack needle : String) : Bool :=
+  haystack.contains needle
+
 def main : IO UInt32 := do
   require (ProofForge.Backend.Evm.AbiEncode.catalogId == "evm.abi_encode") "catalog id"
+  require (ProofForge.Backend.Evm.ToYul.AbiEncode.catalogId == "evm.yul.abi_encode")
+    "yul pack catalog"
   require (pad32 0 == 0) "pad32 0"
   require (pad32 1 == 32) "pad32 1"
   require (pad32 32 == 32) "pad32 32"
@@ -78,13 +86,45 @@ def main : IO UInt32 := do
   -- Two calls
   let two := encodeAggregate #[mkCall 1 #[], mkCall 2 #[]]
   require (planWordAt? two 0x20 == some 2) "two length"
-  require (planWordAt? two 0x40 == some 0x60) "first offset"  -- 0x20+0x40? 
+  require (planWordAt? two 0x40 == some 0x60) "first offset"  -- 0x20+0x40?
   -- offsetsBase = 0x40, n=2, tuplesStart = 0x40+64 = 0x80
   -- first offset = 0x80-0x20 = 0x60
   require (planWordAt? two 0x40 == some 0x60) "first elem offset"
   require ((planWordAt? two 0x60).isSome) "second offset present"
 
-  IO.println s!"abi-encode: ok (aggregate size empty={empty.size} one={one.size} two={two.size})"
+  -- Wave δ: Plan → Yul (selector + mstore args + call)
+  let yulEmpty := renderAggregateCallYul defaultMemBase 0xdeadbeef 0 #[]
+  require (contains yulEmpty "mstore") "empty aggregate yul has mstore"
+  require (contains yulEmpty "shl") "selector via shl(224, …)"
+  require (contains yulEmpty "252dba42" || contains yulEmpty "623753794")
+    "aggregate selector 0x252dba42 present"
+  require (contains yulEmpty "call(") "emit CALL"
+  require (contains yulEmpty "_abi_ok") "success local"
+  require (contains yulEmpty "revert") "require success reverts"
+  -- memBase 0x80 = 128; args at 132
+  require (contains yulEmpty "128" || contains yulEmpty "0x80") "memBase 0x80"
+  -- head word 0x20 at args base
+  require (contains yulEmpty "32") "plan head 0x20"
+
+  let yulOne := renderAggregateCallYul 0x80 0xabc 32 #[mkCall 0xab #[]]
+  require (contains yulOne "mstore") "one-call yul mstore"
+  require (contains yulOne "171") "target 0xab = 171"
+  require (callInSize one == 4 + one.size) "inSize = 4 + plan.size"
+
+  let yul3 := renderAggregate3CallYul 0x80 1 0 #[mkCall3 0xcd true #[]]
+  require (contains yul3 "82ad56cb" || contains yul3 "2192398027")
+    "aggregate3 selector"
+  require (contains yul3 "205") "Call3 target 0xcd = 205"
+
+  -- Protocol facade
+  let viaMc := ProofForge.Protocols.Evm.Multicall.renderAggregateCallYul 0x11 0 #[]
+  require (contains viaMc "call(") "Multicall.renderAggregateCallYul"
+
+  let dense := planDenseWords empty
+  require (dense.size == 2) s!"empty dense words {dense.size}"
+  require (dense[0]! == 0x20 && dense[1]! == 0) "dense empty aggregate"
+
+  IO.println s!"abi-encode: ok (layout + yul emit empty={empty.size} one={one.size} two={two.size})"
   pure 0
 
 end ProofForge.Tests.AbiEncode

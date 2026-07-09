@@ -16,12 +16,15 @@ Selectors (canonical Multicall3):
 
 1. **Layout planning** (complete for static Call arrays):
    `encodeAggregate` / `encodeAggregate3` → `AbiEncode.Plan`
-2. **Portable remote** (scalar-bounded smoke path):
-   `aggregate` still uses `remoteCall` with scalar words for handle wiring;
-   full flat calldata inject into Yul is a follow-on (Plan → mstore).
+2. **Yul emit** (Wave δ): `renderAggregateCallYul` / `renderAggregate3CallYul`
+   via `ToYul.AbiEncode` (`mstore` + `call` with full Call[] region).
+3. **Portable remote** (scalar-bounded smoke path):
+   `aggregate` still uses `remoteCall` with scalar words for handle wiring
+   in IR modules; use (1)+(2) for real Multicall calldata.
 -/
 import ProofForge.Contract.Surface
 import ProofForge.Backend.Evm.AbiEncode
+import ProofForge.Backend.Evm.ToYul.AbiEncode
 
 namespace ProofForge.Protocols.Evm.Multicall
 
@@ -62,8 +65,8 @@ def encodeAggregate (calls : Array Call) : Plan :=
 def encodeAggregate3 (calls : Array Call3) : Plan :=
   encodeAggregate3Args calls
 
-/-- Portable scalar CALL (handle wiring / smoke). Prefer `encodeAggregate` for
-real Call[] layouts. -/
+/-- Portable scalar CALL (handle wiring / smoke). Prefer `encodeAggregate` +
+`renderAggregateCallYul` for real Call[] calldata. -/
 def aggregate (m : Multicall) (args : Array ProofForge.IR.Expr) : ProofForge.IR.Expr :=
   remoteCall m.target (u64 selectorAggregate) args
 
@@ -72,5 +75,17 @@ def tryAggregate (m : Multicall) (args : Array ProofForge.IR.Expr) : ProofForge.
 
 def aggregate3 (m : Multicall) (args : Array ProofForge.IR.Expr) : ProofForge.IR.Expr :=
   remoteCall m.target (u64 selectorAggregate3) args
+
+/-- Wave δ: Plan → Yul CALL packing for `aggregate(Call[])`.
+`multicallTarget` is the Multicall3 address word; `outSize` is return buffer
+bytes (0 if ignored). Uses free-memory-style base `0x80`. -/
+def renderAggregateCallYul (multicallTarget outSize : Nat) (calls : Array Call) : String :=
+  ProofForge.Backend.Evm.ToYul.AbiEncode.renderAggregateCallYul
+    ProofForge.Backend.Evm.ToYul.AbiEncode.defaultMemBase multicallTarget outSize calls
+
+/-- Wave δ: Plan → Yul CALL packing for `aggregate3(Call3[])`. -/
+def renderAggregate3CallYul (multicallTarget outSize : Nat) (calls : Array Call3) : String :=
+  ProofForge.Backend.Evm.ToYul.AbiEncode.renderAggregate3CallYul
+    ProofForge.Backend.Evm.ToYul.AbiEncode.defaultMemBase multicallTarget outSize calls
 
 end ProofForge.Protocols.Evm.Multicall

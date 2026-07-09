@@ -5,6 +5,7 @@ import ProofForge.Backend.Evm.ToYul.Crosscall
 import ProofForge.Backend.Evm.ToYul.Helpers
 import ProofForge.Backend.Evm.ToYul.Local
 import ProofForge.Backend.Evm.ToYul.Abi
+import ProofForge.Backend.Evm.ToYul.AbiEncode
 import ProofForge.Backend.Evm.ToYul.Event
 import ProofForge.Backend.Evm.ToYul.Effect
 import ProofForge.Backend.Evm.ToYul.Storage

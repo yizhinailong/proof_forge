@@ -96,6 +96,7 @@ Facades: `ProofForge.Protocols.Evm.IERC20` · `IERC721`
 | IERC721 ownerOf / transferFrom / safeTransferFrom / balanceOf / … | CALL + selectors | ✅ thin client |
 | IERC721 client fixture | `moveToken` / `safeMoveToken` / `readOwner` | ✅ `Examples/Backend/Evm/Contracts/Ierc721Client` |
 | Multicall3 | selectors + **`AbiEncode` Call[] layout** | ✅ `encodeAggregate` / `encodeAggregate3` plans |
+| Multicall3 Yul | Plan → `mstore` + CALL | ✅ `ToYul.AbiEncode` / `renderAggregateCallYul` |
 | | portable `remoteCall` scalar smoke | ✅ fixture still wires handles |
 | Permit2 | `allowance` / `approve` / `transferFrom` / `permitTransferFrom` | ✅ `Protocols.Evm.Permit2` + fixture (scalar-bounded) |
 | OpenZeppelin **as deployable mixin** | — | → **Layer C** (`Stdlib.ERC20` / `ERC721`, …) |

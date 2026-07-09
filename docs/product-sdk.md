@@ -66,10 +66,10 @@ Tutorial walkthrough: [tutorials/portable-shared-path.md](tutorials/portable-sha
 | CapabilityPlan / TokenPlan / Module plan | Compiler |
 | HostRuntime honesty (unsupported host effect) | Preflight / resolve |
 | **Encode** (invisible) | Materializer |
-| · EVM | AbiEncode / Yul CALL packing |
+| · EVM | AbiEncode plan → `ToYul.AbiEncode` `mstore` + CALL (Multicall Call[]) |
 | · NEAR entry params | Borsh |
 | · NEAR FT peer args | JsonEncode (NEP-141 objects) |
-| · Solana CPI | Named `dataLayout` ix bytes |
+| · Solana CPI | Named `dataLayout` ix bytes (+ `BinaryLayout` LE field plans) |
 | Artifacts · SDK schema · deploy | CLI |
 
 Authors never pick Borsh vs JSON vs ABI.
