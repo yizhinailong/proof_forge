@@ -101,11 +101,19 @@ def main : IO UInt32 := do
   require (hasInstruction feeDeployment "transfer_checked_with_fee")
     "shared FeeToken deployment missing transfer_checked_with_fee"
 
-  match planForTarget wasmNear Examples.Shared.FungibleToken.spec with
-  | .ok _ => throw <| IO.userError "shared token unexpectedly lowered to wasm-near"
+  -- NEAR NEP-141 plan lane for core fungible features.
+  let nearPlan ← requirePlanForTarget wasmNear Examples.Shared.FungibleToken.spec
+  require (nearPlan.standard == .nep141)
+    "shared FungibleToken NEAR plan standard is nep-141"
+  require (nearPlan.artifactKind == .nearNep141Plan)
+    "shared FungibleToken NEAR artifact is near-nep141-plan"
+  require (hasOperation nearPlan "ft_transfer")
+    "shared FungibleToken NEAR plan missing ft_transfer"
+  match planForTarget wasmNear Examples.Shared.FeeToken.spec with
+  | .ok _ => throw <| IO.userError "FeeToken must not silently lower on wasm-near"
   | .error err =>
-      require (err == "target `wasm-near` does not have a TokenSpec lowering plan yet")
-        s!"unexpected shared token NEAR diagnostic: {err}"
+      require (err.contains "transfer_fee")
+        s!"NEAR FeeToken rejection should cite transfer_fee, got: {err}"
 
   -- Phase A: TokenStandard is target-resolved only (not on TokenSpec).
   match resolveTokenStandard evm Examples.Shared.FungibleToken.spec with
@@ -115,6 +123,10 @@ def main : IO UInt32 := do
   match resolveTokenStandard solanaSbpfAsm Examples.Shared.FungibleToken.spec with
   | .ok .splToken => pure ()
   | .ok other => throw <| IO.userError s!"FungibleToken on Solana should resolve to spl-token, got {repr other}"
+  | .error err => throw <| IO.userError err
+  match resolveTokenStandard wasmNear Examples.Shared.FungibleToken.spec with
+  | .ok .nep141 => pure ()
+  | .ok other => throw <| IO.userError s!"FungibleToken on NEAR should resolve to nep-141, got {repr other}"
   | .error err => throw <| IO.userError err
   match resolveTokenStandard solanaSbpfAsm Examples.Shared.FeeToken.spec with
   | .ok .splToken2022 => pure ()
