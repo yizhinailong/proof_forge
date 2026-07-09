@@ -53,7 +53,8 @@ def main : IO UInt32 := do
   require (m.name == "ERC4626") "module name"
   let names := m.entrypoints.map (·.name)
   for n in #["deposit", "mint", "withdraw", "redeem", "convertToShares",
-              "convertToAssets", "totalAssets", "asset", "balanceOf", "maxWithdraw"] do
+              "convertToAssets", "totalAssets", "asset", "balanceOf", "maxWithdraw",
+              "previewDeposit", "previewMint", "previewWithdraw", "previewRedeem"] do
     require (names.any (· == n)) s!"entrypoint {n}"
 
   require (m.capabilities.any (· == .crosscallInvoke)) "asset pull uses crosscall"

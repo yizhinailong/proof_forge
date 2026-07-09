@@ -67,6 +67,10 @@ def main : IO Unit := do
       | "maxMint" => { ep with selector? := some "c63d75b6" }
       | "maxWithdraw" => { ep with selector? := some "ce96cb77" }
       | "maxRedeem" => { ep with selector? := some "d905777e" }
+      | "previewDeposit" => { ep with selector? := some "ef8b30f7" }
+      | "previewMint" => { ep with selector? := some "b3d7f6b9" }
+      | "previewWithdraw" => { ep with selector? := some "0a28a477" }
+      | "previewRedeem" => { ep with selector? := some "4cdad506" }
       | "transfer" => { ep with selector? := some "a9059cbb" }
       | "approve" => { ep with selector? := some "095ea7b3" }
       | _ => ep

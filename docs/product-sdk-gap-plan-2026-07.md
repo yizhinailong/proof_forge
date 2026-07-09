@@ -177,9 +177,10 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 | ε.7 | TokenSpec EVM `permit` plan → ERC20Permit stdlib notes | **done** |
 | ε.8 | TokenSpec `moduleFor` merges ERC20Permit body when `permit` | **done** |
 | ε.9 | ERC-4626 pro-rata rates (`convert` / deposit / withdraw floor) | **done** |
+| ε.10 | ERC-4626 `preview*` + IERC4626 preview client selectors | **done** |
 
-**Honesty still open:** fee-on-transfer assets / vault fees / preview rounding;
-dynamic IR Call[] auto-lower.
+**Honesty still open:** fee-on-transfer assets / vault fees / asymmetric
+preview rounding; dynamic IR Call[] auto-lower.
 
 ---
 

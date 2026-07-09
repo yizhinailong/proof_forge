@@ -19,6 +19,8 @@ client (`Protocols.Evm.IERC4626` / Product `external_vault`).
   selectors — **EVM-primary** packing. |
 | Share token | Minimal ERC-20 surface on **shares** |
 | Fee-on-transfer assets | Not modeled (assumes transfer amount equals requested) |
+| `preview*` | Same floor formula as `convert*` (no fee / no asymmetric
+  deposit-vs-mint rounding yet) |
 
 Spec math lives in `Spec` (Nat formulas + empty-vault 1:1 theorems).
 -/
@@ -199,6 +201,27 @@ contract_mixin ERC4626Mixin do
 
   query maxRedeem (holder : .address) returns(.u64) do
     return mapRead shareBalances holder;
+
+  -- preview* == convert* at no-fee floor (EIP-4626 allows stricter rounding later)
+  query previewDeposit (assets : .u64) returns(.u64) do
+    convertScratch := assets;
+    do applyConvertToShares (ProofForge.Contract.Surface.ref assets);
+    return convertScratch;
+
+  query previewMint (shares : .u64) returns(.u64) do
+    convertScratch := shares;
+    do applyConvertToAssets (ProofForge.Contract.Surface.ref shares);
+    return convertScratch;
+
+  query previewWithdraw (assets : .u64) returns(.u64) do
+    convertScratch := assets;
+    do applyConvertToShares (ProofForge.Contract.Surface.ref assets);
+    return convertScratch;
+
+  query previewRedeem (shares : .u64) returns(.u64) do
+    convertScratch := shares;
+    do applyConvertToAssets (ProofForge.Contract.Surface.ref shares);
+    return convertScratch;
 
   entry deposit (assets : .u64, receiver : .address) returns(.u64) do
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref receiver)

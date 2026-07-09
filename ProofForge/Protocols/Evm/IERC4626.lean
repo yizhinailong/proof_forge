@@ -34,6 +34,14 @@ def selectorMaxMint : Nat := 0xc63d75b6
 def selectorMaxWithdraw : Nat := 0xce96cb77
 /-- `maxRedeem(address)` -/
 def selectorMaxRedeem : Nat := 0xd905777e
+/-- `previewDeposit(uint256)` -/
+def selectorPreviewDeposit : Nat := 0xef8b30f7
+/-- `previewMint(uint256)` -/
+def selectorPreviewMint : Nat := 0xb3d7f6b9
+/-- `previewWithdraw(uint256)` -/
+def selectorPreviewWithdraw : Nat := 0x0a28a477
+/-- `previewRedeem(uint256)` -/
+def selectorPreviewRedeem : Nat := 0x4cdad506
 /-- `deposit(uint256,address)` -/
 def selectorDeposit : Nat := 0x6e553f65
 /-- `mint(uint256,address)` -/
@@ -66,8 +74,26 @@ def convertToAssets (v : Vault) (shares : ProofForge.IR.Expr) : ProofForge.IR.Ex
 def maxDeposit (v : Vault) (receiver : ProofForge.IR.Expr) : ProofForge.IR.Expr :=
   remoteCall v.target (u64 selectorMaxDeposit) #[receiver]
 
+def maxMint (v : Vault) (receiver : ProofForge.IR.Expr) : ProofForge.IR.Expr :=
+  remoteCall v.target (u64 selectorMaxMint) #[receiver]
+
 def maxWithdraw (v : Vault) (owner : ProofForge.IR.Expr) : ProofForge.IR.Expr :=
   remoteCall v.target (u64 selectorMaxWithdraw) #[owner]
+
+def maxRedeem (v : Vault) (owner : ProofForge.IR.Expr) : ProofForge.IR.Expr :=
+  remoteCall v.target (u64 selectorMaxRedeem) #[owner]
+
+def previewDeposit (v : Vault) (assets : ProofForge.IR.Expr) : ProofForge.IR.Expr :=
+  remoteCall v.target (u64 selectorPreviewDeposit) #[assets]
+
+def previewMint (v : Vault) (shares : ProofForge.IR.Expr) : ProofForge.IR.Expr :=
+  remoteCall v.target (u64 selectorPreviewMint) #[shares]
+
+def previewWithdraw (v : Vault) (assets : ProofForge.IR.Expr) : ProofForge.IR.Expr :=
+  remoteCall v.target (u64 selectorPreviewWithdraw) #[assets]
+
+def previewRedeem (v : Vault) (shares : ProofForge.IR.Expr) : ProofForge.IR.Expr :=
+  remoteCall v.target (u64 selectorPreviewRedeem) #[shares]
 
 def deposit (v : Vault) (assets receiver : ProofForge.IR.Expr) : ProofForge.IR.Expr :=
   remoteCall v.target (u64 selectorDeposit) #[assets, receiver]
