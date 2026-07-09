@@ -8,8 +8,8 @@ Status: **Active**
 Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
 
-Baseline: Wave 0 complete; PF-P1-01 done; PF-P1-02 support matrix + generated
-backend-status table done; next PF-P1-03 ArtifactBundle.
+Baseline: Wave 0–P1-02 done; PF-P1-03 ArtifactBundle schema/honesty landed;
+remaining: emit metadata writers consume ArtifactBundle for primary triad.
 
 ---
 
@@ -111,7 +111,7 @@ implementation SHA is only known after the implementation commit exists.
 | 0 | PF-P0-08 | done: verified@0334cbaa; just wat2wasm-fail-closed | immediately |
 | 1 | PF-P1-01 | done: verified@885b1ae6; just target-backend; just cli-check; just check-l2-parity; just product; just check | all Wave 0 tasks done |
 | 1 | PF-P1-02 | done: verified@3ece05d8; just target-support; just product; just docs-check | all Wave 0 tasks done; coordinate with PF-P1-01 |
-| 1 | PF-P1-03 | pending | PF-P1-01 and PF-P1-02 done |
+| 1 | PF-P1-03 | in_progress: ArtifactBundle + honesty schema tests; next: primary triad metadata writers emit bundle | PF-P1-01 and PF-P1-02 done |
 | 1 | PF-P1-04 | pending | PF-P1-01 through PF-P1-03 done |
 | 2 | PF-P1-05 | pending | Wave 1 done |
 | 2 | PF-P1-06 | pending | Wave 1 done |
