@@ -28,6 +28,9 @@ structure NewCommandParseState where
   evmConstructorArgsHex : String := ""
   solanaSbpfArch? : Option String := none
   token : Bool := false
+  /-- Accumulated `--peer logical=host` bindings (forwarded to legacy). -/
+  peers : Array String := #[]
+  peersDemo : Bool := false
   input? : Option String := none
   legacyPrefix : List String := []
   deriving Inhabited
@@ -104,6 +107,11 @@ partial def parseNewOptions : List String → NewCommandParseState → Except St
         .error s!"invalid --solana-sbpf-arch '{arch}', expected v0 or v3"
   | "--token" :: rest, state =>
       parseNewOptions rest { state with token := true }
+  | "--peer" :: rest, state => do
+      let (spec, rest) ← takeOption rest "--peer"
+      parseNewOptions rest { state with peers := state.peers.push spec }
+  | "--peers-demo" :: rest, state =>
+      parseNewOptions rest { state with peersDemo := true }
   | arg :: rest, state =>
       if arg.startsWith "-" then
         .error s!"unknown option: {arg}\n{usage}"
@@ -357,6 +365,10 @@ def newCommandArgsToLegacy (state : NewCommandParseState) (cmd : String) : Excep
     if target == "solana-sbpf-asm" then
       if let some arch := state.solanaSbpfArch? then
         legacy := legacy ++ ["--solana-sbpf-arch", arch]
+    if state.peersDemo then
+      legacy := legacy ++ ["--peers-demo"]
+    for peer in state.peers do
+      legacy := legacy ++ ["--peer", peer]
     if let some input := state.input? then legacy := legacy ++ [input]
     Except.ok legacy
   else if cmd == "emit" then

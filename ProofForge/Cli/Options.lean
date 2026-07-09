@@ -5,6 +5,7 @@ import ProofForge.Cli.EmitMode
 import ProofForge.Cli.HexUtil
 import ProofForge.Contract.Spec
 import ProofForge.Target
+import ProofForge.Target.PeerMap
 
 open Lean
 open System
@@ -48,6 +49,9 @@ structure CliOptions where
   scenario? : Option FilePath := none
   mode : EmitMode := .yul
   fromNewSurface : Bool := false
+  /-- Deploy-time logical peer → host identity. Default **identity** (no silent
+  rewrite). Use `--peer logical=host` and/or `--peers-demo`. -/
+  peerMap : ProofForge.Target.PeerMap.Map := ProofForge.Target.PeerMap.identity
   deriving Inhabited
 
 def CliOptions.emitsEvmDeployManifest (opts : CliOptions) : Bool :=

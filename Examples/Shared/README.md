@@ -16,10 +16,9 @@ materializes chain form (EVM slots/ABI, Solana accounts/CPI/SPL, NEAR host, …)
   require `import ProofForge.Contract.Source.Solana` under `ProofForge/Solana/Examples`.
 - No NEAR Promise constructors (`nearPromiseThen` …) — use portable `remoteCall`.
 - No host string-pool APIs (`registerNearCrosscallString`, `nearAddressLit`) —
-  use `declareRemoteUnit` + `peerHandle` + `remoteCall` with **logical** peer
-  ids (e.g. `peer.callee`). Host account names come from
-  `ProofForge.Target.PeerMap` at deploy/emit (CLI wasm-near applies
-  `PeerMap.nearDemo` by default).
+  use `declareRemote` + `remoteCallRef` with **logical** peer ids
+  (e.g. `peer.callee`). Host ids: explicit CLI `--peer logical=host` or
+  `--peers-demo` (default is **no** rewrite).
 
 Target directories such as `Examples/Evm`, `Examples/Solana`, and
 `Examples/WasmNear` keep chain-specific fixtures, golden files, and

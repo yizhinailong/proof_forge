@@ -435,14 +435,18 @@ def buildEntrypointAccounts (module : Module) (extensions : ProgramExtensions)
   alignInstructionAccountsWithModuleOrder moduleAccounts
     (buildInstructionAccounts module extensions entrypoint)
 
-/-- Phase C.3: when portable IR reads caller (`userId` / `origin` →
-`callerSender`), ensure a **leading signer** account named `authority`.
+/-- Portable caller identity on Solana (honest model, not full Pubkey equality).
 
-Solana `context.userId` lowers as account[0] pubkey (first 8 bytes). Without
-this materialization, Ownable's state account (program data) sat at index 0 and
-`guard_owner` compared the wrong identity. With `authority` first:
+`context.userId` / `origin` lower as **little-endian u64 of account[0]'s
+pubkey first 8 bytes**. That is a stable *handle* for portable Ownable /
+role checks in IR v0, **not** full 32-byte Pubkey equality. Future work:
+address/hash-width owner slots or explicit identity capability.
 
-* account[0] = transaction authority (signer) ← caller / userId
+Phase C.3 materialize: when IR reads caller (`callerSender`), ensure a
+**leading signer** `authority` so account[0] is the tx authority (not program
+state data):
+
+* account[0] = `authority` (signer) ← portable caller handle
 * account[1+] = program state / other roles
 
 Authors still only write `guard_owner` / `requireOwner` — no Source.Solana. -/

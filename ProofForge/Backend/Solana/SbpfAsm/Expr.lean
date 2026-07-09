@@ -340,15 +340,15 @@ partial def lowerExpr (ctx : LowerCtx) (expr : IR.Expr) : Except LowerError (Arr
       .instruction { opcode := .ldxdw, dst := some .r1, src := some .r10, off := some (.num inputPtrScratch) }
     ], ctx)
   | .effect (.contextRead .userId) =>
-    -- account[0] key (portable auth places `authority` signer first when
-    -- callerSender is used; see ensurePortableAuthAccounts).
+    -- Portable handle: u64-le of account[0] pubkey[0..8] (not full 32-byte Pubkey).
+    -- ensurePortableAuthAccounts places `authority` signer first when callerSender.
     .ok (#[
-      .comment "solana.context.userId: read account[0] pubkey first 8 bytes as u64",
+      .comment "solana.context.userId: account[0] pubkey[0..8] as u64-le (portable handle; not full Pubkey)",
       .instruction { opcode := .ldxdw, dst := some .r2, src := some .r1, off := some (.num 16) }
     ], ctx)
   | .effect (.contextRead .origin) =>
     .ok (#[
-      .comment "solana.context.origin: read account[0] pubkey first 8 bytes as u64",
+      .comment "solana.context.origin: account[0] pubkey[0..8] as u64-le (portable handle; not full Pubkey)",
       .instruction { opcode := .ldxdw, dst := some .r2, src := some .r1, off := some (.num 16) }
     ], ctx)
   | .effect (.contextRead field) =>

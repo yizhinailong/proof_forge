@@ -42,6 +42,25 @@ def empty : Map := {}
 def ofList (pairs : List (String × String)) : Map :=
   { bindings := pairs.toArray.map fun (l, h) => { logical := l, host := h } }
 
+/-- Parse one CLI binding `logical=host` (first `=` splits). -/
+def parseBinding (spec : String) : Except String Binding :=
+  match spec.splitOn "=" with
+  | [logical, host] =>
+      if logical.isEmpty || host.isEmpty then
+        .error s!"invalid --peer '{spec}', expected non-empty logical=host"
+      else
+        .ok { logical := logical, host := host }
+  | _ =>
+      .error s!"invalid --peer '{spec}', expected logical=host"
+
+def pushBinding (m : Map) (b : Binding) : Map :=
+  -- Later bindings for the same logical override earlier ones.
+  let rest := m.bindings.filter (fun x => x.logical != b.logical)
+  { bindings := rest.push b }
+
+def merge (base extra : Map) : Map :=
+  extra.bindings.foldl pushBinding base
+
 def lookup (m : Map) (logical : String) : Option String :=
   m.bindings.find? (fun b => b.logical == logical) |>.map (·.host)
 

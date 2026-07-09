@@ -60,8 +60,8 @@ def main : IO UInt32 := do
       require (asm.contains "mov64 r2, 0") "missing explicit map miss default"
       require (asm.contains "jge r3, r4") "missing map exhaustion branch"
       require (asm.contains "jne r6, r7") "missing map mismatch branch"
-      require (asm.contains "solana.context.userId: read account[0] pubkey first 8 bytes as u64") "missing userId context lowering"
-      require (asm.contains "solana.context.origin: read account[0] pubkey first 8 bytes as u64") "missing origin context lowering"
+      require (asm.contains "solana.context.userId: account[0] pubkey[0..8] as u64-le") "missing userId context lowering"
+      require (asm.contains "solana.context.origin: account[0] pubkey[0..8] as u64-le") "missing origin context lowering"
       require (asm.contains "ldxdw r2, [r1+16]") "missing account[0] pubkey load"
       IO.println "SolanaMapContextSafety: ok"
       pure 0

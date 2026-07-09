@@ -3,6 +3,7 @@ import ProofForge.Cli.ConstructorAbi
 import ProofForge.Cli.HexUtil
 import ProofForge.Cli.Options
 import ProofForge.Cli.Usage
+import ProofForge.Target.PeerMap
 
 open System
 open ProofForge.Cli.ConstructorAbi
@@ -73,6 +74,19 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
         .error s!"invalid --solana-sbpf-arch '{arch}', expected v0 or v3"
   | "--solana-sbpf-arch" :: [], _ =>
       .error "missing value for --solana-sbpf-arch, expected v0 or v3"
+  | "--peer" :: spec :: rest, opts => do
+      let b ← ProofForge.Target.PeerMap.parseBinding spec
+      parseArgs rest {
+        opts with
+        peerMap := ProofForge.Target.PeerMap.pushBinding opts.peerMap b
+      }
+  | "--peer" :: [], _ =>
+      .error "missing value for --peer, expected logical=host"
+  | "--peers-demo" :: rest, opts =>
+      parseArgs rest {
+        opts with
+        peerMap := ProofForge.Target.PeerMap.merge opts.peerMap ProofForge.Target.PeerMap.nearDemo
+      }
   | "--solc" :: path :: rest, opts =>
       parseArgs rest { opts with solc := path }
   | "--cast" :: path :: rest, opts =>

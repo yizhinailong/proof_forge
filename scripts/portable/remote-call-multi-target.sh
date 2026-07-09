@@ -79,7 +79,9 @@ if [[ -f "$GOLDEN_SOL" ]]; then
 fi
 
 echo "portable-remote-call: NEAR/Wasm"
+# Explicit deploy peer map (no silent default): demo map for golden host ids.
 "${proof_forge[@]}" build --target wasm-near --root . \
+  --peers-demo \
   -o "$OUT/near" \
   --artifact-output "$OUT/near/RemoteCall.near-artifact.json" \
   "$SOURCE"

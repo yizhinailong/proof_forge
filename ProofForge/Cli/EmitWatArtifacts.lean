@@ -286,14 +286,10 @@ def writeWatPackage (outputDir : FilePath) (name : String) (wat : String) : IO (
     IO.println s!"wrote EmitWat {name}.wat to {watPath} (wat2wasm unavailable; install wabt to build wasm)"
     return (watPath, none)
 
-/-- C.6: wasm-near / default EmitWat apply `PeerMap.nearDemo` so Shared logical
-peers (`peer.callee`) resolve to host account ids for local multi-target demos.
-CosmWasm leaves the module unchanged (empty map). Override later via CLI flag. -/
+/-- Deploy peer map is **explicit** via CLI (`--peer` / `--peers-demo`).
+Default is identity: logical ids stay as declared in Shared. -/
 def emitWatPeerMap (opts : CliOptions) : ProofForge.Target.PeerMap.Map :=
-  if opts.targetId? == some ProofForge.Target.wasmCosmWasm.id then
-    ProofForge.Target.PeerMap.identity
-  else
-    ProofForge.Target.PeerMap.nearDemo
+  opts.peerMap
 
 def compileEmitWat (opts : CliOptions) (name : String) (mod : ProofForge.IR.Module) : IO UInt32 := do
   let some output := opts.output?

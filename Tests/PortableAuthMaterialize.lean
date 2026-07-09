@@ -9,6 +9,7 @@ import Examples.Shared.Ownable
 import Examples.Shared.RemoteCall
 import ProofForge.Backend.Evm.Plan
 import ProofForge.Backend.Solana.Manifest
+import ProofForge.Backend.Solana.Materialize
 import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Backend.WasmNear.EmitWat
 import ProofForge.Target.HostBridge
@@ -57,6 +58,9 @@ def main : IO Unit := do
     "authority/signer must lead account list so context.userId is correct"
   require (ownableAccounts.any (fun a => a.name == "owner" && a.owner == "program"))
     "Ownable state account remains program-owned data"
+  let ownableMat := ProofForge.Backend.Solana.Materialize.report ownable {}
+  require (ownableMat.note.contains "callerIdentity" || ownableMat.note.contains "pubkey[0..8]")
+    "Solana materialize note must document portable caller identity limitation"
 
   match ProofForge.Backend.Solana.SbpfAsm.renderModule ownable with
   | .error e => throw (IO.userError s!"Solana Ownable lower: {e.message}")
