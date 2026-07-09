@@ -37,12 +37,14 @@ import ProofForge.Backend.WasmNear.Memory
 import ProofForge.Backend.WasmNear.ModuleAssembly
 import ProofForge.Backend.WasmNear.Params
 import ProofForge.Backend.WasmNear.Plan
+import ProofForge.Backend.WasmNear.PortableCrosscall
 import ProofForge.Backend.WasmNear.Promise
 import ProofForge.Backend.WasmNear.Return
 import ProofForge.Backend.WasmNear.Scalar
 import ProofForge.Backend.WasmNear.Statement
 import ProofForge.Backend.WasmNear.Struct
 import ProofForge.Backend.WasmNear.Types
+import ProofForge.Target.CrosscallMaterialize
 import ProofForge.Target.Plan
 import ProofForge.Target.Registry
 
@@ -127,7 +129,9 @@ export ProofForge.Backend.WasmNear.Crosscall (
 export ProofForge.Backend.WasmNear.Diagnostics (
   nativeValueUnsupportedMessage indexedEventUnsupportedMessage
   crosscallUnsupportedMessage crosscallEvmOnlyMessage
-  crosscallTypedUnsupportedMessage EmitError err
+  crosscallTypedUnsupportedMessage
+  sorobanCrosscallNotLoweredMessage sorobanNearPromiseUnsupportedMessage
+  EmitError err
 )
 
 export ProofForge.Backend.WasmNear.Event (
@@ -984,6 +988,12 @@ def lowerModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBri
     err "EmitWat: CosmWasm bridge lowering is implemented in Backend.CosmWasm.EmitWat; use that module for wasm-cosmwasm"
   if mod.allocator.isCosmWasmRegion then
     err "EmitWat: alloc.cosmwasm_region is for the CosmWasm adapter, not wasm-near EmitWat"
+  -- Soroban host adapter: storage/auth only. Never silently emit NEAR promise_*.
+  if bridge == ProofForge.Target.HostBridge.soroban then
+    if ProofForge.Target.CrosscallMaterialize.moduleUsesPortableCrosscall mod then
+      err sorobanCrosscallNotLoweredMessage
+    if ProofForge.Backend.WasmNear.PortableCrosscall.moduleUsesPromiseExtension mod then
+      err sorobanNearPromiseUnsupportedMessage
   let modulePlan ←
     match buildModulePlan mod with
     | .ok plan => pure plan

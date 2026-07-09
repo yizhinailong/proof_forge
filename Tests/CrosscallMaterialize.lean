@@ -6,6 +6,7 @@ Phase B.3: portable crosscall materialization on primary chains.
 -/
 import ProofForge.IR.Examples.CrosscallProbe
 import ProofForge.IR.Examples.NearCrosscallProbe
+import ProofForge.IR.Examples.Counter
 import Examples.Shared.RemoteCall
 import ProofForge.Backend.Evm.Plan
 import ProofForge.Backend.Solana.Manifest
@@ -153,6 +154,25 @@ def main : IO Unit := do
   require ((forProfile wasmCosmWasm).note.contains "deferred" ||
       (forProfile wasmCosmWasm).nativeForm == NativeForm.cosmWasmMsg)
     "CosmWasm remains deferred spike form"
+  -- EmitWat with bridge=.soroban must not silently emit NEAR promise_create.
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule nearPortable .soroban with
+  | .ok _ => throw (IO.userError "Soroban bridge must not lower portable crosscall as promise yet")
+  | .error e =>
+      require (e.message.contains "Soroban" || e.message.contains "soroban-invoke")
+        s!"expected Soroban crosscall diagnostic, got: {e.message}"
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule
+      ProofForge.IR.Examples.NearCrosscallProbe.promiseExtensionModule .soroban with
+  | .ok _ => throw (IO.userError "Soroban bridge must reject NEAR Promise constructors")
+  | .error e =>
+      require (e.message.contains "Soroban" || e.message.contains "Promise")
+        s!"expected Soroban Promise reject, got: {e.message}"
+  -- Storage-only modules still lower on Soroban bridge (host adapter path).
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule
+      ProofForge.IR.Examples.Counter.module .soroban with
+  | .error e => throw (IO.userError s!"Counter should still lower on Soroban bridge: {e.message}")
+  | .ok wat =>
+      require (!wat.contains "promise_create")
+        "Counter Soroban WAT should not import NEAR promise_create for storage-only module"
 
   -- Shared portable RemoteCall (contract_source + remoteCall) multi-target.
   let shared := Examples.Shared.RemoteCall.module

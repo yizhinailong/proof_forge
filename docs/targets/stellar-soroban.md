@@ -9,7 +9,12 @@ Not yet a separate registry id; the Counter refinement reuses the host-agnostic 
 paths are the closed triad. **Soroban is the next Wasm-host spike** after that
 triad; CosmWasm full crosscall and Cloudflare Workers product path are
 **deferred**. Portable crosscall maps to native form `soroban-invoke` (honest)
-— **not** NEAR `promise_create`. Host surface today is storage/auth
+— **not** NEAR `promise_create`.
+
+**EmitWat honesty (landed):** `renderModule m .soroban` **rejects** modules
+that use portable `crosscall.invoke` or NEAR Promise constructors with an
+explicit diagnostic (`soroban-invoke` not lowered yet). Storage-only modules
+(e.g. Counter) still lower. Host surface today is storage/auth
 (`_put` / `_get` / `require_auth_for_args`); client-style cross-contract invoke
 is the next engineering step.
 
