@@ -727,6 +727,10 @@ multicall-abi-yul:
 product-protocol-vault:
     scripts/portable/protocol-vault-smoke.sh
 
+# Wave ε Layer C: deployable ERC-4626 vault body (1:1 synthetic stdlib mixin).
+product-erc4626-vault:
+    scripts/portable/erc4626-vault-smoke.sh
+
 # Product multi-target Lean matrix (all Product contracts × primary hosts).
 product-matrix:
     lake build Examples.Product.AccessControl Examples.Product.ArrayExample Examples.Product.AuthRemoteCall Examples.Product.Counter Examples.Product.ExternalTokenTransfer Examples.Product.FeeToken Examples.Product.FungibleToken Examples.Product.Ownable Examples.Product.OwnableHash Examples.Product.OwnablePausable Examples.Product.Pausable Examples.Product.ReentrancyGuard Examples.Product.RemoteCall Examples.Product.RoleGatedToken Examples.Product.SoulboundToken Examples.Product.StakingVault Examples.Product.ValueVault ProofForge.IR.Examples.Counter ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmHost.EmitWat ProofForge.Target.Materialize

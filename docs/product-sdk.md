@@ -137,6 +137,7 @@ just product-protocol-ft
 | Solana token (SPL plan) | `just product-token-solana` |
 | External FT protocol intent | `just product-protocol-ft` |
 | External ERC-4626 vault | `just product-protocol-vault` |
+| Deploy ERC-4626 vault body | `just product-erc4626-vault` |
 | Multicall Call[] → Yul | `just multicall-abi-yul` |
 | Engineering CI subset | `just check` |
 

@@ -170,10 +170,10 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 | δ.2c | BinaryLayout Token-2022 static tags (pause/fee/…) | **done** |
 | ε.1 | IERC4626 external client + `external_vault` product | **done** |
 | ε.2 | EIP-2612 external `permit` client (call peer; not TokenSpec body) | **done** |
+| ε.3 | ERC-4626 Layer C stdlib body (1:1 synthetic) | **done** |
 
-**Honesty still open:** TokenSpec `permit` / ERC-4626 **body** generation (Layer C)
-remains reject/missing — only *calling* deployed peers is done. Dynamic IR Call[]
-auto-lower remains deferred.
+**Honesty still open:** TokenSpec `permit` **body** (needs IR `ecrecover`); ERC-4626
+underlying ERC-20 pull + non-1:1 rates; dynamic IR Call[] auto-lower.
 
 ---
 

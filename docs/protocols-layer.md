@@ -38,7 +38,7 @@ Authors usually want (1) always, (2) when integrating ecosystem programs, and
 |-------|--------------------|---------------|
 | **A Host** | `Capability`, **`HostRuntime`** (opcode/syscall/import map), `HostBridge`, backends | “Use chain primitives” |
 | **B Protocols** | `ProofForge/Protocols/*` (+ legacy `ProofForge/Solana/Programs`) | “Call existing program/contract” |
-| **C Stdlib** | `ProofForge/Contract/Stdlib/*` | “I am the implementation” |
+| **C Stdlib** | `ProofForge/Contract/Stdlib/*` (ERC20 · ERC721 · **ERC4626** · Ownable · …) | “I am the implementation” |
 
 **TokenSpec** sits *above* B and C: `--target` picks whether the platform
 materializes SPL CPI plans (B), ERC-20 body (C), or NEP-141 mixin (C).
