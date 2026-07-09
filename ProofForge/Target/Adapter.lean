@@ -3,9 +3,12 @@ import Init.Data.String.Basic
 import ProofForge.Contract.Spec
 import ProofForge.Contract.UpgradePolicy.Lower
 import ProofForge.Target.Check
+import ProofForge.Target.HostRuntime
 import ProofForge.Target.Plan
 
 namespace ProofForge.Target
+
+open ProofForge.Target.HostRuntime
 
 structure Diagnostic where
   message : String
@@ -121,17 +124,29 @@ def CapabilityPlan.targetExtensionsAllowed (profile : TargetProfile) (plan : Cap
 def CapabilityPlan.checkedBy (profile : TargetProfile) (plan : CapabilityPlan) : Bool :=
   plan.supportedBy profile && plan.targetExtensionsAllowed profile
 
+/-- Layer A HostRuntime honesty: capabilities requested by the plan must have
+real native bindings on this target (not `n/a`). Runs before profile capability
+membership so PDA-on-NEAR etc. name HostRuntime in the diagnostic. -/
+def requirePlanHostRuntimeHonesty (profile : TargetProfile) (plan : CapabilityPlan) :
+    Except Diagnostic Unit :=
+  match requireHostRuntimeHonesty profile.id plan.capabilities with
+  | .ok () => .ok ()
+  | .error msg => .error { message := msg }
+
 def requireCapabilityPlan (profile : TargetProfile) (plan : CapabilityPlan) :
     Except Diagnostic CapabilityPlan :=
   match requireTargetExtensionMetadata profile plan.calls with
   | .error err => .error err
   | .ok () =>
-      match firstUnsupportedCapabilityCall? profile plan.calls with
-      | some call => .error (unsupportedCapabilityCallDiagnostic profile call)
-      | none =>
-          match requireCapabilities profile plan.capabilities with
-          | .ok () => .ok plan
-          | .error err => .error (Diagnostic.fromCapabilityError err)
+      match requirePlanHostRuntimeHonesty profile plan with
+      | .error err => .error err
+      | .ok () =>
+          match firstUnsupportedCapabilityCall? profile plan.calls with
+          | some call => .error (unsupportedCapabilityCallDiagnostic profile call)
+          | none =>
+              match requireCapabilities profile plan.capabilities with
+              | .ok () => .ok plan
+              | .error err => .error (Diagnostic.fromCapabilityError err)
 
 def defaultResolve (profile : TargetProfile) (spec : ProofForge.Contract.ContractSpec) :
     Except Diagnostic CapabilityPlan := do

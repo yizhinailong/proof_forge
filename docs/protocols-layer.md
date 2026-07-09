@@ -56,7 +56,8 @@ Portable surface → capability → materialize:
 | Protocol CPI (Solana) | Solana Surface CPI builders | — | `sol_invoke_signed_c` + dataLayout | — |
 
 Gates: `Target.Capability`, preflight L0–L1, backend honesty rejects.  
-**Native symbol inventory:** `ProofForge.Target.HostRuntime` + [host-runtime.md](host-runtime.md).
+**Native symbol inventory:** `ProofForge.Target.HostRuntime` + [host-runtime.md](host-runtime.md).  
+**Capability vs n/a:** `requireHostRuntimeHonesty` (e.g. `storage.pda` on NEAR) fails resolve with a `HostRuntime:` diagnostic — no silent success.
 
 ## 3. Layer B — Protocols (this doc’s focus)
 

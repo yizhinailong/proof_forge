@@ -239,9 +239,51 @@ def primaryTargetIds : Array String := #["evm", "solana-sbpf-asm", "wasm-near"]
 def bindingsForTarget (effect : HostEffect) (targetId : String) : Array NativeBinding :=
   effect.bindings.filter (fun b => b.targetId == targetId)
 
+/-- Primary binding row for a target (if any). -/
+def binding? (effect : HostEffect) (targetId : String) : Option NativeBinding :=
+  (bindingsForTarget effect targetId)[0]?
+
+/-- True when the binding is explicitly absent / not applicable. -/
+def isNaSymbol (symbol : String) : Bool :=
+  symbol == "n/a" || symbol == "N/A"
+
 /-- True if this target has at least one real binding (not symbol `n/a`). -/
 def supports (effect : HostEffect) (targetId : String) : Bool :=
-  (bindingsForTarget effect targetId).any (fun b => b.symbol != "n/a")
+  (bindingsForTarget effect targetId).any (fun b => !isNaSymbol b.symbol)
+
+/-- Host effects that gate on a given Capability (inverse of `capability?`). -/
+def effectsForCapability (cap : Capability) : Array HostEffect :=
+  allEffects.filter (fun e => e.capability? == some cap)
+
+/-- First HostEffect required by `cap` that this target does not support. -/
+def firstUnsupportedEffect? (cap : Capability) (targetId : String) : Option HostEffect :=
+  (effectsForCapability cap).find? (fun e => !supports e targetId)
+
+/-- Capability is host-honest on `targetId` when every linked HostEffect has a
+real native binding (not `n/a`). Capabilities with no HostEffect mapping are
+treated as honest (gated only by the capability registry). -/
+def capabilityHostHonest (cap : Capability) (targetId : String) : Bool :=
+  (firstUnsupportedEffect? cap targetId).isNone
+
+/-- Diagnostic when a capability is requested but HostRuntime has n/a. -/
+def honestyError (targetId : String) (cap : Capability) (effect : HostEffect) : String :=
+  let sym :=
+    match binding? effect targetId with
+    | some b => b.symbol
+    | none => "(missing row)"
+  s!"HostRuntime: target `{targetId}` cannot use capability `{cap.id}`: \
+host effect `{effect.id}` has no native binding (symbol `{sym}`)"
+
+/-- Reject when any requested capability maps to an n/a HostEffect on this target.
+Shipped honesty gate — call from capability plan resolve / preflight. -/
+def requireHostRuntimeHonesty (targetId : String) (capabilities : Array Capability) :
+    Except String Unit :=
+  capabilities.foldlM
+    (fun _ cap =>
+      match firstUnsupportedEffect? cap targetId with
+      | some effect => .error (honestyError targetId cap effect)
+      | none => .ok ())
+    ()
 
 /-- Count supported effects on a target (for smoke metrics). -/
 def supportedCount (targetId : String) : Nat :=

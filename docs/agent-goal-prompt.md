@@ -33,9 +33,10 @@ Wasm adapters). Keep Layer **A Host / B Protocols / C Stdlib** honest.
 ### A — Host runtime
 
 - [x] `HostRuntime` catalog (EVM opcode / Solana syscall / NEAR host_import)
+- [x] Reject/diagnose when a capability is claimed but HostEffect has `n/a` for target
+      (`requireHostRuntimeHonesty` in `requireCapabilityPlan` / `resolveSpec`)
 - [ ] Wire more lowerers to *reference* catalog symbols in comments/diagnostics
 - [ ] Extend catalog for Soroban / CosmWasm host effects already partially lowered
-- [ ] Reject/diagnose when a capability is claimed but HostEffect has `n/a` for target
 
 ### B — Protocols
 

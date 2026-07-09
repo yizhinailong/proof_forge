@@ -76,10 +76,15 @@ a materializer that honors the same `HostEffect` / Capability surface.
 - Inventory ≠ full lowering coverage. Some bindings are notes (“via account
   pointers”) until every path is a single symbol.
 - Family-only ops (EVM `CREATE2`, Solana PDA) stay capability-gated.
+- **Capability vs n/a gate (shipped):** `requireHostRuntimeHonesty` rejects when a
+  plan requests a capability whose linked `HostEffect` has symbol `n/a` on the
+  target (e.g. `storage.pda` on `wasm-near`). Wired into
+  `requireCapabilityPlan` / `resolveSpec` so diagnostics name `HostRuntime`.
 - Layer **B** (Protocols) is *programs/interfaces*, not host syscalls.
 - Layer **C** (Stdlib) is *your* contract body.
 
 ## 6. Tests
 
-`Tests/HostRuntime.lean` — catalog shape, primary targets present, support counts.
+`Tests/HostRuntime.lean` — catalog shape, primary targets present, support counts,
+`requireHostRuntimeHonesty` + `resolveSpec` PDA-on-NEAR reject.
 -/
