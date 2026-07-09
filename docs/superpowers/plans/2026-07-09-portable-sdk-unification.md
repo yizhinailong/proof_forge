@@ -1,6 +1,6 @@
 # Portable SDK unification — task plan (EVM · Solana · NEAR · Soroban)
 
-Status: **Active plan (2026-07-09)**  
+Status: **Complete (2026-07-09)** — successor: [unified-support-roadmap](2026-07-09-unified-support-roadmap.md)
 Audience: product + compiler  
 Related: [product-authoring-architecture](../../product-authoring-architecture.md),
 [sdk-ecosystem-gaps-2026-07](../../sdk-ecosystem-gaps-2026-07.md),
@@ -209,5 +209,6 @@ Update this table when recipes are renamed.
 | 2026-07-09 | **T3.4 + T3.5:** `PortableErrorCatalog` locks assertionId 1/2 on EVM·Solana·NEAR clients + sdk-schema + EmitWat `PF:id:code`; justfile lake modules `WasmNear`→`WasmHost`; remote-call Soroban step runs wat2wasm when available. |
 | 2026-07-09 | **T3.2:** Solana portable account auto-fill — `nativeValue` promotes writable signer@0; AuthRemoteCall Shared example (caller+debit+remote) without Source.Solana; `just portable-solana-accounts`. |
 | 2026-07-09 | **Wave 4 (T4.1–T4.3):** de-EVM selector docs; Shared tutorial Counter→Ownable→Token→Remote (`just portable-tutorial`); ban CREATE2/selector pins in Shared via portable-default. Plan complete for primary four-host portable SDK slice. |
+| 2026-07-09 | **Complete:** Waves 1–4 all done. Successor roadmap for HostEnv / crosscall honesty / FV-9 / platform: [unified-support-roadmap](2026-07-09-unified-support-roadmap.md). |
 
 When a task completes: set Status to `done`, add commit hash or PR note in changelog.

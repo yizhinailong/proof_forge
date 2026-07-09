@@ -99,7 +99,8 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - [Platform gap analysis 2026-07](platform-gaps-2026-07.md): unplanned dimensions (CLI surface, versioning, budgets, upgrades/signing, error model, clients) and their sequencing hooks.
 - [Implementation backlog](implementation-backlog.md): staged tasks and acceptance criteria.
 - [Product authoring architecture](product-authoring-architecture.md): business-intent vs chain materialization; Phase A–C status.
-- [Portable SDK unification plan (2026-07-09)](superpowers/plans/2026-07-09-portable-sdk-unification.md): next multi-wave tasks (policy · Token · remote) for EVM · Solana · NEAR · Soroban only.
+- [Portable SDK unification plan (2026-07-09)](superpowers/plans/2026-07-09-portable-sdk-unification.md): **complete** (policy · Token · remote · author polish).
+- [Unified support roadmap (2026-07-09)](superpowers/plans/2026-07-09-unified-support-roadmap.md): **active** — HostEnv triad · crosscall honesty · FV-9 · platform debt (slow unification).
 - [Review checklist (English)](review-checklist.md)
 - [Target notes](targets/README.md): per-family research and spike plans.
   - [EVM](targets/evm.md)
