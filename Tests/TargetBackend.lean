@@ -1,5 +1,6 @@
 import ProofForge.Target
 import ProofForge.Target.Backend
+import ProofForge.IR.Examples.Counter
 import ProofForge.Cli
 
 namespace ProofForge.Tests.TargetBackend
@@ -26,10 +27,30 @@ def main : IO UInt32 := do
     require (backend.profile.id == id) s!"backend profile id mismatch for `{id}`"
     require ((findCliDriver? id).isSome)
       s!"missing CLI driver for primary triad target `{id}`"
+    require backend.hasValidate
+      s!"primary triad `{id}` must register validateModule on TargetBackend"
+    require backend.hasPlan
+      s!"primary triad `{id}` must register ensurePlan on TargetBackend"
+    match backend.validateModule ProofForge.IR.Examples.Counter.module with
+    | .ok () => pure ()
+    | .error err => throw <| IO.userError s!"`{id}` validateModule failed on Counter: {err.message}"
+    match backend.ensurePlan ProofForge.IR.Examples.Counter.module with
+    | .ok () => pure ()
+    | .error err => throw <| IO.userError s!"`{id}` ensurePlan failed on Counter: {err.message}"
 
   for id in knownIds do
     let backend ← requireSome (findBackend? id) s!"knownIds entry `{id}` has no TargetBackend"
     require (backend.profile.id == id) s!"backend/profile id mismatch for `{id}`"
+
+  -- Secondary targets keep profile+resolve until migrated; missing hooks fail closed.
+  let cosmwasm ← requireSome (findBackend? "wasm-cosmwasm") "missing cosmwasm backend"
+  require (!cosmwasm.hasValidate && !cosmwasm.hasPlan)
+    "secondary wasm-cosmwasm must not claim unregistered validate/plan hooks yet"
+  match cosmwasm.validateModule ProofForge.IR.Examples.Counter.module with
+  | .ok () => throw <| IO.userError "wasm-cosmwasm validateModule must fail closed without a hook"
+  | .error err =>
+      require (err.message.contains "no TargetBackend.validateModule hook")
+        s!"expected missing-hook diagnostic, got: {err.message}"
 
   -- Build/emit flag resolution is driver-backed, not a residual central match.
   let evmBuild ← match buildLegacyFlag "evm" (some "Examples/Product/Counter.lean") with
@@ -70,7 +91,7 @@ def main : IO UInt32 := do
   | .error err =>
       require (err.contains "unknown target") s!"unknown target diagnostic missing: {err}"
 
-  IO.println "TargetBackend registry + CLI driver dispatch OK"
+  IO.println "TargetBackend registry + primary triad validate/plan hooks OK"
   return 0
 
 end ProofForge.Tests.TargetBackend

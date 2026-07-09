@@ -11,4 +11,5 @@ import ProofForge.Target.Check
 import ProofForge.Target.Plan
 import ProofForge.Target.Adapter
 import ProofForge.Target.Backend
+import ProofForge.Target.BackendRegistry
 import ProofForge.Target.Formal
