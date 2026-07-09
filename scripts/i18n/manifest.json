@@ -11,7 +11,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/INDEX.md": {
-    "sha256": "f52290abb58dec2b645d2dcf94fb7d614e5725b11715750e79943c8c6886e3f2",
+    "sha256": "ecc294c778eabd907c1d9951837217a56a4bc52832f50318bc4c38593eb584ff",
     "zh": "docs/zh/INDEX.zh.md",
     "model": "manual-zh"
   },
@@ -55,7 +55,7 @@
     "note": "synced after Product/Backend reorg path renames"
   },
   "docs/multi-chain-gap-audit-2026-07-10.md": {
-    "sha256": "276c64c129b742c7ef901c7346b646944282e4efc3e70248a1b3ed461f526e8e",
+    "sha256": "22434af91fff59c31a0596b8312a541f6367976b60b1cc3da116ad7a050c871b",
     "zh": "docs/zh/multi-chain-gap-audit-2026-07-10.zh.md",
     "model": "manual-zh"
   },

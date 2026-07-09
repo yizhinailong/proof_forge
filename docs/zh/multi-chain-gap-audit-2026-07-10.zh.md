@@ -8,6 +8,9 @@
 上的代码和可运行门禁进行对照。它是当前跨项目修复优先级的权威来源。
 旧 backlog 和阶段计划仍可作为实现历史参考，但不能覆盖本文的发现和顺序。
 
+长期执行入口：
+[`多链修复 Agent 持久目标`](../agent-goal-prompt.md)。
+
 官方通用业务逻辑接口是 `contract_source`，它会 elaboration 为
 `ContractSpec` 和 portable IR；`TokenSpec` 仍是第一等的专项 token-intent
 接口。自动编译任意 Lean 函数不在本审查目标内。主要产品 target

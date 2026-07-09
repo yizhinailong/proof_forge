@@ -64,7 +64,7 @@ Editable hand-drawn-style diagrams for presentations and onboarding — open on
 - [Product / SDK gap plan (2026-07)](product-sdk-gap-plan-2026-07.md): gaps and waves α–ε.
 
 - [Host runtime abstraction](host-runtime.md): portable HostEffect → EVM opcode / Solana syscall / NEAR host import.
-- [Agent goal prompt](agent-goal-prompt.md): durable continuous-work charter for A/B/C.
+- [Multi-chain remediation agent goal](agent-goal-prompt.md): durable long-running execution loop for the active PF-P0 through PF-P3 queue.
 - [Shared scenario: Counter](shared-scenario.md): cross-target acceptance test.
 - [Doc↔code sync audit (2026-07)](doc-code-sync-audit-2026-07.md): drift register and maintenance checklist.
 - [Tutorial: one module, three targets](tutorials/portable-contract-three-targets.md): portable `contract_source` walkthrough (CS-5.3).

@@ -56,7 +56,7 @@ flowchart TB
 - [产品 / SDK 差距计划 (2026-07)](product-sdk-gap-plan-2026-07.md)：差距与 α–ε 阶段。
 
 - [宿主运行时抽象](host-runtime.md)：可移植 HostEffect → EVM 操作码 / Solana 系统调用 / NEAR 宿主导入。
-- [Agent 目标提示词](agent-goal-prompt.md)：A/B/C 的持久连续工作章程。
+- [多链修复 Agent 目标提示词](../agent-goal-prompt.md)：驱动当前 PF-P0 至 PF-P3 队列的长期执行循环。
 - [共享场景：Counter](shared-scenario.md)：跨目标验收测试。
 - [文档↔代码同步审计 (2026-07)](doc-code-sync-audit-2026-07.md)：偏差登记和维护清单。
 - [教程：一个模块，三个目标](tutorials/portable-contract-three-targets.md)：可移植 `contract_source` 演练 (CS-5.3)。

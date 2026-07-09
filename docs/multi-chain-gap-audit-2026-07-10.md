@@ -10,6 +10,9 @@ and select a target at build time -- with the code and runnable gates on
 backlogs and phase plans remain useful implementation history, but they do not
 override the findings or ordering in this document.
 
+Long-running execution entrypoint:
+[`Durable multi-chain remediation agent goal`](agent-goal-prompt.md).
+
 The official general-purpose business-logic surface is `contract_source`,
 which elaborates to `ContractSpec` and portable IR. `TokenSpec` remains the
 first-class specialized token-intent surface. Compiling arbitrary Lean
