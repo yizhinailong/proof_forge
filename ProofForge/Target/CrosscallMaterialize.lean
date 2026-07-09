@@ -138,7 +138,7 @@ def forProfile (profile : TargetProfile) : Report :=
     | .evmCall =>
         "Portable crosscall.invoke → EVM CALL; STATICCALL/DELEGATECALL/create remain EVM extensions"
     | .solanaCpi =>
-        "Portable crosscall.invoke → Solana CPI materialization (method+args as ix data; up to 64 accounts; Source.Solana CPI still for hand-tuned layouts)"
+        "Portable crosscall.invoke → Solana CPI (method+args ix data; selective accounts; PDA signers when declared; Source.Solana for protocol layouts)"
     | .nearPromise =>
         "Portable crosscall.invoke → NEAR promise_create (nearCrosscallStrings string pool for account/method names)"
     | .cosmWasmMsg =>

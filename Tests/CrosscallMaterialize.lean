@@ -62,7 +62,8 @@ def main : IO Unit := do
       require (src.contains "sol_invoke_signed_c") "asm packs real sol_invoke_signed_c"
       require (src.contains "AccountMeta") "asm packs account metas"
       require (src.contains "AccountInfo") "asm packs account infos"
-      require (src.contains "forward") "asm forwards full tx account vector"
+      require (src.contains "selective pack" || src.contains "forward")
+        "asm packs selective (or full-range) account vector"
       require (src.contains "sol_get_return_data") "asm decodes return data"
       require (src.contains "error_cpi") "asm traps CPI failures"
       -- Anchor/Pinocchio-style checks live in entrypoint prologue (materialize → lower).

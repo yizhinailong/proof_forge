@@ -513,8 +513,8 @@ default CPI account roles on the transaction account list:
 * `payer` — fee-payer signer (optional helper; skipped if a signer already exists)
 * `callee_program` — executable account for program-id lookup by index
 
-Authors still do not write CPI account metas; the lowerer packs the full
-account vector into `sol_invoke_signed_c`. -/
+Authors still do not write CPI account metas; the lowerer **selectively** packs
+signer / writable / program-owned / executable accounts into `sol_invoke_signed_c`. -/
 def ensurePortableCrosscallAccounts (module : Module) (accounts : Array AccountEntry) :
     Array AccountEntry :=
   if !(moduleUsesPortableCrosscall module) then

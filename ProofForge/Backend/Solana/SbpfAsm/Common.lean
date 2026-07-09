@@ -96,6 +96,9 @@ structure LowerCtx where
   /-- Raw seed descriptors (`literal:…`, `account:…`, `bump:…`) for portable
   `sol_invoke_signed_c` when the module declares a signer PDA. Empty ⇒ unsigned. -/
   portableSignerSeeds : Array String := #[]
+  /-- Input-account indices for selective portable CPI packing (signer /
+  writable / program-owned / executable). Empty ⇒ pack 0..txAccountCount-1. -/
+  portableCpiAccountIndices : Array Nat := #[]
   deriving Inhabited
 
 def LowerCtx.localOffset? (ctx : LowerCtx) (name : String) : Option Nat :=
@@ -261,7 +264,8 @@ def LowerCtx.fromPlanSeed
     (txAccountCount : Nat := 0)
     (accountBindings : Array ProofForge.Backend.Solana.Extension.CpiAccountBinding := #[])
     (valueBindings : Array ProofForge.Backend.Solana.Extension.CpiValueBinding := #[])
-    (portableSignerSeeds : Array String := #[]) : LowerCtx :=
+    (portableSignerSeeds : Array String := #[])
+    (portableCpiAccountIndices : Array Nat := #[]) : LowerCtx :=
   { stateFieldOffsets
     structs
     stateDecls
@@ -273,7 +277,8 @@ def LowerCtx.fromPlanSeed
     txAccountCount
     accountBindings
     valueBindings
-    portableSignerSeeds }
+    portableSignerSeeds
+    portableCpiAccountIndices }
 
 /-- Raw seed descriptors for portable signed CPI: first **signer** PDA's
 effective seeds (literals / account pubkeys / bump). General peer remote can
@@ -295,7 +300,8 @@ def portableSignerSeedsFromExtensions
 `SolanaModulePlan`, so the direct and plan-driven lowering paths cannot drift. -/
 def buildLowerCtx (module : IR.Module) (stateDataOff : Nat) (txAccountCount : Nat := 0)
     (accountBindings : Array ProofForge.Backend.Solana.Extension.CpiAccountBinding := #[])
-    (valueBindings : Array ProofForge.Backend.Solana.Extension.CpiValueBinding := #[]) :
+    (valueBindings : Array ProofForge.Backend.Solana.Extension.CpiValueBinding := #[])
+    (portableCpiAccountIndices : Array Nat := #[]) :
     LowerCtx :=
   let offsets := buildStateOffsetsAtBase module stateDataOff
   LowerCtx.fromPlanSeed
@@ -306,6 +312,7 @@ def buildLowerCtx (module : IR.Module) (stateDataOff : Nat) (txAccountCount : Na
     accountBindings
     valueBindings
     #[]
+    portableCpiAccountIndices
 
 def buildCtx (module : Module) (stateDataOff : Nat) (txAccountCount : Nat := 0) :
     Except LowerError LowerCtx := do

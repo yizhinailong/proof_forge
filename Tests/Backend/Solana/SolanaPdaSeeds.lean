@@ -111,7 +111,34 @@ def main : IO UInt32 := do
   | .error err =>
       throw <| IO.userError s!"Solana portable PDA remote package render failed: {err.render}"
 
-  IO.println "solana-pda-seeds: ok (derive + portable signed CPI)"
+  -- Selective pack: readonly spectator should be omitted; signer/writable/program kept.
+  let selectiveSpec : ProofForge.Contract.ContractSpec :=
+    build "SolanaSelectiveCpiAccounts" do
+      scalarState "nonce" .u64
+      writableAccountConstraint "authority"
+      readonlyAccountConstraint "spectator"
+      writableAccountConstraint "vault_account" (owner := "program")
+      entrySelectorWithParams "call_remote" "06"
+          #[("target", .u64), ("method", .u64)] .u64 do
+        ret (ProofForge.IR.Expr.crosscallInvoke
+          (localVar "target") (localVar "method") #[])
+  match ProofForge.Backend.Solana.Package.renderPackageForSpec
+      "selective-cpi-accounts" selectiveSpec with
+  | .ok pkg =>
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw <| IO.userError "selective package missing sBPF assembly"
+      let asm := asmFile.contents
+      require (contains asm "selective pack")
+        "portable CPI must emit selective pack marker"
+      require (contains asm "sol_invoke_signed_c")
+        "selective portable remote must still invoke"
+      -- Spectator is readonly/any — not in selective set; authority is signer/writable.
+      require (contains asm "signer|writable|program|executable")
+        "selective comment documents account filter"
+  | .error err =>
+      throw <| IO.userError s!"selective CPI accounts package render failed: {err.render}"
+
+  IO.println "solana-pda-seeds: ok (derive + portable signed CPI + selective accounts)"
   return 0
 
 end ProofForge.Tests.SolanaPdaSeeds

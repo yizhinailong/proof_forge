@@ -626,8 +626,14 @@ where
     let dataBytes := (1 + args.size) * 8
     let (retNoneLabel, ctxAfterArgs) := workCtx.freshLabel
     let (retEndLabel, ctxFinal) := ctxAfterArgs.freshLabel
-    let accountCount :=
-      if workCtx.txAccountCount == 0 then 1 else workCtx.txAccountCount
+    -- Selective accounts: signer|writable|program|executable; else full range.
+    let accountIndices :=
+      if !workCtx.portableCpiAccountIndices.isEmpty then
+        workCtx.portableCpiAccountIndices
+      else if workCtx.txAccountCount == 0 then
+        #[0]
+      else
+        (List.range workCtx.txAccountCount).toArray
     -- PDA-authority signing for general peer CPI (not protocol/token-only).
     let signerSeeds := workCtx.portableSignerSeeds
     let (signerNodes, numSigners) :=
@@ -644,7 +650,7 @@ where
         (ProofForge.Backend.Solana.Extension.lowerCpiSignerSeeds
           workCtx.accountBindings workCtx.valueBindings stub, 1)
     nodes := nodes ++
-      invokeSignedC dataBytes accountCount numSigners signerNodes retNoneLabel retEndLabel
+      invokeSignedC dataBytes accountIndices numSigners signerNodes retNoneLabel retEndLabel
     .ok (nodes, ctxFinal)
 
   lowerCmp (ctx : LowerCtx) (lhs rhs : IR.Expr) (condJmp : Opcode) : Except LowerError (Array AstNode × LowerCtx) := do

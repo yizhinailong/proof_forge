@@ -22,6 +22,7 @@ import ProofForge.Backend.Solana.StateLayout
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.Register
 import ProofForge.Backend.Solana.Syscalls
+import ProofForge.Backend.Solana.PortableCrosscall
 import ProofForge.Backend.Solana.SbpfAsm.Common
 import ProofForge.Backend.Solana.SbpfAsm.Expr
 import ProofForge.Backend.Solana.SbpfAsm.Stmt
@@ -488,8 +489,12 @@ partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions
   let stateDataOff ← stateDataStartFromSchema module schema
   let accountBindings := buildCpiAccountBindings schema.accounts schema.inputLayout.accounts
   let valueBindings := buildCpiValueBindings module stateDataOff
+  let cpiIndices :=
+    ProofForge.Backend.Solana.PortableCrosscall.selectPortableCpiAccountIndices
+      schema.accounts
   let ctx :=
     buildLowerCtx module stateDataOff schema.accounts.size accountBindings valueBindings
+      cpiIndices
   if schema.accounts.size > MAX_PORTABLE_CPI_ACCOUNTS then
     .error {
       message :=

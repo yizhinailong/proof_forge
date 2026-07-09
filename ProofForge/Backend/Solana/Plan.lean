@@ -379,10 +379,13 @@ def LowerCtx.fromSeed (module : IR.Module) (seed : SolanaLowerCtxSeed) :
     | .ok off => pure off
     | .error e => throw e
   let valueBindings := SbpfAsm.buildCpiValueBindings module stateDataOff
+  let cpiIndices :=
+    ProofForge.Backend.Solana.PortableCrosscall.selectPortableCpiAccountIndices
+      seed.manifestAccounts
   pure <|
     SbpfAsm.LowerCtx.fromPlanSeed
       seed.stateFieldOffsets seed.structs seed.stateDecls seed.manifestAccounts.size
-      accountBindings valueBindings #[]
+      accountBindings valueBindings #[] cpiIndices
 
 /-- Lower a module using a pre-built `SolanaModulePlan`. This is the Tier B
 contract entry point: the lowering is a pure function of the plan (plus the IR
