@@ -36,7 +36,7 @@ Authors usually want (1) always, (2) when integrating ecosystem programs, and
 
 | Layer | Code lives (today) | Author intent |
 |-------|--------------------|---------------|
-| **A Host** | `ProofForge/Target/{Capability,HostBridge}`, backend syscalls | “Use chain primitives” |
+| **A Host** | `Capability`, **`HostRuntime`** (opcode/syscall/import map), `HostBridge`, backends | “Use chain primitives” |
 | **B Protocols** | `ProofForge/Protocols/*` (+ legacy `ProofForge/Solana/Programs`) | “Call existing program/contract” |
 | **C Stdlib** | `ProofForge/Contract/Stdlib/*` | “I am the implementation” |
 
@@ -55,7 +55,8 @@ Portable surface → capability → materialize:
 | Peer remote | `declareRemote` + `remoteCallRef` | CALL | portable CPI | `promise_create` |
 | Protocol CPI (Solana) | Solana Surface CPI builders | — | `sol_invoke_signed_c` + dataLayout | — |
 
-Gates: `Target.Capability`, preflight L0–L1, backend honesty rejects.
+Gates: `Target.Capability`, preflight L0–L1, backend honesty rejects.  
+**Native symbol inventory:** `ProofForge.Target.HostRuntime` + [host-runtime.md](host-runtime.md).
 
 ## 3. Layer B — Protocols (this doc’s focus)
 

@@ -1,4 +1,5 @@
 import ProofForge.Target.Capability
+import ProofForge.Target.HostRuntime
 import ProofForge.Target.Registry
 import ProofForge.Target.StorageBinding
 import ProofForge.Target.Materialize
