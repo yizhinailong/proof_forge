@@ -89,6 +89,13 @@ structure LowerCtx where
   portable CPI to forward the full remaining-account vector (capped at
   `MAX_PORTABLE_CPI_ACCOUNTS`). -/
   txAccountCount : Nat := 0
+  /-- Account layouts for packing portable CPI PDA signer seeds. -/
+  accountBindings : Array ProofForge.Backend.Solana.Extension.CpiAccountBinding := #[]
+  /-- State / entry-param bindings for bump and instruction-param seeds. -/
+  valueBindings : Array ProofForge.Backend.Solana.Extension.CpiValueBinding := #[]
+  /-- Raw seed descriptors (`literal:…`, `account:…`, `bump:…`) for portable
+  `sol_invoke_signed_c` when the module declares a signer PDA. Empty ⇒ unsigned. -/
+  portableSignerSeeds : Array String := #[]
   deriving Inhabited
 
 def LowerCtx.localOffset? (ctx : LowerCtx) (name : String) : Option Nat :=
@@ -251,7 +258,10 @@ def LowerCtx.fromPlanSeed
     (stateFieldOffsets : Array (String × Nat))
     (structs : Array StructDecl)
     (stateDecls : Array StateDecl)
-    (txAccountCount : Nat := 0) : LowerCtx :=
+    (txAccountCount : Nat := 0)
+    (accountBindings : Array ProofForge.Backend.Solana.Extension.CpiAccountBinding := #[])
+    (valueBindings : Array ProofForge.Backend.Solana.Extension.CpiValueBinding := #[])
+    (portableSignerSeeds : Array String := #[]) : LowerCtx :=
   { stateFieldOffsets
     structs
     stateDecls
@@ -260,11 +270,32 @@ def LowerCtx.fromPlanSeed
     scratchOffset := 8
     nextLabel := 0
     allocator := Allocator.new
-    txAccountCount }
+    txAccountCount
+    accountBindings
+    valueBindings
+    portableSignerSeeds }
+
+/-- Raw seed descriptors for portable signed CPI: first **signer** PDA's
+effective seeds (literals / account pubkeys / bump). General peer remote can
+then call as a PDA authority without Source.Solana protocol CPI. -/
+def portableSignerSeedsFromExtensions
+    (extensions : ProofForge.Backend.Solana.Extension.ProgramExtensions)
+    (entrypoint : String) : Array String :=
+  let matching :=
+    extensions.pdas.filter fun pda =>
+      pda.signer &&
+        (pda.entrypoint?.isNone || pda.entrypoint? == some entrypoint)
+  match matching[0]? with
+  | none => #[]
+  | some pda =>
+      (ProofForge.Backend.Solana.Extension.PdaDerive.effectiveSeeds pda).map
+        (fun s => s.raw)
 
 /-- Build the lowering context through the same seed shape recorded in
 `SolanaModulePlan`, so the direct and plan-driven lowering paths cannot drift. -/
-def buildLowerCtx (module : IR.Module) (stateDataOff : Nat) (txAccountCount : Nat := 0) :
+def buildLowerCtx (module : IR.Module) (stateDataOff : Nat) (txAccountCount : Nat := 0)
+    (accountBindings : Array ProofForge.Backend.Solana.Extension.CpiAccountBinding := #[])
+    (valueBindings : Array ProofForge.Backend.Solana.Extension.CpiValueBinding := #[]) :
     LowerCtx :=
   let offsets := buildStateOffsetsAtBase module stateDataOff
   LowerCtx.fromPlanSeed
@@ -272,6 +303,9 @@ def buildLowerCtx (module : IR.Module) (stateDataOff : Nat) (txAccountCount : Na
     module.structs
     module.state
     txAccountCount
+    accountBindings
+    valueBindings
+    #[]
 
 def buildCtx (module : Module) (stateDataOff : Nat) (txAccountCount : Nat := 0) :
     Except LowerError LowerCtx := do

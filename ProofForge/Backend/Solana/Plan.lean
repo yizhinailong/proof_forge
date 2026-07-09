@@ -369,9 +369,20 @@ offsets or account layout from the IR module. Delegates to
 cannot drift. The lowering-local mutable fields (`locals`, `nextLocalOffset`,
 `scratchOffset`, `nextLabel`, `allocator`) are initialised to their entry
 defaults inside `LowerCtx.fromPlanSeed`. -/
-def LowerCtx.fromSeed (seed : SolanaLowerCtxSeed) : SbpfAsm.LowerCtx :=
-  SbpfAsm.LowerCtx.fromPlanSeed
-    seed.stateFieldOffsets seed.structs seed.stateDecls seed.manifestAccounts.size
+def LowerCtx.fromSeed (module : IR.Module) (seed : SolanaLowerCtxSeed) :
+    Except SbpfAsm.LowerError SbpfAsm.LowerCtx := do
+  let accountBindings :=
+    SbpfAsm.buildCpiAccountBindings seed.manifestAccounts seed.inputLayout.accounts
+  let stateDataOff ←
+    match SbpfAsm.stateDataStartFromSchema module
+        { accounts := seed.manifestAccounts, inputLayout := seed.inputLayout } with
+    | .ok off => pure off
+    | .error e => throw e
+  let valueBindings := SbpfAsm.buildCpiValueBindings module stateDataOff
+  pure <|
+    SbpfAsm.LowerCtx.fromPlanSeed
+      seed.stateFieldOffsets seed.structs seed.stateDecls seed.manifestAccounts.size
+      accountBindings valueBindings #[]
 
 /-- Lower a module using a pre-built `SolanaModulePlan`. This is the Tier B
 contract entry point: the lowering is a pure function of the plan (plus the IR
@@ -385,7 +396,7 @@ def lowerModuleFromPlan (module : IR.Module) (plan : SolanaModulePlan) :
     Except SbpfAsm.LowerError (Array AstNode) := do
   SbpfAsm.validateCapabilities module
   let seed := plan.lowerCtxSeed
-  let ctx := LowerCtx.fromSeed seed
+  let ctx ← LowerCtx.fromSeed module seed
   let core ← SbpfAsm.lowerModuleCoreWithSeed module seed.manifestAccounts seed.inputLayout
     seed.extensions ctx
   -- Append PDA/CPI helpers with preflight (same honesty as lowerModuleWithPlan).

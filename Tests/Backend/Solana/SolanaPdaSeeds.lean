@@ -30,6 +30,25 @@ def pdaOnlySpec : ProofForge.Contract.ContractSpec :=
         (account? := some "vault_account")
       effect (storageScalarWrite "nonce" (localVar "vault_bump"))
 
+/-- Signer PDA + portable peer crosscall → invoke_signed with seed packing. -/
+def portablePdaRemoteSpec : ProofForge.Contract.ContractSpec :=
+  build "SolanaPortablePdaRemote" do
+    scalarState "nonce" .u64
+
+    pdaAccount "vault" #[literalSeed "vault", accountSeed "authority"]
+      (bump? := some "vault_bump")
+      (account? := some "vault_account")
+      (isSigner := true)
+
+    entrySelectorWithParams "call_remote" "05"
+        #[("target", .u64), ("method", .u64), ("vault_bump", .u64)] .u64 do
+      derivePda "vault" #[literalSeed "vault", accountSeed "authority"]
+        (bump? := some "vault_bump")
+        (account? := some "vault_account")
+        (isSigner := true)
+      ret (ProofForge.IR.Expr.crosscallInvoke
+        (localVar "target") (localVar "method") #[])
+
 def main : IO UInt32 := do
   match ProofForge.Backend.Solana.Package.renderPackageForSpec "pda-seeds" pdaOnlySpec with
   | .ok pkg =>
@@ -72,7 +91,27 @@ def main : IO UInt32 := do
   | .error err =>
       throw <| IO.userError s!"Solana PDA seed package render failed: {err.render}"
 
-  IO.println "solana-pda-seeds: ok"
+  match ProofForge.Backend.Solana.Package.renderPackageForSpec
+      "portable-pda-remote" portablePdaRemoteSpec with
+  | .ok pkg =>
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw <| IO.userError "portable-pda-remote package missing sBPF assembly"
+      let asm := asmFile.contents
+      require (contains asm "sol_invoke_signed_c")
+        "portable PDA remote must emit sol_invoke_signed_c"
+      require (contains asm "signers=1 (PDA authority)" || contains asm "signers=1")
+        "portable CPI with signer PDA must pass signers=1"
+      require (contains asm "solana.cpi.signer_seed portable_crosscall")
+        "portable CPI must pack signer seeds from signer PDA"
+      require (contains asm "literal" || contains asm "\"vault\"" ||
+          contains asm "account authority")
+        "portable CPI signer seeds should include vault PDA seeds"
+      require (contains asm "bump vault_bump" || contains asm "bump:")
+        "portable CPI signer seeds should include vault_bump"
+  | .error err =>
+      throw <| IO.userError s!"Solana portable PDA remote package render failed: {err.render}"
+
+  IO.println "solana-pda-seeds: ok (derive + portable signed CPI)"
   return 0
 
 end ProofForge.Tests.SolanaPdaSeeds

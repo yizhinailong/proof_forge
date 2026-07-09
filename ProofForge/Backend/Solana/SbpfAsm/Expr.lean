@@ -628,7 +628,23 @@ where
     let (retEndLabel, ctxFinal) := ctxAfterArgs.freshLabel
     let accountCount :=
       if workCtx.txAccountCount == 0 then 1 else workCtx.txAccountCount
-    nodes := nodes ++ invokeSignedC dataBytes accountCount retNoneLabel retEndLabel
+    -- PDA-authority signing for general peer CPI (not protocol/token-only).
+    let signerSeeds := workCtx.portableSignerSeeds
+    let (signerNodes, numSigners) :=
+      if signerSeeds.isEmpty then
+        (#[], 0)
+      else
+        let stub : ProofForge.Backend.Solana.Extension.CpiInvoke := {
+          name := "portable_crosscall"
+          program := ""
+          instruction := ""
+          signerSeeds := signerSeeds
+          signed := true
+        }
+        (ProofForge.Backend.Solana.Extension.lowerCpiSignerSeeds
+          workCtx.accountBindings workCtx.valueBindings stub, 1)
+    nodes := nodes ++
+      invokeSignedC dataBytes accountCount numSigners signerNodes retNoneLabel retEndLabel
     .ok (nodes, ctxFinal)
 
   lowerCmp (ctx : LowerCtx) (lhs rhs : IR.Expr) (condJmp : Opcode) : Except LowerError (Array AstNode × LowerCtx) := do

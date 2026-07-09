@@ -240,13 +240,18 @@ partial def lowerEntrypoint (ctx : LowerCtx)
     .label s!"sol_{ep.name}",
     .blankLine
   ]
+  -- Per-entrypoint PDA signer seeds for portable peer CPI (invoke_signed).
+  let mut ctx := {
+    ctx with
+    portableSignerSeeds := portableSignerSeedsFromExtensions extensions ep.name
+  }
   let accountValidationNodes ← lowerAccountValidations accounts accountLayouts
   nodes := nodes ++ accountValidationNodes
   nodes := nodes ++ lowerInstructionDataLengthCheck (instructionDataMinLen ep)
-  let (ctx, paramNodes) ← lowerEntrypointParamDecoding ctx ep
+  let (ctxAfterParams, paramNodes) ← lowerEntrypointParamDecoding ctx ep
+  ctx := ctxAfterParams
   nodes := nodes ++ paramNodes
   nodes := nodes ++ lowerEntrypointActions extensions ep.name
-  let mut ctx := ctx
   for stmt in ep.body do
     let (sn, ctx') ← lowerStmt ctx stmt
     nodes := nodes ++ sn
@@ -481,7 +486,10 @@ partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions
   validateCapabilities module
   let schema := buildModuleInputSchema module extensions
   let stateDataOff ← stateDataStartFromSchema module schema
-  let ctx := buildLowerCtx module stateDataOff schema.accounts.size
+  let accountBindings := buildCpiAccountBindings schema.accounts schema.inputLayout.accounts
+  let valueBindings := buildCpiValueBindings module stateDataOff
+  let ctx :=
+    buildLowerCtx module stateDataOff schema.accounts.size accountBindings valueBindings
   if schema.accounts.size > MAX_PORTABLE_CPI_ACCOUNTS then
     .error {
       message :=

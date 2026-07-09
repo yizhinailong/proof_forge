@@ -6,13 +6,16 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Authors write portable `crosscall.invoke` (target program id / method / args as
 u64-shaped values). Solana does not expose that as EVM CALL; it materializes as
-CPI-shaped execution:
+CPI-shaped execution (general peer remote — not SPL/token-only):
 
 * Instruction data: little-endian method tag (u64) followed by packed u64 args
 * Program account: runtime account index = `target` (must be an executable
   program account in the transaction account list)
 * Account vector: **full instruction account list** forwarded as
   `AccountMeta`/`AccountInfo` (capped at `MAX_PORTABLE_CPI_ACCOUNTS`)
+* Signers: when the module declares a **signer PDA**, effective seeds pack into
+  `sol_invoke_signed_c` so the program can CPI as that PDA authority (vault /
+  complex contract pattern)
 * Result: first 8 bytes of `sol_get_return_data` if present, else 0
 
 Account list auto-extension (module-level schema): when portable crosscall is
@@ -284,14 +287,32 @@ def decodeReturnDataU64 (retNoneLabel retEndLabel : String) : Array AstNode :=
   ]
 
 /-- Emit `sol_invoke_signed_c` forwarding up to `accountCount` instruction
-accounts (capped at `MAX_PORTABLE_CPI_ACCOUNTS`) with zero signers.
+accounts (capped at `MAX_PORTABLE_CPI_ACCOUNTS`). When `numSigners > 0`,
+`signerSeedNodes` must already have packed the signer-seed table (Extension
+layout: `cpiSignerEntriesOffset`) and r4/r5 are loaded from that table.
 Preserves r1 (entry input). Result in r2: first return-data u64 or 0. -/
-def invokeSignedC (dataLen accountCount : Nat) (retNoneLabel retEndLabel : String) :
+def invokeSignedC (dataLen accountCount numSigners : Nat)
+    (signerSeedNodes : Array AstNode) (retNoneLabel retEndLabel : String) :
     Array AstNode :=
   let n := min accountCount maxPortableCpiAccounts
   let n := if n == 0 then 1 else n  -- always pack at least callee path via index 0
+  let signerComment :=
+    if numSigners == 0 then "signers=0"
+    else s!"signers={numSigners} (PDA authority)"
+  let signerArgs : Array AstNode :=
+    if numSigners == 0 then
+      #[
+        loadImm .r4 0,
+        loadImm .r5 0,
+        .comment s!"r1=instruction_ptr r2=heap_infos_ptr r3={n} r4=0 r5=0"
+      ]
+    else
+      stackPtr .r4 cpiSignerEntriesOffset ++ #[
+        loadImm .r5 numSigners,
+        .comment s!"r1=instruction_ptr r2=heap_infos_ptr r3={n} r4=signer_seeds_ptr r5={numSigners}"
+      ]
   #[
-    .comment s!"portable crosscall → sol_invoke_signed_c (data_len={dataLen}, accounts={n}/{maxPortableCpiAccounts}, signers=0)",
+    .comment s!"portable crosscall → sol_invoke_signed_c (data_len={dataLen}, accounts={n}/{maxPortableCpiAccounts}, {signerComment})",
     .instruction {
       opcode := .stxdw
       dst := some .r10
@@ -299,15 +320,14 @@ def invokeSignedC (dataLen accountCount : Nat) (retNoneLabel retEndLabel : Strin
       src := some .r1
     }
   ] ++
+  signerSeedNodes ++
   copyProgramIdFromAccountIndex ++
   packAllTxAccounts n ++
   packSolInstruction dataLen n ++
   stackPtr .r1 portableCpiIxOffset ++
   loadHeapInfoPtr .r2 0 ++ #[
-    loadImm .r3 n,
-    loadImm .r4 0,
-    loadImm .r5 0,
-    .comment s!"r1=instruction_ptr r2=heap_infos_ptr r3={n} r4=0 r5=0",
+    loadImm .r3 n
+  ] ++ signerArgs ++ #[
     callSyscall sol_invoke_signed_c,
     .instruction {
       opcode := .jne
