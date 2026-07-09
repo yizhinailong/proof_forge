@@ -1,8 +1,10 @@
 import ProofForge.Contract.Examples.ValueVault
-import ProofForge.IR.Examples.CrosscallProbe
+import ProofForge.Contract.Intent
+import ProofForge.Contract.Spec
 import ProofForge.Solana.Examples.Vault
 import ProofForge.Target.Formal
 import ProofForge.Target.FormalBoundary
+import ProofForge.IR.Contract
 
 /-!
 # FV-1 target-routing anchors
@@ -49,12 +51,24 @@ def checkValueVaultEvm : IO Unit := do
   require (resolveSpecCheckedBy evm ProofForge.Contract.Examples.ValueVault.spec)
     "ValueVault EVM resolve result failed FV-1 checkedBy predicate"
 
+/-- FV-1 fail-closed: capability present in intent but HostRuntime n/a on target.
+Portable `crosscall.invoke` is now supported on Solana (CPI); PDA on NEAR remains
+the canonical honesty reject. -/
 def checkUnsupportedCapability : IO Unit := do
-  let spec := ProofForge.Contract.ContractSpec.fromIR
-    ProofForge.IR.Examples.CrosscallProbe.module
-  requireError (resolveSpec solanaSbpfAsm spec)
-    "target `solana-sbpf-asm` does not support capability `crosscall.invoke`: capability is not present in the target profile"
-    "generic crosscall must be rejected by Solana target routing"
+  let spec : ProofForge.Contract.ContractSpec := {
+    name := "HostRuntimePdaClaim"
+    module := {
+      name := "HostRuntimePdaClaim"
+      state := #[]
+      entrypoints := #[{ name := "touch", body := (#[] : Array ProofForge.IR.Statement) }]
+    }
+    intents := #[ProofForge.Contract.Intent.capability .storagePda "solana.pda.derive"]
+  }
+  match resolveSpec wasmNear spec with
+  | .ok _ => throw <| IO.userError "NEAR+storagePda must fail HostRuntime honesty"
+  | .error err =>
+      require (err.render.contains "HostRuntime")
+        s!"NEAR PDA reject must name HostRuntime, got: {err.render}"
 
 def checkSolanaExtensionIsolation : IO Unit := do
   requireError (resolveSpec evm ProofForge.Solana.Examples.Vault.spec)

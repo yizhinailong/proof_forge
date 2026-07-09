@@ -168,7 +168,11 @@ and suggested route step 1 (HostEnv before Address / sync-crosscall / Token).
 | 5 Upgrade | `UpgradePolicy/Lower.materializeUpgrade` | proxy / upgrade-authority / redeploy+migrate |
 | 6–7 Mechanics | `Target/PortableMechanics.lean` | crypto / error / serde materialize-or-reject |
 
-Smoke: `Tests/ChainAgnosticRoute.lean` + `Tests/HostRuntime.lean`.
+**Pipeline (not catalog-only):** `Target/PortableHonesty.lean` is invoked from
+`Adapter.defaultResolve` / `resolveSpec` on the primary triad so HostEnv,
+Identity, sync-crosscall, and upgrade materialize fail closed before codegen.
+
+Smoke: `Tests/ChainAgnosticRoute.lean` (resolveSpec/plan paths) + `Tests/HostRuntime.lean`.
 
 ## 10. Tests
 

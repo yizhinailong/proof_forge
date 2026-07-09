@@ -20,10 +20,14 @@ Feature honesty: `just token-feature-matrix` / `featureSupportOnTarget`.
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
 import ProofForge.Target.Registry
+import ProofForge.Contract.FixedPoint
+import ProofForge.Contract.TokenAuth
 
 namespace ProofForge.Contract.Token
 
 open ProofForge.Target
+open ProofForge.Contract.FixedPoint
+open ProofForge.Contract.TokenAuth
 
 /-- Native token **artifact** kind chosen by a target adapter.
 
@@ -838,7 +842,31 @@ def nearNep141Plan (target : TargetProfile) (spec : TokenSpec) : TokenPlan :=
   }
 
 def planForTarget (target : TargetProfile) (spec : TokenSpec) : Except String TokenPlan := do
+  -- FixedPoint decimals validation (not catalog-only).
+  let _scale ← validateDecimals spec.decimals
   let _standard ← resolveTokenStandard target spec
+  -- Core ops honesty: transfer/balanceOf always; mint/burn require features.
+  let hasMint := spec.hasFeature .mintable
+  let hasBurn := spec.hasFeature .burnable
+  let _ ← materializeCoreOp target.id .transfer false false
+  let _ ← materializeCoreOp target.id .balanceOf false false
+  if hasMint then
+    let _ ← materializeCoreOp target.id .mint true hasBurn
+  else
+    match materializeCoreOp target.id .mint false hasBurn with
+    | .ok _ =>
+        .error s!"TokenAuth: target `{target.id}` must reject mint without TokenFeature.mintable"
+    | .error _ => pure ()
+  if hasBurn then
+    let _ ← materializeCoreOp target.id .burn hasMint true
+  else
+    match materializeCoreOp target.id .burn hasMint false with
+    | .ok _ =>
+        .error s!"TokenAuth: target `{target.id}` must reject burn without TokenFeature.burnable"
+    | .error _ => pure ()
+  -- Divergent auth features: no ERC-20 allowance polyfill on NEAR, etc.
+  -- (TokenSpec does not yet carry TokenAuthFeature; home-host materialize is
+  -- exercised via TokenAuth.materializeAuth in tests + optional notes.)
   if target.family == .evm then
     .ok (evmErc20Plan target spec)
   else if target.family == .solana then

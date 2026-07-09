@@ -36,6 +36,7 @@ import ProofForge.IR.Portability
 import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
 import ProofForge.Target.CrosscallMaterialize
+import ProofForge.Target.PortableHonesty
 
 namespace ProofForge.Target.Preflight
 
@@ -43,6 +44,7 @@ open ProofForge.IR
 open ProofForge.IR.Portability
 open ProofForge.Target
 open ProofForge.Target.CrosscallMaterialize
+open ProofForge.Target.PortableHonesty
 
 structure Report where
   targetId : String
@@ -90,7 +92,12 @@ def softMetadataNotes (module : Module) (family : TargetFamily) : Array Portabil
     | .targetMetadata (some other) => other != family
     | _ => false
 
-/-- Run L0 portability + L1 capability preflight for one target. -/
+/-- Run L0 portability + L1 capability + portable honesty preflight for one target.
+
+Portable honesty (HostEnv/Identity/sync-crosscall) is enforced inside
+`resolveModule` → `defaultResolve`; this report surfaces that as capabilityOk
+failure with the PortableHonesty diagnostic text.
+-/
 def run (profile : TargetProfile) (module : Module) : Report :=
   let capResult := resolveModule profile module
   let (capabilityOk, capabilityError?) :=
@@ -103,15 +110,22 @@ def run (profile : TargetProfile) (module : Module) : Report :=
   let violStrs := hard.map renderFinding
   let metaStrs := soft.map renderFinding
   let xform := (forProfile profile).nativeForm.id
+  -- Explicit sync-subset note for report consumers (also enforced in resolve).
+  let syncNote :=
+    if moduleUsesPortableSyncCrosscall module && moduleUsesNearAsyncExtension module then
+      " [portable sync-subset forbids mixing crosscallInvoke with promise_then/result]"
+    else if moduleUsesPortableSyncCrosscall module then
+      " [portable sync-subset remote]"
+    else ""
   let ready := capabilityOk && portabilityOk
   let note :=
     if ready then
       let softNote :=
         if metaStrs.isEmpty then ""
         else s!" (soft metadata ignored: {String.intercalate "; " metaStrs.toList})"
-      s!"preflight ok → materialize as {xform} (L2 protocol validate still in backend){softNote}"
+      s!"preflight ok → materialize as {xform} (L2 protocol validate still in backend){softNote}{syncNote}"
     else if !capabilityOk then
-      s!"capability reject: {capabilityError?.getD "?"}"
+      s!"capability/honesty reject: {capabilityError?.getD "?"}"
     else
       s!"portability reject: {String.intercalate "; " violStrs.toList}"
   { targetId := profile.id

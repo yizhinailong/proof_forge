@@ -29,6 +29,7 @@ module only packs CPI frames; prologue validation is the Solana backend's
 constraint layer.
 -/
 import ProofForge.IR.Contract
+import ProofForge.Target.CrosscallMaterialize
 import ProofForge.Backend.Solana.Asm
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.Extension.Common
@@ -490,6 +491,21 @@ def materializationNote (module : Module) : String :=
   if sites.isEmpty then
     "no portable crosscall sites"
   else
-    s!"portable crosscall.invoke ×{sites.size} → Solana CPI via sol_invoke_signed_c (ix data; selective accounts signer|writable|program|executable up to {MAX_PORTABLE_CPI_ACCOUNTS}; PDA signers when declared; return-data u64)"
+    let peer :=
+      match module.nearCrosscallStrings[0]? with
+      | some s => if s.isEmpty then "portable.peer" else s
+      | none => "portable.peer"
+    let inferNote :=
+      match ProofForge.Target.CrosscallMaterialize.inferSolanaAccounts module peer with
+      | .ok (accs : Array ProofForge.Target.CrosscallMaterialize.InferredAccount) =>
+          let names :=
+            String.intercalate ","
+              (accs.toList.map (fun (a : ProofForge.Target.CrosscallMaterialize.InferredAccount) =>
+                a.name))
+          s!" inferredAccounts=[{names}] (authors do not pass metas)"
+      | .error e => s!" inference_pending={e}"
+    s!"portable crosscall.invoke ×{sites.size} → Solana CPI via sol_invoke_signed_c \
+(ix data; selective accounts signer|writable|program|executable up to {MAX_PORTABLE_CPI_ACCOUNTS}; \
+PDA signers when declared; return-data u64){inferNote}"
 
 end ProofForge.Backend.Solana.PortableCrosscall

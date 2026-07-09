@@ -4,11 +4,13 @@ import ProofForge.Contract.Spec
 import ProofForge.Contract.UpgradePolicy.Lower
 import ProofForge.Target.Check
 import ProofForge.Target.HostRuntime
+import ProofForge.Target.PortableHonesty
 import ProofForge.Target.Plan
 
 namespace ProofForge.Target
 
 open ProofForge.Target.HostRuntime
+open ProofForge.Target.PortableHonesty
 
 structure Diagnostic where
   message : String
@@ -150,12 +152,12 @@ def requireCapabilityPlan (profile : TargetProfile) (plan : CapabilityPlan) :
 
 def defaultResolve (profile : TargetProfile) (spec : ProofForge.Contract.ContractSpec) :
     Except Diagnostic CapabilityPlan := do
-  match spec.upgradePolicy? with
-  | none => pure ()
-  | some policy =>
-      match ProofForge.Contract.UpgradePolicy.checkSupported profile.id policy spec.proxyPattern? with
-      | .ok () => pure ()
-      | .error message => .error { message }
+  -- Portable honesty (HostEnv / Identity / sync-crosscall / upgrade materialize).
+  -- Uses materializeUpgrade (UUPS-only EVM, etc.) rather than checkSupported alone
+  -- so transparent proxy and missing lowers fail closed before codegen.
+  match requirePortableHonesty profile.id spec.module spec.upgradePolicy? spec.proxyPattern? with
+  | .ok () => pure ()
+  | .error message => .error { message }
   -- FV-5 checked-overflow gate: a module that declares `overflowChecked`
   -- (Solidity-0.8-style revert-on-overflow) can only resolve to a target whose
   -- profile declares the `arith.checked` capability. This is a standalone gate

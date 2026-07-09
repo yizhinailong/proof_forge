@@ -1,6 +1,7 @@
 import ProofForge.Target.Capability
 import ProofForge.Target.HostRuntime
 import ProofForge.Target.Identity
+import ProofForge.Target.PortableHonesty
 import ProofForge.Target.PortableMechanics
 import ProofForge.Target.Registry
 import ProofForge.Target.StorageBinding

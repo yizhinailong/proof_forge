@@ -12,7 +12,15 @@ import ProofForge.Contract.TokenAuth
 import ProofForge.Contract.FixedPoint
 import ProofForge.Contract.UpgradePolicy
 import ProofForge.Contract.UpgradePolicy.Lower
+import ProofForge.Contract.Spec
+import ProofForge.Contract.Intent
+import ProofForge.Target.Adapter
+import ProofForge.Target.Registry
+import ProofForge.Target.Preflight
+import ProofForge.Target.PortableHonesty
 import ProofForge.IR.Contract
+import ProofForge.IR.Examples.Counter
+import ProofForge.Backend.Solana.PortableCrosscall
 
 namespace ProofForge.Tests.ChainAgnosticRoute
 
@@ -21,6 +29,8 @@ open ProofForge.Target.Identity
 open ProofForge.Target.CrosscallMaterialize
 open ProofForge.Target.PortableMechanics
 open ProofForge.Target.HostRuntime
+open ProofForge.Target.PortableHonesty
+open ProofForge.Target.Preflight
 open ProofForge.Contract.Token
 open ProofForge.Contract.TokenAuth
 open ProofForge.Contract.FixedPoint
@@ -134,30 +144,30 @@ def main : IO UInt32 := do
   ---------------------------------------------------------------------------
   -- transfer/balanceOf always full on TokenSpec lanes (no feature required).
   for tid in TokenAuth.primaryTokenTargetIds do
-    require (coreOpSupportOnTarget tid .transfer #[] == .full)
+    require (coreOpSupportOnTarget tid .transfer false false == .full)
       s!"transfer full on {tid}"
-    require (coreOpSupportOnTarget tid .balanceOf #[] == .full)
+    require (coreOpSupportOnTarget tid .balanceOf false false == .full)
       s!"balanceOf full on {tid}"
     -- mint/burn capability-gated: reject without mintable/burnable features.
-    require (coreOpSupportOnTarget tid .mint #[] == .reject)
+    require (coreOpSupportOnTarget tid .mint false false == .reject)
       s!"mint rejects without mintable on {tid}"
-    require (coreOpSupportOnTarget tid .burn #[] == .reject)
+    require (coreOpSupportOnTarget tid .burn false false == .reject)
       s!"burn rejects without burnable on {tid}"
-    require (coreOpSupportOnTarget tid .mint #[.mintable] == .full)
+    require (coreOpSupportOnTarget tid .mint true false == .full)
       s!"mint full with mintable on {tid}"
-    require (coreOpSupportOnTarget tid .burn #[.burnable] == .full)
+    require (coreOpSupportOnTarget tid .burn false true == .full)
       s!"burn full with burnable on {tid}"
-    match materializeCoreOp tid .mint #[] with
+    match materializeCoreOp tid .mint false false with
     | .ok _ => throw (IO.userError s!"mint must reject without mintable on {tid}")
     | .error msg =>
         require (contains msg "TokenAuth") s!"mint reject names TokenAuth on {tid}"
         require (contains msg "mintable") s!"mint reject names mintable on {tid}"
-    match materializeCoreOp tid .burn #[] with
+    match materializeCoreOp tid .burn false false with
     | .ok _ => throw (IO.userError s!"burn must reject without burnable on {tid}")
     | .error msg =>
         require (contains msg "TokenAuth") s!"burn reject names TokenAuth on {tid}"
         require (contains msg "burnable") s!"burn reject names burnable on {tid}"
-    match materializeCoreOp tid .mint #[.mintable] with
+    match materializeCoreOp tid .mint true false with
     | .error msg => throw (IO.userError s!"mint+mintable on {tid}: {msg}")
     | .ok m => require (m.nativeOps.contains "mint") s!"mint op on {tid}"
   match materializeAuth "evm" .allowance with
@@ -274,7 +284,156 @@ def main : IO UInt32 := do
   | .ok _ => throw (IO.userError "NEAR chainId must still reject")
   | .error msg => require (contains msg "HostEnv") "hostenv chainId"
 
-  IO.println "chain-agnostic-route: ok (identity+sync-crosscall+token-auth+fixedpoint+upgrade+mechanics)"
+  ---------------------------------------------------------------------------
+  -- Pipeline: resolveSpec / Preflight drive PortableHonesty (not table-only)
+  ---------------------------------------------------------------------------
+  -- Counter (no exotic context) resolves on triad.
+  let counterSpec := ContractSpec.fromIR ProofForge.IR.Examples.Counter.module
+  for profile in #[evm, solanaSbpfAsm, wasmNear] do
+    match resolveSpec profile counterSpec with
+    | .error d =>
+        throw (IO.userError s!"Counter resolveSpec {profile.id} must ok: {d.message}")
+    | .ok plan => require (plan.targetId == profile.id) s!"plan target {profile.id}"
+
+  -- EVM-only baseFee context must fail Solana/NEAR resolveSpec via HostEnv honesty.
+  let baseFeeMod : Module := {
+    name := "BaseFeeOnly"
+    state := #[]
+    entrypoints := #[{
+      name := "g"
+      body := #[.return (.effect (.contextRead .baseFee))]
+    }]
+  }
+  match resolveSpec solanaSbpfAsm (ContractSpec.fromIR baseFeeMod) with
+  | .ok _ => throw (IO.userError "Solana must reject baseFee context via PortableHonesty")
+  | .error d =>
+      require (contains d.message "HostEnv" || contains d.message "PortableHonesty")
+        s!"baseFee reject names honesty, got: {d.message}"
+  match resolveSpec wasmNear (ContractSpec.fromIR baseFeeMod) with
+  | .ok _ => throw (IO.userError "NEAR must reject baseFee context")
+  | .error d =>
+      require (contains d.message "HostEnv" || contains d.message "PortableHonesty")
+        "NEAR baseFee honesty"
+
+  -- Solana self (contractId) fails Identity until program-id lower exists.
+  let selfMod : Module := {
+    name := "SelfOnly"
+    state := #[]
+    entrypoints := #[{
+      name := "g"
+      body := #[.return (.effect (.contextRead .contractId))]
+    }]
+  }
+  match resolveSpec solanaSbpfAsm (ContractSpec.fromIR selfMod) with
+  | .ok _ => throw (IO.userError "Solana self/contractId must reject Identity")
+  | .error d =>
+      require (contains d.message "Identity" || contains d.message "PortableHonesty")
+        s!"sol self reject, got: {d.message}"
+  match resolveSpec evm (ContractSpec.fromIR selfMod) with
+  | .error d => throw (IO.userError s!"EVM self must ok: {d.message}")
+  | .ok _ => pure ()
+
+  -- Portable sync remote on Solana: resolveSpec ok + inference note in materialize.
+  let remoteMod : Module := {
+    name := "PortableRemote"
+    state := #[{ id := "vault", kind := .scalar, type := .u64 }]
+    entrypoints := #[{
+      name := "ping"
+      body := #[
+        .return
+          (.crosscallInvoke (.literal (.u64 1)) (.literal (.u64 2)) #[.literal (.u64 0)])
+      ]
+    }]
+  }
+  match resolveSpec solanaSbpfAsm (ContractSpec.fromIR remoteMod) with
+  | .error d => throw (IO.userError s!"Solana portable remote resolve: {d.message}")
+  | .ok _ => pure ()
+  let note := ProofForge.Backend.Solana.PortableCrosscall.materializationNote remoteMod
+  require (contains note "inferredAccounts" || contains note "portable crosscall")
+    s!"Solana materializationNote must mention inference, got: {note}"
+
+  -- NEAR async-only module still resolves on wasm-near (host-extension).
+  match resolveSpec wasmNear (ContractSpec.fromIR nearAsyncModule) with
+  | .error d =>
+      -- Host-extension-only (no portable sync crosscall) should not hit sync-subset.
+      throw (IO.userError s!"NEAR async-only host-extension should resolve: {d.message}")
+  | .ok _ => pure ()
+  -- Mixing portable sync remote with promise_then must fail.
+  let mixMod : Module := {
+    name := "MixPortableAsync"
+    state := #[]
+    entrypoints := #[{
+      name := "bad"
+      body := #[
+        .letBind "p" .u64
+          (.crosscallInvoke (.literal (.u64 1)) (.literal (.u64 2)) #[]),
+        .return (.nearPromiseResultsCount)
+      ]
+    }]
+  }
+  match resolveSpec wasmNear (ContractSpec.fromIR mixMod) with
+  | .ok _ => throw (IO.userError "mix portable+async must fail sync-subset")
+  | .error d =>
+      require (
+          contains d.message "sync-subset" ||
+          contains d.message "promise" ||
+          contains d.message "PortableHonesty" ||
+          contains d.message "CrosscallMaterialize"
+        ) s!"mix reject, got: {d.message}"
+
+  -- Upgrade: UUPS authority ok on EVM resolveSpec; transparent rejects.
+  let uupsSpec : ContractSpec := {
+    name := "UupsProbe"
+    module := {
+      name := "UupsProbe"
+      state := #[]
+      entrypoints := #[{ name := "noop", body := #[] }]
+    }
+    upgradePolicy? := some (.authority "deployer")
+    proxyPattern? := some .uups
+  }
+  match resolveSpec evm uupsSpec with
+  | .error d => throw (IO.userError s!"EVM UUPS resolve: {d.message}")
+  | .ok plan =>
+      require (plan.metadata.any (fun m => m.key == "upgrade.policy.kind"))
+        "upgrade metadata present"
+  let transparentSpec := { uupsSpec with proxyPattern? := some .transparent }
+  match resolveSpec evm transparentSpec with
+  | .ok _ => throw (IO.userError "EVM transparent must reject on resolveSpec")
+  | .error d =>
+      require (contains d.message "transparent" || contains d.message "uups" ||
+          contains d.message "Upgrade" || contains d.message "PortableHonesty")
+        s!"transparent reject, got: {d.message}"
+
+  -- Token planForTarget: FixedPoint + mint gate on real path.
+  match planForTarget evm {
+    name := "T", symbol := "T", decimals := 18, features := #[]
+  } with
+  | .error msg => throw (IO.userError s!"plan core token: {msg}")
+  | .ok plan =>
+      require (!(plan.operations.any (fun o => contains o "mint")))
+        "no mint ops without mintable"
+  match planForTarget evm {
+    name := "T", symbol := "T", decimals := 18, features := #[.mintable]
+  } with
+  | .error msg => throw (IO.userError s!"plan mintable: {msg}")
+  | .ok plan =>
+      require (plan.operations.any (fun o => contains o "mint")) "mint with mintable"
+  match planForTarget evm {
+    name := "T", symbol := "T", decimals := 99, features := #[]
+  } with
+  | .ok _ => throw (IO.userError "decimals 99 must fail FixedPoint")
+  | .error msg => require (contains msg "FixedPoint") "decimals reject FixedPoint"
+  -- NEP-141 must not materialize allowance
+  match materializeAuth "wasm-near" .allowance with
+  | .ok _ => throw (IO.userError "NEAR allowance still forbidden")
+  | .error _ => pure ()
+
+  -- Preflight ready for Counter on triad
+  let reports := runPrimary ProofForge.IR.Examples.Counter.module
+  require (allReady reports) "Counter preflight allReady triad"
+
+  IO.println "chain-agnostic-route: ok (pipeline+identity+sync+token+upgrade+mechanics)"
   pure 0
 
 end ProofForge.Tests.ChainAgnosticRoute

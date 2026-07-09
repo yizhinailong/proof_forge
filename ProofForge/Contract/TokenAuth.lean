@@ -16,14 +16,14 @@ There is **no** common auth denominator across chains:
 Portable **core** is transfer / balanceOf / mint / burn (capability-gated).
 Auth models are optional features: materialize on home host, honest-reject
 elsewhere. Do not fake ERC-20 allowance on NEP-141.
+
+Does **not** import `Contract.Token` (avoids cycle); callers pass mintable/burnable
+flags from TokenSpec features.
 -/
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
-import ProofForge.Contract.Token
 
 namespace ProofForge.Contract.TokenAuth
-
-open ProofForge.Contract.Token
 
 /-- Divergent token authorization / permission models. -/
 inductive TokenAuthFeature where
@@ -86,23 +86,20 @@ def authSupportOnTarget (targetId : String) (feature : TokenAuthFeature) : AuthS
   | "wasm-near", .transferCall => .full
   | _, _ => .noLane
 
-/-- Core ops on a primary target, **capability-gated** by TokenSpec features.
+/-- Core ops on a primary target, **capability-gated** by mintable/burnable flags.
 
-* `transfer` / `balanceOf` — always available on TokenSpec lanes (public surface).
-* `mint` — requires `TokenFeature.mintable` on the intent; else honest reject.
-* `burn` — requires `TokenFeature.burnable` on the intent; else honest reject.
-
-Non-TokenSpec targets → `noLane`. -/
+* `transfer` / `balanceOf` — always available on TokenSpec lanes.
+* `mint` — requires `hasMintable`; else honest reject.
+* `burn` — requires `hasBurnable`; else honest reject.
+-/
 def coreOpSupportOnTarget (targetId : String) (op : TokenCoreOp)
-    (features : Array TokenFeature := #[]) : AuthSupport :=
+    (hasMintable : Bool := false) (hasBurnable : Bool := false) : AuthSupport :=
   match targetId with
   | "evm" | "solana-sbpf-asm" | "wasm-near" =>
       match op with
       | .transfer | .balanceOf => .full
-      | .mint =>
-          if features.any (· == .mintable) then .full else .reject
-      | .burn =>
-          if features.any (· == .burnable) then .full else .reject
+      | .mint => if hasMintable then .full else .reject
+      | .burn => if hasBurnable then .full else .reject
   | _ => .noLane
 
 structure AuthMaterialization where
@@ -125,10 +122,11 @@ def authReject (targetId : String) (feature : TokenAuthFeature) (reason : String
 def coreOpReject (targetId : String) (op : TokenCoreOp) (reason : String) : String :=
   s!"TokenAuth: target `{targetId}` cannot materialize `{op.id}`: {reason}"
 
-/-- Materialize a core op under the given feature set (or honest-reject). -/
+/-- Materialize a core op under mintable/burnable gates (or honest-reject). -/
 def materializeCoreOp (targetId : String) (op : TokenCoreOp)
-    (features : Array TokenFeature := #[]) : Except String CoreOpMaterialization :=
-  match coreOpSupportOnTarget targetId op features, targetId, op with
+    (hasMintable : Bool := false) (hasBurnable : Bool := false) :
+    Except String CoreOpMaterialization :=
+  match coreOpSupportOnTarget targetId op hasMintable hasBurnable, targetId, op with
   | .full, tid, .transfer =>
       .ok {
         targetId := tid, op := op

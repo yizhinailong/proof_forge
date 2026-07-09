@@ -111,20 +111,20 @@ honesty reject);缺的是把还没抽象的概念灌进去,以及解决几个抽
 
 ## 五、到"真正完成"的建议路线
 
-1. **✅ 去 EVM 化 host-env 词汇**(`HostEnv` + 三桶 + `materializeEnv`;`ContextField.toHostEnv`)。
-2. **✅ 便携 Address/Identity** — `Target/Identity.lean` `materializeIdentity`(EVM-20 / Sol-32 /
-   NEAR 命名账户);Solana `self` 诚实拒绝直到 program-id context lower。
-3. **✅ 跨调同步子集 + 账户推断** — `CrosscallMaterialize`:政策 `syncRequestResponseOnly`;
-   `requireSyncSubset` 拒绝 promise_then/result;Solana `inferSolanaAccounts` +
-   `materializeSyncRemote`(作者不传 metas)。
-4. **✅ Token core + auth feature + 定点** — `TokenAuth`(allowance/authority/storageDeposit/
-   transferCall 物化或拒绝,无假 allowance 上 NEP-141);`FixedPoint` decimals 0–18。
-5. **✅ 链无关升级** — `UpgradePolicy.materializeUpgrade`(EVM proxy / Solana upgrade-authority /
-   NEAR redeploy+migrate)。
-6. **✅ 机械堆(首批)** — `PortableMechanics`(keccak/sha256/ecrecover/ed25519、error、
-   abi/borsh/json);可迭代集合等仍属后续。
-7. **✅ FV/诚实纪律** — 每个新抽象均有 materialize-or-reject 测试
-   (`Tests/ChainAgnosticRoute.lean` + `Tests/HostRuntime.lean`)。
+1. **✅ HostEnv 去 EVM 化 + 管线** — `materializeEnv` 由 `PortableHonesty` 在
+   `resolveSpec`/`defaultResolve` 对 primary triad 强制执行;contextRead 无真实 lower → 拒。
+2. **✅ Identity 端到端** — `materializeIdentity` 挂 resolve;Solana `self`/contractId 拒;
+   EVM/NEAR self+caller ok。
+3. **✅ 跨调同步子集 + 账户推断** — portable `crosscallInvoke*` 不可混 promise_then;
+   Solana `inferSolanaAccounts` 写入 CPI `materializationNote`;空 peer 拒。
+4. **✅ Token planForTarget** — `FixedPoint.validateDecimals`;mint/burn 经
+   `materializeCoreOp` 门控;`TokenAuth` 无 NEP-141 allowance 假实现。
+5. **✅ 升级 resolveSpec** — `materializeUpgrade`(EVM **UUPS only**,transparent 拒;
+   Solana authority;NEAR redeploy+migrate)。
+6. **✅ 机械堆(首批 catalog+HostRuntime)** — `PortableMechanics` + HostRuntime honesty;
+   可迭代集合/NFT 仍属后续。
+7. **✅ FV/诚实** — `Tests/ChainAgnosticRoute.lean` 驱动 **resolveSpec/planForTarget/preflight**,
+   非纯表。
 
 ## 六、一句话
 

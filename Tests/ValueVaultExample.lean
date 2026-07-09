@@ -43,15 +43,14 @@ def eventNamesInModule (module : ProofForge.IR.Module) : Array String :=
       acc ++ entrypoint.body.foldl (fun names stmt => names ++ eventNamesInStatement stmt) #[])
     #[]
 
+/-- Targets that both advertise `env.block` **and** have HostRuntime-honest
+bindings for `host.env.block` (primary triad catalog rows). Linker/zig-fork /
+CosmWasm / partial profiles may advertise env in capability sets but lack
+HostRuntime rows — honesty reject, not listed here. -/
 def routableTargets : Array TargetProfile := #[
   evm,
   wasmNear,
-  wasmCosmWasm,
-  solanaSbpfAsm,
-  solanaSbpfLinker,
-  solanaZigFork,
-  moveAptos,
-  psyDpn
+  solanaSbpfAsm
 ]
 
 def requireRoutableTarget (profile : TargetProfile) : IO Unit := do
@@ -76,6 +75,17 @@ def requireSuiMvpRejectsValueVault : IO Unit := do
         s!"move-sui ValueVault diagnostic missing target id: {rendered}"
       require (contains rendered "env.block" || contains rendered "events.emit")
         s!"move-sui ValueVault diagnostic missing unsupported capability: {rendered}"
+
+/-- CosmWasm: HostRuntime honesty rejects `env.block` (adapter symbol n/a). -/
+def requireCosmWasmHostRuntimeRejectsValueVault : IO Unit := do
+  match resolveSpec wasmCosmWasm ProofForge.Contract.Examples.ValueVault.spec with
+  | .ok _ =>
+      throw <| IO.userError "ValueVault must not resolve on wasm-cosmwasm while env.block is n/a"
+  | .error err =>
+      let rendered := err.render
+      require (contains rendered "HostRuntime" || contains rendered "env.block" ||
+          contains rendered "host.env.block")
+        s!"cosmwasm ValueVault reject must name HostRuntime/env.block: {rendered}"
 
 def requireModuleShape : IO Unit := do
   let module := ProofForge.Contract.Examples.ValueVault.module
@@ -150,6 +160,7 @@ def main : IO UInt32 := do
   for profile in routableTargets do
     requireRoutableTarget profile
   requireSuiMvpRejectsValueVault
+  requireCosmWasmHostRuntimeRejectsValueVault
   requireSolanaRender
   IO.println "value-vault-example: ok"
   return 0
