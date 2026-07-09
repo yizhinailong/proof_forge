@@ -708,6 +708,29 @@ which `moduleInCoveredFragment` checks modules stay within):
 
 Each widening adds a constructor here + a FV-9.2 preservation lemma + a
 `fuelCovered*` arm, then re-checks the honesty bridge.
+
+/-! ### Product module → covered-fragment map (U5.1 / U5.3)
+
+Honesty snapshot for Shared Product examples vs `moduleInCoveredFragment`
+(= fueled walk + `fuelCovered*` gates). Crosscall remains **gap** (U2 stub
+semantics — not a real peer); RemoteCall is therefore **out of fragment**.
+
+| Product module | In covered fragment? | Primary constructors | Notes |
+|----------------|----------------------|----------------------|-------|
+| Counter | **yes** | scalar storage, add, let, return | FV-9.4 bridge |
+| Ownable / OwnableHash / Pausable / Reentrancy | **yes** (typical) | scalar storage, caller `contextRead`, assert | no crosscall |
+| HostEnvProbe | **yes** | `contextRead` (time/height/self/caller), assign | U1 HostEnv; no peer call |
+| ValueVault | **yes** (typical) | scalar storage, arith, events, checkpoint | no crosscall |
+| RemoteCall / AuthRemoteCall | **no** | `crosscallInvoke*` | U2 stub; target materialize only |
+| ExternalTokenTransfer / ExternalVault | **no** | protocol remote / crosscall | peer materialize |
+| TokenSpec / RoleGatedToken / StakingVault | **partial** | maps / nativeValue / roles | may use map storage (covered) or extras |
+
+**U5.3 rule:** any module whose body contains `crosscallInvoke*` /
+`crosscallCreate*` / NEAR promise ops is **rejected** by
+`moduleInCoveredFragment` because `fuelCoveredExpr` returns `false` for those
+constructors. Do not widen `fuelCoveredExpr` to cover crosscall until a real
+peer oracle exists (U2.4).
+
 -/
 
 /-! ### FV-9.4+: capability-registry wire + structural ∀-module honesty bridge

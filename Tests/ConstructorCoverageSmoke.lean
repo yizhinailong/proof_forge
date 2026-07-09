@@ -1,4 +1,9 @@
 import ProofForge.Backend.Refinement.ConstructorCoverage
+import Examples.Product.Counter
+import Examples.Product.HostEnvProbe
+import Examples.Product.RemoteCall
+import Examples.Product.Ownable
+import Examples.Product.ValueVault
 import ProofForge.Backend.Refinement.CounterUniversal
 
 /-! ## FV-9.2: constructor coverage table + IR-side preservation smoke gate
@@ -99,6 +104,41 @@ theorem coveredFragment_uses_only_covered_capabilities :
     capsAllCovered ProofForge.IR.Examples.Counter.module.capabilities = true := by
   native_decide
 
+-- 12. U5.1 / U5.3: Product modules vs covered fragment.
+-- Counter / HostEnvProbe stay in fragment; RemoteCall (crosscall stub) is out.
+theorem product_counter_in_covered_fragment :
+    moduleInCoveredFragment Examples.Product.Counter.module = true := by
+  native_decide
+
+theorem product_hostEnvProbe_in_covered_fragment :
+    moduleInCoveredFragment Examples.Product.HostEnvProbe.module = true := by
+  native_decide
+
+theorem product_ownable_in_covered_fragment :
+    moduleInCoveredFragment Examples.Product.Ownable.module = true := by
+  native_decide
+
+theorem product_valueVault_in_covered_fragment :
+    moduleInCoveredFragment Examples.Product.ValueVault.module = true := by
+  native_decide
+
+theorem product_remoteCall_out_of_covered_fragment :
+    moduleInCoveredFragment Examples.Product.RemoteCall.module = false := by
+  native_decide
+
+theorem remote_crosscall_expr_is_gap :
+    exprStatus (.crosscallInvoke (.literal (.u64 1)) (.literal (.u64 2)) #[]) = .gap := by
+  decide
+
+
 def main : IO UInt32 := do
-  IO.println "constructor-coverage-smoke: FV-9.2 coverage table + IR-side preservation lemmas + counter-model irStateRel preservation + FV-9.4 module-level fragment scoping + honesty bridge + FV-9.4+ capability-registry wire checked"
+  -- Runtime re-check of U5 product map (native_decide theorems above).
+  if !(moduleInCoveredFragment Examples.Product.Counter.module) then
+    throw (IO.userError "Product Counter must be in covered fragment")
+  if !(moduleInCoveredFragment Examples.Product.HostEnvProbe.module) then
+    throw (IO.userError "Product HostEnvProbe must be in covered fragment")
+  if moduleInCoveredFragment Examples.Product.RemoteCall.module then
+    throw (IO.userError "Product RemoteCall must stay OUT of covered fragment (crosscall stub)")
+  IO.println
+    "constructor-coverage-smoke: FV-9.2/9.4 + U5 product map (Counter/HostEnv in; RemoteCall out)"
   return 0
