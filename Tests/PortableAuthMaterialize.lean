@@ -2,11 +2,14 @@
 Copyright (c) 2026 DaviRain. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
-Portable business checks (Ownable / require*) materialize on EVM · Solana ·
-NEAR · Soroban without chain DSL in source.
+Portable business checks (Ownable / Pausable / require*) materialize on
+EVM · Solana · NEAR · Soroban without chain DSL in source.
 -/
 import Examples.Shared.Ownable
 import Examples.Shared.OwnableHash
+import Examples.Shared.OwnablePausable
+import Examples.Shared.Pausable
+import Examples.Shared.ReentrancyGuard
 import Examples.Shared.RemoteCall
 import ProofForge.Backend.Evm.IR
 import ProofForge.Backend.Evm.Plan
@@ -181,4 +184,98 @@ def main : IO Unit := do
       require (src.contains "assert" || src.contains "assert_eq" || src.contains "assert_fail")
         "Solana OwnableHash requireOwnerHash materializes as assert"
 
-  IO.println "portable-auth-materialize: ok (Ownable·OwnableHash + RemoteCall · EVM·Solana·NEAR·Soroban)"
+  -- T1.1/T1.2: Pausable emergency-stop on four hosts (unauthenticated pause API).
+  let pausable := Examples.Shared.Pausable.module
+  require (pausable.state.any (fun s => s.id == "paused" && s.type == .u64))
+    "Pausable stores paused as u64"
+  match ProofForge.Backend.Evm.Plan.buildModulePlan pausable with
+  | .error e => throw (IO.userError s!"EVM Pausable plan: {e.message}")
+  | .ok _ => pure ()
+  let pausableEvm : ProofForge.IR.Module := {
+    pausable with
+    entrypoints := pausable.entrypoints.map fun ep =>
+      match ep.name with
+      | "paused" => { ep with selector? := some "5c975abb" }
+      | "pause" => { ep with selector? := some "8456cb59" }
+      | "unpause" => { ep with selector? := some "3f4ba83a" }
+      | _ => ep
+  }
+  match ProofForge.Backend.Evm.IR.renderModule pausableEvm with
+  | .error e => throw (IO.userError s!"EVM Pausable Yul: {e.message}")
+  | .ok yul =>
+      require (yul.contains "revert")
+        "EVM Pausable guards materialize as revert"
+      require (yul.contains "sload" && yul.contains "sstore")
+        "EVM Pausable reads/writes paused slot"
+  match ProofForge.Backend.Solana.SbpfAsm.renderModule pausable with
+  | .error e => throw (IO.userError s!"Solana Pausable: {e.message}")
+  | .ok src =>
+      require (src.contains "assert" || src.contains "assert_eq" || src.contains "assert_fail")
+        "Solana Pausable guard materializes as assert"
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule pausable with
+  | .error e => throw (IO.userError s!"NEAR Pausable: {e.message}")
+  | .ok wat =>
+      require (wat.contains "unreachable" || wat.contains "panic")
+        "NEAR Pausable checks materialize as unreachable/panic"
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule pausable .soroban with
+  | .error e => throw (IO.userError s!"Soroban Pausable: {e.message}")
+  | .ok wat =>
+      require (wat.contains "unreachable" || wat.contains "panic")
+        "Soroban Pausable checks materialize as unreachable/panic"
+      require (wat.contains "_get" || wat.contains "_put")
+        "Soroban Pausable uses host storage"
+
+  -- T1.3: OwnablePausable — only owner may pause/unpause.
+  let ownablePausable := Examples.Shared.OwnablePausable.module
+  require (ownablePausable.state.any (fun s => s.id == "owner"))
+    "OwnablePausable has owner"
+  require (ownablePausable.state.any (fun s => s.id == "paused"))
+    "OwnablePausable has paused"
+  match ProofForge.Backend.Evm.Plan.buildModulePlan ownablePausable with
+  | .error e => throw (IO.userError s!"EVM OwnablePausable plan: {e.message}")
+  | .ok _ => pure ()
+  match ProofForge.Backend.Solana.SbpfAsm.renderModule ownablePausable with
+  | .error e => throw (IO.userError s!"Solana OwnablePausable: {e.message}")
+  | .ok src =>
+      require (src.contains "sol_sha256")
+        "OwnablePausable Solana uses caller digest for owner check"
+      require (src.contains "assert" || src.contains "assert_eq" || src.contains "assert_fail")
+        "OwnablePausable Solana asserts owner + pause guards"
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule ownablePausable with
+  | .error e => throw (IO.userError s!"NEAR OwnablePausable: {e.message}")
+  | .ok wat =>
+      require (wat.contains "unreachable" || wat.contains "panic")
+        "NEAR OwnablePausable business checks"
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule ownablePausable .soroban with
+  | .error e => throw (IO.userError s!"Soroban OwnablePausable: {e.message}")
+  | .ok wat =>
+      require (wat.contains "require_auth_for_args")
+        "Soroban OwnablePausable with caller emits require_auth"
+      require (wat.contains "unreachable" || wat.contains "panic")
+        "Soroban OwnablePausable fail path"
+
+  -- T1.5: ReentrancyGuard lock-state materializes on four hosts (not EVM-only).
+  let reent := Examples.Shared.ReentrancyGuard.module
+  match ProofForge.Backend.Evm.Plan.buildModulePlan reent with
+  | .error e => throw (IO.userError s!"EVM ReentrancyGuard plan: {e.message}")
+  | .ok _ => pure ()
+  match ProofForge.Backend.Solana.SbpfAsm.renderModule reent with
+  | .error e => throw (IO.userError s!"Solana ReentrancyGuard: {e.message}")
+  | .ok _ => pure ()
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule reent with
+  | .error e => throw (IO.userError s!"NEAR ReentrancyGuard: {e.message}")
+  | .ok _ => pure ()
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule reent .soroban with
+  | .error e => throw (IO.userError s!"Soroban ReentrancyGuard: {e.message}")
+  | .ok wat =>
+      require (wat.contains "_get" || wat.contains "_put")
+        "Soroban ReentrancyGuard uses host storage for lock"
+
+  for mod in #[pausable, ownablePausable, reent] do
+    let reps := runPrimaryWithSoroban mod
+    require (reps.size == 4) s!"preflight size for {mod.name}"
+    for r in reps do
+      require r.readyToMaterialize
+        s!"preflight ready {r.targetId} on {mod.name}: {r.note}"
+
+  IO.println "portable-auth-materialize: ok (Ownable·OwnableHash·Pausable·OwnablePausable·Reentrancy + RemoteCall · EVM·Solana·NEAR·Soroban)"

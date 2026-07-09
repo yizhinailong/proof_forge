@@ -67,6 +67,13 @@ def main : IO Unit := do
       require (p.artifactKind == .nearNep141Plan) "NEAR plan artifact kind"
   require (featureSupportOnTarget "wasm-stellar-soroban" .mintable == .noLane)
     "soroban has no TokenSpec lane yet"
+  match planForTarget wasmStellarSoroban {
+    name := "X", symbol := "X", decimals := 0, features := #[.mintable]
+  } with
+  | .ok _ => throw (IO.userError "soroban TokenSpec plan must fail")
+  | .error msg =>
+      require (msg.contains "no TokenSpec lane")
+        s!"soroban error should name no TokenSpec lane, got: {msg}"
 
   -- Combined FeeToken intent: Solana ok, EVM reject.
   let fee : TokenSpec := {

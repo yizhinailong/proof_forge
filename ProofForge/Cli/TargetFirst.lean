@@ -206,6 +206,10 @@ def buildLegacyFlag (target : String) (input? : Option String) (fixture? : Optio
             Except.error s!"proof-forge build --target wasm-near --fixture {fixture} is not yet implemented"
   | "wasm-stellar-soroban", true, _, _, _ =>
       Except.error "proof-forge build --target wasm-stellar-soroban from .learn source is not yet implemented"
+  | "wasm-stellar-soroban", false, _, _, true =>
+      Except.error
+        "proof-forge build --target wasm-stellar-soroban --token: no TokenSpec lane; \
+use --target evm | solana-sbpf-asm | wasm-near (see `just token-feature-matrix`)"
   | "wasm-stellar-soroban", false, _, format?, _ =>
       if isLeanSource then
         if format?.isSome && format? != some "wat" then

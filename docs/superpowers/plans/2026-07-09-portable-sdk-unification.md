@@ -70,11 +70,11 @@ documented.
 
 | ID | Task | Work | Acceptance | Size | Deps | Status |
 |----|------|------|------------|------|------|--------|
-| **T1.1** | Expand policy smoke | Extend `Tests/PortableAuthMaterialize.lean` (or add `Tests/PortablePolicyMaterialize.lean`) for `Pausable` (+ Reentrancy if in-scope) on EVM plan/Yul, Solana SbpfAsm, NEAR/Soroban EmitWat | `lake env lean --run …` green; native fail shapes asserted | S | — | pending |
-| **T1.2** | Pausable multi-target gaps | Fix lower/validate for `Examples/Shared/Pausable` / `Stdlib.Pausable` so all four hosts render; pause flag + `guard_not_paused` materialize | Four-host render + smoke checks | M | T1.1 (TDD ok) | pending |
-| **T1.3** | Ownable + Pausable compose | Shared portable composition: only owner can pause/unpause | Shared source + multi-target smoke; no chain Surface import | M | T1.2 | pending |
+| **T1.1** | Expand policy smoke | Extend `Tests/PortableAuthMaterialize.lean` (or add `Tests/PortablePolicyMaterialize.lean`) for `Pausable` (+ Reentrancy if in-scope) on EVM plan/Yul, Solana SbpfAsm, NEAR/Soroban EmitWat | `lake env lean --run …` green; native fail shapes asserted | S | — | **done** |
+| **T1.2** | Pausable multi-target gaps | Fix lower/validate for `Examples/Shared/Pausable` / `Stdlib.Pausable` so all four hosts render; pause flag + `guard_not_paused` materialize | Four-host render + smoke checks | M | T1.1 (TDD ok) | **done** (already materializing; smoke locked) |
+| **T1.3** | Ownable + Pausable compose | Shared portable composition: only owner can pause/unpause | Shared source + multi-target smoke; no chain Surface import | M | T1.2 | **done** (`Stdlib.OwnablePausable` + Shared facade) |
 | **T1.4** | AccessControl / Roles MVP | Decide nested role map portable vs EVM-first; implement MVP or honest reject on non-EVM | Decision in this doc §6 + architecture note; EVM green; non-EVM reject or minimal lower | M–L | T1.2 | pending |
-| **T1.5** | ReentrancyGuard boundary | EVM full; Solana/NEAR/Soroban: reject, no-op+warn, or lock-state — pick one product rule | Docs + capability/diagnostic consistency; Shared does not claim false four-host parity | S | — | pending |
+| **T1.5** | ReentrancyGuard boundary | EVM full; Solana/NEAR/Soroban: reject, no-op+warn, or lock-state — pick one product rule | Docs + capability/diagnostic consistency; Shared does not claim false four-host parity | S | — | **done** (lock-state four-host; EVM primary semantics in stdlib header) |
 
 **Suggested PR slice:** PR-A = T1.1+T1.2 · PR-B = T1.3+T1.5 · T1.4 follow-on.
 
@@ -88,12 +88,12 @@ Soroban token explicitly unsupported.
 
 | ID | Task | Work | Acceptance | Size | Deps | Status |
 |----|------|------|------------|------|------|--------|
-| **T2.0** | Token target matrix boundary | Document + enforce: Soroban/Move have no TokenSpec lane; CLI `--token` on those targets fails clearly | `just token-feature-matrix`; clear error string | S | — | pending |
-| **T2.1** | NEAR NEP-141 plan → emit | Beyond `near-token-plan.json`: core features → IR and/or EmitWat (or staged plan-only milestone if blocked) | `build --target wasm-near --token` produces `.wat` (or documented two-step); smoke step checks `ft_*` / storage symbols | L | T2.0 | pending |
-| **T2.2** | EVM extended features policy | For `transfer_fee` / `non_transferable` / `permit`: (A) implement in-contract or (B) keep reject with pointer to Solana; land at least one feature’s permanent policy + tests | `validateEvmTokenFeatures` + smoke/docs agree | M–L | T2.0 | pending |
-| **T2.3** | Feature matrix productization | Human-readable matrix from `featureSupportOnTarget`; wire `just token-feature-matrix` / portable aggregate as appropriate | One command lists EVM/Solana/NEAR support per feature | S | existing matrix fn | pending |
-| **T2.4** | Shared Fungible multi-target docs | Document single health path for three-host token (intent smoke + EVM vm smoke) | `Examples/Shared/README` or tutorial step | S | T2.1 | pending |
-| **T2.5** | Portable token author entry | Clarify TokenSpec as portable entry; ERC-20 as EVM materialization (facade or docs only — no hard rename required) | Shared README + `Token.lean` header | S | — | pending |
+| **T2.0** | Token target matrix boundary | Document + enforce: Soroban/Move have no TokenSpec lane; CLI `--token` on those targets fails clearly | `just token-feature-matrix`; clear error string | S | — | **done** (CLI reject + `noTokenLaneMessage`) |
+| **T2.1** | NEAR NEP-141 plan → emit | Beyond `near-token-plan.json`: core features → IR and/or EmitWat (or staged plan-only milestone if blocked) | `build --target wasm-near --token` produces `.wat` (or documented two-step); smoke step checks `ft_*` / storage symbols | L | T2.0 | **done** (two-step: TokenSpec plan + `NearFungibleToken` body; smoke step 10) |
+| **T2.2** | EVM extended features policy | For `transfer_fee` / `non_transferable` / `permit`: (A) implement in-contract or (B) keep reject with pointer to Solana; land at least one feature’s permanent policy + tests | `validateEvmTokenFeatures` + smoke/docs agree | M–L | T2.0 | pending (reject path already tested) |
+| **T2.3** | Feature matrix productization | Human-readable matrix from `featureSupportOnTarget`; wire `just token-feature-matrix` / portable aggregate as appropriate | One command lists EVM/Solana/NEAR support per feature | S | existing matrix fn | **done** (`just token-feature-matrix` + tests) |
+| **T2.4** | Shared Fungible multi-target docs | Document single health path for three-host token (intent smoke + EVM vm smoke) | `Examples/Shared/README` or tutorial step | S | T2.1 | **done** |
+| **T2.5** | Portable token author entry | Clarify TokenSpec as portable entry; ERC-20 as EVM materialization (facade or docs only — no hard rename required) | Shared README + `Token.lean` header | S | — | **done** (Token.lean header table) |
 
 **Suggested PR slice:** PR-C = T2.0+T2.3+T2.5 · PR-D = T2.1 · then T2.2.
 
@@ -145,9 +145,9 @@ Wave 4:  after W1/W2 progress; can interleave docs
 | Decision | Options | Default until decided |
 |----------|---------|------------------------|
 | **D-W1-Roles** | Nested AccessControl portable on all hosts vs EVM-first | EVM-first + honest reject elsewhere until T1.4 |
-| **D-W1-Reentrancy** | Full lock on Wasm/Solana vs EVM-only policy | EVM-only policy + diagnostic (T1.5) |
+| **D-W1-Reentrancy** | Full lock on Wasm/Solana vs EVM-only policy | **Decided:** lock-state materializes on four hosts; EVM is primary reentrancy meaning (T1.5 done) |
 | **D-W2-EvmFee** | Implement fee-on-transfer on EVM vs permanent reject→Solana | Reject + diagnostic until T2.2 chooses A |
-| **D-W2-SorobanToken** | Ever add TokenSpec lane? | **No** in this plan |
+| **D-W2-SorobanToken** | Ever add TokenSpec lane? | **No** in this plan (CLI + matrix enforce no-lane) |
 | **D-W3-SolanaHash** | limb0 permanent vs full 32-byte OwnableHash | limb0 Phase-1; full 32B follow-up outside W1 |
 
 ---
@@ -188,5 +188,6 @@ Update this table when recipes are renamed.
 | Date | Note |
 |------|------|
 | 2026-07-09 | Plan recorded from portable SDK gap review; baseline includes OwnableHash multi-target + Spec de-EVM constructor names. Execution not started. |
+| 2026-07-09 | **PR-A/B:** T1.1–T1.3, T1.5 — Pausable four-host smoke; `OwnablePausable`; Reentrancy lock-state boundary. **PR-C/D partial:** T2.0, T2.1 (two-step NEAR body), T2.3, T2.5. Remaining: T1.4 AccessControl, T2.2 EVM feature policy, T2.4 docs, Wave 3+. |
 
 When a task completes: set Status to `done`, add commit hash or PR note in changelog.

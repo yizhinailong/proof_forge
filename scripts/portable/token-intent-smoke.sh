@@ -342,4 +342,27 @@ assert plan["validation"]["leanTokenLoading"] == "passed"
 print("lean near nep-141 plan: ok")
 PY
 
+echo "=== Token intent step 10: emit NEAR NEP-141 body (Stdlib.NearFungibleToken) to WAT ==="
+# TokenSpec plan (step 9) is metadata; full NEP-141 host body is the stdlib
+# contract_source path (see Token.nearNep141Plan notes).
+NEAR_FT_SRC="Examples/WasmNear/FungibleToken.lean"
+NEAR_FT_OUT="$NEAR_DIR/NearFungibleToken"
+lake env proof-forge build --target wasm-near --root . \
+  -o "$NEAR_FT_OUT" \
+  "$NEAR_FT_SRC" \
+  || fail "proof-forge build --target wasm-near failed for NearFungibleToken body"
+WAT_FILE=""
+for cand in "$NEAR_FT_OUT"/*.wat "$NEAR_FT_OUT"/nearfungibletoken.wat; do
+  if [ -f "$cand" ]; then WAT_FILE="$cand"; break; fi
+done
+# EmitWat may write into a directory with a lowercase name.
+if [ -z "$WAT_FILE" ]; then
+  WAT_FILE="$(find "$NEAR_FT_OUT" -name '*.wat' 2>/dev/null | head -1 || true)"
+fi
+[ -n "$WAT_FILE" ] && [ -f "$WAT_FILE" ] || fail "NEAR NEP-141 body WAT not written under $NEAR_FT_OUT"
+require_contains "$WAT_FILE" 'export "ft_transfer"' "NEAR NEP-141 ft_transfer export"
+require_contains "$WAT_FILE" 'export "ft_total_supply"' "NEAR NEP-141 ft_total_supply export"
+require_contains "$WAT_FILE" "storage_read" "NEAR NEP-141 uses host storage_read"
+echo "near nep-141 body emit: ok ($WAT_FILE)"
+
 echo "token-intent-smoke: PASS"

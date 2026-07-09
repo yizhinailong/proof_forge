@@ -34,8 +34,10 @@ NEAR/Wasm:
 | RemoteCall | [RemoteCall.lean](RemoteCall.lean) | `just portable-remote-call-multi-target` (goldens under `goldens/RemoteCall.*`) |
 | ArrayExample | [ArrayExample.lean](ArrayExample.lean) | `just portable-array-example-multi-target` |
 | Ownable | [Ownable.lean](Ownable.lean) | `just portable-stdlib-core-multi-target`; shared facade over the canonical stdlib mixin |
-| Pausable | [Pausable.lean](Pausable.lean) | `just portable-stdlib-core-multi-target`; shared facade over the canonical stdlib mixin |
-| ReentrancyGuard | [ReentrancyGuard.lean](ReentrancyGuard.lean) | `just portable-stdlib-core-multi-target`; shared facade over the canonical stdlib mixin |
+| OwnableHash | [OwnableHash.lean](OwnableHash.lean) | hash-width owner; `Tests/PortableAuthMaterialize` · EVM·Solana·NEAR |
+| Pausable | [Pausable.lean](Pausable.lean) | `just portable-stdlib-core-multi-target`; unauthenticated pause API |
+| OwnablePausable | [OwnablePausable.lean](OwnablePausable.lean) | owner-gated pause; `lake env lean --run Tests/PortableAuthMaterialize.lean` |
+| ReentrancyGuard | [ReentrancyGuard.lean](ReentrancyGuard.lean) | lock-state on four hosts; EVM is primary reentrancy meaning (see stdlib header) |
 | ValueVault | [ValueVault.lean](ValueVault.lean) | `just portable-value-vault` |
 | RoleGatedToken | [RoleGatedToken.lean](RoleGatedToken.lean) | `scripts/portable/role-gated-token-multi-target.sh` |
 | StakingVault | [StakingVault.lean](StakingVault.lean) | `scripts/portable/staking-vault-multi-target.sh` |
@@ -52,9 +54,15 @@ product-level intent once and let target routing choose the chain form:
 
 | Example | Source | Current target status |
 |---|---|---|
-| FungibleToken | [FungibleToken.lean](FungibleToken.lean) | `just token-intent-smoke` / `just shared-token-intent`; mintable+burnable → EVM ERC-20 or Solana SPL |
-| FeeToken | [FeeToken.lean](FeeToken.lean) | feature `transfer_fee` only; Solana → Token-2022; EVM → **reject** (not yet materializable) |
-| SoulboundToken | [SoulboundToken.lean](SoulboundToken.lean) | feature `non_transferable` only; Solana → Token-2022; EVM → **reject** |
+| FungibleToken | [FungibleToken.lean](FungibleToken.lean) | `just token-intent-smoke` / `just shared-token-intent`; mintable+burnable → EVM ERC-20, Solana SPL plan, NEAR NEP-141 plan |
+| FeeToken | [FeeToken.lean](FeeToken.lean) | feature `transfer_fee` only; Solana → Token-2022; EVM/NEAR → **reject** (no silent drop) |
+| SoulboundToken | [SoulboundToken.lean](SoulboundToken.lean) | feature `non_transferable` only; Solana → Token-2022; EVM/NEAR → **reject** |
+
+**Token three-host health:** `just token-intent-smoke` (EVM bytecode + Solana
+plans + NEAR plan + NEP-141 body WAT via `NearFungibleToken`) and
+`just token-feature-matrix`. Soroban has **no** TokenSpec lane
+(`--token` errors). Full NEP-141 body: `Examples/WasmNear/FungibleToken.lean`
+(not Shared — NEAR fixture uses stdlib FT surface).
 
 Shared sources describe **intents and features**, not ERC-20 / SPL / Token-2022.
 Those names appear only in plan/artifact output after `--target` is chosen.

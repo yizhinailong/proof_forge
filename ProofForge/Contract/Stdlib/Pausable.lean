@@ -3,6 +3,11 @@ Copyright (c) 2026 DaviRain. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
 Portable Pausable emergency-stop mixin for `contract_source` composition.
+
+`pause` / `unpause` are **unauthenticated** so hosts can compose ownership
+separately. For OpenZeppelin-style only-owner pause, use
+`ProofForge.Contract.Stdlib.OwnablePausable` (or compose Ownable + this mixin
+with custom entries).
 -/
 import ProofForge.Contract.Source
 

@@ -1,13 +1,21 @@
 /-
 # Multi-chain Token Intent SDK (RFC 0006 / product authoring architecture)
 
-Authors write a chain-neutral `TokenSpec`: name, symbol, decimals, supply, and
-**business features** (`mintable`, `transfer_fee`, …). They never pick
-`TokenStandard` (ERC-20 / SPL / Token-2022).
+**Portable author entry:** `TokenSpec` + `TokenFeature` only (see
+`Examples/Shared/FungibleToken.lean`). Authors never pick `TokenStandard`
+(ERC-20 / SPL / Token-2022 / NEP-141).
 
 `planForTarget` / `resolveTokenStandard` select the native standard from
-`--target` + features. Token-2022 extensions, SPL CPI plans, and ERC-20
-bytecode are **target materializations**, not author-facing extensions.
+`--target` + features. Materializations:
+
+| Target | Artifact |
+|--------|----------|
+| `evm` | ERC-20-compatible contract (Yul/bytecode) |
+| `solana-sbpf-asm` | SPL / Token-2022 mint·CPI **plan** |
+| `wasm-near` | NEP-141 **plan** + full body via `Stdlib.NearFungibleToken` |
+| other (e.g. Soroban) | **no TokenSpec lane** — use policy/remote only |
+
+Feature honesty: `just token-feature-matrix` / `featureSupportOnTarget`.
 -/
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
@@ -334,6 +342,12 @@ def validateNearTokenFeatures (spec : TokenSpec) : Except String Unit :=
         "; use core features (mintable/burnable/capped/pausable/permit) or " ++
         "`solana-sbpf-asm` for Token-2022-shaped extensions"
 
+/-- Human-readable no-lane error (CLI + planForTarget). Primary TokenSpec hosts:
+`evm` · `solana-sbpf-asm` · `wasm-near`. See `just token-feature-matrix`. -/
+def noTokenLaneMessage (targetId : String) : String :=
+  s!"target `{targetId}` has no TokenSpec lane; use --target evm | solana-sbpf-asm | wasm-near \
+(or `just token-feature-matrix` for feature support). Soroban/Move/other hosts stay policy/remote only."
+
 /-- Resolve the native token standard for a target + intent.
 
 This is the single product entrypoint for "which chain program/standard?".
@@ -347,7 +361,7 @@ def resolveTokenStandard (target : TargetProfile) (spec : TokenSpec) : Except St
   else if target.id == "wasm-near" then
     validateNearTokenFeatures spec *> .ok .nep141
   else
-    .error s!"target `{target.id}` does not have a TokenSpec lowering plan yet"
+    .error (noTokenLaneMessage target.id)
 
 private def param (name type source : String) : SolanaTokenInstructionParam := {
   name := name
@@ -813,7 +827,7 @@ def planForTarget (target : TargetProfile) (spec : TokenSpec) : Except String To
   else if target.id == "wasm-near" then
     .ok (nearNep141Plan target spec)
   else
-    .error s!"target `{target.id}` does not have a TokenSpec lowering plan yet"
+    .error (noTokenLaneMessage target.id)
 
 /-! ## Feature × target support matrix (product honesty)
 
