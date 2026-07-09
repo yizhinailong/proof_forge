@@ -68,9 +68,9 @@ unsafe def requireCounterEquivalence : IO Unit := do
     evm.quintInvariants shared.quintInvariants
   requireSameAnnotations "EVM Counter compatibility wrapper quint_liveness"
     evm.quintLiveness shared.quintLiveness
-  require (evm.evmConstructorParams == #[{ name := "initial", abiType := "uint256" }])
+  require (evm.constructorParams == #[{ name := "initial", abiType := "uint256" }])
     "EVM Counter wrapper lost constructor param metadata"
-  require (evm.evmConstructorInitBindings == #[
+  require (evm.constructorInitBindings == #[
       { stateId := "count", paramName := "initial", kind := .scalarU64 }
     ])
     "EVM Counter wrapper lost constructor init binding metadata"

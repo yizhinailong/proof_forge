@@ -16,11 +16,19 @@ structure ScalarRef where
 structure BindingRef where
   id : String
   type : ValueType
-  evmAbiWord? : Option String := none
+  /-- Optional host ABI word override (EVM materialization today). Prefer
+  portable `ValueType` defaults; set only when the host encoding must differ. -/
+  abiWord? : Option String := none
   deriving BEq, Repr
+
+/-- Historical field name — prefer `abiWord?`. -/
+def BindingRef.evmAbiWord? (b : BindingRef) : Option String :=
+  b.abiWord?
 
 structure MethodRef where
   name : String
+  /-- Optional 4-byte method id for EVM dispatch; portable sources leave `none`
+  and let CLI/`cast` hydrate. -/
   selector? : Option String := none
   params : Array BindingRef := #[]
   returns : ValueType := .unit
@@ -42,7 +50,7 @@ def declareConstructorParam (name : String) (abiType : String) : ModuleM Unit :=
   ProofForge.Contract.Builder.constructorParam name abiType
 
 def declareConstructorInitBinding
-    (stateId paramName : String) (kind : ProofForge.Contract.EvmConstructorInitKind) : ModuleM Unit :=
+    (stateId paramName : String) (kind : ProofForge.Contract.ConstructorInitKind) : ModuleM Unit :=
   ProofForge.Contract.Builder.constructorInitBinding stateId paramName kind
 
 def setUpgradePolicy (policy : ProofForge.Contract.UpgradePolicy) : ModuleM Unit :=
@@ -74,12 +82,18 @@ def eip1967Implementation : ScalarRef :=
 def binding (id : String) (type : ValueType) : BindingRef :=
   { id, type }
 
+/-- Binding with explicit host ABI word override (EVM materialization). -/
+def bindingWithAbiWord (id : String) (type : ValueType) (abiWord : String) : BindingRef :=
+  { id, type, abiWord? := some abiWord }
+
+/-- Historical name — prefer `bindingWithAbiWord`. -/
 def bindingWithAbi (id : String) (type : ValueType) (evmAbiWord : String) : BindingRef :=
-  { id, type, evmAbiWord? := some evmAbiWord }
+  bindingWithAbiWord id type evmAbiWord
 
 def event (name : String) : EventRef :=
   { name }
 
+/-- Method with explicit EVM selector. Prefer `method` + CLI selector hydration. -/
 def methodWithSelector (name selector : String) (params : Array BindingRef := #[])
     (returns : ValueType := .unit) : MethodRef :=
   { name, selector? := some selector, params, returns }
@@ -144,7 +158,7 @@ def entry (methodRef : MethodRef) (body : EntryM Unit) : ModuleM Unit :=
     methodRef.selector?
     methodRef.returns
     (methodRef.params.map fun param => (param.id, param.type))
-    (methodRef.params.map fun param => param.evmAbiWord?)
+    (methodRef.params.map fun param => param.abiWord?)
     body
 
 def bind (bindingRef : BindingRef) (value : ProofForge.IR.Expr) : EntryM Unit :=

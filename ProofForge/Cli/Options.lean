@@ -86,10 +86,10 @@ def defaultBytecodeYulOutput (bytecodeOutput : FilePath) : FilePath :=
 
 def mergeSpecConstructorParams
     (opts : CliOptions) (spec : ProofForge.Contract.ContractSpec) : CliOptions :=
-  if spec.evmConstructorParams.isEmpty then
+  if spec.constructorParams.isEmpty then
     opts
   else
-    let specParams := spec.evmConstructorParams.map fun param =>
+    let specParams := spec.constructorParams.map fun param =>
       { name := param.name, abiType := param.abiType }
     let extraParams := opts.evmConstructorParams.filter fun param =>
       !specParams.any (fun existing => existing.name == param.name)

@@ -8,10 +8,18 @@ namespace ProofForge.Contract
 
 open ProofForge.IR
 
-structure EvmConstructorParam where
+/-- Deploy-time constructor parameter schema (name + host ABI type string).
+
+Materialized as EVM constructor ABI today; other targets ignore until they
+grow deploy-constructor lanes. Prefer this name over the historical
+`EvmConstructorParam` alias. -/
+structure ConstructorParam where
   name : String
   abiType : String
   deriving Repr, BEq
+
+/-- Historical name — prefer `ConstructorParam`. -/
+abbrev EvmConstructorParam := ConstructorParam
 
 structure ContractSpec where
   name : String
@@ -19,8 +27,10 @@ structure ContractSpec where
   intents : Array Intent := #[]
   upgradePolicy? : Option UpgradePolicy := none
   proxyPattern? : Option ProxyPattern := none
-  evmConstructorParams : Array EvmConstructorParam := #[]
-  evmConstructorInitBindings : Array EvmConstructorInitBinding := #[]
+  /-- Deploy constructor parameter schema (EVM materialization today). -/
+  constructorParams : Array ConstructorParam := #[]
+  /-- Deploy constructor → storage init bindings (EVM materialization today). -/
+  constructorInitBindings : Array ConstructorInitBinding := #[]
   /-- User-authored Quint safety invariants (`name`, expression string). -/
   quintInvariants : Array (String × String) := #[]
   quintLiveness : Array (String × String) := #[]
@@ -29,6 +39,13 @@ structure ContractSpec where
   defined next to `contract_source` and verified pre-codegen. -/
   leanInvariants : Array (String × String) := #[]
   deriving Repr
+
+/-- Historical field accessors — prefer `constructorParams` / `constructorInitBindings`. -/
+def ContractSpec.evmConstructorParams (spec : ContractSpec) : Array ConstructorParam :=
+  spec.constructorParams
+
+def ContractSpec.evmConstructorInitBindings (spec : ContractSpec) : Array ConstructorInitBinding :=
+  spec.constructorInitBindings
 
 def moduleIntent (module : ProofForge.IR.Module) : Intent := {
   kind := .module

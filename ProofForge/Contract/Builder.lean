@@ -14,8 +14,8 @@ structure ModuleBuilder where
   entrypoints : Array Entrypoint := #[]
   nearCrosscallStrings : Array String := #[]
   intents : Array Intent := #[]
-  evmConstructorParams : Array ProofForge.Contract.EvmConstructorParam := #[]
-  evmConstructorInitBindings : Array ProofForge.Contract.EvmConstructorInitBinding := #[]
+  constructorParams : Array ProofForge.Contract.ConstructorParam := #[]
+  constructorInitBindings : Array ProofForge.Contract.ConstructorInitBinding := #[]
   upgradePolicy? : Option ProofForge.Contract.UpgradePolicy := none
   proxyPattern? : Option ProofForge.Contract.ProxyPattern := none
   quintInvariants : Array (String × String) := #[]
@@ -55,8 +55,8 @@ def ModuleBuilder.toSpec (builder : ModuleBuilder) : ContractSpec :=
     intents := intentsFromIR module ++ builder.intents
     upgradePolicy? := builder.upgradePolicy?
     proxyPattern? := builder.proxyPattern?
-    evmConstructorParams := builder.evmConstructorParams
-    evmConstructorInitBindings := builder.evmConstructorInitBindings
+    constructorParams := builder.constructorParams
+    constructorInitBindings := builder.constructorInitBindings
     quintInvariants := builder.quintInvariants
     quintLiveness := builder.quintLiveness
     leanInvariants := builder.leanInvariants
@@ -122,18 +122,20 @@ object) is chosen by `--target`, not by the author. -/
 def scalarState (id : String) (type : ValueType) : ModuleM Unit :=
   state id type .scalar
 
+/-- Declare a deploy constructor parameter (host ABI type string).
+Materialized on EVM today; portable authoring name. -/
 def constructorParam (name : String) (abiType : String) : ModuleM Unit := do
   modify fun builder =>
     { builder with
-      evmConstructorParams := builder.evmConstructorParams.push { name, abiType }
+      constructorParams := builder.constructorParams.push { name, abiType }
     }
 
 def constructorInitBinding
-    (stateId paramName : String) (kind : ProofForge.Contract.EvmConstructorInitKind) : ModuleM Unit := do
+    (stateId paramName : String) (kind : ProofForge.Contract.ConstructorInitKind) : ModuleM Unit := do
   modify fun builder =>
     { builder with
-      evmConstructorInitBindings :=
-        builder.evmConstructorInitBindings.push { stateId, paramName, kind }
+      constructorInitBindings :=
+        builder.constructorInitBindings.push { stateId, paramName, kind }
     }
 
 def upgradePolicy (policy : ProofForge.Contract.UpgradePolicy) : ModuleM Unit := do
@@ -182,12 +184,19 @@ def entryFull (name : String) (selector? : Option String) (returns : ValueType)
     intents := builder.intents ++ entryIntents
   }
 
-def defaultParamEvmAbiWords (params : Array (String × ValueType)) : Array (Option String) :=
+/-- Default: no ABI word overrides on params (portable types decide host encoding). -/
+def defaultParamAbiWords (params : Array (String × ValueType)) : Array (Option String) :=
   params.map fun _ => none
+
+/-- Historical name — prefer `defaultParamAbiWords`. -/
+def defaultParamEvmAbiWords (params : Array (String × ValueType)) : Array (Option String) :=
+  defaultParamAbiWords params
 
 def entry (name : String) (body : EntryM Unit) : ModuleM Unit :=
   entryFull name none .unit #[] #[] body
 
+/-- Optional 4-byte method id for EVM dispatch materialization. Portable
+authors should prefer `entry` and let CLI/`cast` hydrate selectors. -/
 def entrySelector (name selector : String) (body : EntryM Unit) : ModuleM Unit :=
   entryFull name (some selector) .unit #[] #[] body
 
@@ -199,11 +208,11 @@ def entrySelectorReturns (name selector : String) (returns : ValueType) (body : 
 
 def entryWithParams (name : String) (params : Array (String × ValueType)) (returns : ValueType)
     (body : EntryM Unit) : ModuleM Unit :=
-  entryFull name none returns params (defaultParamEvmAbiWords params) body
+  entryFull name none returns params (defaultParamAbiWords params) body
 
 def entrySelectorWithParams (name selector : String) (params : Array (String × ValueType))
     (returns : ValueType) (body : EntryM Unit) : ModuleM Unit :=
-  entryFull name (some selector) returns params (defaultParamEvmAbiWords params) body
+  entryFull name (some selector) returns params (defaultParamAbiWords params) body
 
 def letBind (name : String) (type : ValueType) (value : Expr) : EntryM Unit :=
   pushStmt (.letBind name type value)

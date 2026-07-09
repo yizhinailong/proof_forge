@@ -13,10 +13,10 @@ namespace Counter
 
 def spec : ProofForge.Contract.ContractSpec :=
   { Examples.Shared.Counter.spec with
-    evmConstructorParams := #[
+    constructorParams := #[
       { name := "initial", abiType := "uint256" }
     ]
-    evmConstructorInitBindings := #[
+    constructorInitBindings := #[
       { stateId := "count", paramName := "initial", kind := .scalarU64 }
     ]
   }

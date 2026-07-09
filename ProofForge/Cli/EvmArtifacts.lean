@@ -591,7 +591,7 @@ def writeEvmContractSdkArtifactMetadata
   writeEvmModuleArtifactMetadata opts fixture "contract-sdk" sourceModule module yulOutput bytecodeOutput #[
     ("contractSpec", specArtifact),
     ("client", clientArtifact)
-  ] spec.evmConstructorInitBindings
+  ] spec.constructorInitBindings
 
 def writeEvmIrArtifactMetadata
     (opts : CliOptions)

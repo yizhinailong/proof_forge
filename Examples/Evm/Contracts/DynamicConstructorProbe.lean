@@ -46,7 +46,7 @@ end Core
 
 def spec : ProofForge.Contract.ContractSpec :=
   { Core.spec with
-    evmConstructorInitBindings := #[
+    constructorInitBindings := #[
       { stateId := "nameLen", paramName := "name", kind := .stringLength },
       { stateId := "nameHash", paramName := "name", kind := .stringKeccak },
       { stateId := "payloadLen", paramName := "payload", kind := .bytesLength },

@@ -2,8 +2,12 @@ import Init.Data.Array.Basic
 
 namespace ProofForge.Contract
 
-/-- How a constructor parameter is written into contract storage during deploy. -/
-inductive EvmConstructorInitKind where
+/-- How a deploy constructor parameter is written into contract storage.
+
+Today only the EVM materializer consumes these bindings (initcode tail →
+storage). The names are target-neutral so future deploy constructors on other
+chains can reuse the same intent. -/
+inductive ConstructorInitKind where
   | scalarU64
   | stringLength
   | stringKeccak
@@ -13,13 +17,14 @@ inductive EvmConstructorInitKind where
   | arraySumU64
   deriving Repr, BEq
 
-structure EvmConstructorInitBinding where
+/-- Bind a named constructor parameter to a storage write at deploy time. -/
+structure ConstructorInitBinding where
   stateId : String
   paramName : String
-  kind : EvmConstructorInitKind
+  kind : ConstructorInitKind
   deriving Repr, BEq
 
-def EvmConstructorInitKind.label : EvmConstructorInitKind → String
+def ConstructorInitKind.label : ConstructorInitKind → String
   | .scalarU64 => "scalar"
   | .stringLength => "length"
   | .stringKeccak => "keccak"
@@ -27,5 +32,12 @@ def EvmConstructorInitKind.label : EvmConstructorInitKind → String
   | .bytesKeccak => "keccak"
   | .arrayLength => "array_length"
   | .arraySumU64 => "array_sum"
+
+/-- Backward-compatible aliases (historical EVM-prefixed names). -/
+abbrev EvmConstructorInitKind := ConstructorInitKind
+abbrev EvmConstructorInitBinding := ConstructorInitBinding
+
+def EvmConstructorInitKind.label : EvmConstructorInitKind → String :=
+  ConstructorInitKind.label
 
 end ProofForge.Contract

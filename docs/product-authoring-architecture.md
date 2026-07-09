@@ -484,9 +484,9 @@ Gates: `just crosscall-materialize`, `just portable-remote-call-multi-target`,
 
 | Order | Slice | Status / why |
 |---|---|---|
-| 6 | Mark `Source.Solana` fixture-only; demote from product docs | Phase C.4 |
-| 7 | Stdlib portable policies → multi-target lowering | Phase C.2–C.3 |
-| 8 | Spec/Builder de-EVM naming | Product surface cleanup |
+| 6 | Mark `Source.Solana` fixture-only; demote from product docs | ✅ Phase C.4 |
+| 7 | Stdlib portable policies → multi-target lowering | ✅ Phase C.2–C.3 |
+| 8 | Spec/Builder de-EVM naming | ✅ partial: `ConstructorParam` / `constructorParams` / `ConstructorInit*` / `abiWord?` / `defaultParamAbiWords`; historical `Evm*` + CLI `--evm-constructor-*` kept as aliases / host flags |
 
 ## 8. Success metrics
 
