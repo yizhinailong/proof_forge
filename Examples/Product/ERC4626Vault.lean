@@ -4,11 +4,10 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 # Product — deployable ERC-4626 vault body (Layer C)
 
-You *are* the vault (stdlib mixin). Honest bounds: **pro-rata** exchange rate
-(`shares = assets * totalSupply / totalAssets`, empty vault 1:1, floor),
-optional **entry+exit feeBps** (entry fee shares / exit fee assets →
-`feeRecipient`; `mint` takes **net** shares), IERC20 pull/push, `vaultSelf`
-init. For *calling* a peer vault use `external_vault` instead.
+You *are* the vault (stdlib mixin). Honest bounds: **pro-rata** exchange rate,
+optional **entry+exit feeBps**, **fee-on-transfer** deposit/mint via
+`balanceOf(vaultSelf)` delta after pull, `mint` net shares, IERC20 pull/push,
+`vaultSelf` init. For *calling* a peer vault use `external_vault` instead.
 
 ```bash
 just product-erc4626-vault

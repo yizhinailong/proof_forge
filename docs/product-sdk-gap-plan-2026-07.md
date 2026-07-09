@@ -181,8 +181,9 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 | ε.11 | ERC-4626 entry `feeBps` / `feeRecipient` on deposit·mint | **done** |
 | ε.12 | Compile-time Call[] IR auto-lower (`crosscallAbiPacked`) | **done** |
 | ε.13 | ERC-4626 exit fee + mint net shares / preview symmetry | **done** |
+| ε.14 | ERC-4626 fee-on-transfer deposit/mint (balance delta) | **done** |
 
-**Honesty still open:** fee-on-transfer assets; **runtime-unknown** Call[] lengths.
+**Honesty still open:** exit push FOT (recipient-side); **runtime-unknown** Call[] lengths.
 
 ---
 

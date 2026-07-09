@@ -25,6 +25,11 @@ def main : IO UInt32 := do
   require (netAfterExitFee 1000 100 == 990) "net after exit 1%"
   require (grossSharesForNet 990 100 == some 1000) "gross for net mint"
   require (grossSharesForNet 100 0 == some 100) "gross identity"
+  -- fee-on-transfer: Spec accounts **actual** received (99), not requested (100)
+  match depositActual? empty 99 0 with
+  | none => throw (IO.userError "fot actual deposit")
+  | some (sFot, shFot) =>
+      require (shFot == 99 && sFot.totalAssets == 99) "fot uses actual delta"
   match deposit? s0 100 0 with
   | none => throw (IO.userError "deposit should succeed")
   | some (s1, shares1) =>
@@ -77,6 +82,8 @@ def main : IO UInt32 := do
 
   require (m.capabilities.any (· == .crosscallInvoke)) "asset pull uses crosscall"
   require (m.state.any (fun s => s.id == "convertScratch")) "pro-rata scratch slot"
+  require (m.state.any (fun s => s.id == "actualAssets")) "fot actual assets slot"
+  require (m.state.any (fun s => s.id == "balanceScratch")) "fot balance scratch"
 
   match ProofForge.Backend.Evm.Plan.buildModulePlan m with
   | .error e => throw (IO.userError s!"EVM plan: {e.message}")

@@ -85,6 +85,9 @@ def main : IO Unit := do
       -- transferFrom selector 0x23b872dd = 599290589
       require (yul.contains "599290589")
         "yul should pack IERC20 transferFrom remote for deposit pull"
+      -- balanceOf selector 0x70a08231 = 1889567281 (fee-on-transfer delta)
+      require (yul.contains "1889567281")
+        "yul should pack IERC20 balanceOf for FOT delta measure"
       -- pro-rata convert uses mul/div (not identity-only)
       require (yul.contains "mul(" || yul.contains "mul ")
         "yul should emit mul for pro-rata convert"

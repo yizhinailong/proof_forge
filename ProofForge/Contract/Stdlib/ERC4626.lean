@@ -23,8 +23,12 @@ client (`Protocols.Evm.IERC4626` / Product `external_vault`).
   (gross = `shares * 10000 / (10000 - feeBps)` when fee > 0). |
 | Exit fee | Same **`feeBps`** on withdraw/redeem: skim fee assets to
   `feeRecipient`; user receives net underlying. |
-| Fee-on-transfer assets | Not modeled (assumes transfer amount equals requested) |
-| `preview*` | deposit/mint net after entry fee; withdraw/redeem net after exit fee |
+| Fee-on-transfer assets | **deposit/mint**: after IERC20 `transferFrom`, re-read
+  `balanceOf(vaultSelf)` and account **balance delta** as actual assets
+  (shares/totalAssets use actual, not the requested pull amount). Exit push
+  still assumes transfer delivers full amount (no pre-balance on recipient). |
+| `preview*` | deposit/mint assume non-FOT (requested = actual); withdraw/redeem net
+  after exit fee |
 
 Spec math lives in `Spec` (Nat formulas + fee/empty-vault theorems).
 -/
@@ -150,6 +154,11 @@ theorem gross_for_net_one_percent :
     grossSharesForNet 990 100 = some 1000 := by
   decide
 
+/-- Fee-on-transfer honesty: Spec deposit uses **actual** received assets. -/
+def depositActual? (s : State) (actualReceived : Nat) (feeBps : Nat := 0) :
+    Option (State × Nat) :=
+  deposit? s actualReceived feeBps
+
 /-- After a first deposit of `a`, convert is still 1:1. -/
 theorem convert_after_first_deposit (a assets : Nat) (ha : a ≠ 0) :
     convertToShares { totalAssets := a, totalSupply := a } assets = assets := by
@@ -189,6 +198,14 @@ def convertScratch : ScalarRef :=
 def feeScratch : ScalarRef :=
   ProofForge.Contract.Surface.slot "feeScratch" .u64
 
+/-- Pre-pull `balanceOf(vaultSelf)` for fee-on-transfer delta. -/
+def balanceScratch : ScalarRef :=
+  ProofForge.Contract.Surface.slot "balanceScratch" .u64
+
+/-- Actual assets received after pull (`balanceAfter - balanceBefore`). -/
+def actualAssetsScratch : ScalarRef :=
+  ProofForge.Contract.Surface.slot "actualAssets" .u64
+
 /-- Entry fee in basis points (0 = off, max 10000). -/
 def feeBps : ScalarRef :=
   ProofForge.Contract.Surface.slot "feeBps" .u64
@@ -196,6 +213,13 @@ def feeBps : ScalarRef :=
 /-- Recipient of entry-fee share mints (must be non-zero when fee > 0). -/
 def feeRecipient : ScalarRef :=
   ProofForge.Contract.Surface.slot "feeRecipient" .u64
+
+/-- IERC20 `balanceOf(address)` selector. -/
+def ierC20BalanceOfSelector : Nat := 0x70a08231
+/-- IERC20 `transferFrom(address,address,uint256)` selector. -/
+def ierC20TransferFromSelector : Nat := 0x23b872dd
+/-- IERC20 `transfer(address,uint256)` selector. -/
+def ierC20TransferSelector : Nat := 0xa9059cbb
 
 def shareBalances : MapRef :=
   { id := "shareBalances", keyType := .u64, valueType := .u64 }
@@ -292,11 +316,36 @@ def pushExitFeeAssetsIfAny : EntryM Unit := do
     let recip := ProofForge.Contract.Surface.read feeRecipient
     ProofForge.Contract.Surface.requireNonZero recip "zero feeRecipient"
     let assetTok := ProofForge.Contract.Surface.read assetAddress
-    let _sent :=
+    let sent :=
       ProofForge.Contract.Surface.remoteCall assetTok
-        (ProofForge.Contract.Surface.u64 0xa9059cbb)
+        (ProofForge.Contract.Surface.u64 ierC20TransferSelector)
         #[recip, fee]
-    pure ()
+    ProofForge.Contract.Builder.letBind "_pf_exit_fee_push" .u64 sent
+
+/-- Pull `amount` via transferFrom(caller, vaultSelf, amount), then set
+    `actualAssetsScratch` to `balanceOf(vaultSelf)` delta (fee-on-transfer). -/
+def pullAssetsMeasuring (amount : ProofForge.IR.Expr) : EntryM Unit := do
+  let assetTok := ProofForge.Contract.Surface.read assetAddress
+  let selfAddr := ProofForge.Contract.Surface.read vaultSelf
+  let before :=
+    ProofForge.Contract.Surface.remoteCall assetTok
+      (ProofForge.Contract.Surface.u64 ierC20BalanceOfSelector) #[selfAddr]
+  ProofForge.Contract.Surface.write balanceScratch before
+  let pulled :=
+    ProofForge.Contract.Surface.remoteCall assetTok
+      (ProofForge.Contract.Surface.u64 ierC20TransferFromSelector)
+      #[ProofForge.Contract.Surface.caller, selfAddr, amount]
+  ProofForge.Contract.Builder.letBind "_pf_pull" .u64 pulled
+  let after :=
+    ProofForge.Contract.Surface.remoteCall assetTok
+      (ProofForge.Contract.Surface.u64 ierC20BalanceOfSelector) #[selfAddr]
+  ProofForge.Contract.Builder.letBind "_pf_bal_after" .u64 after
+  ProofForge.Contract.Surface.write actualAssetsScratch
+    (ProofForge.Contract.Surface.sub
+      (ProofForge.Contract.Builder.localVar "_pf_bal_after")
+      (ProofForge.Contract.Surface.read balanceScratch))
+  ProofForge.Contract.Surface.requireNonZero
+    (ProofForge.Contract.Surface.read actualAssetsScratch) "zero actual assets"
 
 contract_mixin ERC4626Mixin do
   use ProofForge.Contract.Surface.scalar assetAddress
@@ -305,6 +354,8 @@ contract_mixin ERC4626Mixin do
   use ProofForge.Contract.Surface.scalar totalSupply
   use ProofForge.Contract.Surface.scalar convertScratch
   use ProofForge.Contract.Surface.scalar feeScratch
+  use ProofForge.Contract.Surface.scalar balanceScratch
+  use ProofForge.Contract.Surface.scalar actualAssetsScratch
   use ProofForge.Contract.Surface.scalar feeBps
   use ProofForge.Contract.Surface.scalar feeRecipient
   use ProofForge.Contract.Surface.mapState shareBalances
@@ -394,8 +445,11 @@ contract_mixin ERC4626Mixin do
       "zero receiver";
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref assets)
       "zero assets";
-    convertScratch := assets;
-    do applyConvertToShares (ProofForge.Contract.Surface.ref assets);
+    -- Pull first; account **actual** balance delta (fee-on-transfer safe)
+    do pullAssetsMeasuring (ProofForge.Contract.Surface.ref assets);
+    let actual : .u64 := actualAssetsScratch;
+    convertScratch := actual;
+    do applyConvertToShares (ProofForge.Contract.Surface.ref actual);
     let gross : .u64 := convertScratch;
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref gross)
       "zero shares";
@@ -403,15 +457,8 @@ contract_mixin ERC4626Mixin do
     let shares : .u64 := convertScratch;
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref shares)
       "zero net shares";
-    let assetTok : .u64 := assetAddress;
-    let selfAddr : .u64 := vaultSelf;
-    let _pulled : .u64 :=
-      ProofForge.Contract.Surface.remoteCall
-        (ProofForge.Contract.Surface.ref assetTok)
-        (u64 0x23b872dd)
-        #[caller, ProofForge.Contract.Surface.ref selfAddr, ProofForge.Contract.Surface.ref assets];
     let ta : .u64 := totalAssetsSlot;
-    totalAssetsSlot := ta +! assets;
+    totalAssetsSlot := ta +! actual;
     let ts : .u64 := totalSupply;
     totalSupply := ts +! gross;
     let bal : .u64 := mapRead shareBalances receiver;
@@ -421,7 +468,7 @@ contract_mixin ERC4626Mixin do
       fieldAsName "sender" caller,
       fieldAsName "owner" receiver
     ] data #[
-      fieldAsName "assets" assets,
+      fieldAsName "assets" actual,
       fieldAsName "shares" shares
     ];
     emit Transfer indexed #[
@@ -437,31 +484,31 @@ contract_mixin ERC4626Mixin do
       "zero receiver";
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref shares)
       "zero shares";
-    -- `shares` is **net** user receives; compute gross mint for entry fee
+    -- Preview path: requested assets for net `shares` (non-FOT). Pull that amount,
+    -- then recompute shares from **actual** delta (FOT may under-deliver net shares).
     convertScratch := shares;
     do applyGrossFromNetShares;
+    let grossWanted : .u64 := convertScratch;
+    do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref grossWanted)
+      "zero gross shares";
+    convertScratch := grossWanted;
+    do applyConvertToAssets (ProofForge.Contract.Surface.ref grossWanted);
+    let assetsWanted : .u64 := convertScratch;
+    do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref assetsWanted)
+      "zero assets";
+    do pullAssetsMeasuring (ProofForge.Contract.Surface.ref assetsWanted);
+    let actual : .u64 := actualAssetsScratch;
+    convertScratch := actual;
+    do applyConvertToShares (ProofForge.Contract.Surface.ref actual);
     let gross : .u64 := convertScratch;
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref gross)
-      "zero gross shares";
-    convertScratch := gross;
-    do applyConvertToAssets (ProofForge.Contract.Surface.ref gross);
-    let assets : .u64 := convertScratch;
-    do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref assets)
-      "zero assets";
-    convertScratch := gross;
+      "zero gross from actual";
     do applyEntryFee;
     let userShares : .u64 := convertScratch;
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref userShares)
       "zero net shares";
-    let assetTok : .u64 := assetAddress;
-    let selfAddr : .u64 := vaultSelf;
-    let _pulled : .u64 :=
-      ProofForge.Contract.Surface.remoteCall
-        (ProofForge.Contract.Surface.ref assetTok)
-        (u64 0x23b872dd)
-        #[caller, ProofForge.Contract.Surface.ref selfAddr, ProofForge.Contract.Surface.ref assets];
     let ta : .u64 := totalAssetsSlot;
-    totalAssetsSlot := ta +! assets;
+    totalAssetsSlot := ta +! actual;
     let ts : .u64 := totalSupply;
     totalSupply := ts +! gross;
     let bal : .u64 := mapRead shareBalances receiver;
@@ -471,7 +518,7 @@ contract_mixin ERC4626Mixin do
       fieldAsName "sender" caller,
       fieldAsName "owner" receiver
     ] data #[
-      fieldAsName "assets" assets,
+      fieldAsName "assets" actual,
       fieldAsName "shares" userShares
     ];
     emit Transfer indexed #[
@@ -480,7 +527,7 @@ contract_mixin ERC4626Mixin do
     ] data #[
       fieldAsName "value" userShares
     ];
-    return assets;
+    return actual;
 
   entry withdraw (assets : .u64, receiver : .address, holder : .address) returns(.u64) do
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref receiver)
