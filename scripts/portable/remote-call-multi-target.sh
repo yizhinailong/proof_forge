@@ -126,6 +126,16 @@ if grep -Fq "promise_create" "$SOROBAN_WAT"; then
   fail "Soroban WAT must not contain promise_create"
 fi
 require_file "$OUT/soroban/RemoteCall.soroban-artifact.json"
+# Binary validity: same EmitWat core as NEAR; wat2wasm proves well-formed wasm.
+if command -v wat2wasm >/dev/null 2>&1; then
+  SOROBAN_WASM="$OUT/soroban/RemoteCall.wasm"
+  wat2wasm "$SOROBAN_WAT" -o "$SOROBAN_WASM" \
+    || fail "Soroban wat2wasm failed for $SOROBAN_WAT"
+  require_file "$SOROBAN_WASM"
+  echo "portable-remote-call: Soroban wat2wasm ok → $SOROBAN_WASM"
+else
+  echo "portable-remote-call: wat2wasm missing; Soroban binary gate skipped" >&2
+fi
 echo "portable-remote-call: Soroban ok"
 
 echo "portable-remote-call-multi-target: ok (evm · solana · near · soroban)"

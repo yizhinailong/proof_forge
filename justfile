@@ -152,7 +152,7 @@ supported-fragment-smoke:
 
 # Track 1.4: exercise the proven⊂lowerable + lowerable⇒lowering-total + capability⇒lowerable theorems on the Counter fragment.
 track14-fragment-theorems-smoke:
-    lake build ProofForge.Backend.Evm.Refinement ProofForge.Backend.Solana.Refinement ProofForge.Backend.WasmNear.Refinement
+    lake build ProofForge.Backend.Evm.Refinement ProofForge.Backend.Solana.Refinement ProofForge.Backend.WasmHost.Refinement
     lake env lean --run Tests/Track14FragmentTheorems.lean
 
 # Track 1.7 / FV-8: exercise user-authored Lean invariants (ValueVault + Counter) pre-codegen.
@@ -162,26 +162,26 @@ lean-invariants-smoke:
 
 # Check existing executable trace runners are wired through the shared TargetSemantics interface.
 target-semantics-instances-smoke:
-    lake build ProofForge.Backend.Evm.Refinement ProofForge.Backend.Solana.Refinement ProofForge.Backend.WasmNear.Refinement
+    lake build ProofForge.Backend.Evm.Refinement ProofForge.Backend.Solana.Refinement ProofForge.Backend.WasmHost.Refinement
     lake env lean --run Tests/TargetSemanticsInstances.lean
 
 # Generic Wasm stack/state helper lemmas - active WASM C-proof surface.
 wasm-exec-smoke:
-    lake build ProofForge.Backend.WasmNear.WasmExec
+    lake build ProofForge.Backend.WasmHost.WasmExec
     lake env lean --run Tests/WasmExec.lean
 
 # NEAR host-model lemmas over the generic Wasm host-call hook.
 wasm-near-host-smoke:
-    lake build ProofForge.Backend.WasmNear.NearHost
+    lake build ProofForge.Backend.WasmHost.NearHost
     lake env lean --run Tests/WasmNearHost.lean
 
 wasm-cosmwasm-host-smoke:
-    lake build ProofForge.Backend.WasmNear.CosmWasmHost
+    lake build ProofForge.Backend.WasmHost.CosmWasmHost
     lake env lean --run Tests/WasmCosmWasmHost.lean
 
 # Phase 4 WASM host family: Soroban host dispatch (3rd WASM host adapter).
 wasm-soroban-host-smoke:
-    lake build ProofForge.Backend.WasmNear.SorobanHost ProofForge.Backend.WasmNear.CounterSorobanRefinement
+    lake build ProofForge.Backend.WasmHost.SorobanHost ProofForge.Backend.WasmHost.CounterSorobanRefinement
     lake env lean --run Tests/WasmSorobanHost.lean
 
 # Phase 4 ZK lane: Aleo/Leo registry entry + Counter Leo codegen (Road 1 sourcegen).
@@ -191,12 +191,12 @@ aleo-leo-codegen-smoke:
 
 # WASM-5a contract axis: ValueVault universal IR↔Wasm core refinement.
 value-vault-wasm-refinement-smoke:
-    lake build ProofForge.Backend.WasmNear.ValueVaultWasmRefinement
+    lake build ProofForge.Backend.WasmHost.ValueVaultWasmRefinement
     lake env lean --run Tests/ValueVaultWasmRefinement.lean
 
 # WASM-5b chain-axis: Counter reuses the SAME host-agnostic core on CosmWasm.
 wasm-cosmwasm-refinement-smoke:
-    lake build ProofForge.Backend.WasmNear.CounterCosmWasmRefinement
+    lake build ProofForge.Backend.WasmHost.CounterCosmWasmRefinement
     lake env lean --run Tests/WasmCosmWasmRefinementSmoke.lean
 
 # Check the Phase 6b EVM bytecode-semantics seam for the preferred powdr target.
@@ -672,16 +672,20 @@ primary-materialize:
 
 # Phase B.3: portable crosscall.invoke materialization (EVM CALL · Solana CPI · NEAR Promise).
 crosscall-materialize:
-    lake build ProofForge.Target.Preflight ProofForge.Backend.Solana.PortableCrosscall ProofForge.Backend.WasmNear.PortableCrosscall ProofForge.IR.Examples.CrosscallProbe ProofForge.IR.Examples.NearCrosscallProbe ProofForge.IR.Examples.Counter Examples.Shared.RemoteCall ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmNear.EmitWat ProofForge.Backend.CosmWasm.EmitWat ProofForge.Backend.Psy.IR
+    lake build ProofForge.Target.Preflight ProofForge.Backend.Solana.PortableCrosscall ProofForge.Backend.WasmHost.PortableCrosscall ProofForge.IR.Examples.CrosscallProbe ProofForge.IR.Examples.NearCrosscallProbe ProofForge.IR.Examples.Counter Examples.Shared.RemoteCall ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmHost.EmitWat ProofForge.Backend.WasmHost.CosmWasm.EmitWat ProofForge.Backend.Psy.IR
     lake env lean --run Tests/CrosscallMaterialize.lean
     just portable-auth-materialize
+    just portable-error-catalog
     just portable-remote-call-multi-target
 
 # Portable business checks (Ownable) + declareRemote RemoteCall on EVM·Solana·NEAR·Soroban.
 portable-auth-materialize:
-    lake build Examples.Shared.Ownable Examples.Shared.RemoteCall ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.Manifest ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmNear.EmitWat ProofForge.Target.Preflight
+    lake build Examples.Shared.Ownable Examples.Shared.RemoteCall ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.Manifest ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmHost.EmitWat ProofForge.Target.Preflight
     lake env lean --run Tests/PortableAuthMaterialize.lean
 
+# T3.4: assertionId catalogue parity across EVM · Solana · NEAR clients + sdk-schema + EmitWat PF.
+portable-error-catalog:
+    lake env lean --run Tests/PortableErrorCatalog.lean
 
 # Check translated documentation freshness and example topology.
 docs-check: examples-topology portable-default
