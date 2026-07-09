@@ -140,9 +140,9 @@ U7  Secondary hosts discipline (spike freeze / optional)     [LOW]
 
 | ID | Task | Work | Acceptance | Size | Deps | Status |
 |----|------|------|------------|------|------|--------|
-| **U3.1** | Audit Product examples vs Solana Surface | Inventory imports; fix or label fixture-only | Table in Examples/Product/README | S | — | pending |
-| **U3.2** | Account inference coverage | Extend `inferSolanaAccounts` / `ensurePortableCrosscallAccounts` for remaining Product remotes | `just portable-remote-call-multi-target` + product-matrix | M | U3.1 | pending |
-| **U3.3** | PeerMap author UX | Document `declareRemote` / strings pool; fail messages point to fix | Docs + diagnostic string tests | S | — | pending |
+| **U3.1** | Audit Product examples vs Solana Surface | Inventory imports; fix or label fixture-only | Table in Examples/Product/README | S | — | **done** |
+| **U3.2** | Account inference coverage | Extend `inferSolanaAccounts` / `ensurePortableCrosscallAccounts` for remaining Product remotes | `just portable-remote-call-multi-target` + product-matrix | M | U3.1 | **done** (protocol FT/vault + Accounts tests) |
+| **U3.3** | PeerMap author UX | Document `declareRemote` / strings pool; fail messages point to fix | Docs + diagnostic string tests | S | — | **done** |
 
 ---
 

@@ -204,8 +204,9 @@ def requireSyncCrosscallHonesty (targetId : String) (module : Module) : Except S
       match declaredPeerId? module with
       | none =>
           .error
-            "PortableHonesty Crosscall: Solana portable remote requires non-empty peer id \
-in nearCrosscallStrings (declareRemote / PeerMap); empty peer cannot be inferred"
+            "PortableHonesty Crosscall: Solana portable remote requires a non-empty peer id \
+from `remote peerId \"logical.peer\" \"method\"` / declareRemote (nearCrosscallStrings / PeerMap). \
+empty peer cannot be inferred — fail-closed (no portable.peer invent)"
       | some peer =>
           match materializeSyncRemote targetId module peer with
           | .ok m =>

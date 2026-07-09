@@ -9,6 +9,11 @@ import Examples.Product.AuthRemoteCall
 import Examples.Product.Ownable
 import Examples.Product.RemoteCall
 import Examples.Product.RoleGatedToken
+import Examples.Product.ExternalTokenTransfer
+import Examples.Product.ExternalVault
+import ProofForge.Target.Adapter
+import ProofForge.Target.Registry
+import ProofForge.Contract.Spec
 import Examples.Product.StakingVault
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.Materialize
@@ -118,13 +123,58 @@ def testAuthRemoteCall : IO Unit := do
   require (report.note.contains "remote" || report.note.contains "callee")
     s!"AuthRemoteCall note should mention remote autofill: {report.note}"
 
+/-- Protocol external token: peer strings registered; Solana still auto-portable. -/
+def testExternalTokenTransfer : IO Unit := do
+  let m := Examples.Product.ExternalTokenTransfer.module
+  require (m.nearCrosscallStrings.any (· == "usdc.peer"))
+    "ExternalTokenTransfer registers usdc.peer"
+  let report := report m {}
+  require (report.mode == .autoPortable)
+    s!"ExternalTokenTransfer must be auto-portable, got {report.mode.id}"
+  let accounts := buildModuleAccounts m {}
+  require (hasSigner accounts || hasNamed accounts "callee_program" || accounts.size > 0)
+    "ExternalTokenTransfer materializes a Solana account schema"
+  let _ ← mustRender "ExternalTokenTransfer" m
+
+/-- External vault protocol peer similarly stays Source.Solana-free. -/
+def testExternalVault : IO Unit := do
+  let m := Examples.Product.ExternalVault.module
+  let report := report m {}
+  require (report.mode == .autoPortable)
+    s!"ExternalVault must be auto-portable, got {report.mode.id}"
+  let _ ← mustRender "ExternalVault" m
+
+/-- Empty peer fails closed with author-facing `remote` / declareRemote hint (U3.3). -/
+def testEmptyPeerDiagnostic : IO Unit := do
+  let bare : Module := {
+    name := "BareRemote"
+    state := #[{ id := "m", kind := .scalar, type := .u64 }]
+    entrypoints := #[{
+      name := "go"
+      body := #[.return (.crosscallInvoke (.literal (.u64 1)) (.literal (.u64 2)) #[])]
+    }]
+    nearCrosscallStrings := #[]
+  }
+  match ProofForge.Target.resolveModule ProofForge.Target.solanaSbpfAsm bare with
+  | .ok _ => throw (IO.userError "empty peer must fail resolveModule")
+  | .error err =>
+      let msg := err.render
+      require (msg.contains "peer" || msg.contains "PortableHonesty")
+        s!"empty peer diagnostic, got: {msg}"
+      require (msg.contains "remote" || msg.contains "declareRemote" || msg.contains "nearCrosscall")
+        s!"empty peer should point authors at remote/declareRemote, got: {msg}"
+
 def main : IO UInt32 := do
   testOwnableAuth
   testRemoteCall
   testRoleGatedTokenTransfer
   testStakingVaultNative
   testAuthRemoteCall
-  IO.println "solana-portable-accounts: ok (auth · transfer · remote · native)"
+  testExternalTokenTransfer
+  testExternalVault
+  testEmptyPeerDiagnostic
+  IO.println
+    "solana-portable-accounts: ok (auth · transfer · remote · native · protocol · empty-peer)"
   return 0
 
 end ProofForge.Tests.SolanaPortableAccounts

@@ -37,6 +37,25 @@ Taxonomy: [docs/examples-and-tests-taxonomy.md](../../docs/examples-and-tests-ta
 
 Full narrative: [docs/tutorials/portable-shared-path.md](../../docs/tutorials/portable-shared-path.md).
 
+## Solana account auto-fill (U3 — no Source.Solana)
+
+Product examples **must not** import `ProofForge.Contract.Source.Solana`.
+Accounts are inferred at materialize time from portable intents:
+
+| Product intent | Solana accounts synthesized | Gate |
+|----------------|----------------------------|------|
+| Ownable / roles / caller | leading `authority` signer + program state | `just portable-solana-accounts` |
+| `nativeValue` (StakingVault) | **writable** leading signer@0 + state | same |
+| `remote` / `declareRemote` (RemoteCall) | payer/signer + state + `callee_program` | `just portable-remote-call-multi-target` |
+| caller + debit + remote (AuthRemoteCall) | authority + state + `callee_program` | `just portable-solana-accounts` |
+| `external_token` / vault protocol peers | peer strings in pool + CPI/callee roles | `just product-protocol-ft` / matrix |
+
+**Peer declaration:** use `remote name "logical.peer" "method";` (or `declareRemote`).
+Solana **empty peer** fails closed at `resolveSpec` with a diagnostic that points
+at `remote` / `declareRemote` (no silent `portable.peer` invent). Deploy-time
+host rewrite: `--peer logical.peer=…` / PeerMap.
+
+
 ## Catalog
 
 | Example | Role |
