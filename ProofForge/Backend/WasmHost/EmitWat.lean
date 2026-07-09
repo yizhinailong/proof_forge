@@ -354,6 +354,134 @@ mutual
     | .hash => .ok (vis, #[.call crosscallArgsPuthashName])
     | _ => err s!"EmitWat: NEAR crosscall argument type `{vt.name}` is not supported yet"
 
+  /-- Emit ASCII bytes via `__pf_crosscall_args_putc` (static JSON fragments). -/
+  partial def crosscallPutAsciiInsns (s : String) : Array Insn :=
+    s.foldl
+      (fun acc c => acc ++ #[.i32Const c.toNat, .call crosscallArgsPutcName])
+      #[]
+
+  /-- Pool index as i64: address-literal handles (peerHandle) or U32/U64. -/
+  partial def lowerPoolIndexI64 (ctx : Ctx) (env : LocalTypes) (idxExpr : Expr) :
+      Except EmitError (Array Insn) :=
+    match idxExpr with
+    | .literal (.address idx) => .ok #[.i64Const idx]
+    | _ => lowerU32OrU64AsI64 ctx env "NEP-141 account pool index" idxExpr
+
+  /-- JSON-quoted host-pool string: `"…"` where `idxExpr` is a pool index
+  (`.literal (.address i)` from `peerHandle` / `registerAccountId`, or U32/U64). -/
+  partial def lowerJsonQuotedPoolString (ctx : Ctx) (env : LocalTypes) (idxExpr : Expr) :
+      Except EmitError (Array Insn) := do
+    requireDuplicableExpr idxExpr "EmitWat: NEP-141 account pool index must be duplicable"
+    let idxInsns ← lowerPoolIndexI64 ctx env idxExpr
+    .ok (
+      #[.i32Const 0x22, .call crosscallArgsPutcName] ++
+      idxInsns ++ #[.call crosscallPoolPtrName, .plain "i32.wrap_i64"] ++
+      idxInsns ++ #[.call crosscallPoolLenName, .plain "i32.wrap_i64"] ++
+      #[.call crosscallArgsPutstrName] ++
+      #[.i32Const 0x22, .call crosscallArgsPutcName]
+    )
+
+  /-- JSON string-encoded decimal amount: `"123"` from a U64/U32 expr. -/
+  partial def lowerJsonQuotedU64Amount (ctx : Ctx) (env : LocalTypes) (amount : Expr) :
+      Except EmitError (Array Insn) := do
+    let (vis, vt) ← lowerExpr ctx env amount
+    if !(vt == .u64 || vt == .u32) then
+      err s!"EmitWat: NEP-141 amount expected U32/U64, got `{vt.name}`"
+    else
+      let conv := if vt == .u64 then vis else vis ++ #[.plain "i64.extend_i32_u"]
+      .ok (
+        #[.i32Const 0x22, .call crosscallArgsPutcName] ++
+        conv ++ #[.call crosscallArgsPutu64Name] ++
+        #[.i32Const 0x22, .call crosscallArgsPutcName]
+      )
+
+  /-- NEP-141 `ft_transfer`: `{"receiver_id":"<pool>","amount":"<u64>","memo":null}`
+  Args: `[receiverPoolIdx, amount]`. -/
+  partial def lowerNep141FtTransferArgs (ctx : Ctx) (env : LocalTypes) (args : Array Expr) :
+      Except EmitError (Array Insn × Nat × Nat) := do
+    match args[0]?, args[1]? with
+    | some recv, some amount =>
+        if args.size != 2 then
+          err s!"EmitWat: NEP-141 ft_transfer expects 2 args [receiver_pool_idx, amount], got {args.size}"
+        else
+          let recvInsns ← lowerJsonQuotedPoolString ctx env recv
+          let amountInsns ← lowerJsonQuotedU64Amount ctx env amount
+          let body :=
+            #[.call crosscallArgsStartName] ++
+            crosscallPutAsciiInsns "{\"receiver_id\":" ++
+            recvInsns ++
+            crosscallPutAsciiInsns ",\"amount\":" ++
+            amountInsns ++
+            crosscallPutAsciiInsns ",\"memo\":null}"
+          .ok (body, CROSSCALL_BUF, 0)
+    | _, _ =>
+        err s!"EmitWat: NEP-141 ft_transfer expects 2 args [receiver_pool_idx, amount], got {args.size}"
+
+  /-- NEP-141 `ft_transfer_call`: receiver + amount + msg (msg as decimal string if U64).
+  Args: `[receiverPoolIdx, amount]` (msg="") or `[receiverPoolIdx, amount, msgU64]`. -/
+  partial def lowerNep141FtTransferCallArgs (ctx : Ctx) (env : LocalTypes) (args : Array Expr) :
+      Except EmitError (Array Insn × Nat × Nat) := do
+    match args[0]?, args[1]? with
+    | some recv, some amount =>
+        if args.size < 2 || args.size > 3 then
+          err s!"EmitWat: NEP-141 ft_transfer_call expects 2–3 args [receiver, amount, msg?], got {args.size}"
+        else
+          let recvInsns ← lowerJsonQuotedPoolString ctx env recv
+          let amountInsns ← lowerJsonQuotedU64Amount ctx env amount
+          let msgInsns ←
+            match args[2]? with
+            | some msg => lowerJsonQuotedU64Amount ctx env msg
+            | none => .ok (crosscallPutAsciiInsns "\"\"")
+          let body :=
+            #[.call crosscallArgsStartName] ++
+            crosscallPutAsciiInsns "{\"receiver_id\":" ++
+            recvInsns ++
+            crosscallPutAsciiInsns ",\"amount\":" ++
+            amountInsns ++
+            crosscallPutAsciiInsns ",\"msg\":" ++
+            msgInsns ++
+            crosscallPutAsciiInsns "}"
+          .ok (body, CROSSCALL_BUF, 0)
+    | _, _ =>
+        err s!"EmitWat: NEP-141 ft_transfer_call expects 2–3 args [receiver, amount, msg?], got {args.size}"
+
+  /-- NEP-141 `ft_balance_of`: `{"account_id":"<pool>"}`. Args: `[accountPoolIdx]`. -/
+  partial def lowerNep141FtBalanceOfArgs (ctx : Ctx) (env : LocalTypes) (args : Array Expr) :
+      Except EmitError (Array Insn × Nat × Nat) := do
+    match args[0]? with
+    | some acct =>
+        if args.size != 1 then
+          err s!"EmitWat: NEP-141 ft_balance_of expects 1 arg [account_pool_idx], got {args.size}"
+        else
+          let acctInsns ← lowerJsonQuotedPoolString ctx env acct
+          let body :=
+            #[.call crosscallArgsStartName] ++
+            crosscallPutAsciiInsns "{\"account_id\":" ++
+            acctInsns ++
+            crosscallPutAsciiInsns "}"
+          .ok (body, CROSSCALL_BUF, 0)
+    | none =>
+        err s!"EmitWat: NEP-141 ft_balance_of expects 1 arg [account_pool_idx], got {args.size}"
+
+  /-- Empty JSON object `{}` for query methods with no args. -/
+  partial def lowerJsonEmptyObjectArgs : Except EmitError (Array Insn × Nat × Nat) :=
+    .ok (
+      #[.call crosscallArgsStartName] ++ crosscallPutAsciiInsns "{}",
+      CROSSCALL_BUF, 0)
+
+  /-- Dispatch: NEP-141 object JSON for known methods; else legacy JSON array of scalars. -/
+  partial def lowerCrosscallArgsForMethod (ctx : Ctx) (env : LocalTypes)
+      (methodName : String) (args : Array Expr) :
+      Except EmitError (Array Insn × Nat × Nat) :=
+    match methodName with
+    | "ft_transfer" => lowerNep141FtTransferArgs ctx env args
+    | "ft_transfer_call" => lowerNep141FtTransferCallArgs ctx env args
+    | "ft_balance_of" => lowerNep141FtBalanceOfArgs ctx env args
+    | "ft_total_supply" | "ft_metadata" =>
+        if args.isEmpty then lowerJsonEmptyObjectArgs
+        else err s!"EmitWat: NEP-141 `{methodName}` expects 0 args, got {args.size}"
+    | _ => lowerCrosscallArgsJson ctx env args
+
   partial def lowerCrosscallArgsJson (ctx : Ctx) (env : LocalTypes) (args : Array Expr) :
       Except EmitError (Array Insn × Nat × Nat) := do
     if args.isEmpty then
@@ -391,7 +519,8 @@ mutual
     let accountConv ← lowerU32OrU64AsI64 ctx env "NEAR crosscall pool account index" accountIndex
     requireDuplicableExpr accountIndex "EmitWat: NEAR crosscall pool account index must be duplicable"
     let methodSi ← resolveCrosscallStringRef ctx method "method name"
-    let (argBuildInsns, argsPtr, argsLenMarker) ← lowerCrosscallArgsJson ctx env args
+    let (argBuildInsns, argsPtr, argsLenMarker) ←
+      lowerCrosscallArgsForMethod ctx env methodSi.str args
     let depositInsns ← lowerNearDeposit ctx env "NEAR crosscall" deposit
     let argsLenInsns := crosscallArgsLenInsns args argsLenMarker
     let argsPtrInsns := crosscallArgsPtrInsns argsPtr
@@ -441,7 +570,8 @@ mutual
       err "EmitWat: NEAR crosscall requires `module.nearCrosscallStrings` to be populated"
     let account ← resolveCrosscallStringRef ctx target "target account id"
     let methodSi ← resolveCrosscallStringRef ctx method "method name"
-    let (argBuildInsns, argsPtr, argsLenMarker) ← lowerCrosscallArgsJson ctx env args
+    let (argBuildInsns, argsPtr, argsLenMarker) ←
+      lowerCrosscallArgsForMethod ctx env methodSi.str args
     let depositInsns ← lowerNearDeposit ctx env "NEAR crosscall" deposit
     let argsLenInsns := crosscallArgsLenInsns args argsLenMarker
     let argsPtrInsns := crosscallArgsPtrInsns argsPtr

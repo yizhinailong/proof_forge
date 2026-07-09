@@ -47,6 +47,8 @@ Wasm adapters). Keep Layer **A Host / B Protocols / C Stdlib** honest.
 - [x] NEAR FT peer client + fixture
 - [x] EVM Multicall + Permit2 thin clients (`Protocols.Evm.Multicall` / `Permit2` + fixtures)
 - [x] NEAR deeper JSON/Borsh arg packing honesty (`argPackingBound` / `requireArgPackingHonest`)
+- [x] NEAR NEP-141 JSON object packing for `ft_transfer` / `ft_transfer_call` /
+      `ft_balance_of` / `ft_total_supply` (EmitWat + `Protocols.Near.FungibleToken`)
 - [x] Solana confidential/crypto-hard layouts remain compile-reject
       (`rejectedLayoutExamples` + `isSupportedCpiDataLayout = false`)
 

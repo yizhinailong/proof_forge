@@ -54,7 +54,7 @@ def main : IO UInt32 := do
     "ft_transfer method name"
   require (ProofForge.Protocols.Near.FungibleToken.methodStorageDeposit == "storage_deposit")
     "storage_deposit method name"
-  require (ProofForge.Protocols.Near.FungibleToken.argPackingBoundId == "portable_scalars_only")
+  require (ProofForge.Protocols.Near.FungibleToken.argPackingBoundId == "nep141_json_object")
     "NEAR FT packing bound id"
   match ProofForge.Protocols.Near.FungibleToken.requireArgPackingHonest 2 with
   | .error e => throw (IO.userError s!"scalar args=2 should be honest: {e}")
@@ -63,7 +63,7 @@ def main : IO UInt32 := do
   | .ok () => throw (IO.userError "99 args must fail NEAR packing honesty")
   | .error msg =>
       require (contains msg "honesty") "NEAR packing reject names honesty"
-      require (contains msg "portable_scalars_only" || contains msg "scalar")
+      require (contains msg "scalar" || contains msg "nep141")
         "NEAR packing reject names bound"
   -- Confidential layouts must stay unsupported on the shipped CPI lowerer.
   for layout in ProofForge.Protocols.Solana.rejectedLayoutExamples do
@@ -138,6 +138,13 @@ def main : IO UInt32 := do
       require (contains wat "promise_create") "FtPeerClient WAT missing promise_create"
       require (contains wat "ft_transfer" || contains wat "my_ft")
         "FtPeerClient WAT should embed FT peer/method pool data"
+      -- NEP-141 JSON object packing: '{' and key fragments as putc immediates.
+      require (contains wat "i32.const 123" || contains wat "i32.const 0x7b")
+        "FtPeerClient should emit JSON object open brace for NEP-141"
+      require (contains wat "alice.near" || contains wat "alice")
+        "FtPeerClient pool should include alice.near receiver"
+      require (contains wat "__pf_crosscall_args_putu64" || contains wat "crosscall_args_putu64")
+        "FtPeerClient should pack amount via putu64"
 
   -- Multicall3 client → Yul with aggregate selector.
   let mc := Examples.Backend.Evm.Contracts.MulticallClient.module
