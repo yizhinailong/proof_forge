@@ -8,7 +8,8 @@ Status: **Active**
 Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
 
-Baseline: Wave 0 complete (PF-P0-01..08 done). Wave 1 open at PF-P1-01 TargetBackend driver.
+Baseline: Wave 0 complete (PF-P0-01..08 done). Wave 1: PF-P1-01 TargetBackend registry +
+CLI driver dispatch landed; remaining: primary-triad validate/plan/package hooks on the backend.
 
 ---
 
@@ -108,7 +109,7 @@ implementation SHA is only known after the implementation commit exists.
 | 0 | PF-P0-06 | done: verified@e94bc185; just testkit; offline-host wasmtimeFuel* fields | immediately |
 | 0 | PF-P0-07 | done: verified@0334cbaa; just check-l2-parity | immediately |
 | 0 | PF-P0-08 | done: verified@0334cbaa; just wat2wasm-fail-closed | immediately |
-| 1 | PF-P1-01 | in_progress: Wave 0 closed; next: introduce TargetBackend driver surface for primary triad | all Wave 0 tasks done |
+| 1 | PF-P1-01 | in_progress: registry + CLI driver dispatch landed; next: attach primary-triad validate/plan/package ops on TargetBackend (not only flag lookup) | all Wave 0 tasks done |
 | 1 | PF-P1-02 | pending | all Wave 0 tasks done; coordinate with PF-P1-01 |
 | 1 | PF-P1-03 | pending | PF-P1-01 and PF-P1-02 done |
 | 1 | PF-P1-04 | pending | PF-P1-01 through PF-P1-03 done |

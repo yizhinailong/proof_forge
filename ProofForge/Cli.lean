@@ -94,6 +94,7 @@ import ProofForge.Cli.LearnArtifacts
 import ProofForge.Cli.TargetJson
 import ProofForge.Cli.Usage
 import ProofForge.Cli.Options
+import ProofForge.Cli.TargetDriver
 import ProofForge.Cli.TargetFirst
 import ProofForge.Cli.LegacyArgs
 
