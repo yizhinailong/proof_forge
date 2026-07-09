@@ -1,5 +1,5 @@
-import ProofForge.Backend.WasmNear.CounterCosmWasmRefinement
-import ProofForge.Backend.WasmNear.CosmWasmHost
+import ProofForge.Backend.WasmHost.CounterCosmWasmRefinement
+import ProofForge.Backend.WasmHost.CosmWasmHost
 
 /-! WASM-5b chain-axis smoke: Counter reuses the SAME host-agnostic
 `counterWasmCoreTraceStep` on the CosmWasm host. This is the killer
@@ -8,8 +8,8 @@ unchanged from the NEAR lane; only the host instantiation differs. -/
 
 namespace ProofForge.Tests.WasmCosmWasmRefinementSmoke
 
-open ProofForge.Backend.WasmNear.CounterCosmWasmRefinement
-open ProofForge.Backend.WasmNear.CosmWasmHost
+open ProofForge.Backend.WasmHost.CounterCosmWasmRefinement
+open ProofForge.Backend.WasmHost.CosmWasmHost
 
 /-- Chain-axis WASM-5b: the canonical Counter trace simulates through the
 CosmWasm host using the SAME abstract core as the NEAR lane. -/

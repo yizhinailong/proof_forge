@@ -1,7 +1,7 @@
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.IR.Contract
 
-open ProofForge.IR ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.IR ProofForge.Backend.WasmHost.EmitWat
 
 /-! Context probe: predecessor/contract id determinism (sha256 of account id),
     block_height (checkpoint), block_timestamp, epoch_height, signer (origin),

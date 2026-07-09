@@ -1,8 +1,8 @@
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.IR.Examples.U32ArithmeticProbe
 
 open ProofForge.IR.Examples U32ArithmeticProbe
-open ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.Backend.WasmHost.EmitWat
 
 /-! Render U32ArithmeticProbe (which uses `.pow`) via EmitWat to verify the
     pow helper. The probe asserts `z ^ a == 289` (17^2) among other arithmetic;

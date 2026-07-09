@@ -1,4 +1,4 @@
-import ProofForge.Backend.WasmNear.WasmExec
+import ProofForge.Backend.WasmHost.WasmExec
 
 /-! ## Generic WasmExec smoke
 
@@ -8,7 +8,7 @@ proof track. This intentionally avoids NEAR host calls and contract fixtures.
 
 namespace ProofForge.Tests.WasmExec
 
-open ProofForge.Backend.WasmNear.WasmExec
+open ProofForge.Backend.WasmHost.WasmExec
 
 example : True := by
   have _ := @runStateSteps
@@ -84,33 +84,33 @@ example : True := by
   exact True.intro
 
 theorem stack_roundtrip_sample :
-    ProofForge.Backend.WasmNear.WasmInterpreter.stackPop
-      (ProofForge.Backend.WasmNear.WasmInterpreter.stackPush ({} : State) 7) =
+    ProofForge.Backend.WasmHost.WasmInterpreter.stackPop
+      (ProofForge.Backend.WasmHost.WasmInterpreter.stackPush ({} : State) 7) =
         Except.ok (7, ({} : State)) := by
   exact stackPop_stackPush ({} : State) 7
 
 theorem local_write_sample :
-    ProofForge.Backend.WasmNear.WasmInterpreter.lookupLocal?
-      (ProofForge.Backend.WasmNear.WasmInterpreter.writeLocal (#[] : Locals) "x" 9)
+    ProofForge.Backend.WasmHost.WasmInterpreter.lookupLocal?
+      (ProofForge.Backend.WasmHost.WasmInterpreter.writeLocal (#[] : Locals) "x" 9)
       "x" = some 9 := by
   exact lookupLocal_writeLocal_same (#[] : Locals) "x" 9
 
 theorem state_step_reduction_chain_sample :
     StateStepReductionChain [pushStep 7, localSetStep "x"] ({} : State)
       { ({} : State) with locals :=
-          ProofForge.Backend.WasmNear.WasmInterpreter.writeLocal (#[] : Locals) "x" 7 } := by
+          ProofForge.Backend.WasmHost.WasmInterpreter.writeLocal (#[] : Locals) "x" 7 } := by
   apply StateStepReductionChain.cons
   · exact pushStep_ok ({} : State) 7
   · apply StateStepReductionChain.cons
     · exact localSetStep_stackPush ({} : State) "x" 7
     · exact StateStepReductionChain.nil
         { ({} : State) with locals :=
-            ProofForge.Backend.WasmNear.WasmInterpreter.writeLocal (#[] : Locals) "x" 7 }
+            ProofForge.Backend.WasmHost.WasmInterpreter.writeLocal (#[] : Locals) "x" 7 }
 
 theorem run_state_steps_chain_sample :
     runStateSteps [pushStep 7, localSetStep "x"] ({} : State) =
       .ok { ({} : State) with locals :=
-          ProofForge.Backend.WasmNear.WasmInterpreter.writeLocal (#[] : Locals) "x" 7 } := by
+          ProofForge.Backend.WasmHost.WasmInterpreter.writeLocal (#[] : Locals) "x" 7 } := by
   exact runStateSteps_of_reductionChain state_step_reduction_chain_sample
 
 end ProofForge.Tests.WasmExec

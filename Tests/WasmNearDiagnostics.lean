@@ -1,4 +1,4 @@
-import ProofForge.Backend.WasmNear.IR
+import ProofForge.Backend.WasmHost.IR
 import ProofForge.IR.Contract
 
 namespace ProofForge.Tests.WasmNearDiagnostics
@@ -357,12 +357,12 @@ def mutableLocalModule : Module := {
 -- ---------------------------------------------------------------------------
 
 def renderError? (module : Module) : Option String :=
-  match ProofForge.Backend.WasmNear.IR.renderModule module with
+  match ProofForge.Backend.WasmHost.IR.renderModule module with
   | .ok _ => none
   | .error err => some err.render
 
 def renderOk? (module : Module) : Option String :=
-  match ProofForge.Backend.WasmNear.IR.renderModule module with
+  match ProofForge.Backend.WasmHost.IR.renderModule module with
   | .ok src => some src
   | .error _ => none
 

@@ -1,7 +1,7 @@
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.IR.Contract
 
-open ProofForge.IR ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.IR ProofForge.Backend.WasmHost.EmitWat
 
 /-! Map<U64, U64> storage probe: set / get / contains, default-on-missing. -/
 

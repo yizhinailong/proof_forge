@@ -26,8 +26,8 @@
 |---|---|---|
 | `ProofForge/Backend/Psy/IR.lean` | Lower portable IR → Psy AST; validation | Add `whileLoop` rejections; fix nested storage targets; fix `feltBacked`; remove dead helpers |
 | `ProofForge/Backend/Psy/Plan.lean` | Build semantic plan from IR | Fix `stmtContextOps` / `stmtCrosscallTargets`; remove or use `ContextPlan` |
-| `ProofForge/Backend/WasmNear/IR.lean` | WasmNear Rust sourcegen | Fix `whileLoop` syntax error; add rejection case |
-| `ProofForge/Backend/WasmNear/EmitWat.lean` | Wasm WAT emission | Add `whileLoop` cases to lit-collection functions |
+| `ProofForge/Backend/WasmHost/IR.lean` | WasmNear Rust sourcegen | Fix `whileLoop` syntax error; add rejection case |
+| `ProofForge/Backend/WasmHost/EmitWat.lean` | Wasm WAT emission | Add `whileLoop` cases to lit-collection functions |
 | `ProofForge/Backend/Evm/Lower.lean` | EVM statement planning | Add `whileLoop` rejection to six statement-matching functions |
 | `ProofForge/Compiler/TS/Printer.lean` | TypeScript source printer | Add `whileLoop` emission |
 | `Tests/PsyMetadata.lean` | Unit tests for Psy metadata | New file |
@@ -92,10 +92,10 @@ git commit -m "fix(psy): reject Statement.whileLoop in lowering/validation"
 
 ---
 
-## Task 2: Fix `Statement.whileLoop` in `ProofForge.Backend.WasmNear.IR`
+## Task 2: Fix `Statement.whileLoop` in `ProofForge.Backend.WasmHost.IR`
 
 **Files:**
-- Modify: `ProofForge/Backend/WasmNear/IR.lean`
+- Modify: `ProofForge/Backend/WasmHost/IR.lean`
 
 **Interfaces:**
 - Consumes: `IR.Statement.whileLoop`
@@ -129,7 +129,7 @@ Find `validateStatementIdentifiers` (around line 284). It already has a `whileLo
 
 Run:
 ```bash
-lake build ProofForge.Backend.WasmNear.IR
+lake build ProofForge.Backend.WasmHost.IR
 ```
 
 Expected: build succeeds with no errors.
@@ -137,16 +137,16 @@ Expected: build succeeds with no errors.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add ProofForge/Backend/WasmNear/IR.lean
+git add ProofForge/Backend/WasmHost/IR.lean
 git commit -m "fix(wasm-near): repair whileLoop insertion and reject unbounded loops"
 ```
 
 ---
 
-## Task 3: Fix `Statement.whileLoop` in `ProofForge.Backend.WasmNear.EmitWat`
+## Task 3: Fix `Statement.whileLoop` in `ProofForge.Backend.WasmHost.EmitWat`
 
 **Files:**
-- Modify: `ProofForge/Backend/WasmNear/EmitWat.lean`
+- Modify: `ProofForge/Backend/WasmHost/EmitWat.lean`
 
 **Interfaces:**
 - Consumes: `IR.Statement.whileLoop`
@@ -172,7 +172,7 @@ Find `collectStructLitsStmt` (around line 1638). After the `.boundedFor` case, a
 
 Run:
 ```bash
-lake build ProofForge.Backend.WasmNear.EmitWat
+lake build ProofForge.Backend.WasmHost.EmitWat
 ```
 
 Expected: build succeeds with no errors.
@@ -180,7 +180,7 @@ Expected: build succeeds with no errors.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add ProofForge/Backend/WasmNear/EmitWat.lean
+git add ProofForge/Backend/WasmHost/EmitWat.lean
 git commit -m "fix(wasm-near): handle Statement.whileLoop in literal collection"
 ```
 

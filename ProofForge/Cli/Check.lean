@@ -1,7 +1,7 @@
 import Init.Notation
 import Init.System.IO
 import Lean
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.Cli.ContractLoader
 import ProofForge.Cli.Fixture
 import ProofForge.Cli.JsonUtil
@@ -174,7 +174,7 @@ def checkWasmNearFixture (fixtureId : String) (format : ProofForge.Cli.Fixture.F
           validation := pushValidation report.validation "lowering" "failed"
         }
     | some module =>
-      match ProofForge.Backend.WasmNear.EmitWat.renderModule module with
+      match ProofForge.Backend.WasmHost.EmitWat.renderModule module with
       | .ok _ =>
           { report with validation := pushValidation report.validation "lowering" "passed" }
       | .error err =>
@@ -248,7 +248,7 @@ unsafe def checkContractSource (profile : ProofForge.Target.TargetProfile) (inpu
           | .ok _ =>
             let resolved := { preflighted with validation := pushValidation preflighted.validation "capabilities" "passed" }
             if profile.id == ProofForge.Target.wasmNear.id then
-              match ProofForge.Backend.WasmNear.EmitWat.renderModule spec.module with
+              match ProofForge.Backend.WasmHost.EmitWat.renderModule spec.module with
               | .ok _ =>
                   return { resolved with validation := pushValidation resolved.validation "lowering" "passed" }
               | .error err =>

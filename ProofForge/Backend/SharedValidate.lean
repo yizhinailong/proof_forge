@@ -11,7 +11,7 @@ This module is the **Phase 1** landing of
 
 Phase 1's scope is deliberately narrow: extract only the validation helpers
 that are **genuinely duplicated** between `ProofForge.Backend.Evm.Validate` /
-`ProofForge.Backend.Evm.IR` and `ProofForge.Backend.WasmNear.IR` *with
+`ProofForge.Backend.Evm.IR` and `ProofForge.Backend.WasmHost.IR` *with
 byte-identical behavior*. Diagnostic-message stability is the #1 acceptance
 criterion (see `Tests/SolanaDiagnostics.lean`, EVM diagnostic smokes), so this
 module owns only helpers that either:

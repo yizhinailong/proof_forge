@@ -1,9 +1,9 @@
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.IR.Examples.ConditionalProbe
 import ProofForge.IR.Examples.LoopProbe
 
 open ProofForge.IR.Examples ConditionalProbe LoopProbe
-open ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.Backend.WasmHost.EmitWat
 
 /-! Render ConditionalProbe (if/else) and LoopProbe (boundedFor) via EmitWat. -/
 

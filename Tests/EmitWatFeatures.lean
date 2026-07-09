@@ -1,7 +1,7 @@
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.IR.Contract
 
-open ProofForge.IR ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.IR ProofForge.Backend.WasmHost.EmitWat
 
 /-! Exercises the broader scalar EmitWat surface: U32 state + arithmetic +
     comparison → Bool state + U32/Bool returns. Deployed & asserted out of band. -/

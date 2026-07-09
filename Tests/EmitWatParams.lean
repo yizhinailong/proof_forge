@@ -1,7 +1,7 @@
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.IR.Contract
 
-open ProofForge.IR ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.IR ProofForge.Backend.WasmHost.EmitWat
 
 /-! Borsh input params: setN(v) reads one u64; setSum(a,b) reads two (offset 0,8). -/
 

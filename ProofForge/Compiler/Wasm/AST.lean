@@ -5,7 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 WebAssembly / WAT Abstract Syntax Tree.
 
 The Wasm-family counterpart of `ProofForge.Compiler.Yul.AST`: a small AST that
-a lowering backend (e.g. `Backend.WasmNear.EmitWat`) builds, and
+a lowering backend (e.g. `Backend.WasmHost.EmitWat`) builds, and
 `ProofForge.Compiler.Wasm.Printer` renders to WAT text. The emitted WAT is
 valid input for `wat2wasm` (wabt) and targets the NEAR VM host ABI.
 

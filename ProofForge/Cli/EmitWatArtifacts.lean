@@ -1,7 +1,7 @@
 import Lean.Util.Path
 import ProofForge.Backend.CosmWasm.EmitWat
-import ProofForge.Backend.WasmNear
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.Cli.Artifact
 import ProofForge.Cli.FileUtil
 import ProofForge.Cli.IrJson
@@ -25,7 +25,7 @@ open ProofForge.Cli.JsonUtil
 
 namespace ProofForge.Cli
 
-def writeNearPackage (outputDir : FilePath) (pkg : ProofForge.Backend.WasmNear.IR.NearPackage) : IO Unit := do
+def writeNearPackage (outputDir : FilePath) (pkg : ProofForge.Backend.WasmHost.IR.NearPackage) : IO Unit := do
   for file in pkg.files do
     let path := outputDir / file.path
     if let some parent := path.parent then
@@ -317,7 +317,7 @@ def compileEmitWat (opts : CliOptions) (name : String) (mod : ProofForge.IR.Modu
         | .ok wat => .ok wat
         | .error e => .error e.message
     | .soroban | .near =>
-        match ProofForge.Backend.WasmNear.EmitWat.renderModule mod bridge
+        match ProofForge.Backend.WasmHost.EmitWat.renderModule mod bridge
             ProofForge.Target.PeerMap.identity with
         | .ok wat => .ok wat
         | .error e => .error e.message
@@ -343,7 +343,7 @@ def compileEmitWatWithPlan
   | .cosmWasm =>
       throw <| IO.userError "contract-source EmitWat with plan is not used for CosmWasm"
   | .soroban | .near =>
-      match ProofForge.Backend.WasmNear.EmitWat.renderModuleWithPlan mod plan bridge
+      match ProofForge.Backend.WasmHost.EmitWat.renderModuleWithPlan mod plan bridge
           ProofForge.Target.PeerMap.identity with
       | .ok wat =>
           let (watPath, wasmPath?) ← writeWatPackage output name wat

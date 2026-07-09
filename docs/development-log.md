@@ -5506,7 +5506,7 @@ Validation run:
 ```sh
 lake env lean --run Tests/WasmNearDiagnostics.lean
 scripts/near/diagnostic-smoke.sh
-lake build ProofForge.Target ProofForge.Backend.WasmNear.IR
+lake build ProofForge.Target ProofForge.Backend.WasmHost.IR
 just testkit
 scripts/i18n/check-sync.sh
 python3 -m json.tool scripts/i18n/manifest.json >/dev/null
@@ -7836,7 +7836,7 @@ Summary:
 Validation run:
 
 ```sh
-lake build ProofForge.Backend.WasmNear.Refinement
+lake build ProofForge.Backend.WasmHost.Refinement
 lake env lean --run Tests/NearWasmFormal.lean
 scripts/near/emitwat-ci-smoke.sh
 git diff --check
@@ -7874,7 +7874,7 @@ Summary:
 Validation run:
 
 ```sh
-lake build ProofForge.Backend.WasmNear.Refinement
+lake build ProofForge.Backend.WasmHost.Refinement
 lake env lean --run Tests/NearWasmFormal.lean
 git diff --check
 ```
@@ -7900,7 +7900,7 @@ Commit: this commit
 Summary:
 
 - Added a decide-checkable NEAR/Wasm artifact-surface obligation in
-  `ProofForge.Backend.WasmNear.Refinement`.
+  `ProofForge.Backend.WasmHost.Refinement`.
 - The new obligation inspects the `Compiler.Wasm.AST` produced by
   `EmitWat.lowerModule` instead of matching WAT text. It pins the Counter
   artifact's required host imports, exported entrypoint call sequences,
@@ -7913,7 +7913,7 @@ Summary:
 Validation run:
 
 ```sh
-lake build ProofForge.Backend.WasmNear.Refinement
+lake build ProofForge.Backend.WasmHost.Refinement
 lake env lean --run Tests/NearWasmFormal.lean
 git diff --check
 ```
@@ -16177,7 +16177,7 @@ Summary:
 Validation run:
 
 ```sh
-lake build ProofForge.Backend.WasmNear.Refinement
+lake build ProofForge.Backend.WasmHost.Refinement
 lake env lean --run Tests/NearWasmFormal.lean
 ```
 
@@ -16205,7 +16205,7 @@ Summary:
 Validation run:
 
 ```sh
-lake build ProofForge.Backend.WasmNear.Refinement
+lake build ProofForge.Backend.WasmHost.Refinement
 lake env lean --run Tests/NearWasmFormal.lean
 ```
 
@@ -16234,7 +16234,7 @@ Summary:
 Validation run:
 
 ```sh
-lake build ProofForge.Backend.WasmNear.Refinement
+lake build ProofForge.Backend.WasmHost.Refinement
 lake env lean --run Tests/NearWasmFormal.lean
 ```
 
@@ -16261,7 +16261,7 @@ Summary:
 Validation run:
 
 ```sh
-lake build ProofForge.Backend.WasmNear.Refinement
+lake build ProofForge.Backend.WasmHost.Refinement
 lake env lean --run Tests/NearWasmFormal.lean
 ```
 
@@ -16288,7 +16288,7 @@ Summary:
 Validation run:
 
 ```sh
-lake build ProofForge.Backend.WasmNear.Refinement
+lake build ProofForge.Backend.WasmHost.Refinement
 lake env lean --run Tests/NearWasmFormal.lean
 ```
 
@@ -16315,7 +16315,7 @@ Summary:
 Validation run:
 
 ```sh
-lake build ProofForge.Backend.WasmNear.Refinement
+lake build ProofForge.Backend.WasmHost.Refinement
 lake env lean --run Tests/NearWasmFormal.lean
 ```
 
@@ -16342,7 +16342,7 @@ Summary:
 Validation run:
 
 ```sh
-lake build ProofForge.Backend.WasmNear.Refinement
+lake build ProofForge.Backend.WasmHost.Refinement
 lake env lean --run Tests/NearWasmFormal.lean
 ```
 
@@ -16369,7 +16369,7 @@ Summary:
 Validation run:
 
 ```sh
-lake build ProofForge.Backend.WasmNear.Refinement
+lake build ProofForge.Backend.WasmHost.Refinement
 lake env lean --run Tests/NearWasmFormal.lean
 ```
 
@@ -16396,7 +16396,7 @@ Summary:
 Validation run:
 
 ```sh
-lake build ProofForge.Backend.WasmNear.Refinement
+lake build ProofForge.Backend.WasmHost.Refinement
 lake env lean --run Tests/NearWasmFormal.lean
 ```
 
@@ -16420,7 +16420,7 @@ Summary:
 Validation run:
 
 ```sh
-lake build ProofForge.Backend.WasmNear.Refinement
+lake build ProofForge.Backend.WasmHost.Refinement
 lake env lean --run Tests/NearWasmFormal.lean
 ```
 
@@ -16446,7 +16446,7 @@ Summary:
 Validation run:
 
 ```sh
-lake build ProofForge.Backend.WasmNear.Refinement
+lake build ProofForge.Backend.WasmHost.Refinement
 lake env lean --run Tests/NearWasmFormal.lean
 ```
 
@@ -16472,7 +16472,7 @@ Summary:
 Validation run:
 
 ```sh
-lake build ProofForge.Backend.WasmNear.Refinement
+lake build ProofForge.Backend.WasmHost.Refinement
 lake env lean --run Tests/NearWasmFormal.lean
 ```
 
@@ -16499,7 +16499,7 @@ Validation run:
 
 ```sh
 lake build ProofForge.Target.Formal
-lake build ProofForge.Backend.WasmNear.EmitWat
+lake build ProofForge.Backend.WasmHost.EmitWat
 lake build proof-forge
 scripts/contract-source/diagnostic-smoke.sh
 lake env proof-forge build --target wasm-near --root . -o build/contract-source-diagnostics/near-positive --artifact-output build/contract-source-diagnostics/Counter.near-artifact.json Examples/Shared/Counter.lean

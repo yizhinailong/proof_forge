@@ -1,7 +1,7 @@
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.IR.Contract
 import ProofForge.IR.Examples.StructProbe
-open ProofForge.IR ProofForge.IR.Examples StructProbe ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.IR ProofForge.IR.Examples StructProbe ProofForge.Backend.WasmHost.EmitWat
 
 /-! Render the full StructProbe module: localSum (structLit+field) + storageLifecycle (struct storage write/field-read/field-write). -/
 

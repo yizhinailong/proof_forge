@@ -11,7 +11,7 @@
 
 - **Default build green — 572 jobs**, no errors (one unused-var lint). **EVM opt-in
   `lake build EvmRefinement` green — 574 jobs** (`EvmRefinement.CounterRefinement`).
-- **No `sorry` / `admit` / `axiom`** anywhere in `Backend/WasmNear`, `Backend/Solana`, `IR`.
+- **No `sorry` / `admit` / `axiom`** anywhere in `Backend/WasmHost`, `Backend/Solana`, `IR`.
 - **Track 0 all fixed (code, not just docs):** 0.1 `overflowChecked` is now a node field on
   `.add/.sub/.mul` (default checked, threaded through `Builder`/`Surface`); 0.2
   `capabilityCallsForSpec` no longer `intent`-OR-`module` (the `if calls.size == 0` branch is gone);
@@ -241,7 +241,7 @@ divergences). **All three verified STILL OPEN (2026-07-08):**
     _after_scenario` + `value_vault_invariants_sound`. Backward-compatible scenario API
     (`runScenario inputs`, `expectedReturns`, `accountingInvariantHolds`, `finalStorageMatches`,
     `defaultScenarioTraceOk/AccountingOk/NetValueOk`) preserved so the Wasm/NEAR offline-host
-    refinement (`ProofForge.Backend.WasmNear.Refinement.Core`) is unaffected.
+    refinement (`ProofForge.Backend.WasmHost.Refinement.Core`) is unaffected.
   - `ProofForge.Contract.Examples.CounterInvariant`: Counter authoring example — `countBounded`
     + `countNonNegative` invariants over an `initialize → increment×n` scenario; the Counter
     `contract_source` now carries `lean_invariant` annotations linking to these predicates.
@@ -261,7 +261,7 @@ divergences). **All three verified STILL OPEN (2026-07-08):**
   (parallel to `quint_invariant`) that stores the predicate function qualified name in
   `ContractSpec.leanInvariants` (documentation link; the predicate is a separate top-level `def`
   verified by the gate). Added `lean-invariants-smoke` gate (`just check`). Backward-compatible
-  scenario API shims keep the Wasm/NEAR offline-host refinement (`ProofForge.Backend.WasmNear.Refinement.Core`)
+  scenario API shims keep the Wasm/NEAR offline-host refinement (`ProofForge.Backend.WasmHost.Refinement.Core`)
   consuming `ValueVaultInvariant.runScenario`/`expectedReturns`/`defaultScenario*Ok` unchanged. The
   universal `∀ state` invariant form requires a structural invariant over the IR interpreter; the
   scenario-bound `native_decide` form is the machine-checked authoring surface today.
@@ -300,10 +300,10 @@ divergences). **All three verified STILL OPEN (2026-07-08):**
   `runSorobanHostCall` + `sorobanHostArity` + `runHostCall` dispatch into
   `WasmInterpreter.lean` (same byte-keyed `lookupStorage?`/`writeStorage` storage
   model as NEAR/CosmWasm, so contract-axis proofs reuse the same abstract scalar
-  reasoning). Added thin `ProofForge.Backend.WasmNear.SorobanHost.lean` host-call
+  reasoning). Added thin `ProofForge.Backend.WasmHost.SorobanHost.lean` host-call
   lemmas (`_get` hit/miss, `_put`, `set_return_data`, `log`, `require_auth`) +
   `soroban_host_smoke_ok`. Added
-  `ProofForge.Backend.WasmNear.CounterSorobanRefinement.lean` — Counter universal
+  `ProofForge.Backend.WasmHost.CounterSorobanRefinement.lean` — Counter universal
   C-proof reusing the SAME host-agnostic `counterWasmCoreTraceStep` core as
   NEAR/CosmWasm; only the host instantiation differs. This proves the WASM
   host-family thesis: a new WASM chain is a thin `*Host.lean` on top of the

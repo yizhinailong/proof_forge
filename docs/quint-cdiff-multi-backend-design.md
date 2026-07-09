@@ -714,7 +714,7 @@ smokes).
 - `testkit/harness-solana/src/lib.rs` — Solana testkit harness (Mollusk invocation
   shape).
 - `runtime/offline-host/src/main.rs` — the wasmtime-based NEAR WAT executor.
-- `ProofForge/Backend/WasmNear/NearModulePlan.lean` — the NEAR Tier B plan (Phase 4
+- `ProofForge/Backend/WasmHost/NearModulePlan.lean` — the NEAR Tier B plan (Phase 4
   Step A stub).
 - `ProofForge/Backend/Solana/Plan.lean` — the Solana Tier B plan (Phase 2, landed).
 - `Tests/Quint/CounterEvmReplay.lean` — the EVM C-diff test (reference shape).

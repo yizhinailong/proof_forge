@@ -1,5 +1,5 @@
 import Lean.Util.Path
-import ProofForge.Backend.WasmNear
+import ProofForge.Backend.WasmHost
 import ProofForge.Cli.EmitWatArtifacts
 import ProofForge.Cli.Options
 import ProofForge.IR.Examples.ContextProbe
@@ -14,7 +14,7 @@ namespace ProofForge.Cli
 def compileCounterIrWasmNear (opts : CliOptions) : IO UInt32 := do
   let some output := opts.output?
     | throw <| IO.userError "wasm-near package emit mode requires -o output directory"
-  match ProofForge.Backend.WasmNear.IR.renderPackage ProofForge.IR.Examples.Counter.module with
+  match ProofForge.Backend.WasmHost.IR.renderPackage ProofForge.IR.Examples.Counter.module with
   | .ok pkg =>
       writeNearPackage output pkg
       IO.println s!"wrote wasm-near Counter package to {output}"
@@ -25,7 +25,7 @@ def compileCounterIrWasmNear (opts : CliOptions) : IO UInt32 := do
 def compileContextIrWasmNear (opts : CliOptions) : IO UInt32 := do
   let some output := opts.output?
     | throw <| IO.userError "wasm-near package emit mode requires -o output directory"
-  match ProofForge.Backend.WasmNear.IR.renderPackage ProofForge.IR.Examples.ContextProbe.module with
+  match ProofForge.Backend.WasmHost.IR.renderPackage ProofForge.IR.Examples.ContextProbe.module with
   | .ok pkg =>
       writeNearPackage output pkg
       IO.println s!"wrote wasm-near ContextProbe package to {output}"
@@ -36,7 +36,7 @@ def compileContextIrWasmNear (opts : CliOptions) : IO UInt32 := do
 def compileHashIrWasmNear (opts : CliOptions) : IO UInt32 := do
   let some output := opts.output?
     | throw <| IO.userError "wasm-near package emit mode requires -o output directory"
-  match ProofForge.Backend.WasmNear.IR.renderPackage ProofForge.IR.Examples.HashProbe.module with
+  match ProofForge.Backend.WasmHost.IR.renderPackage ProofForge.IR.Examples.HashProbe.module with
   | .ok pkg =>
       writeNearPackage output pkg
       IO.println s!"wrote wasm-near HashProbe package to {output}"
@@ -47,7 +47,7 @@ def compileHashIrWasmNear (opts : CliOptions) : IO UInt32 := do
 def compileMapIrWasmNear (opts : CliOptions) : IO UInt32 := do
   let some output := opts.output?
     | throw <| IO.userError "wasm-near package emit mode requires -o output directory"
-  match ProofForge.Backend.WasmNear.IR.renderPackage ProofForge.IR.Examples.MapProbe.module with
+  match ProofForge.Backend.WasmHost.IR.renderPackage ProofForge.IR.Examples.MapProbe.module with
   | .ok pkg =>
       writeNearPackage output pkg
       IO.println s!"wrote wasm-near MapProbe package to {output}"

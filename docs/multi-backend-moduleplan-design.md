@@ -48,7 +48,7 @@ For each candidate backend we asked:
 
 | Backend | Current lowering shape | Has implicit ctx? | Has existing plan? | Difficulty | Recommended order |
 |---|---|---|---|---|---|
-| **NEAR (WasmNear)** | Two parallel paths: (a) `WasmNear/IR.lean` — Rust sourcegen (~1.3k LOC), `validateModule` → `renderLibRs` builds Rust source inline, no plan; (b) `WasmNear/EmitWat.lean` (~2.7k LOC) — IR → Wasm AST, **already consumes `WasmNear.Plan.ModulePlan`** (`buildModulePlan`) for host imports / helper pruning, then builds an inline `Ctx` (scalars/maps/strings/panics/crosscallStrings) for data layout. | Yes — `EmitWat.Ctx` (scalars, maps, strings, panics, crosscallStrings, structs, allocator). `WasmNear/IR.lean` sourcegen has no `Ctx`, lowering is stateless string-building. | **Yes** — `ProofForge/Backend/WasmNear/Plan.lean` already defines `ModulePlan` + `buildModulePlan` + `ModuleSurface` (a rich host-import/helper-discovery plan). EmitWat consumes it. The gap is that the layout `Ctx` is still built inline, not plan-derived. | **Easy–medium** | **1st** |
+| **NEAR (WasmNear)** | Two parallel paths: (a) `WasmNear/IR.lean` — Rust sourcegen (~1.3k LOC), `validateModule` → `renderLibRs` builds Rust source inline, no plan; (b) `WasmNear/EmitWat.lean` (~2.7k LOC) — IR → Wasm AST, **already consumes `WasmNear.Plan.ModulePlan`** (`buildModulePlan`) for host imports / helper pruning, then builds an inline `Ctx` (scalars/maps/strings/panics/crosscallStrings) for data layout. | Yes — `EmitWat.Ctx` (scalars, maps, strings, panics, crosscallStrings, structs, allocator). `WasmNear/IR.lean` sourcegen has no `Ctx`, lowering is stateless string-building. | **Yes** — `ProofForge/Backend/WasmHost/Plan.lean` already defines `ModulePlan` + `buildModulePlan` + `ModuleSurface` (a rich host-import/helper-discovery plan). EmitWat consumes it. The gap is that the layout `Ctx` is still built inline, not plan-derived. | **Easy–medium** | **1st** |
 | **Psy** | `Psy/IR.lean` — `buildModule` consumes `PsyModulePlan` via a `BuildContext` (module + storage layout). Lowering is already plan-driven: `BuildContext.layout` is consulted for every state lookup (`lookupState?`, `requireScalarStateCtx`, ...). No inline `LowerCtx` accumulation; the plan is the context. | Partially — `BuildContext` is just `{ module, layout }`, where `layout` comes from the plan. No mutable lowering-local state. | **Yes** — `PsyModulePlan` (storage shapes, context ops, events, crosscalls, test plan, capabilities). Metadata-only (no `ExprPlan`/`StmtPlan`), already consumed by `IR.lean` and `Metadata*.lean`. | **Easy** (for seam alignment) — but lower payoff than NEAR because the plan is already wired and the lowering is already pure. | **3rd** (deferred — see §7) |
 | **Move (Sui)** | `Move/Sui.lean` — `renderSource` is a hardcoded Counter MVP template (~80 LOC). No lowering, no `Ctx`, no plan. `checkCapabilities` + `requireScalarState` then string-templates a Move module. Only scalar u64 state, fixed entrypoint names (create/initialize/increment/value/get/destroy). | No — no implicit context; lowering is string interpolation. | No. | **Hard** (for a real plan) — but the backend itself is an MVP spike, not a real lowering. A `SuiModulePlan` would have to precede building a real Move lowering, not the other way around. | **2nd** (deferred — see §7) |
 
@@ -64,7 +64,7 @@ than Solana's `LowerCtx` split.
 
 ### 4.1 Why NEAR is easiest — evidence
 
-1. **A plan already exists and is consumed.** `ProofForge/Backend/WasmNear/Plan.lean`
+1. **A plan already exists and is consumed.** `ProofForge/Backend/WasmHost/Plan.lean`
    defines `ModulePlan` (1138–1180) and `buildModulePlan` (1182–1226). `EmitWat.lowerModule`
    calls `buildModulePlan mod` at line 2570 and uses the result to drive host imports,
    helper emission, and globals. This is further along than Solana was at the start of
@@ -149,7 +149,7 @@ The existing `ModulePlan` is kept (it is already consumed by EmitWat and tested 
 `Tests/WasmNearPlan.lean`). A new `NearModulePlan` wraps it and adds the layout fields:
 
 ```lean
--- proposed: ProofForge/Backend/WasmNear/NearModulePlan.lean
+-- proposed: ProofForge/Backend/WasmHost/NearModulePlan.lean
 structure NearStatePlan where
   id : String
   kind : String          -- "scalar" | "map" | "array" | "dynamicArray"
@@ -258,7 +258,7 @@ No feature flag is needed initially because the change is additive (the inline `
 construction is replaced by `Ctx.fromSeed`, which produces the same fields).
 
 **Step A — Types only (no behavior). — LANDED (commit 61cfa7a9).**
-- Add `ProofForge/Backend/WasmNear/NearModulePlan.lean` with the struct definitions
+- Add `ProofForge/Backend/WasmHost/NearModulePlan.lean` with the struct definitions
   above (no construction, no consumers).
 - `NearModulePlan` is buildable but unused; EmitWat path unchanged.
 - CI stays green by construction. *(This is the optional stub this step delivers.)*
@@ -398,7 +398,7 @@ plan-driven path the only path:
 
 Step A (commit 61cfa7a9):
 
-- `ProofForge/Backend/WasmNear/NearModulePlan.lean` — the struct definitions from §5
+- `ProofForge/Backend/WasmHost/NearModulePlan.lean` — the struct definitions from §5
   plus a `buildNearModulePlan` that constructs a plan for
   `ProofForge.IR.Examples.Counter.module`. It reuses the existing
   `WasmNear.Plan.buildModulePlan` for the `surface` and computes the layout fields
@@ -695,11 +695,11 @@ have been busywork that risked the frozen EVM goldens for no gain.
 - `ProofForge/Backend/Evm/Plan.lean` — reference `ModulePlan` (1460 LOC).
 - `ProofForge/Backend/Solana/Plan.lean` — `SolanaModulePlan` + `SolanaLowerCtxSeed`
   + `lowerModuleFromPlan` (378 LOC, landed).
-- `ProofForge/Backend/WasmNear/Plan.lean` — existing `ModulePlan` +
+- `ProofForge/Backend/WasmHost/Plan.lean` — existing `ModulePlan` +
   `buildModulePlan` + `ModuleSurface` (1228 LOC, already consumed by EmitWat).
-- `ProofForge/Backend/WasmNear/EmitWat.lean` — `lowerModule` (2565), `Ctx`
+- `ProofForge/Backend/WasmHost/EmitWat.lean` — `lowerModule` (2565), `Ctx`
   (1269–1276), `lowerEntrypoint` (2552), `memoryLayoutNonoverlap_valid` (156).
-- `ProofForge/Backend/WasmNear/IR.lean` — Rust sourcegen path (1314 LOC, out of
+- `ProofForge/Backend/WasmHost/IR.lean` — Rust sourcegen path (1314 LOC, out of
   scope).
 - `ProofForge/Backend/Psy/Plan.lean` — `PsyModulePlan` (539 LOC, metadata-only).
 - `ProofForge/Backend/Psy/IR.lean` — `BuildContext` (41–43), plan-driven lowering.

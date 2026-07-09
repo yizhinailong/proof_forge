@@ -131,7 +131,7 @@ lowerToAst :
   `lowerModuleCore` / `lowerModule` / `lowerModuleWithPlan` — today this is
   *not* plan-driven; the plan is the ephemeral `LowerCtx` struct. Phase 2
   makes `LowerCtx` plan-derived (see the [Solana deep-dive](#solana-deep-dive)).
-- **NEAR reference (current):** `ProofForge/Backend/WasmNear/EmitWat.lean`
+- **NEAR reference (current):** `ProofForge/Backend/WasmHost/EmitWat.lean`
   `lowerModule` — today goes straight IR → Wasm AST after `validateModule`;
   Phase 3 inserts a plan layer.
 - **Must NOT:** make new target-support decisions (anything that reaches
@@ -447,7 +447,7 @@ delivered:
 - [`ProofForge/Backend/Lowering.lean`](../ProofForge/Backend/Lowering.lean)
   — Phase 0 design stub (`LoweringStage` inductive).
 - `ProofForge/Backend/Evm/{Validate,Plan,Lower,IR,Metadata,Refinement,YulSemantics}.lean`
-- `ProofForge/Backend/WasmNear/{IR,EmitWat,Refinement}.lean`
+- `ProofForge/Backend/WasmHost/{IR,EmitWat,Refinement}.lean`
 - `ProofForge/Backend/Psy/{Plan,IR,Metadata,MetadataJson}.lean`
 - `ProofForge/Backend/Solana/{SbpfAsm,StateLayout,Extension,Manifest,Idl,Client,Package,Syscalls,Register,Asm}.lean`
 - `ProofForge/IR/{Semantics,Ownership}.lean`

@@ -21,7 +21,7 @@ Portable IR (Module)
 **共享层（整个家族只写一次）：**
 
 - `Compiler/Wasm/AST.lean` + `Compiler/Wasm/Printer.lean`：Wasm/WAT AST 和 printer，对应 `Compiler/Yul/AST.lean` + `Yul/Printer.lean`。
-- portable-IR → Wasm-AST lowering 骨架（capabilities、type inference、statement/expression lowering），复用 `Backend/WasmNear/IR.lean`（Rust v0）和 `Backend/Evm/IR.lean` 已验证过的 validation logic。
+- portable-IR → Wasm-AST lowering 骨架（capabilities、type inference、statement/expression lowering），复用 `Backend/WasmHost/IR.lean`（Rust v0）和 `Backend/Evm/IR.lean` 已验证过的 validation logic。
 - WAT module scaffolding：memory、type/import/export sections、`wat2wasm` invocation 和 artifact metadata。
 
 **按链区分的层（NEAR / CosmWasm / Soroban / ICP 之间真正不同的部分）：**
@@ -42,7 +42,7 @@ Portable IR (Module)
 完整实现设计见 [Wasm-NEAR 目标](wasm-near.zh.md)。
 
 - **Canonical path：** `Portable IR → EmitWat → Wasm AST → WAT → wat2wasm → Wasm`，NEAR host bridge 将 portable IR effects lower 到 `env.storage_*` / `env.sha256` / `env.predecessor_account_id` / `env.block_height` / `env.log` imports。
-- **冻结的 v0 stopgap（仓库内，可编译）：** Rust `near-sdk-rs` sourcegen，经由 `ProofForge/Backend/WasmNear/IR.lean`。它现在验证 NEAR 语义，但不再扩展。canonical path 的关键风险是 NEAR 参数（反）序列化（JSON/Borsh），这是 EVM backend 不会遇到的（EVM 使用 calldata）。
+- **冻结的 v0 stopgap（仓库内，可编译）：** Rust `near-sdk-rs` sourcegen，经由 `ProofForge/Backend/WasmHost/IR.lean`。它现在验证 NEAR 语义，但不再扩展。canonical path 的关键风险是 NEAR 参数（反）序列化（JSON/Borsh），这是 EVM backend 不会遇到的（EVM 使用 calldata）。
 
 移植前的设计清理：
 
@@ -191,7 +191,7 @@ def query : CosmWasm.Entrypoint := do
 
 - **[NEAR spike gate]** NEAR 参数（反）序列化（JSON/Borsh）能否在 `EmitWat` 下干净 lowering？这是最高风险未知项，必须在扩大 lowering 覆盖前先 de-risk。
 - `EmitWat` 应发射 WAT text（→ `wat2wasm`）还是直接发射 Wasm binary？默认是 WAT text（对齐 `Backend/Evm/IR.lean` → Yul text → `solc`）；binary 是后续用于移除 `wabt` 依赖的优化。
-- `Backend/WasmNear/IR.lean`（Rust v0）和 `Backend/Evm/IR.lean` 中有多少 IR-lowering / validation logic 可以共享？
+- `Backend/WasmHost/IR.lean`（Rust v0）和 `Backend/Evm/IR.lean` 中有多少 IR-lowering / validation logic 可以共享？
 - CosmWasm 应通过 `wasm32-freestanding` 编译，还是走带 import stripping 的 WASI 路径？
 - Schema generation（CosmWasm JSON schema、Soroban spec、ICP `.did`）应来自 Lean types 还是 separate manifest？
 - Soroban / ICP 是否应先走 native Rust/Motoko package sourcegen，再做 direct `EmitWat` host bridge？

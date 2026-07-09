@@ -21,7 +21,7 @@ open ProofForge.Backend.Solana.SbpfInterpreter
 /-! ## Solana sBPF refinement scaffolding (FV-4 executable trace anchor)
 
 This is the first formal anchor for the `solana-sbpf-asm` backend, mirroring
-the shape of `ProofForge.Backend.WasmNear.Refinement`. It does **not** claim a
+the shape of `ProofForge.Backend.WasmHost.Refinement`. It does **not** claim a
 full sBPF instruction semantics (assembly-level execution is a research track,
 see `docs/formal-verification.md` FV-4). Instead it fixes the observable
 boundary that later differential gates and any future executable-trace work

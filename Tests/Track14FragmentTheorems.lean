@@ -1,6 +1,6 @@
 import ProofForge.Backend.Evm.Refinement
 import ProofForge.Backend.Solana.Refinement
-import ProofForge.Backend.WasmNear.Refinement
+import ProofForge.Backend.WasmHost.Refinement
 import ProofForge.Backend.Refinement.CounterUniversal
 
 /-! ## Track 1.4 fragment theorem smoke
@@ -24,7 +24,7 @@ namespace ProofForge.Tests.Track14FragmentTheorems
 
 open ProofForge.Backend.Evm.Refinement
 open ProofForge.Backend.Solana.Refinement
-open ProofForge.Backend.WasmNear.Refinement
+open ProofForge.Backend.WasmHost.Refinement
 open ProofForge.Backend.Refinement.CounterUniversal
 
 #check evm_counter_lowering_total

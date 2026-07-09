@@ -2857,7 +2857,7 @@ Tasks (see the roadmap for full statements):
 - FV-4: EVM Counter, ValueVault, and EvmExpressionProbe executable trace
   obligations are done in `Backend/Evm/Refinement.lean`, backed by
   `Backend/Evm/YulSemantics.lean`. The obligations mirror
-  `Backend/WasmNear/Refinement.lean` for scalar IR traces, check the
+  `Backend/WasmHost/Refinement.lean` for scalar IR traces, check the
   selector-dispatched Yul surface, and execute the focused emitted Yul subset
   (`calldataload`, `calldatasize`, `sstore`, `sload`, scalar arithmetic,
   `exp`, bitwise/shift operators, comparisons, casts, assertions, `number`,

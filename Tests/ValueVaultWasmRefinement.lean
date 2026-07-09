@@ -1,11 +1,11 @@
-import ProofForge.Backend.WasmNear.ValueVaultWasmRefinement
+import ProofForge.Backend.WasmHost.ValueVaultWasmRefinement
 
 /-! WASM-5a contract-axis smoke: ValueVault universal IR↔Wasm core refinement. -/
 
 namespace ProofForge.Tests.ValueVaultWasmRefinement
 
-open ProofForge.Backend.WasmNear.ValueVaultWasmRefinement
-open ProofForge.Backend.WasmNear.ValueVaultWasmExec
+open ProofForge.Backend.WasmHost.ValueVaultWasmRefinement
+open ProofForge.Backend.WasmHost.ValueVaultWasmExec
 
 #check valueVaultWasm_step_simulates
 #check valueVaultWasm_trace_simulates

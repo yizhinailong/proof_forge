@@ -1,7 +1,7 @@
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.Contract.Examples.ValueVault
 
-open ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.Backend.WasmHost.EmitWat
 
 /-! EmitWat smoke: lower the portable ValueVault contract module to WAT for the
     deterministic offline host and unified testkit. -/

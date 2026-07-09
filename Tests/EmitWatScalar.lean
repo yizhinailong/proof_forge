@@ -1,8 +1,8 @@
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.IR.Examples.U32StorageScalarProbe
 
 open ProofForge.IR.Examples U32StorageScalarProbe
-open ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.Backend.WasmHost.EmitWat
 
 /-! Render U32StorageScalarProbe (uses `.storageScalarAssignOp`) via EmitWat.
     storage_lifecycle: write 7 → n=read → write n → n+=5 → result=read == 12 (asserted)

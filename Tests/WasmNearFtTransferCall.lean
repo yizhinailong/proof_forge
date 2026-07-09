@@ -1,11 +1,11 @@
-import ProofForge.Backend.WasmNear.EmitWat
-import ProofForge.Backend.WasmNear.Plan
+import ProofForge.Backend.WasmHost.EmitWat
+import ProofForge.Backend.WasmHost.Plan
 import ProofForge.Contract.Stdlib.NearFungibleToken
 
 namespace ProofForge.Tests.WasmNearFtTransferCall
 
 open ProofForge.IR
-open ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.Backend.WasmHost.EmitWat
 
 def requireContains (wat : String) (needle : String) (msg : String) : IO Unit :=
   if wat.contains needle then pure () else
@@ -46,7 +46,7 @@ def main : IO UInt32 := do
   if module.nearCrosscallStrings != #["ft_on_transfer", "ft_resolve_transfer", "demo.receiver.testnet"] then
     throw <| IO.userError "NearFungibleToken must register ft methods and demo receiver in nearCrosscallStrings"
   requireFtApproveAllowanceShape module
-  match ProofForge.Backend.WasmNear.Plan.buildModulePlan module with
+  match ProofForge.Backend.WasmHost.Plan.buildModulePlan module with
   | .ok plan =>
       if !plan.usesPromiseCreate then throw <| IO.userError "FT module must use promise_create"
       if !plan.usesPromiseThen then throw <| IO.userError "FT module must use promise_then"

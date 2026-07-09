@@ -147,7 +147,7 @@ theorem value_vault_invariants_sound :
 
 /-! ### Backward-compatible scenario API
 
-The Wasm/NEAR offline-host refinement (`ProofForge.Backend.WasmNear.Refinement.Core`)
+The Wasm/NEAR offline-host refinement (`ProofForge.Backend.WasmHost.Refinement.Core`)
 consumes the scenario runner and per-scenario expected results/final-state
 predicates. These keep the pre-refinement shape so that side of the pipeline
 is unaffected by the FV-8 authoring refactor. -/

@@ -1,6 +1,6 @@
 import ProofForge.Backend.Evm.Refinement
 import ProofForge.Backend.Solana.Refinement
-import ProofForge.Backend.WasmNear.Refinement
+import ProofForge.Backend.WasmHost.Refinement
 import ProofForge.Backend.Refinement.CounterUniversal
 import ProofForge.IR.StepSemantics
 
@@ -17,7 +17,7 @@ open ProofForge.IR.StepSemantics
 
 #check ProofForge.Backend.Evm.Refinement.evmYulTargetSemantics
 #check ProofForge.Backend.Solana.Refinement.solanaSbpfTargetSemantics
-#check ProofForge.Backend.WasmNear.Refinement.wasmNearTargetSemantics
+#check ProofForge.Backend.WasmHost.Refinement.wasmNearTargetSemantics
 #check TargetSemantics.runTrace_sound
 
 theorem evm_counter_target_semantics_trace_ok :
@@ -36,8 +36,8 @@ theorem solana_counter_target_semantics_fragment_ok :
   native_decide
 
 theorem wasm_counter_target_semantics_trace_ok :
-    ProofForge.Backend.WasmNear.Refinement.wasmNearTargetSemantics.executableTraceOk
-      ProofForge.Backend.WasmNear.Refinement.counterTraceObligation = true := by
+    ProofForge.Backend.WasmHost.Refinement.wasmNearTargetSemantics.executableTraceOk
+      ProofForge.Backend.WasmHost.Refinement.counterTraceObligation = true := by
   native_decide
 
 #check (fun (object : Lean.Compiler.Yul.Object) calls storage =>
@@ -54,8 +54,8 @@ theorem wasm_counter_target_semantics_trace_ok :
 
 #check (fun (wasm : ProofForge.Compiler.Wasm.Module) calls state =>
   TargetSemantics.runTrace_sound
-    ProofForge.Backend.WasmNear.Refinement.wasmNearTargetSemantics calls
-    ({ wasm, state } : ProofForge.Backend.WasmNear.Refinement.WasmNearMachineState))
+    ProofForge.Backend.WasmHost.Refinement.wasmNearTargetSemantics calls
+    ({ wasm, state } : ProofForge.Backend.WasmHost.Refinement.WasmHostMachineState))
 
 /-! ## FV-9.1: generic simulation relation is a first-class TargetSemantics field
 

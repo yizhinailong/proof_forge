@@ -1,7 +1,7 @@
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.IR.Contract
 import ProofForge.IR.Examples.MapProbe
-open ProofForge.IR ProofForge.IR.Examples ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.IR ProofForge.IR.Examples ProofForge.Backend.WasmHost.EmitWat
 
 /-! Render the path-storage subset of MapProbe (storagePathRead/Write, mapKey segment). -/
 

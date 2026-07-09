@@ -30,13 +30,13 @@ import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.EvmMapProbe
 import ProofForge.IR.Examples.EvmStorageArrayProbe
 import ProofForge.IR.Examples.EvmStorageStructProbe
-import ProofForge.Backend.WasmNear.NearModulePlan
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.NearModulePlan
+import ProofForge.Backend.WasmHost.EmitWat
 
 namespace ProofForge.Tests.NearModulePlan
 
-open ProofForge.Backend.WasmNear.NearModulePlan
-open ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.Backend.WasmHost.NearModulePlan
+open ProofForge.Backend.WasmHost.EmitWat
 open ProofForge.IR
 
 /-- Map-state sub-module: u64-keyed map using only `storageMapGet` (expr) and

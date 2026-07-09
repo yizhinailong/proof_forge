@@ -34,9 +34,9 @@ import ProofForge.Backend.Evm.Plan
 import ProofForge.Backend.Evm.Validate
 import ProofForge.Backend.Solana.Plan
 import ProofForge.Backend.Solana.SbpfAsm
-import ProofForge.Backend.WasmNear.EmitWat
-import ProofForge.Backend.WasmNear.IR
-import ProofForge.Backend.WasmNear.Plan
+import ProofForge.Backend.WasmHost.EmitWat
+import ProofForge.Backend.WasmHost.IR
+import ProofForge.Backend.WasmHost.Plan
 
 namespace ProofForge.Tests.Diagnostic
 
@@ -204,7 +204,7 @@ def testSolanaPlanInstance : IO Bool := do
   pure (ok1 && ok2)
 
 def testWasmNearIRInstance : IO Bool := do
-  let err : ProofForge.Backend.WasmNear.IR.LowerError := { message := "near-ir probe" }
+  let err : ProofForge.Backend.WasmHost.IR.LowerError := { message := "near-ir probe" }
   let viaClass := LoweringError.toDiagnostic err |>.render
   let viaBackend := err.render
   let ok1 ← requireEqStr viaClass viaBackend
@@ -214,7 +214,7 @@ def testWasmNearIRInstance : IO Bool := do
   pure (ok1 && ok2)
 
 def testWasmNearPlanInstance : IO Bool := do
-  let err : ProofForge.Backend.WasmNear.Plan.PlanError := { message := "near-plan probe" }
+  let err : ProofForge.Backend.WasmHost.Plan.PlanError := { message := "near-plan probe" }
   let viaClass := LoweringError.toDiagnostic err |>.render
   -- WasmNear.Plan.PlanError has no explicit `.render`, but the instance's
   -- default `render` projects to `LoweringDiagnostic.render`, which is the
@@ -223,7 +223,7 @@ def testWasmNearPlanInstance : IO Bool := do
     "WasmNear.Plan.PlanError instance renders bare message"
 
 def testWasmNearEmitWatInstance : IO Bool := do
-  let err : ProofForge.Backend.WasmNear.EmitWat.EmitError := { message := "near-emit probe" }
+  let err : ProofForge.Backend.WasmHost.EmitWat.EmitError := { message := "near-emit probe" }
   let viaClass := LoweringError.toDiagnostic err |>.render
   requireEqStr viaClass "near-emit probe"
     "WasmNear.EmitWat.EmitError instance renders bare message"

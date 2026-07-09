@@ -23,9 +23,9 @@ presentation concern and is intentionally out of scope for this stub.
 | EVM lowering | `Evm.IR.LowerError` (`Backend/Evm/IR.lean`) | `message : String` | `err.message` | Yes |
 | EVM plan | `Evm.Plan.PlanError` (`Backend/Evm/Plan.lean`) | `message : String` | `err.message` | Yes |
 | EVM constructor init | `Evm.ConstructorInit.InitError` (`Backend/Evm/ConstructorInit.lean`) | `message : String` | `err.message` | Yes |
-| NEAR lowering | `WasmNear.IR.LowerError` (`Backend/WasmNear/IR.lean`) | `message : String` | `err.message` | Yes |
-| NEAR plan | `WasmNear.Plan.PlanError` (`Backend/WasmNear/Plan.lean`) | `message : String` | `err.message` (via `err` helper) | Yes |
-| NEAR emit | `WasmNear.EmitWat.EmitError` (`Backend/WasmNear/EmitWat.lean`) | `message : String` | `err.message` (via `err` helper) | Yes |
+| NEAR lowering | `WasmNear.IR.LowerError` (`Backend/WasmHost/IR.lean`) | `message : String` | `err.message` | Yes |
+| NEAR plan | `WasmNear.Plan.PlanError` (`Backend/WasmHost/Plan.lean`) | `message : String` | `err.message` (via `err` helper) | Yes |
+| NEAR emit | `WasmNear.EmitWat.EmitError` (`Backend/WasmHost/EmitWat.lean`) | `message : String` | `err.message` (via `err` helper) | Yes |
 | Solana lowering | `Solana.SbpfAsm.LowerError` (`Backend/Solana/SbpfAsm.lean`) | `message : String` | `err.message` | Yes |
 | Solana plan | `Solana.Plan.PlanError` (`Backend/Solana/Plan.lean`) | `message : String` | `err.message` | Yes |
 | Psy lowering | `Psy.IR.LowerError` (`Backend/Psy/IR.lean`) | `message : String` | `err.message` | Yes |

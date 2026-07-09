@@ -1,11 +1,11 @@
-import ProofForge.Backend.WasmNear.CosmWasmHost
+import ProofForge.Backend.WasmHost.CosmWasmHost
 
 /-! CosmWasm host dispatch smoke (WASM-5b): `runHostCall` routes `.cosmWasm` bridge. -/
 
 namespace ProofForge.Tests.WasmCosmWasmHost
 
-open ProofForge.Backend.WasmNear.WasmInterpreter
-open ProofForge.Backend.WasmNear.CosmWasmHost
+open ProofForge.Backend.WasmHost.WasmInterpreter
+open ProofForge.Backend.WasmHost.CosmWasmHost
 
 def cosmWasmState : WasmState :=
   { host := { bridge := .cosmWasm, storage := #[] } }

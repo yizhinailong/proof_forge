@@ -1,7 +1,7 @@
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.IR.Examples.Counter
 
-open ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.Backend.WasmHost.EmitWat
 
 /-! EmitWat smoke: lower the portable IR Counter to WAT and write it out,
     then (out of band) `wat2wasm` + deploy to near-sandbox. -/

@@ -2,7 +2,7 @@
 
 Status: **Phase 4 WASM host-family adapter landed (first spike) —
 `wasm-stellar-soroban` host bridge is implemented as `ProofForge.Target.HostBridge.soroban`
-+ `ProofForge.Backend.WasmNear.SorobanHost.lean`, reusing the shared `WasmExec` core.
++ `ProofForge.Backend.WasmHost.SorobanHost.lean`, reusing the shared `WasmExec` core.
 Not yet a separate registry id; the Counter refinement reuses the host-agnostic core.**
 
 **Product queue (2026-07 close-out):** EVM · Solana · NEAR portable crosscall
@@ -194,7 +194,7 @@ Landed:
   `hostFunctions` for storage/auth plus portable crosscall
   (`_put` / `_get` / `log_from_slice` / `require_auth_for_args` /
   `invoke_contract`).
-- `ProofForge.Backend.WasmNear.WasmInterpreter.runSorobanHostCall` +
+- `ProofForge.Backend.WasmHost.WasmInterpreter.runSorobanHostCall` +
   `sorobanHostArity` + `runHostCall` dispatch arm. The storage model is the
   same byte-keyed `lookupStorage?` / `writeStorage` table NEAR and CosmWasm
   use, so contract-axis proofs reuse the same abstract scalar reasoning.
@@ -204,10 +204,10 @@ Landed:
   imported; Promise host-extension constructors rejected. Scalar storage uses
   `_get`/`_put` (not NEAR `storage_*`). Entrypoints that read `caller` emit
   `require_auth_for_args` prologue. Logical peers rewrite via `PeerMap`.
-- `ProofForge.Backend.WasmNear.SorobanHost.lean` — thin host-call lemmas
+- `ProofForge.Backend.WasmHost.SorobanHost.lean` — thin host-call lemmas
   (`_get` hit/miss, `_put`, `set_return_data`, `log`, `require_auth`,
   `invoke_contract`) + `soroban_host_smoke_ok`.
-- `ProofForge.Backend.WasmNear.CounterSorobanRefinement.lean` — Counter
+- `ProofForge.Backend.WasmHost.CounterSorobanRefinement.lean` — Counter
   universal C-proof reusing the SAME host-agnostic
   `counterWasmCoreTraceStep` core as NEAR/CosmWasm; only the host
   instantiation differs.

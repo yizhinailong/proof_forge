@@ -1,8 +1,8 @@
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.IR.Examples.MapProbe
 
 open ProofForge.IR.Examples MapProbe
-open ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.Backend.WasmHost.EmitWat
 
 /-! Render the EmitWat-compatible `MapProbe.emitWatFullModule` (Map\u003cHash, Hash\u003e, hash-keyed)
     to WAT for the hash-map smoke test. The full `MapProbe.module` uses

@@ -1,8 +1,8 @@
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.IR.Contract
 import ProofForge.IR.Examples.HashStorageProbe
 
-open ProofForge.IR ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.IR ProofForge.Backend.WasmHost.EmitWat
 
 /-! Hash probe: literal, scalar storage roundtrip, hash (sha256) determinism,
     hash_two_to_one determinism. Observed via assertEq (trap on mismatch) +

@@ -1,5 +1,5 @@
-import ProofForge.Backend.WasmNear.CounterSorobanRefinement
-import ProofForge.Backend.WasmNear.SorobanHost
+import ProofForge.Backend.WasmHost.CounterSorobanRefinement
+import ProofForge.Backend.WasmHost.SorobanHost
 
 /-! Soroban host dispatch + Counter refinement smoke (Phase 4 WASM host family).
 
@@ -10,10 +10,10 @@ machine-checked witness for the WASM host-family thesis. -/
 
 namespace ProofForge.Tests.WasmSorobanHost
 
-open ProofForge.Backend.WasmNear.WasmInterpreter
-open ProofForge.Backend.WasmNear.SorobanHost
-open ProofForge.Backend.WasmNear.CounterSorobanRefinement
-open ProofForge.Backend.WasmNear.CounterWasmRefinement
+open ProofForge.Backend.WasmHost.WasmInterpreter
+open ProofForge.Backend.WasmHost.SorobanHost
+open ProofForge.Backend.WasmHost.CounterSorobanRefinement
+open ProofForge.Backend.WasmHost.CounterWasmRefinement
 
 def sorobanState : WasmState :=
   { host := { bridge := .soroban, storage := #[] } }

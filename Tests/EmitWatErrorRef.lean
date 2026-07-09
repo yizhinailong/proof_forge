@@ -1,10 +1,10 @@
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.Contract.Spec
 import ProofForge.Contract.Spec.Json
 import ProofForge.Contract.Client
 import ProofForge.IR.Examples.ErrorRefProbe
 
-open ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.Backend.WasmHost.EmitWat
 
 def main : IO UInt32 := do
   match renderModule ProofForge.IR.Examples.ErrorRefProbe.module with

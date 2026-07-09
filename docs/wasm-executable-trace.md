@@ -6,7 +6,7 @@ artifact-surface, and offline-host execution-surface anchors.
 
 ## Where we are today
 
-`ProofForge/Backend/WasmNear/Refinement.lean` pins three NEAR/Wasm anchors:
+`ProofForge/Backend/WasmHost/Refinement.lean` pins three NEAR/Wasm anchors:
 
 1. **IR observable trace** - the Counter, ValueVault, fixed-array storage, and
    u64-map storage scenarios are checked against the shared `IR.Semantics`.
@@ -50,10 +50,10 @@ text parser is introduced:
   - `ValType`, `Import`, `Memory`, `DataSegment`, `Func`, `Block`, and `Insn`.
   - `Insn` covers stack values, locals, loads/stores, calls, structured
     `block`/`loop`/`if`, branches, and returns.
-- `ProofForge/Backend/WasmNear/EmitWat.lean`:
+- `ProofForge/Backend/WasmHost/EmitWat.lean`:
   - `lowerModule : IR.Module -> Except _ Wasm.Module`.
   - `renderModule : IR.Module -> Except _ String`.
-- `ProofForge/Backend/WasmNear/Layout.lean`:
+- `ProofForge/Backend/WasmHost/Layout.lean`:
   - scalar storage key layout for state fields.
 - `ProofForge/Target/HostBridge.lean`:
   - host import metadata for NEAR and future Wasm-family reuse.
@@ -182,9 +182,9 @@ state and the Rust offline host.
 
 ## Acceptance
 
-- `ProofForge/Backend/WasmNear/WasmInterpreter.lean` contains the in-Lean
+- `ProofForge/Backend/WasmHost/WasmInterpreter.lean` contains the in-Lean
   interpreter and host model.
-- `ProofForge/Backend/WasmNear/Refinement.lean` gains
+- `ProofForge/Backend/WasmHost/Refinement.lean` gains
   `wasmExecutableTraceOk`, `counter_wasm_executable_trace_ok`, and
   `value_vault_wasm_executable_trace_ok`,
   `array_storage_wasm_executable_trace_ok`, and

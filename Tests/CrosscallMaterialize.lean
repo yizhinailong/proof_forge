@@ -12,8 +12,8 @@ import ProofForge.Backend.Evm.Plan
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.PortableCrosscall
 import ProofForge.Backend.Solana.SbpfAsm
-import ProofForge.Backend.WasmNear.EmitWat
-import ProofForge.Backend.WasmNear.PortableCrosscall
+import ProofForge.Backend.WasmHost.EmitWat
+import ProofForge.Backend.WasmHost.PortableCrosscall
 import ProofForge.Backend.CosmWasm.EmitWat
 import ProofForge.Backend.Psy.IR
 import ProofForge.Target.CrosscallMaterialize
@@ -26,7 +26,7 @@ open ProofForge.Target.Preflight
 open ProofForge.Backend.Solana.PortableCrosscall
 open ProofForge.Backend.Solana.Manifest
 open ProofForge.Backend.Solana.StateLayout
-open ProofForge.Backend.WasmNear.PortableCrosscall
+open ProofForge.Backend.WasmHost.PortableCrosscall
 
 def require (cond : Bool) (msg : String) : IO Unit :=
   if cond then pure () else throw (IO.userError msg)
@@ -80,11 +80,11 @@ def main : IO Unit := do
   let nearPortable := ProofForge.IR.Examples.NearCrosscallProbe.portableModule
   require (moduleUsesPortableInvoke nearPortable) "portable NEAR uses crosscall.invoke"
   require (!moduleUsesPromiseExtension nearPortable) "portable NEAR has no promise constructors"
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule nearPortable with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule nearPortable with
   | .error e => throw (IO.userError s!"NEAR EmitWat portableModule failed: {e.message}")
   | .ok wat =>
       require (wat.contains "promise_create") "NEAR materializes promise_create"
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule nearProbe with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule nearProbe with
   | .error e => throw (IO.userError s!"NEAR EmitWat full NearCrosscallProbe failed: {e.message}")
   | .ok wat =>
       require (wat.contains "promise_create") "full fixture promise_create"
@@ -95,7 +95,7 @@ def main : IO Unit := do
     state := nearProbe.state
     entrypoints := #[ProofForge.IR.Examples.NearCrosscallProbe.callRemote]
   }
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule bareNear with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule bareNear with
   | .ok _ => throw (IO.userError "NEAR bare crosscall without nearCrosscallStrings must fail")
   | .error e =>
       require (e.message.contains "nearCrosscallStrings" || e.message.contains "promise")
@@ -155,7 +155,7 @@ def main : IO Unit := do
       (forProfile wasmCosmWasm).nativeForm == NativeForm.cosmWasmMsg)
     "CosmWasm remains deferred spike form"
   -- Soroban: portable crosscall → invoke_contract, never promise_create.
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule nearPortable .soroban with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule nearPortable .soroban with
   | .error e => throw (IO.userError s!"Soroban should lower portable crosscall to invoke_contract: {e.message}")
   | .ok wat =>
       require (wat.contains "invoke_contract")
@@ -164,14 +164,14 @@ def main : IO Unit := do
         "Soroban WAT must not emit NEAR promise_create"
       require (!wat.contains "promise_then")
         "Soroban portable path must not emit promise_then"
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule
       ProofForge.IR.Examples.NearCrosscallProbe.promiseExtensionModule .soroban with
   | .ok _ => throw (IO.userError "Soroban bridge must reject NEAR Promise constructors")
   | .error e =>
       require (e.message.contains "Soroban" || e.message.contains "Promise")
         s!"expected Soroban Promise reject, got: {e.message}"
   -- Storage-only modules still lower on Soroban bridge (host adapter path).
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule
       ProofForge.IR.Examples.Counter.module .soroban with
   | .error e => throw (IO.userError s!"Counter should still lower on Soroban bridge: {e.message}")
   | .ok wat =>
@@ -221,7 +221,7 @@ def main : IO Unit := do
       require (src.contains "sol_invoke_signed_c") "Shared.RemoteCall Solana CPI"
       require (src.contains "sol_get_return_data") "Shared.RemoteCall return-data"
   -- NEAR needs string-pool metadata for account/method names; use portable IR probe.
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule nearPortable with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule nearPortable with
   | .error e => throw (IO.userError s!"NEAR portable path for multi-target failed: {e.message}")
   | .ok wat => require (wat.contains "promise_create") "NEAR multi-target promise_create"
 

@@ -1,11 +1,11 @@
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.IR.Contract
 import ProofForge.IR.Examples.NearCrosscallProbe
 
 namespace ProofForge.Tests.EmitWatChainSemantics
 
 open ProofForge.IR
-open ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.Backend.WasmHost.EmitWat
 
 def requireError (name : String) (module : Module) (expected : String) : IO Unit :=
   match renderModule module with

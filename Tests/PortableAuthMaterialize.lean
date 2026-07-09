@@ -18,7 +18,7 @@ import ProofForge.Backend.Evm.Plan
 import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.Materialize
 import ProofForge.Backend.Solana.SbpfAsm
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.Target.HostBridge
 import ProofForge.Target.PeerMap
 import ProofForge.Target.Preflight
@@ -85,7 +85,7 @@ def main : IO Unit := do
       require (src.contains "error_syscall")
         "sha256 path must include error_syscall trap"
 
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule ownable with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule ownable with
   | .error e => throw (IO.userError s!"NEAR Ownable lower: {e.message}")
   | .ok wat =>
       -- assert without ErrorRef → `unreachable`; with ref → env.panic
@@ -94,7 +94,7 @@ def main : IO Unit := do
       require (!wat.contains "promise_create")
         "Ownable has no crosscall; no promise_create"
 
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule ownable .soroban with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule ownable .soroban with
   | .error e => throw (IO.userError s!"Soroban Ownable lower: {e.message}")
   | .ok wat =>
       require (wat.contains "unreachable" || wat.contains "panic")
@@ -113,7 +113,7 @@ def main : IO Unit := do
         "Soroban Ownable with caller should emit require_auth_for_args"
 
   -- RemoteCall on Soroban host bridge: invoke_contract, not promise.
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule remote .soroban with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule remote .soroban with
   | .error e => throw (IO.userError s!"Soroban RemoteCall: {e.message}")
   | .ok wat =>
       require (wat.contains "invoke_contract")
@@ -123,7 +123,7 @@ def main : IO Unit := do
       require (wat.contains "peer.callee")
         "Soroban WAT keeps logical peer without PeerMap"
   -- Deploy map applied at emit: host account appears in pool data.
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule remote .near PeerMap.nearDemo with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule remote .near PeerMap.nearDemo with
   | .error e => throw (IO.userError s!"NEAR RemoteCall with PeerMap: {e.message}")
   | .ok wat =>
       require (wat.contains "promise_create") "NEAR still promise_create"
@@ -168,7 +168,7 @@ def main : IO Unit := do
       require (yul.contains "sload" && yul.contains "sstore")
         "EVM OwnableHash stores hash owner in scalar slot"
 
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule ownableHash with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule ownableHash with
   | .error e => throw (IO.userError s!"NEAR OwnableHash: {e.message}")
   | .ok wat =>
       require (wat.contains "unreachable" || wat.contains "panic")
@@ -214,12 +214,12 @@ def main : IO Unit := do
   | .ok src =>
       require (src.contains "assert" || src.contains "assert_eq" || src.contains "assert_fail")
         "Solana Pausable guard materializes as assert"
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule pausable with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule pausable with
   | .error e => throw (IO.userError s!"NEAR Pausable: {e.message}")
   | .ok wat =>
       require (wat.contains "unreachable" || wat.contains "panic")
         "NEAR Pausable checks materialize as unreachable/panic"
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule pausable .soroban with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule pausable .soroban with
   | .error e => throw (IO.userError s!"Soroban Pausable: {e.message}")
   | .ok wat =>
       require (wat.contains "unreachable" || wat.contains "panic")
@@ -243,12 +243,12 @@ def main : IO Unit := do
         "OwnablePausable Solana uses caller digest for owner check"
       require (src.contains "assert" || src.contains "assert_eq" || src.contains "assert_fail")
         "OwnablePausable Solana asserts owner + pause guards"
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule ownablePausable with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule ownablePausable with
   | .error e => throw (IO.userError s!"NEAR OwnablePausable: {e.message}")
   | .ok wat =>
       require (wat.contains "unreachable" || wat.contains "panic")
         "NEAR OwnablePausable business checks"
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule ownablePausable .soroban with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule ownablePausable .soroban with
   | .error e => throw (IO.userError s!"Soroban OwnablePausable: {e.message}")
   | .ok wat =>
       require (wat.contains "require_auth_for_args")
@@ -264,10 +264,10 @@ def main : IO Unit := do
   match ProofForge.Backend.Solana.SbpfAsm.renderModule reent with
   | .error e => throw (IO.userError s!"Solana ReentrancyGuard: {e.message}")
   | .ok _ => pure ()
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule reent with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule reent with
   | .error e => throw (IO.userError s!"NEAR ReentrancyGuard: {e.message}")
   | .ok _ => pure ()
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule reent .soroban with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule reent .soroban with
   | .error e => throw (IO.userError s!"Soroban ReentrancyGuard: {e.message}")
   | .ok wat =>
       require (wat.contains "_get" || wat.contains "_put")
@@ -283,7 +283,7 @@ def main : IO Unit := do
   | .ok src =>
       require (src.contains "assert" || src.contains "assert_eq" || src.contains "assert_fail")
         "Solana AccessControl role guards assert"
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule accessControl with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule accessControl with
   | .error e => throw (IO.userError s!"NEAR AccessControl: {e.message}")
   | .ok wat =>
       require (wat.contains "__pf_map_read_nested" || wat.contains "map_read_nested" ||
@@ -291,7 +291,7 @@ def main : IO Unit := do
         "NEAR AccessControl uses nested map helpers for role membership"
       require (wat.contains "unreachable" || wat.contains "panic")
         "NEAR AccessControl guard_role fails closed"
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule accessControl .soroban with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule accessControl .soroban with
   | .error e => throw (IO.userError s!"Soroban AccessControl: {e.message}")
   | .ok wat =>
       require (wat.contains "_get" || wat.contains "_put")
@@ -300,12 +300,12 @@ def main : IO Unit := do
         "Soroban AccessControl must not import NEAR storage_*"
 
   let roleGated := Examples.Shared.RoleGatedToken.module
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule roleGated with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule roleGated with
   | .error e => throw (IO.userError s!"NEAR RoleGatedToken: {e.message}")
   | .ok wat =>
       require (wat.contains "__pf_map_read_nested" || wat.contains "__pf_map_write_nested")
         "RoleGatedToken NEAR uses nested role map helpers"
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule roleGated .soroban with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule roleGated .soroban with
   | .error e => throw (IO.userError s!"Soroban RoleGatedToken: {e.message}")
   | .ok wat =>
       require (wat.contains "_get" || wat.contains "_put")

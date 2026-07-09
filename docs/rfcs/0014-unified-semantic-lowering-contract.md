@@ -210,11 +210,11 @@ verification in
 
 ### NEAR (validate-rich, plan-poor, formal-strong)
 
-- `ProofForge/Backend/WasmNear/IR.lean` — `validateModule`: capabilities +
+- `ProofForge/Backend/WasmHost/IR.lean` — `validateModule`: capabilities +
   identifiers + state + per-entrypoint param/return/type + return-path checks.
-- `ProofForge/Backend/WasmNear/EmitWat.lean` — `checkTargetPlan` and a call to
+- `ProofForge/Backend/WasmHost/EmitWat.lean` — `checkTargetPlan` and a call to
   `IR.Ownership.checkModule` before render.
-- `ProofForge/Backend/WasmNear/Refinement.lean` — richest formal layer: IR
+- `ProofForge/Backend/WasmHost/Refinement.lean` — richest formal layer: IR
   traces, WAT exports, Wasm AST host-boundary frames, offline-host Borsh/hex
   obligations; ValueVault invariant bridge.
 - **No** `WasmNear/Plan.lean`. Lowering goes IR → Wasm AST inside `WasmNear/IR`
@@ -288,7 +288,7 @@ Concretely per backend:
 |---|---|---|---|
 | EVM | `Evm.Plan.ModulePlan` (exists) | `Backend/Evm/Plan.lean`, `Lower.lean` | `Compiler/Yul` |
 | Psy | `Psy.Plan.PsyModulePlan` (exists, extend) | `Backend/Psy/Plan.lean`, `IR.lean` | `Lean.Compiler.Psy` |
-| NEAR | `WasmNear.Plan.NearModulePlan` (**new**) | `Backend/WasmNear/Plan.lean` (**new**) | `Compiler/Wasm` |
+| NEAR | `WasmNear.Plan.NearModulePlan` (**new**) | `Backend/WasmHost/Plan.lean` (**new**) | `Compiler/Wasm` |
 | Solana | `Solana.Plan.SolanaModulePlan` (**new**) | `Backend/Solana/Plan.lean` (**new**) | `Solana/Asm.AstNode` |
 
 ### Per-backend plan type sketch
@@ -597,7 +597,7 @@ diagnostics.
   wrapper updated to fold `diag.message`.
 - `ProofForge/Backend/Solana/{SbpfAsm,Plan}.lean` — `LoweringError` instances
   on `LowerError` / `PlanError`.
-- `ProofForge/Backend/WasmNear/{IR,Plan,EmitWat}.lean` — `LoweringError`
+- `ProofForge/Backend/WasmHost/{IR,Plan,EmitWat}.lean` — `LoweringError`
   instances on `LowerError` / `PlanError` / `EmitError`; `WasmNear.IR`
   `ensureType` wrapper updated to fold `diag.message`.
 - `ProofForge/Backend/SharedValidate.lean` — `SharedError` alias retargeted
@@ -645,7 +645,7 @@ real lowering (a `SuiModulePlan` would have to precede building one).
 **Milestones:**
 
 - Step A (types only, additive) — **LANDED (commit 61cfa7a9).** Added
-  `ProofForge/Backend/WasmNear/NearModulePlan.lean` with `NearModulePlan`,
+  `ProofForge/Backend/WasmHost/NearModulePlan.lean` with `NearModulePlan`,
   `NearLayoutPlan`, `NearLowerCtxSeed`, and a `buildNearModulePlan` for
   `ProofForge.IR.Examples.Counter.module`. Not wired into EmitWat. Added
   `Tests/NearModulePlan.lean`, `Examples/WasmNear/Counter/golden/plan.txt`,
@@ -700,13 +700,13 @@ real lowering (a `SuiModulePlan` would have to precede building one).
 
 **Touch list:**
 
-- Step A: `ProofForge/Backend/WasmNear/NearModulePlan.lean` (new),
+- Step A: `ProofForge/Backend/WasmHost/NearModulePlan.lean` (new),
   `Tests/NearModulePlan.lean` (new), `Examples/WasmNear/Counter/golden/plan.txt`
   (new), `scripts/near/plan-smoke.sh` (new), `justfile`.
-- Step B: `ProofForge/Backend/WasmNear/NearModulePlan.lean` (`Ctx.fromPlanSeed`,
+- Step B: `ProofForge/Backend/WasmHost/NearModulePlan.lean` (`Ctx.fromPlanSeed`,
   `lowerModuleFromPlan`, `renderModuleFromPlan`; `NearStatePlan`/`NearMapPlan`
   now carry `ValueType` so the seed can rebuild `StateInfo`/`MapInfo`),
-  `ProofForge/Backend/WasmNear/EmitWat.lean` (`lowerModuleCoreWithCtx` extracted
+  `ProofForge/Backend/WasmHost/EmitWat.lean` (`lowerModuleCoreWithCtx` extracted
   from `lowerModule` to break the import cycle),
   `Tests/NearModulePlan.lean` (dual-path parity check), `scripts/near/plan-smoke.sh`
   (`--parity`), `justfile`.
@@ -714,14 +714,14 @@ real lowering (a `SuiModulePlan` would have to precede building one).
   `arraySubModule` / `structSubModule`), `scripts/near/plan-smoke.sh`
   (multi-fixture loop), `Examples/WasmNear/{EvmMapProbe,EvmStorageArrayProbe,
   EvmStorageStructProbe}/golden/plan.txt` (new goldens).
-- Step C: `ProofForge/Backend/WasmNear/EmitWat.lean` (`Ctx.fromPlanSeed` +
+- Step C: `ProofForge/Backend/WasmHost/EmitWat.lean` (`Ctx.fromPlanSeed` +
   `buildLowerCtx` added; inline `Ctx` assembly in `lowerModule` deleted;
   `lowerModule` now routes through the plan-derived `Ctx`),
-  `ProofForge/Backend/WasmNear/NearModulePlan.lean` (`Ctx.fromPlanSeed`
+  `ProofForge/Backend/WasmHost/NearModulePlan.lean` (`Ctx.fromPlanSeed`
   delegates to `EmitWat.Ctx.fromPlanSeed`; `lowerModuleFromPlan` runs
   `validateScratchCapacities`), `Tests/NearModulePlan.lean` (dual-path
   parity → single-path `--render` gate), `scripts/near/plan-smoke.sh`
-  (`--parity` → `--render`). `ProofForge/Backend/WasmNear/Refinement.lean`
+  (`--parity` → `--render`). `ProofForge/Backend/WasmHost/Refinement.lean`
   is unchanged — its `EmitWat.lowerModule` call sites now lower through the
   plan-derived `Ctx` automatically.
 
@@ -1090,7 +1090,7 @@ adapter and simulation proofs to be correct.
 - [`docs/validation-gates.md`](../validation-gates.md),
   [`docs/gate-status.md`](../gate-status.md) — P0-2 EVM semantic-plan status.
 - `ProofForge/Backend/Evm/{Validate,Plan,Lower,IR,Refinement,YulSemantics}.lean`
-- `ProofForge/Backend/WasmNear/{IR,EmitWat,Refinement}.lean`
+- `ProofForge/Backend/WasmHost/{IR,EmitWat,Refinement}.lean`
 - `ProofForge/Backend/Psy/{Plan,IR,Metadata}.lean`
 - `ProofForge/Backend/Solana/{SbpfAsm,StateLayout,Extension,Manifest,Idl,Package}.lean`
 - `ProofForge/IR/{Semantics,Ownership}.lean`

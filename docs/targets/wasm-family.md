@@ -40,11 +40,24 @@ Portable IR (Module)
 
 - `Compiler/Wasm/AST.lean` + `Compiler/Wasm/Printer.lean` — a Wasm/WAT AST and
   printer, parallel to `Compiler/Yul/AST.lean` + `Yul/Printer.lean`.
-- The portable-IR → Wasm-AST lowering skeleton (capabilities, type inference,
-  statement/expression lowering), reusing the validation logic already proven
-  in `Backend/WasmNear/IR.lean` (Rust v0) and `Backend/Evm/IR.lean`.
+- The portable-IR → Wasm-AST lowering core lives in
+  **`ProofForge/Backend/WasmHost/`** (package name; formerly `WasmNear` while
+  NEAR was the only EmitWat host). Host differences are
+  `ProofForge.Target.HostBridge` (`.near` / `.soroban` / …), not a separate
+  backend package per chain. Validation/sourcegen history also in
+  `Backend/WasmHost/IR.lean` (Rust v0) and `Backend/Evm/IR.lean`.
 - WAT module scaffolding: memory, type/import/export sections, and the
   `wat2wasm` invocation + artifact metadata.
+
+**Naming (2026-07-09):**
+
+| Name | Meaning |
+|------|---------|
+| `Backend.WasmHost` | Shared EmitWat package (Wasm family) |
+| `HostBridge.near` / `.soroban` | Host import materialization |
+| Registry `wasm-near` | Product target id for **NEAR only** |
+| Registry `wasm-stellar-soroban` | Product target id for Soroban |
+| `Backend.WasmNear` | Deprecated import alias → re-exports `WasmHost` |
 
 **Per-chain layer (the only thing that differs between NEAR / CosmWasm / Soroban / ICP):**
 
@@ -79,7 +92,7 @@ See [Wasm-NEAR target](wasm-near.md) for the full implementation design.
   `env.storage_*` / `env.sha256` / `env.predecessor_account_id` /
   `env.block_height` / `env.log` imports.
 - **Frozen v0 stopgap (in-repo, compiles):** Rust `near-sdk-rs` sourcegen via
-  `ProofForge/Backend/WasmNear/IR.lean`. Validates NEAR semantics now; not
+  `ProofForge/Backend/WasmHost/IR.lean`. Validates NEAR semantics now; not
   expanded. Key risk for the canonical path: NEAR argument (de)serialization
   (JSON/Borsh), which the EVM backend does not face (EVM uses calldata).
 
@@ -251,7 +264,7 @@ Acceptance criteria:
 - Should `EmitWat` emit WAT text (→ `wat2wasm`) or Wasm binary directly? WAT
   text is the default (mirrors `Backend/Evm/IR.lean` → Yul text → `solc`);
   binary is a later optimization to drop the `wabt` dependency.
-- How much of the IR-lowering / validation logic in `Backend/WasmNear/IR.lean`
+- How much of the IR-lowering / validation logic in `Backend/WasmHost/IR.lean`
   (Rust v0) and `Backend/Evm/IR.lean` can be shared by `EmitWat`?
 - Should CosmWasm compile through `wasm32-freestanding` or a WASI route with
   import stripping?

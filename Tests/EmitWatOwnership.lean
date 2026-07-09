@@ -1,4 +1,4 @@
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.IR.Ownership
 
 namespace ProofForge.Tests.EmitWatOwnership
@@ -36,7 +36,7 @@ def useAfterRelease : Entrypoint :=
   ]
 
 def renderError? (module : ProofForge.IR.Module) : Option String :=
-  match ProofForge.Backend.WasmNear.EmitWat.renderModule module with
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule module with
   | .ok _ => none
   | .error error => some error.message
 

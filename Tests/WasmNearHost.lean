@@ -1,4 +1,4 @@
-import ProofForge.Backend.WasmNear.NearHost
+import ProofForge.Backend.WasmHost.NearHost
 
 /-! ## NEAR host-model smoke
 
@@ -9,12 +9,12 @@ compose through that hook.
 
 namespace ProofForge.Tests.WasmNearHost
 
-open ProofForge.Backend.WasmNear.WasmInterpreter
-open ProofForge.Backend.WasmNear.WasmExec
-open ProofForge.Backend.WasmNear.NearHost
+open ProofForge.Backend.WasmHost.WasmInterpreter
+open ProofForge.Backend.WasmHost.WasmExec
+open ProofForge.Backend.WasmHost.NearHost
 
-abbrev Bytes := ProofForge.Backend.WasmNear.NearHost.Bytes
-abbrev State := ProofForge.Backend.WasmNear.NearHost.State
+abbrev Bytes := ProofForge.Backend.WasmHost.NearHost.Bytes
+abbrev State := ProofForge.Backend.WasmHost.NearHost.State
 
 def key : Bytes := #[1, 2, 3]
 def value : Bytes := #[9, 8, 7]

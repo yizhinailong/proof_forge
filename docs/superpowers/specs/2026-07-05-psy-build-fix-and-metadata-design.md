@@ -22,8 +22,8 @@ Make the current `psy-dpn` branch build cleanly (`lake build`), fix the correctn
 The branch added `Statement.whileLoop` to the portable IR but did not update every backend that pattern-matches on `Statement`. As a result, `lake build` fails on:
 
 - `ProofForge.Backend.Psy.IR`
-- `ProofForge.Backend.WasmNear.IR` (also has a syntax error in the `whileLoop` insertion)
-- `ProofForge.Backend.WasmNear.EmitWat`
+- `ProofForge.Backend.WasmHost.IR` (also has a syntax error in the `whileLoop` insertion)
+- `ProofForge.Backend.WasmHost.EmitWat`
 - `ProofForge.Backend.Evm.Lower`
 - `ProofForge.Compiler.TS.Printer`
 
@@ -47,8 +47,8 @@ Because no backend currently supports unbounded `while` loops, the safest fix is
 | File | Action |
 |---|---|
 | `ProofForge.Backend.Psy.IR` | Add `whileLoop` rejection to `validateStatement`, `buildStmt`, and `validateStatementIdentifiers`. |
-| `ProofForge.Backend.WasmNear.IR` | Repair the corrupted `boundedFor` / `whileLoop` block, then add rejection to both `lowerStatement` and `validateStatementIdentifiers`. |
-| `ProofForge.Backend.WasmNear.EmitWat` | Add `whileLoop` rejection to the statement-lowering match. |
+| `ProofForge.Backend.WasmHost.IR` | Repair the corrupted `boundedFor` / `whileLoop` block, then add rejection to both `lowerStatement` and `validateStatementIdentifiers`. |
+| `ProofForge.Backend.WasmHost.EmitWat` | Add `whileLoop` rejection to the statement-lowering match. |
 | `ProofForge.Backend.Evm.Lower` | Add `whileLoop` rejection to all statement-planning functions that match on `Statement`. |
 | `ProofForge.Compiler.TS.Printer` | Add `whileLoop` emission or rejection to the `Stmt` printer match. |
 

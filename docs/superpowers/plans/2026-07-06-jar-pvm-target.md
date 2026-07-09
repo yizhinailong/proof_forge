@@ -29,7 +29,7 @@ Files already present and relevant:
 - `ProofForge/Target/Adapter.lean`: converts a `ContractSpec` or `IR.Module` into a `CapabilityPlan` and rejects unsupported capabilities.
 - `ProofForge/IR/Contract.lean`: defines `Module`, `Entrypoint`, `Statement`, `Expr`, `Effect`, and capability derivation.
 - `ProofForge/Backend/Solana/SbpfAsm.lean`: closest direct-assembly backend precedent.
-- `ProofForge/Backend/WasmNear/EmitWat.lean`: closest `IR -> AST -> printer` precedent.
+- `ProofForge/Backend/WasmHost/EmitWat.lean`: closest `IR -> AST -> printer` precedent.
 - `ProofForge/Backend/Psy/*` and `ProofForge/Compiler/Psy/*`: closest recent plan/AST/sourcegen split.
 - `ProofForge/Cli/Fixture.lean`: target-first fixture/format whitelist.
 - `docs/targets/README.md`, `docs/decisions.md`, `docs/capability-registry.md`, `docs/target-roadmap.md`, `docs/implementation-backlog.md`: docs-first target intake surfaces.

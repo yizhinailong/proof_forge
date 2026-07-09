@@ -1,6 +1,6 @@
-import ProofForge.Backend.WasmNear.EmitWat
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.IR.Examples.ArrayProbe
-open ProofForge.IR.Examples ArrayProbe ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.IR.Examples ArrayProbe ProofForge.Backend.WasmHost.EmitWat
 
 /-! Render allocator-strategy variants of ArrayProbe.sumLiteral:
     bumpReset (entrypoint-boundary reset), minimalMalloc/NEAR deployment

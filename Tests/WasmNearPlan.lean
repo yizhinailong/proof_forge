@@ -1,5 +1,5 @@
-import ProofForge.Backend.WasmNear.EmitWat
-import ProofForge.Backend.WasmNear.Plan
+import ProofForge.Backend.WasmHost.EmitWat
+import ProofForge.Backend.WasmHost.Plan
 import ProofForge.IR.Contract
 import ProofForge.IR.Examples.ArrayProbe
 import ProofForge.IR.Examples.HashStorageProbe
@@ -9,7 +9,7 @@ import ProofForge.IR.Examples.NearCrosscallProbe
 namespace ProofForge.Tests.WasmNearPlan
 
 open ProofForge.IR
-open ProofForge.Backend.WasmNear.EmitWat
+open ProofForge.Backend.WasmHost.EmitWat
 
 def require (condition : Bool) (message : String) : IO Unit :=
   if condition then
@@ -539,7 +539,7 @@ def testCrosscallRenderKeepsOnlyCreatePromiseSurface : IO Unit := do
 
 def testNearPromisePlanSurface : IO Unit := do
   let plan ←
-    match ProofForge.Backend.WasmNear.Plan.buildModulePlan ProofForge.IR.Examples.NearCrosscallProbe.module with
+    match ProofForge.Backend.WasmHost.Plan.buildModulePlan ProofForge.IR.Examples.NearCrosscallProbe.module with
     | .ok plan => pure plan
     | .error err => throw <| IO.userError s!"wasm-near plan failed: {err.message}"
   if !plan.usesPromiseThen then

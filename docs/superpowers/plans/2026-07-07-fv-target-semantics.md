@@ -88,7 +88,7 @@ surface. Remaining EVM work is E3.
   over-claim); this file's Background.
 - **② Context to load:** the three copied obligation types —
   `ProofForge/Backend/Solana/Refinement.lean:38-57`,
-  `ProofForge/Backend/WasmNear/Refinement/Core.lean:23-40`,
+  `ProofForge/Backend/WasmHost/Refinement/Core.lean:23-40`,
   `ProofForge/Backend/Evm/Refinement.lean:30-61`.
 - **③ Do:** create `ProofForge/Backend/Refinement/Core.lean` holding ONE shared
   `ObservableReturn` / `ObservableStep` / `TraceObligation`, plus a `TargetSemantics`
@@ -632,11 +632,11 @@ bytecode segment facts.
 ## Task W1 — WASM executable-trace design note (docs only)
 
 - **① Read first:** `docs/solana-sbpf-executable-trace.md` (you are mirroring it);
-  `ProofForge/Backend/WasmNear/Refinement/Core.lean` (existing `WasmTraceOp` extraction +
+  `ProofForge/Backend/WasmHost/Refinement/Core.lean` (existing `WasmTraceOp` extraction +
   offline-host obligations); `runtime/offline-host/src/main.rs` (the EXTERNAL semantics
   you will reproduce in-Lean).
 - **② Context to load:** `ProofForge/Compiler/Wasm/AST.lean`;
-  `ProofForge/Backend/WasmNear/Layout.lean`; `ProofForge/Target/HostBridge.lean`.
+  `ProofForge/Backend/WasmHost/Layout.lean`; `ProofForge/Target/HostBridge.lean`.
 - **③ Do:** write `docs/wasm-executable-trace.md` mirroring the Solana note: scope the
   Wasm stack-machine subset (value stack, locals, linear memory), the abstract host model
   (HostBridge functions over an abstract host state), the `R` bridge via `Layout.lean`,
@@ -650,10 +650,10 @@ bytecode segment facts.
 
 - **① Read first:** `docs/wasm-executable-trace.md` (W1).
 - **② Context to load:** `ProofForge/Compiler/Wasm/AST.lean` (`WasmInsn`/`WasmBlock`/
-  `WasmFunc`); `ProofForge/Backend/WasmNear/Refinement/Core.lean` (`WasmTraceOp`,
+  `WasmFunc`); `ProofForge/Backend/WasmHost/Refinement/Core.lean` (`WasmTraceOp`,
   `wasmInsnTraceOps` — reuse as the instruction enumeration); `ProofForge/Backend/
   WasmNear/EmitWat.lean` (what is actually emitted for Counter).
-- **③ Do:** create `ProofForge/Backend/WasmNear/WasmInterpreter.lean`. `WasmState` (value
+- **③ Do:** create `ProofForge/Backend/WasmHost/WasmInterpreter.lean`. `WasmState` (value
   stack, locals, linear-memory bytes, abstract host state). `step`/`eval` over the emitted
   subset (`i64.const/add/sub/mul`, `local.get/set/tee`, `i64.load/store`,
   `block/loop/br/br_if/if/call/return`). Fuel-bounded.
@@ -664,7 +664,7 @@ bytecode segment facts.
 
 - **② Context to load:** `ProofForge/Target/HostBridge.lean` (`requiredImports`,
   `hostFunctions`); `runtime/offline-host/src/main.rs` (reference behavior);
-  `ProofForge/Backend/WasmNear/Layout.lean`.
+  `ProofForge/Backend/WasmHost/Layout.lean`.
 - **③ Do:** model the HostBridge host functions (`storage_read`/`storage_write`,
   `value_return`, register ABI, `signer_account_id`, `attached_deposit`) as pure
   transitions over the abstract host state. **Parameterize by `HostBridge`** so
@@ -684,7 +684,7 @@ bytecode segment facts.
 
 ## Task W5 — Wasm simulation relation `R`
 
-- **② Context to load:** `ProofForge/Backend/WasmNear/Layout.lean` (Borsh key derivation).
+- **② Context to load:** `ProofForge/Backend/WasmHost/Layout.lean` (Borsh key derivation).
 - **③ Do:** define `R : IR.State ↔ Wasm host storage`; state pointwise theorems it holds
   on the Counter scenario after each entrypoint.
 - **Acceptance:** `R`-holds theorems `#check` and pass.
@@ -757,10 +757,10 @@ bytecode segment facts.
 ## Task WASM-1 — Extract the generic WASM core `WasmExec.lean` (chain-agnostic)
 
 - **① Read first:** the ⚠️ COURSE CORRECTION under Task E3; Solana Task SOL-1 (same shape).
-- **② Context to load:** `ProofForge/Backend/WasmNear/WasmInterpreter.lean` (`WasmState` :115,
+- **② Context to load:** `ProofForge/Backend/WasmHost/WasmInterpreter.lean` (`WasmState` :115,
   `runHostCall` :309, `runNearHostCall` :226 — currently NEAR-inlined);
   `ProofForge/Compiler/Wasm/AST.lean`; `ProofForge/Target/HostBridge.lean`.
-- **③ Do:** create `ProofForge/Backend/WasmNear/WasmExec.lean` — a **chain-agnostic** library
+- **③ Do:** create `ProofForge/Backend/WasmHost/WasmExec.lean` — a **chain-agnostic** library
   of per-instruction step lemmas over the WASM stack machine, each proven **once**,
   parameterized by the pre-state, **never by NEAR or "Counter"**: `i64.const/add/sub/mul`,
   `local.get/set/tee`, `i64.load/store`, `block/loop/br/br_if/if/return`, and `call` where the
@@ -792,7 +792,7 @@ bytecode segment facts.
 
 ## Task WASM-4 — Universal IR↔WASM refinement (NEAR)
 
-- **② Context to load:** `ProofForge/Backend/WasmNear/Layout.lean` (`R` via Borsh keys);
+- **② Context to load:** `ProofForge/Backend/WasmHost/Layout.lean` (`R` via Borsh keys);
   `wasmNearTargetSemantics`; the shared `traceSimulation_lift` + `CounterUniversal` induction;
   `counterTraceSafe`.
 - **③ Do:** define/reuse `R : IR.State ↔ WasmState host storage`; prove per-entrypoint IR↔WASM

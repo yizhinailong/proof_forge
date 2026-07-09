@@ -30,7 +30,7 @@ Lean objects (only `u32`/`u64`/`bool`/`hash` scalars + storage effects), there
 is **no Lean runtime to port and no object-model boxing/GC** — scalars map
 directly to Wasm `i32`/`i64`, and storage/crypto/context effects lower to NEAR
 host imports. The IR-lowering and validation logic is reusable from the frozen
-Rust v0 (`Backend/WasmNear/IR.lean`) and from `Backend/Evm/IR.lean`; only the
+Rust v0 (`Backend/WasmHost/IR.lean`) and from `Backend/Evm/IR.lean`; only the
 emission target changes (Rust/Yul strings → Wasm AST → WAT).
 
 Storage/crypto/context effects lower to these NEAR host imports:
@@ -168,7 +168,7 @@ hand-written counter.
 ## Frozen v0 reference (Rust sourcegen)
 
 The remainder of this document describes the frozen Rust `near-sdk-rs`
-sourcegen backend (`ProofForge/Backend/WasmNear/IR.lean`). It is kept as a
+sourcegen backend (`ProofForge/Backend/WasmHost/IR.lean`). It is kept as a
 working reference that validates NEAR semantics and capability coverage; it is
 not the canonical path and is not being expanded.
 
@@ -301,8 +301,8 @@ transition.
 
 | File | Purpose |
 |---|---|
-| `ProofForge/Backend/WasmNear/EmitWat.lean` | Core EmitWat lowering: IR → Wasm AST (scalars, maps incl. `Map<Hash,T>`, hash, context, events, params, returns, `.pow`) |
-| `ProofForge/Backend/WasmNear/IR.lean` | Wasm AST → WAT text + printer wiring |
+| `ProofForge/Backend/WasmHost/EmitWat.lean` | Core EmitWat lowering: IR → Wasm AST (scalars, maps incl. `Map<Hash,T>`, hash, context, events, params, returns, `.pow`) |
+| `ProofForge/Backend/WasmHost/IR.lean` | Wasm AST → WAT text + printer wiring |
 | `ProofForge/Compiler/Wasm/AST.lean` / `Printer.lean` | Wasm AST + WAT printer |
 | `Tests/EmitWat{Smoke,Features,Map,Hash,Context,Params,Event,Hashmap,Arith}.lean` | Per-probe renderers |
 | `scripts/near/emitwat-ci-smoke.sh` / `runtime/offline-host` | Rust offline-host execution and Borsh-decode regression gate |
@@ -312,8 +312,8 @@ transition.
 
 | File | Purpose |
 |---|---|
-| `ProofForge/Backend/WasmNear.lean` | Umbrella module |
-| `ProofForge/Backend/WasmNear/IR.lean` | Core lowering: validation, type inference, Rust source generation (~57KB) |
+| `ProofForge/Backend/WasmHost.lean` | Umbrella module |
+| `ProofForge/Backend/WasmHost/IR.lean` | Core lowering: validation, type inference, Rust source generation (~57KB) |
 | `ProofForge/Target/Registry.lean` | `wasmNear` profile with tools and capabilities |
 | `ProofForge/Cli.lean` | `EmitMode` constructors, parse cases, `writeNearPackage`, compile functions |
 
