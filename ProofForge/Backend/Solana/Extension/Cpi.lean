@@ -91,10 +91,9 @@ def lowerCpiSplToken2022ProgramId : Array AstNode :=
 
 def lowerCpiFallbackProgramId (program : String) : Array AstNode :=
   #[
-    .comment s!"solana.cpi.program_id {program} fallback placeholder"
-  ] ++
-  stackPtr .r8 cpiProgramIdOffset ++
-  lowerZero32 .r8
+    .comment s!"solana.cpi.program_id {program} missing (reject)",
+    .instruction { opcode := .ja, off := some (.sym "error_cpi") }
+  ]
 
 def lowerCpiProgramId (bindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
   if cpi.program == "spl_token" then
@@ -112,83 +111,51 @@ def lowerCpiProgramId (bindings : Array CpiAccountBinding) (cpi : CpiInvoke) : A
         else
           lowerCpiFallbackProgramId cpi.program
 
-def lowerCpiPlaceholderPubkey (idx : Nat) (name : String) : Array AstNode :=
-  let offset := cpiPlaceholderPubkeyOffset + idx * 32
-  #[
-    .comment s!"solana.cpi.placeholder_pubkey {name}"
-  ] ++
-  stackPtr .r8 offset ++
-  lowerZero32 .r8 ++ #[
-    storeImm .stb .r8 31 (idx + 1)
-  ]
-
-def lowerCpiPlaceholderLamports (idx : Nat) : Array AstNode :=
-  let offset := cpiPlaceholderLamportsOffset + idx * 8
-  stackPtr .r8 offset ++ #[
-    zeroStackQuad .r8 0
-  ]
-
+/-- Honest reject when any CPI account is unbound — never pack zero pubkeys. -/
 def lowerCpiFallbackPlaceholders (bindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
-  cpi.accounts.mapIdx (fun idx account =>
-    match cpiAccountBinding? bindings account.name with
-    | some _ => #[]
-    | none =>
-        lowerCpiPlaceholderPubkey idx account.name ++
-        lowerCpiPlaceholderLamports idx)
-    |>.foldl (fun acc nodes => acc ++ nodes) #[]
+  let missing :=
+    cpi.accounts.filterMap (fun account =>
+      match cpiAccountBinding? bindings account.name with
+      | some _ => none
+      | none => some account.name)
+  if missing.isEmpty then
+    #[]
+  else
+    #[
+      .comment s!"solana.cpi.accounts missing (reject): {String.intercalate "," missing.toList}",
+      .instruction { opcode := .ja, off := some (.sym "error_cpi") }
+    ]
 
 def lowerCpiAccountMeta (bindings : Array CpiAccountBinding) (idx : Nat)
     (account : AccountMeta) : Array AstNode :=
   let metaOffset := idx * 16
-  let pubkeyOffset := cpiPlaceholderPubkeyOffset + idx * 32
-  let pubkeyPtr :=
-    match cpiAccountBinding? bindings account.name with
-    | some binding =>
-        #[
-          .comment s!"solana.cpi.account_meta {account.name} key_ptr account[{binding.layout.index}]"
-        ] ++
-        inputAccountFieldPtr .r8 binding.layout binding.layout.keyOff
-    | none =>
-        #[
-          .comment s!"solana.cpi.account_meta {account.name} placeholder"
-        ] ++
-        stackPtr .r8 pubkeyOffset
-  stackPtr .r7 cpiAccountMetaOffset ++ #[
-    .instruction { opcode := .add64, dst := some .r7, imm := some (.num metaOffset) }
-  ] ++ pubkeyPtr ++ #[
-    storeReg .stxdw .r7 0 .r8,
-    storeImm .stb .r7 8 (cpiAccountWritable account),
-    storeImm .stb .r7 9 (cpiAccountSigner account)
-  ]
+  match cpiAccountBinding? bindings account.name with
+  | some binding =>
+      stackPtr .r7 cpiAccountMetaOffset ++ #[
+        .instruction { opcode := .add64, dst := some .r7, imm := some (.num metaOffset) }
+      ] ++
+      #[
+        .comment s!"solana.cpi.account_meta {account.name} key_ptr account[{binding.layout.index}]"
+      ] ++
+      inputAccountFieldPtr .r8 binding.layout binding.layout.keyOff ++ #[
+        storeReg .stxdw .r7 0 .r8,
+        storeImm .stb .r7 8 (cpiAccountWritable account),
+        storeImm .stb .r7 9 (cpiAccountSigner account)
+      ]
+  | none =>
+      #[
+        .comment s!"solana.cpi.account_meta {account.name} missing (reject)",
+        .instruction { opcode := .ja, off := some (.sym "error_cpi") }
+      ]
 
 def lowerCpiAccountMetas (bindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=
   cpi.accounts.mapIdx (lowerCpiAccountMeta bindings)
     |>.foldl (fun acc nodes => acc ++ nodes) #[]
 
-def lowerCpiAccountInfoFallback (idx : Nat) (account : AccountMeta) : Array AstNode :=
-  let infoOffset := idx * 56
-  let pubkeyOffset := cpiPlaceholderPubkeyOffset + idx * 32
-  let lamportsOffset := cpiPlaceholderLamportsOffset + idx * 8
+def lowerCpiAccountInfoFallback (_idx : Nat) (account : AccountMeta) : Array AstNode :=
   #[
-    .comment s!"solana.cpi.account_info {account.name} placeholder"
-  ] ++
-  stackPtr .r6 cpiAccountInfoOffset ++ #[
-    .instruction { opcode := .add64, dst := some .r6, imm := some (.num infoOffset) }
-  ] ++
-  stackPtr .r8 pubkeyOffset ++ #[
-    storeReg .stxdw .r6 0 .r8
-  ] ++
-  stackPtr .r8 lamportsOffset ++ #[
-    storeReg .stxdw .r6 8 .r8,
-    zeroStackQuad .r6 16,
-    zeroStackQuad .r6 24
-  ] ++
-  stackPtr .r8 cpiProgramIdOffset ++ #[
-    storeReg .stxdw .r6 32 .r8,
-    zeroStackQuad .r6 40,
-    storeImm .stb .r6 48 (cpiAccountSigner account),
-    storeImm .stb .r6 49 (cpiAccountWritable account),
-    storeImm .stb .r6 50 0
+    .comment s!"solana.cpi.account_info {account.name} missing (reject)",
+    .instruction { opcode := .ja, off := some (.sym "error_cpi") }
   ]
 
 def lowerCpiAccountInfoBound (idx : Nat) (account : AccountMeta)

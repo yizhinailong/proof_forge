@@ -25,9 +25,9 @@ def lowerMemoryStatePtr (bindings : Array CpiValueBinding) (state purpose : Stri
       ]
   | none =>
       #[
-        .comment s!"solana.memory.ptr {purpose} state={state} missing placeholder=stack"
-      ] ++
-      stackPtr dst memoryResultOffset
+        .comment s!"solana.memory.ptr {purpose} state={state} missing (reject)",
+        .instruction { opcode := .ja, off := some (.sym "error_cpi") }
+      ]
 
 def MemoryAction.byteValue (action : MemoryAction) : Nat :=
   action.value?.getD 0 % 256
@@ -133,9 +133,9 @@ def lowerCryptoHashStatePtr (bindings : Array CpiValueBinding) (state purpose : 
       ]
   | none =>
       #[
-        .comment s!"solana.crypto.ptr {purpose} state={state} missing placeholder=stack"
-      ] ++
-      stackPtr dst cryptoResultOffset
+        .comment s!"solana.crypto.ptr {purpose} state={state} missing (reject)",
+        .instruction { opcode := .ja, off := some (.sym "error_crypto") }
+      ]
 
 def lowerCryptoHashSlice (valueBindings : Array CpiValueBinding)
     (action : CryptoHashAction) : Array AstNode :=
@@ -209,9 +209,9 @@ def lowerSysvarOutputStatePtr (bindings : Array CpiValueBinding) (action : Sysva
       ]
   | none =>
       #[
-        .comment s!"solana.sysvar.output {action.name} state={action.outputState} missing placeholder=stack"
-      ] ++
-      stackPtr dst sysvarResultOffset
+        .comment s!"solana.sysvar.output {action.name} state={action.outputState} missing (reject)",
+        .instruction { opcode := .ja, off := some (.sym "error_sysvar") }
+      ]
 
 def lowerFixedSysvarFieldRead (valueBindings : Array CpiValueBinding)
     (action : SysvarReadAction) (fieldLabel : String) (fieldOffset : Nat)
@@ -391,9 +391,9 @@ def lowerReturnDataStatePtr (bindings : Array CpiValueBinding) (state purpose : 
       ]
   | none =>
       #[
-        .comment s!"solana.return_data.ptr {purpose} state={state} missing placeholder=stack"
-      ] ++
-      stackPtr dst memoryResultOffset
+        .comment s!"solana.return_data.ptr {purpose} state={state} missing (reject)",
+        .instruction { opcode := .ja, off := some (.sym "error_cpi") }
+      ]
 
 def lowerReturnDataHelper (valueBindings : Array CpiValueBinding)
     (action : ReturnDataAction) : Array AstNode :=
@@ -421,9 +421,9 @@ def lowerReturnDataReadDestinationPtr (bindings : Array CpiValueBinding)
     (action : ReturnDataReadAction) : Array AstNode :=
   if action.destinationState.isEmpty then
     #[
-      .comment s!"solana.return_data.get {action.name} destination missing placeholder=stack"
-    ] ++
-    stackPtr .r1 returnDataScratchOffset
+      .comment s!"solana.return_data.get {action.name} destination missing (reject)",
+      .instruction { opcode := .ja, off := some (.sym "error_cpi") }
+    ]
   else
     lowerReturnDataStatePtr bindings action.destinationState "destination" .r1 .r7
 
@@ -504,9 +504,9 @@ def lowerComputeUnitsOutputStatePtr (bindings : Array CpiValueBinding)
       ]
   | none =>
       #[
-        .comment s!"solana.compute_units.output {action.name} state={action.outputState} missing placeholder=stack"
-      ] ++
-      stackPtr dst memoryResultOffset
+        .comment s!"solana.compute_units.output {action.name} state={action.outputState} missing (reject)",
+        .instruction { opcode := .ja, off := some (.sym "error_cpi") }
+      ]
 
 def lowerComputeUnitsHelper (valueBindings : Array CpiValueBinding)
     (action : ComputeUnitsAction) : Array AstNode :=
