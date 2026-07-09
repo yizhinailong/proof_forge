@@ -168,12 +168,20 @@ unsafe def compileContractSourceEmitWat (opts : CliOptions) : IO UInt32 := do
           pure out
     | none =>
         throw <| IO.userError "contract source EmitWat build requires -o output directory (or .wat path)"
+  -- PF-P0-04: resolve the requested Wasm-host profile (NEAR vs Soroban), never alias to NEAR.
+  let targetId := opts.targetId?.getD ProofForge.Target.wasmNear.id
+  let profile ←
+    match ProofForge.Target.find? targetId with
+    | some profile => pure profile
+    | none =>
+        throw <| IO.userError
+          s!"unknown EmitWat target '{targetId}'; known targets: {String.intercalate ", " ProofForge.Target.knownIds.toList}"
   let opts' := { opts with
     output? := some outputDir
-    targetId? := opts.targetId? <|> some ProofForge.Target.wasmNear.id
+    targetId? := some profile.id
   }
   let plan ←
-    match ProofForge.Target.resolveSpec ProofForge.Target.wasmNear spec with
+    match ProofForge.Target.resolveSpec profile spec with
     | .ok plan => pure plan
     | .error err => throw <| IO.userError err.render
   compileEmitWatWithPlan opts' fixtureSlug spec.module plan

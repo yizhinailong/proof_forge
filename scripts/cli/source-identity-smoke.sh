@@ -40,10 +40,12 @@ is_fixture_only() {
   esac
 }
 
-# Primary / host-bridge product targets expected to accept contract_source.
+# Primary triad product targets expected to accept ValueVault contract_source.
+# Soroban remains Spike: Counter/source builds may succeed, but ValueVault can
+# fail-closed on honest host-runtime gaps (PF-P0-04).
 is_source_supported() {
   case "$1" in
-    evm|solana-sbpf-asm|wasm-near|wasm-stellar-soroban) return 0 ;;
+    evm|solana-sbpf-asm|wasm-near) return 0 ;;
     *) return 1 ;;
   esac
 }
