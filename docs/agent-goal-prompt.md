@@ -49,6 +49,8 @@ Wasm adapters). Keep Layer **A Host / B Protocols / C Stdlib** honest.
 - [x] NEAR deeper JSON/Borsh arg packing honesty (`argPackingBound` / `requireArgPackingHonest`)
 - [x] NEAR NEP-141 JSON object packing for `ft_transfer` / `ft_transfer_call` /
       `ft_balance_of` / `ft_total_supply` (EmitWat + `Protocols.Near.FungibleToken`)
+- [x] WasmHost **JsonEncode** shared builder (`Node` / `Sink` / `lower`); NEP-141
+      refactored off hand-rolled putc
 - [x] Solana confidential/crypto-hard layouts remain compile-reject
       (`rejectedLayoutExamples` + `isSupportedCpiDataLayout = false`)
 

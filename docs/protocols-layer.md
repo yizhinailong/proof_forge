@@ -111,9 +111,8 @@ Facade: `ProofForge.Protocols.Near.FungibleToken`
 | `ft_transfer` / `ft_transfer_call` / `ft_balance_of` / `ft_total_supply` | promise remote with NEP-141 method names | ✅ thin client |
 | `ft_metadata` / `storage_deposit` | NEP-148 / NEP-145 method names | ✅ declare helpers |
 | FT peer fixture | `pay` / `pay_with_callback` / `query_*` | ✅ `Examples/Backend/WasmNear/FtPeerClient` |
-| Arg packing | NEP-141 **JSON objects** for known methods | ✅ EmitWat `lowerCrosscallArgsForMethod` |
-| | `ft_transfer` → `receiver_id`+`amount`+`memo:null` | ✅ pool index + U64 decimal string |
-| | `ft_balance_of` → `account_id` | ✅ |
+| Arg packing | **JsonEncode** schema → Wasm putc/putstr | ✅ `WasmHost/JsonEncode.lean` |
+| | NEP-141 objects via schema (not hand putc) | ✅ `ft_transfer` / `balance_of` / … |
 | | unknown methods → legacy JSON scalar array | ✅ |
 | NEP-141 **as your FT contract** | — | → **Layer C** (`Stdlib.NearFungibleToken`) |
 

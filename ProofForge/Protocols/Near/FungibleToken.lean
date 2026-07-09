@@ -13,9 +13,11 @@ Uses Layer A `declareRemote` so Wasm-NEAR materializes `promise_create` with
 the method string in the host pool. Bind the FT account with
 `--peer my_ft=token.near` at deploy time.
 
-## Arg packing (EmitWat)
+## Arg packing (EmitWat + JsonEncode)
 
-For known NEP-141 methods, EmitWat packs **JSON objects** (not a bare JSON array):
+For known NEP-141 methods, EmitWat builds a `JsonEncode.Node` object schema and
+lowers it once via `WasmHost/JsonEncode` (shared putc/putstr/putu64 sink). Call
+sites must not hand-roll JSON ASCII. Resulting **JSON objects** (not a bare array):
 
 | Method | Args (portable) | JSON args |
 |--------|-----------------|-----------|

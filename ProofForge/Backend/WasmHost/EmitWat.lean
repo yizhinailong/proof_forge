@@ -36,6 +36,7 @@ import ProofForge.Backend.WasmHost.Event
 import ProofForge.Backend.WasmHost.ExprAnalysis
 import ProofForge.Backend.WasmHost.Hash
 import ProofForge.Backend.WasmHost.Imports
+import ProofForge.Backend.WasmHost.JsonEncode
 import ProofForge.Backend.WasmHost.Layout
 import ProofForge.Backend.WasmHost.Locals
 import ProofForge.Backend.WasmHost.LoweringEnv
@@ -354,12 +355,6 @@ mutual
     | .hash => .ok (vis, #[.call crosscallArgsPuthashName])
     | _ => err s!"EmitWat: NEAR crosscall argument type `{vt.name}` is not supported yet"
 
-  /-- Emit ASCII bytes via `__pf_crosscall_args_putc` (static JSON fragments). -/
-  partial def crosscallPutAsciiInsns (s : String) : Array Insn :=
-    s.foldl
-      (fun acc c => acc ++ #[.i32Const c.toNat, .call crosscallArgsPutcName])
-      #[]
-
   /-- Pool index as i64: address-literal handles (peerHandle) or U32/U64. -/
   partial def lowerPoolIndexI64 (ctx : Ctx) (env : LocalTypes) (idxExpr : Expr) :
       Except EmitError (Array Insn) :=
@@ -367,36 +362,32 @@ mutual
     | .literal (.address idx) => .ok #[.i64Const idx]
     | _ => lowerU32OrU64AsI64 ctx env "NEP-141 account pool index" idxExpr
 
-  /-- JSON-quoted host-pool string: `"…"` where `idxExpr` is a pool index
-  (`.literal (.address i)` from `peerHandle` / `registerAccountId`, or U32/U64). -/
-  partial def lowerJsonQuotedPoolString (ctx : Ctx) (env : LocalTypes) (idxExpr : Expr) :
-      Except EmitError (Array Insn) := do
+  /-- `JsonEncode.strPoolIdx` leaf from a pool-index expr. -/
+  partial def jsonStrPoolIdx (ctx : Ctx) (env : LocalTypes) (idxExpr : Expr) :
+      Except EmitError ProofForge.Backend.WasmHost.JsonEncode.Node := do
     requireDuplicableExpr idxExpr "EmitWat: NEP-141 account pool index must be duplicable"
     let idxInsns ← lowerPoolIndexI64 ctx env idxExpr
-    .ok (
-      #[.i32Const 0x22, .call crosscallArgsPutcName] ++
-      idxInsns ++ #[.call crosscallPoolPtrName, .plain "i32.wrap_i64"] ++
-      idxInsns ++ #[.call crosscallPoolLenName, .plain "i32.wrap_i64"] ++
-      #[.call crosscallArgsPutstrName] ++
-      #[.i32Const 0x22, .call crosscallArgsPutcName]
-    )
+    .ok (.strPoolIdx idxInsns)
 
-  /-- JSON string-encoded decimal amount: `"123"` from a U64/U32 expr. -/
-  partial def lowerJsonQuotedU64Amount (ctx : Ctx) (env : LocalTypes) (amount : Expr) :
-      Except EmitError (Array Insn) := do
+  /-- `JsonEncode.u64Str` leaf (quoted decimal) from U32/U64 expr. -/
+  partial def jsonU64Str (ctx : Ctx) (env : LocalTypes) (amount : Expr) :
+      Except EmitError ProofForge.Backend.WasmHost.JsonEncode.Node := do
     let (vis, vt) ← lowerExpr ctx env amount
     if !(vt == .u64 || vt == .u32) then
       err s!"EmitWat: NEP-141 amount expected U32/U64, got `{vt.name}`"
     else
       let conv := if vt == .u64 then vis else vis ++ #[.plain "i64.extend_i32_u"]
-      .ok (
-        #[.i32Const 0x22, .call crosscallArgsPutcName] ++
-        conv ++ #[.call crosscallArgsPutu64Name] ++
-        #[.i32Const 0x22, .call crosscallArgsPutcName]
-      )
+      .ok (.u64Str conv)
 
-  /-- NEP-141 `ft_transfer`: `{"receiver_id":"<pool>","amount":"<u64>","memo":null}`
-  Args: `[receiverPoolIdx, amount]`. -/
+  /-- Lower a JsonEncode node into the crosscall args buffer. -/
+  partial def lowerJsonEncodeCrosscall
+      (root : ProofForge.Backend.WasmHost.JsonEncode.Node) :
+      Except EmitError (Array Insn × Nat × Nat) :=
+    match ProofForge.Backend.WasmHost.JsonEncode.lowerCrosscallArgs root CROSSCALL_BUF with
+    | .ok r => .ok r
+    | .error msg => err s!"EmitWat: JsonEncode: {msg}"
+
+  /-- NEP-141 `ft_transfer` via JsonEncode object schema. -/
   partial def lowerNep141FtTransferArgs (ctx : Ctx) (env : LocalTypes) (args : Array Expr) :
       Except EmitError (Array Insn × Nat × Nat) := do
     match args[0]?, args[1]? with
@@ -404,21 +395,17 @@ mutual
         if args.size != 2 then
           err s!"EmitWat: NEP-141 ft_transfer expects 2 args [receiver_pool_idx, amount], got {args.size}"
         else
-          let recvInsns ← lowerJsonQuotedPoolString ctx env recv
-          let amountInsns ← lowerJsonQuotedU64Amount ctx env amount
-          let body :=
-            #[.call crosscallArgsStartName] ++
-            crosscallPutAsciiInsns "{\"receiver_id\":" ++
-            recvInsns ++
-            crosscallPutAsciiInsns ",\"amount\":" ++
-            amountInsns ++
-            crosscallPutAsciiInsns ",\"memo\":null}"
-          .ok (body, CROSSCALL_BUF, 0)
+          let recvN ← jsonStrPoolIdx ctx env recv
+          let amountN ← jsonU64Str ctx env amount
+          lowerJsonEncodeCrosscall (.obj #[
+            ProofForge.Backend.WasmHost.JsonEncode.field "receiver_id" recvN,
+            ProofForge.Backend.WasmHost.JsonEncode.field "amount" amountN,
+            ProofForge.Backend.WasmHost.JsonEncode.field "memo" .null_
+          ])
     | _, _ =>
         err s!"EmitWat: NEP-141 ft_transfer expects 2 args [receiver_pool_idx, amount], got {args.size}"
 
-  /-- NEP-141 `ft_transfer_call`: receiver + amount + msg (msg as decimal string if U64).
-  Args: `[receiverPoolIdx, amount]` (msg="") or `[receiverPoolIdx, amount, msgU64]`. -/
+  /-- NEP-141 `ft_transfer_call` via JsonEncode. -/
   partial def lowerNep141FtTransferCallArgs (ctx : Ctx) (env : LocalTypes) (args : Array Expr) :
       Except EmitError (Array Insn × Nat × Nat) := do
     match args[0]?, args[1]? with
@@ -426,26 +413,21 @@ mutual
         if args.size < 2 || args.size > 3 then
           err s!"EmitWat: NEP-141 ft_transfer_call expects 2–3 args [receiver, amount, msg?], got {args.size}"
         else
-          let recvInsns ← lowerJsonQuotedPoolString ctx env recv
-          let amountInsns ← lowerJsonQuotedU64Amount ctx env amount
-          let msgInsns ←
+          let recvN ← jsonStrPoolIdx ctx env recv
+          let amountN ← jsonU64Str ctx env amount
+          let msgN ←
             match args[2]? with
-            | some msg => lowerJsonQuotedU64Amount ctx env msg
-            | none => .ok (crosscallPutAsciiInsns "\"\"")
-          let body :=
-            #[.call crosscallArgsStartName] ++
-            crosscallPutAsciiInsns "{\"receiver_id\":" ++
-            recvInsns ++
-            crosscallPutAsciiInsns ",\"amount\":" ++
-            amountInsns ++
-            crosscallPutAsciiInsns ",\"msg\":" ++
-            msgInsns ++
-            crosscallPutAsciiInsns "}"
-          .ok (body, CROSSCALL_BUF, 0)
+            | some msg => jsonU64Str ctx env msg
+            | none => .ok (.strLit "")
+          lowerJsonEncodeCrosscall (.obj #[
+            ProofForge.Backend.WasmHost.JsonEncode.field "receiver_id" recvN,
+            ProofForge.Backend.WasmHost.JsonEncode.field "amount" amountN,
+            ProofForge.Backend.WasmHost.JsonEncode.field "msg" msgN
+          ])
     | _, _ =>
         err s!"EmitWat: NEP-141 ft_transfer_call expects 2–3 args [receiver, amount, msg?], got {args.size}"
 
-  /-- NEP-141 `ft_balance_of`: `{"account_id":"<pool>"}`. Args: `[accountPoolIdx]`. -/
+  /-- NEP-141 `ft_balance_of` via JsonEncode. -/
   partial def lowerNep141FtBalanceOfArgs (ctx : Ctx) (env : LocalTypes) (args : Array Expr) :
       Except EmitError (Array Insn × Nat × Nat) := do
     match args[0]? with
@@ -453,21 +435,15 @@ mutual
         if args.size != 1 then
           err s!"EmitWat: NEP-141 ft_balance_of expects 1 arg [account_pool_idx], got {args.size}"
         else
-          let acctInsns ← lowerJsonQuotedPoolString ctx env acct
-          let body :=
-            #[.call crosscallArgsStartName] ++
-            crosscallPutAsciiInsns "{\"account_id\":" ++
-            acctInsns ++
-            crosscallPutAsciiInsns "}"
-          .ok (body, CROSSCALL_BUF, 0)
+          let acctN ← jsonStrPoolIdx ctx env acct
+          lowerJsonEncodeCrosscall
+            (.obj #[ProofForge.Backend.WasmHost.JsonEncode.field "account_id" acctN])
     | none =>
         err s!"EmitWat: NEP-141 ft_balance_of expects 1 arg [account_pool_idx], got {args.size}"
 
   /-- Empty JSON object `{}` for query methods with no args. -/
   partial def lowerJsonEmptyObjectArgs : Except EmitError (Array Insn × Nat × Nat) :=
-    .ok (
-      #[.call crosscallArgsStartName] ++ crosscallPutAsciiInsns "{}",
-      CROSSCALL_BUF, 0)
+    lowerJsonEncodeCrosscall (.obj #[])
 
   /-- Dispatch: NEP-141 object JSON for known methods; else legacy JSON array of scalars. -/
   partial def lowerCrosscallArgsForMethod (ctx : Ctx) (env : LocalTypes)
