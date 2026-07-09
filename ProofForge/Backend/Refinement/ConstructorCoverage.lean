@@ -129,6 +129,8 @@ dispatcher) so they are target-agnostic: the target-side lemma只需 prove
 `loweredInstr lhs rhs = evalNumericBinary op f lhs rhs`.
 -/
 
+section Arithmetic
+
 /-- `add` under the fueled interpreter equals `evalNumericBinary "add" (·+·)`. -/
 theorem evalExprFuel_add_eq (fuel : Nat) (state : State) (frame : Frame)
     (lhs rhs : Expr) (overflowChecked : Bool)
@@ -155,6 +157,248 @@ theorem evalExprFuel_mul_eq (fuel : Nat) (state : State) (frame : Frame)
     evalExprFuel (fuel + 1) state frame (.mul lhs rhs overflowChecked) =
       .ok (state, .u64 (lhsVal * rhsVal)) := by
   simp only [evalExprFuel, hLhs, hRhs, evalNumericBinary, bind, Except.bind]
+
+/-- `div` under the fueled interpreter equals `evalNumericBinary "div" (÷, 0→0)`. -/
+theorem evalExprFuel_div_eq (fuel : Nat) (state : State) (frame : Frame)
+    (lhs rhs : Expr)
+    (hLhs : evalExprFuel fuel state frame lhs = .ok (state, .u64 lhsVal))
+    (hRhs : evalExprFuel fuel state frame rhs = .ok (state, .u64 rhsVal)) :
+    evalExprFuel (fuel + 1) state frame (.div lhs rhs) =
+      .ok (state, .u64 (if rhsVal == 0 then 0 else lhsVal / rhsVal)) := by
+  simp only [evalExprFuel, hLhs, hRhs, evalNumericBinary, bind, Except.bind]
+
+/-- `mod` under the fueled interpreter equals `evalNumericBinary "mod" (%, 0→0)`. -/
+theorem evalExprFuel_mod_eq (fuel : Nat) (state : State) (frame : Frame)
+    (lhs rhs : Expr)
+    (hLhs : evalExprFuel fuel state frame lhs = .ok (state, .u64 lhsVal))
+    (hRhs : evalExprFuel fuel state frame rhs = .ok (state, .u64 rhsVal)) :
+    evalExprFuel (fuel + 1) state frame (.mod lhs rhs) =
+      .ok (state, .u64 (if rhsVal == 0 then 0 else lhsVal % rhsVal)) := by
+  simp only [evalExprFuel, hLhs, hRhs, evalNumericBinary, bind, Except.bind]
+
+/-- `pow` under the fueled interpreter equals `evalNumericBinary "pow" (·^·)`. -/
+theorem evalExprFuel_pow_eq (fuel : Nat) (state : State) (frame : Frame)
+    (lhs rhs : Expr)
+    (hLhs : evalExprFuel fuel state frame lhs = .ok (state, .u64 lhsVal))
+    (hRhs : evalExprFuel fuel state frame rhs = .ok (state, .u64 rhsVal)) :
+    evalExprFuel (fuel + 1) state frame (.pow lhs rhs) =
+      .ok (state, .u64 (lhsVal ^ rhsVal)) := by
+  simp only [evalExprFuel, hLhs, hRhs, evalNumericBinary, bind, Except.bind]
+
+end Arithmetic
+
+section Bitwise
+
+/-- `bitAnd` under the fueled interpreter equals `evalNumericBinary "bitAnd" Nat.land`. -/
+theorem evalExprFuel_bitAnd_eq (fuel : Nat) (state : State) (frame : Frame)
+    (lhs rhs : Expr)
+    (hLhs : evalExprFuel fuel state frame lhs = .ok (state, .u64 lhsVal))
+    (hRhs : evalExprFuel fuel state frame rhs = .ok (state, .u64 rhsVal)) :
+    evalExprFuel (fuel + 1) state frame (.bitAnd lhs rhs) =
+      .ok (state, .u64 (Nat.land lhsVal rhsVal)) := by
+  simp only [evalExprFuel, hLhs, hRhs, evalNumericBinary, bind, Except.bind]
+
+/-- `bitOr` under the fueled interpreter equals `evalNumericBinary "bitOr" Nat.lor`. -/
+theorem evalExprFuel_bitOr_eq (fuel : Nat) (state : State) (frame : Frame)
+    (lhs rhs : Expr)
+    (hLhs : evalExprFuel fuel state frame lhs = .ok (state, .u64 lhsVal))
+    (hRhs : evalExprFuel fuel state frame rhs = .ok (state, .u64 rhsVal)) :
+    evalExprFuel (fuel + 1) state frame (.bitOr lhs rhs) =
+      .ok (state, .u64 (Nat.lor lhsVal rhsVal)) := by
+  simp only [evalExprFuel, hLhs, hRhs, evalNumericBinary, bind, Except.bind]
+
+/-- `bitXor` under the fueled interpreter equals `evalNumericBinary "bitXor" Nat.xor`. -/
+theorem evalExprFuel_bitXor_eq (fuel : Nat) (state : State) (frame : Frame)
+    (lhs rhs : Expr)
+    (hLhs : evalExprFuel fuel state frame lhs = .ok (state, .u64 lhsVal))
+    (hRhs : evalExprFuel fuel state frame rhs = .ok (state, .u64 rhsVal)) :
+    evalExprFuel (fuel + 1) state frame (.bitXor lhs rhs) =
+      .ok (state, .u64 (Nat.xor lhsVal rhsVal)) := by
+  simp only [evalExprFuel, hLhs, hRhs, evalNumericBinary, bind, Except.bind]
+
+/-- `shiftLeft` under the fueled interpreter equals `evalNumericBinary "shiftLeft" (·*2^·)`. -/
+theorem evalExprFuel_shiftLeft_eq (fuel : Nat) (state : State) (frame : Frame)
+    (lhs rhs : Expr)
+    (hLhs : evalExprFuel fuel state frame lhs = .ok (state, .u64 lhsVal))
+    (hRhs : evalExprFuel fuel state frame rhs = .ok (state, .u64 rhsVal)) :
+    evalExprFuel (fuel + 1) state frame (.shiftLeft lhs rhs) =
+      .ok (state, .u64 (lhsVal * (2 ^ rhsVal))) := by
+  simp only [evalExprFuel, hLhs, hRhs, evalNumericBinary, bind, Except.bind]
+
+/-- `shiftRight` under the fueled interpreter equals `evalNumericBinary "shiftRight" (·/2^·)`. -/
+theorem evalExprFuel_shiftRight_eq (fuel : Nat) (state : State) (frame : Frame)
+    (lhs rhs : Expr)
+    (hLhs : evalExprFuel fuel state frame lhs = .ok (state, .u64 lhsVal))
+    (hRhs : evalExprFuel fuel state frame rhs = .ok (state, .u64 rhsVal)) :
+    evalExprFuel (fuel + 1) state frame (.shiftRight lhs rhs) =
+      .ok (state, .u64 (lhsVal / (2 ^ rhsVal))) := by
+  simp only [evalExprFuel, hLhs, hRhs, evalNumericBinary, bind, Except.bind]
+
+end Bitwise
+
+section Comparison
+
+/-- `lt` under the fueled interpreter equals `evalNumericPredicate "lt" (·<·)`. -/
+theorem evalExprFuel_lt_eq (fuel : Nat) (state : State) (frame : Frame)
+    (lhs rhs : Expr)
+    (hLhs : evalExprFuel fuel state frame lhs = .ok (state, .u64 lhsVal))
+    (hRhs : evalExprFuel fuel state frame rhs = .ok (state, .u64 rhsVal)) :
+    evalExprFuel (fuel + 1) state frame (.lt lhs rhs) =
+      .ok (state, .bool (lhsVal < rhsVal)) := by
+  simp only [evalExprFuel, hLhs, hRhs, evalNumericPredicate, bind, Except.bind]
+
+/-- `le` under the fueled interpreter equals `evalNumericPredicate "le" (·≤·)`. -/
+theorem evalExprFuel_le_eq (fuel : Nat) (state : State) (frame : Frame)
+    (lhs rhs : Expr)
+    (hLhs : evalExprFuel fuel state frame lhs = .ok (state, .u64 lhsVal))
+    (hRhs : evalExprFuel fuel state frame rhs = .ok (state, .u64 rhsVal)) :
+    evalExprFuel (fuel + 1) state frame (.le lhs rhs) =
+      .ok (state, .bool (lhsVal <= rhsVal)) := by
+  simp only [evalExprFuel, hLhs, hRhs, evalNumericPredicate, bind, Except.bind]
+
+/-- `gt` under the fueled interpreter equals `evalNumericPredicate "gt" (·>·)`. -/
+theorem evalExprFuel_gt_eq (fuel : Nat) (state : State) (frame : Frame)
+    (lhs rhs : Expr)
+    (hLhs : evalExprFuel fuel state frame lhs = .ok (state, .u64 lhsVal))
+    (hRhs : evalExprFuel fuel state frame rhs = .ok (state, .u64 rhsVal)) :
+    evalExprFuel (fuel + 1) state frame (.gt lhs rhs) =
+      .ok (state, .bool (lhsVal > rhsVal)) := by
+  simp only [evalExprFuel, hLhs, hRhs, evalNumericPredicate, bind, Except.bind]
+
+/-- `ge` under the fueled interpreter equals `evalNumericPredicate "ge" (·≥·)`. -/
+theorem evalExprFuel_ge_eq (fuel : Nat) (state : State) (frame : Frame)
+    (lhs rhs : Expr)
+    (hLhs : evalExprFuel fuel state frame lhs = .ok (state, .u64 lhsVal))
+    (hRhs : evalExprFuel fuel state frame rhs = .ok (state, .u64 rhsVal)) :
+    evalExprFuel (fuel + 1) state frame (.ge lhs rhs) =
+      .ok (state, .bool (lhsVal >= rhsVal)) := by
+  simp only [evalExprFuel, hLhs, hRhs, evalNumericPredicate, bind, Except.bind]
+
+/-- `eq` under the fueled interpreter equals `evalEquality` on u64 operands. -/
+theorem evalExprFuel_eq_eq (fuel : Nat) (state : State) (frame : Frame)
+    (lhs rhs : Expr)
+    (hLhs : evalExprFuel fuel state frame lhs = .ok (state, .u64 lhsVal))
+    (hRhs : evalExprFuel fuel state frame rhs = .ok (state, .u64 rhsVal)) :
+    evalExprFuel (fuel + 1) state frame (.eq lhs rhs) =
+      .ok (state, .bool (lhsVal == rhsVal)) := by
+  simp only [evalExprFuel, hLhs, hRhs, evalEquality, bind, Except.bind]
+
+/-- `ne` under the fueled interpreter equals `!(evalEquality)` on u64 operands. -/
+theorem evalExprFuel_ne_eq (fuel : Nat) (state : State) (frame : Frame)
+    (lhs rhs : Expr)
+    (hLhs : evalExprFuel fuel state frame lhs = .ok (state, .u64 lhsVal))
+    (hRhs : evalExprFuel fuel state frame rhs = .ok (state, .u64 rhsVal)) :
+    evalExprFuel (fuel + 1) state frame (.ne lhs rhs) =
+      .ok (state, .bool (!(lhsVal == rhsVal))) := by
+  simp only [evalExprFuel, hLhs, hRhs, evalEquality, bind, Except.bind]
+
+end Comparison
+
+section Boolean
+
+/-- `boolAnd` under the fueled interpreter equals `evalBooleanBinary "boolAnd" (·&&·)`. -/
+theorem evalExprFuel_boolAnd_eq (fuel : Nat) (state : State) (frame : Frame)
+    (lhs rhs : Expr)
+    (hLhs : evalExprFuel fuel state frame lhs = .ok (state, .bool lhsVal))
+    (hRhs : evalExprFuel fuel state frame rhs = .ok (state, .bool rhsVal)) :
+    evalExprFuel (fuel + 1) state frame (.boolAnd lhs rhs) =
+      .ok (state, .bool (lhsVal && rhsVal)) := by
+  simp only [evalExprFuel, hLhs, hRhs, evalBooleanBinary, bind, Except.bind]
+
+/-- `boolOr` under the fueled interpreter equals `evalBooleanBinary "boolOr" (·||·)`. -/
+theorem evalExprFuel_boolOr_eq (fuel : Nat) (state : State) (frame : Frame)
+    (lhs rhs : Expr)
+    (hLhs : evalExprFuel fuel state frame lhs = .ok (state, .bool lhsVal))
+    (hRhs : evalExprFuel fuel state frame rhs = .ok (state, .bool rhsVal)) :
+    evalExprFuel (fuel + 1) state frame (.boolOr lhs rhs) =
+      .ok (state, .bool (lhsVal || rhsVal)) := by
+  simp only [evalExprFuel, hLhs, hRhs, evalBooleanBinary, bind, Except.bind]
+
+/-- `boolNot` under the fueled interpreter negates the Bool operand. -/
+theorem evalExprFuel_boolNot_eq (fuel : Nat) (state : State) (frame : Frame)
+    (value : Expr)
+    (h : evalExprFuel fuel state frame value = .ok (state, .bool boolVal)) :
+    evalExprFuel (fuel + 1) state frame (.boolNot value) =
+      .ok (state, .bool (!boolVal)) := by
+  simp only [evalExprFuel, h, bind, Except.bind]
+
+end Boolean
+
+/-! #### Storage / context / literal preservation (the IR-side half)
+
+These cover the storage scalar/map, context-read, and literal constructors
+the fragment admits. They prove the fueled interpreter reads/writes the
+expected state field, so the target-side preservation can equate the lowered
+storage instruction with the IR storage effect.
+-/
+
+section Storage
+
+/-- `storageScalarRead` under the fueled interpreter reads the state field. -/
+theorem evalEffectFuel_storageScalarRead_eq (fuel : Nat) (state : State) (frame : Frame)
+    (name : String) (h : state.read name = some (.u64 val)) :
+    evalEffectFuel (fuel + 1) state frame (.storageScalarRead name) =
+      .ok (state, .u64 val) := by
+  simp only [evalEffectFuel, h]
+
+/-- `storageScalarWrite` under the fueled interpreter writes the evaluated value. -/
+theorem evalEffectFuel_storageScalarWrite_eq (fuel : Nat) (state : State) (frame : Frame)
+    (name : String) (valueExpr : Expr)
+    (h : evalExprFuel fuel state frame valueExpr = .ok (state', .u64 val)) :
+    evalEffectFuel (fuel + 1) state frame (.storageScalarWrite name valueExpr) =
+      .ok (state'.write name (.u64 val), .unit) := by
+  simp only [evalEffectFuel, h, bind, Except.bind]
+
+end Storage
+
+section Context
+
+/-- `contextRead` of a u64-context field returns `.u64 0` (the fuel model's
+abstract value for chain-neutral env fields). -/
+theorem evalEffectFuel_contextRead_u64_eq (fuel : Nat) (state : State) (frame : Frame)
+    (field : ContextField)
+    (h : match field with
+         | .userId | .contractId | .checkpointId | .timestamp | .epochHeight
+         | .chainId | .gasPrice | .gasLeft | .baseFee | .prevRandao => true
+         | _ => false) :
+    evalEffectFuel (fuel + 1) state frame (.contextRead field) =
+      .ok (state, .u64 0) := by
+  cases field with
+  | userId => simp [evalEffectFuel, h]
+  | userIdHash => simp at h
+  | contractId => simp [evalEffectFuel, h]
+  | checkpointId => simp [evalEffectFuel, h]
+  | timestamp => simp [evalEffectFuel, h]
+  | epochHeight => simp [evalEffectFuel, h]
+  | chainId => simp [evalEffectFuel, h]
+  | gasPrice => simp [evalEffectFuel, h]
+  | gasLeft => simp [evalEffectFuel, h]
+  | baseFee => simp [evalEffectFuel, h]
+  | prevRandao => simp [evalEffectFuel, h]
+  | randomSeed => simp at h
+  | origin => simp at h
+  | coinbase => simp at h
+  | blockHash _ => simp at h
+
+end Context
+
+/-! #### Literal preservation (the IR-side half for `Expr.literal`) -/
+
+section Literal
+
+/-- `Expr.literal (.u64 v)` under the fueled interpreter yields `.u64 v`. -/
+theorem evalExprFuel_literal_u64_eq (fuel : Nat) (state : State) (frame : Frame)
+    (v : Nat) :
+    evalExprFuel (fuel + 1) state frame (.literal (.u64 v)) = .ok (state, .u64 v) := by
+  simp only [evalExprFuel, literalValue, bind, Except.bind]
+
+/-- `Expr.literal (.bool v)` under the fueled interpreter yields `.bool v`. -/
+theorem evalExprFuel_literal_bool_eq (fuel : Nat) (state : State) (frame : Frame)
+    (v : Bool) :
+    evalExprFuel (fuel + 1) state frame (.literal (.bool v)) = .ok (state, .bool v) := by
+  simp only [evalExprFuel, literalValue, bind, Except.bind]
+
+end Literal
 
 /-! ### Coverage witnesses for the two contract fragments
 
