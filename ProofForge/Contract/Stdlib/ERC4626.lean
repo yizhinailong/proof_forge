@@ -7,6 +7,10 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Deployable vault **body** (you *are* the vault), not the Layer B external
 client (`Protocols.Evm.IERC4626` / Product `external_vault`).
 
+**Product v1 frozen (2026-07-09):** table below is the supported honesty
+subset. Deferred (v2): fee-recipient push re-measure; non-EVM vault body
+parity; performance fees / full OZ rounding matrix.
+
 ## Honesty bounds
 
 | Feature | Behavior |

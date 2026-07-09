@@ -24,9 +24,12 @@ Selectors (canonical Multicall3):
 5. **Runtime Call targets** (Wave ε.17): `aggregateIrDynTargets` — static
    calldata templates + runtime target addresses (optional runtime length).
 6. **Runtime Call ABI words** (Wave ε.19): `aggregateIrDynCalls` — runtime
-   target + selector ‖ uint256* args (fixed ABI shape). Free-form bytes open.
+   target + selector ‖ uint256* args (fixed ABI shape).
 7. **Portable scalar remote**: `aggregate` still uses `remoteCall` with scalar
    words for multi-target handle wiring / smoke.
+
+**Product v1 frozen (2026-07-09):** surfaces 1–6 above. Free-form runtime
+`bytes` / nested dynamic ABI → v2 platform epic.
 -/
 import ProofForge.Contract.Surface
 import ProofForge.Backend.Evm.AbiEncode

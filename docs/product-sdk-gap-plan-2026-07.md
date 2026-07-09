@@ -1,6 +1,6 @@
 # Product / SDK gap plan (2026-07)
 
-Status: **Active product backlog**  
+Status: **Wave α–ε frozen as product v1** (2026-07-09)  
 Audience: product + compiler  
 North star: authors write **business intent only**; `--target` selects chain;
 **encoding/layout is always plan → materialize** (authors never pack JSON/ABI/ix).
@@ -9,6 +9,36 @@ Related: [product-authoring-architecture](product-authoring-architecture.md),
 [protocols-layer](protocols-layer.md), [host-runtime](host-runtime.md),
 [portable-sdk-unification plan](superpowers/plans/2026-07-09-portable-sdk-unification.md),
 [sdk-ecosystem-gaps](sdk-ecosystem-gaps-2026-07.md).
+
+---
+
+## 0. Product v1 freeze (2026-07-09)
+
+**Shipped and frozen** — further honesty micro-edges are **v2 / deferred**, not
+open blockers for product claims on this wave.
+
+### v1 in scope (do not reopen without a product bug or new epic)
+
+| Surface | v1 claim | Gate |
+|---------|----------|------|
+| Product path α–γ | portable examples, token NEAR/Solana plans, external FT intent | `just product*` / portable gates |
+| Pack δ | EVM AbiEncode→Yul CALL; Solana BinaryLayout→CPI; Multicall object | `just multicall-abi-yul` |
+| ERC-4626 Layer C | pro-rata floor; entry/exit `feeBps`; vault+recipient FOT deltas; EVM-primary IERC20 packing | `just product-erc4626-vault`, `Tests/ERC4626Stdlib` |
+| ERC-2612 / permit | external client + stdlib body + TokenSpec EVM merge | `just product-erc20-permit` |
+| Multicall IR ε | `crosscallAbiPacked`: static, dyn length, dyn targets, `DynCall` selector‖uint256* | `Tests/AbiEncode` |
+
+### v2 / deferred (not “unfinished v1”)
+
+| Item | Why deferred |
+|------|----------------|
+| fee-recipient push re-measure | No product bug; optional honesty edge |
+| Free-form runtime Call `bytes` / nested dynamic ABI | Platform epic (`RuntimeAbiEncode`), not vault/product freeze |
+| Performance fees / asymmetric OZ rounding matrix | Spec expansion epic |
+| Solana/NEAR native “ERC-4626-shaped” deploy body | Different host semantics; EVM-primary honesty is intentional |
+| VaultSpec-only author API (policy enums, no scratch slots) | Product UX epic on top of frozen body |
+
+**Process:** new work needs a named epic or a failing author/gate case — not
+default “continue honesty still open”.
 
 ---
 
@@ -66,7 +96,7 @@ Related: [product-authoring-architecture](product-authoring-architecture.md),
 
 | # | Gap | Desired |
 |---|-----|---------|
-| **P1.1** | ~~AbiEncode `Plan` not yet → Yul~~ | ✅ `ToYul.AbiEncode` mstore+CALL; ✅ IR `crosscallAbiPacked` + runtime length overwrite (`aggregateIrDynLen`). Fully dynamic Call data still open. |
+| **P1.1** | ~~AbiEncode `Plan` not yet → Yul~~ | ✅ v1: `ToYul.AbiEncode` + IR `crosscallAbiPacked` (static / dyn len / targets / `DynCall`). Free-form bytes → **v2**. |
 | **P1.2** | ~~Solana no BinaryLayout~~ | ✅ pure LE `BinaryLayout`; full Cpi rewrite still optional. |
 | **P1.3** | Portable remote = scalar ABI only | Extend intentional types; or honest reject richer shapes. |
 | **P1.4** | Solana account auto-fill incomplete for all product examples | Every Product example builds Solana without Surface. |
@@ -187,9 +217,10 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 | ε.17 | Call[] runtime targets + static calldata templates | **done** |
 | ε.18 | ERC-4626 recipient-side FOT (recv balance up-delta) | **done** |
 | ε.19 | Call[] runtime selector‖uint256* args (`aggregateIrDynCalls`) | **done** |
+| **ε freeze** | Product v1 honesty freeze (this section §0) | **done** |
 
-**Honesty still open:** fee-recipient push re-measure; free-form runtime
-calldata blobs (non ABI-word shapes / dynamic nested bytes).
+**v1 closed.** Deferred (v2 only): fee-recipient push re-measure; free-form
+runtime calldata blobs; VaultSpec author API; multi-host vault body parity.
 
 ---
 

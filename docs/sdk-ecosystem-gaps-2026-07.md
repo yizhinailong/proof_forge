@@ -27,7 +27,7 @@ gaps.
 | ERC-20 | Covered | `ProofForge/Contract/Stdlib/ERC20.lean` stdlib mixin (transfer/approve/transferFrom/mint/burn + Transfer/Approval events + `transfer_conserves_supply` Lean proof); `Examples/Backend/Evm/Contracts/stdlib/ERC20.lean` golden Yul; `token-intent-evm-vm-smoke.sh` exercises the shared Lean `TokenSpec` SDK path in a Rust/revm VM; `evm-mixin-compose` validates Ownable+ERC-20 composition. `ProofForge/Contract/Token/Evm.lean` is the legacy hand-written Yul path for the Token SDK and remains non-canonical | — |
 | ERC-721 (NFT) | Covered (limited) | `ProofForge/Contract/Stdlib/ERC721.lean` stdlib mixin (ownerOf/transferFrom/safeTransferFrom/mint/burn + three-indexed Transfer event); `Examples/Backend/Evm/Contracts/stdlib/ERC721.lean` golden Yul. **Limitation:** `safeTransferFrom` does not invoke `onERC721Received` (documented in stdlib header) | P1 |
 | ERC-1155 (multi-token) | Partial | `ProofForge/Contract/Stdlib/ERC1155.lean` stdlib mixin covers balances, operator approvals, mint, burn, and single `safeTransferFrom`; `Examples/Backend/Evm/Contracts/stdlib/ERC1155.lean` golden Yul; `foundry-smoke.sh` exercises mint/approval/transfer/burn. **Gap:** batch operations and receiver callbacks remain open | P1 |
-| ERC-4626 (vault standard) | Covered (honest subset) | **Call** peer: `IERC4626` / `external_vault`. **Deploy body:** `Stdlib.ERC4626` pro-rata + entry/exit feeBps + **FOT vault pull/push deltas** + **recipient balance up-delta** on user withdraw/redeem (`just product-erc4626-vault`). Fee-recipient push not re-measured | P1 |
+| ERC-4626 (vault standard) | Covered (v1 frozen) | **Call** peer: `IERC4626` / `external_vault`. **Deploy body:** `Stdlib.ERC4626` pro-rata + entry/exit feeBps + FOT vault+recipient deltas (`just product-erc4626-vault`). **v2:** fee-recipient re-measure; non-EVM vault body | — |
 | ERC-2612 (permit) | Covered (EVM) | Peer client + stdlib body + **TokenSpec `moduleFor` merges ERC20Permit** when `permit` feature set (`Tests/TokenEvm`). DOMAIN still init-set; staged `setPermitSig` | — |
 | ERC-1820 / ERC-777 | Missing | No hook registry or ERC-777 sender/recipient hooks | P2 |
 | ERC-165 (supportsInterface) | Covered | `ProofForge/Contract/Stdlib/ERC165.lean` stdlib mixin (supportsInterface + registerInterface); `Examples/Backend/Evm/Contracts/stdlib/ERC165.lean` golden Yul | — |
@@ -58,7 +58,7 @@ gaps.
 | AMM / swap | Missing | No pool/swap example | P1 |
 | Flash loan | Missing | No flash/loan callback pattern | P2 |
 | Staking | Missing | No staking example | P2 |
-| Vault primitive | Partial | VerifiedVault + ValueVault + **ERC-4626 pro-rata stdlib** (`Stdlib.ERC4626`); fees still open | P1 |
+| Vault primitive | Covered (v1) | VerifiedVault + ValueVault + **ERC-4626 stdlib** (pro-rata, fees, FOT); see product v1 freeze | — |
 | Oracle integration | Missing | No Chainlink/oracle example | P2 |
 
 ### ABI / constructor / errors

@@ -142,6 +142,19 @@ just product-protocol-ft
 | Multicall Call[] → Yul | `just multicall-abi-yul` |
 | Engineering CI subset | `just check` |
 
+### Product v1 freeze (2026-07-09)
+
+Waves **α–ε** are **shipped and frozen** as the portable product slice:
+
+- Token / external FT plans + protocol intent  
+- ERC-4626 Layer C (pro-rata, fees, FOT vault+recipient deltas; EVM-primary)  
+- ERC-2612 permit body + TokenSpec EVM merge  
+- Multicall AbiEncode + IR `crosscallAbiPacked` (static / dyn len / targets / `DynCall`)  
+
+**Not v1** (deferred): free-form Call `bytes`, fee-recipient re-measure,
+VaultSpec-only authoring, non-EVM vault body parity. See
+[product-sdk-gap-plan §0](product-sdk-gap-plan-2026-07.md).
+
 ---
 
 ## 7. Out of product scope (for now)
@@ -150,7 +163,9 @@ just product-protocol-ft
 - Importing Protocols clients in Product examples  
 - New chain backends  
 - Pretending every DeFi standard is portable  
+- Free-form runtime ABI / nested dynamic Call data (v2 platform epic)  
 
 Engine work (pack layers, HostRuntime, CPI catalogs) continues **under** this
-surface — see [product-sdk-gap-plan](product-sdk-gap-plan-2026-07.md) waves γ–ε.
--/
+surface — see [product-sdk-gap-plan](product-sdk-gap-plan-2026-07.md). Frozen
+waves α–ε are the v1 claim; further edges need a named epic.
+
