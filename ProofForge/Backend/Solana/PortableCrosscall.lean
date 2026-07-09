@@ -402,7 +402,7 @@ partial def collectFromExpr (entrypoint : String) (acc : Array PortableCrosscall
         (collectFromExpr entrypoint
           (collectFromExpr entrypoint (collectFromExpr entrypoint acc a) b) c) d
       collectFromExpr entrypoint (collectFromExpr entrypoint acc e) f
-  | .crosscallAbiPacked target _ _ _ _ =>
+  | .crosscallAbiPacked target _ _ _ _ _ _ =>
       collectFromExpr entrypoint acc target
   | .cast a _ | .boolNot a | .hash a | .memoryArrayLength a | .field a _
   | .nearPromiseResultStatus a | .nearPromiseResultU64 a =>

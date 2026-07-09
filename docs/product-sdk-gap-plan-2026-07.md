@@ -66,7 +66,7 @@ Related: [product-authoring-architecture](product-authoring-architecture.md),
 
 | # | Gap | Desired |
 |---|-----|---------|
-| **P1.1** | ~~AbiEncode `Plan` not yet → Yul~~ | ✅ `ToYul.AbiEncode` mstore+CALL; ✅ compile-time IR `crosscallAbiPacked` (runtime lengths still open). |
+| **P1.1** | ~~AbiEncode `Plan` not yet → Yul~~ | ✅ `ToYul.AbiEncode` mstore+CALL; ✅ IR `crosscallAbiPacked` + runtime length overwrite (`aggregateIrDynLen`). Fully dynamic Call data still open. |
 | **P1.2** | ~~Solana no BinaryLayout~~ | ✅ pure LE `BinaryLayout`; full Cpi rewrite still optional. |
 | **P1.3** | Portable remote = scalar ABI only | Extend intentional types; or honest reject richer shapes. |
 | **P1.4** | Solana account auto-fill incomplete for all product examples | Every Product example builds Solana without Surface. |
@@ -182,8 +182,10 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 | ε.12 | Compile-time Call[] IR auto-lower (`crosscallAbiPacked`) | **done** |
 | ε.13 | ERC-4626 exit fee + mint net shares / preview symmetry | **done** |
 | ε.14 | ERC-4626 fee-on-transfer deposit/mint (balance delta) | **done** |
+| ε.15 | Call[] runtime length via max-pack + length-word overwrite | **done** |
 
-**Honesty still open:** exit push FOT (recipient-side); **runtime-unknown** Call[] lengths.
+**Honesty still open:** exit push FOT (recipient-side); fully dynamic Call
+element calldata (not just length of a static max prefix).
 
 ---
 

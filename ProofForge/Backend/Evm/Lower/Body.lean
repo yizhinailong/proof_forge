@@ -1074,9 +1074,14 @@ mutual
           (← buildExprPlan module env nonce)
           (← buildExprPlan module env deadline)
           (← buildExprPlan module env domainSep))
-    | .crosscallAbiPacked target selector stores argsSize outSize => do
+    | .crosscallAbiPacked target selector stores argsSize outSize dynLenOffset? dynLen? => do
+        let dynPlan ←
+          match dynLen? with
+          | none => pure none
+          | some len => .ok (some (← buildExprPlan module env len))
         .ok (.crosscallAbiPacked
-          (← buildExprPlan module env target) selector stores argsSize outSize)
+          (← buildExprPlan module env target) selector stores argsSize outSize
+          dynLenOffset? dynPlan)
     | .nativeValue =>
         .ok .nativeValue
     | .crosscallInvoke target methodId args => do

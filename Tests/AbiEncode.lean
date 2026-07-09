@@ -133,19 +133,19 @@ def main : IO UInt32 := do
   require (contains objYul "call(") "object issues CALL"
   require (contains objYul "return(") "object returns"
 
-  -- IR auto-lower: crosscallAbiPacked → module Yul includes helper + CALL
+  -- IR auto-lower: crosscallAbiPacked → helper Yul
   let irExpr := irAggregate (.literal (.u64 0xcA11)) #[mkCall 0xab #[0x11]] 32
   match irExpr with
-  | .crosscallAbiPacked _ sel stores argsSize _ =>
+  | .crosscallAbiPacked _ sel stores argsSize _ none none =>
       require (sel == 0x252dba42) "aggregate selector on IR node"
       require (stores.size > 0) "IR carries plan stores"
       require (argsSize > 0) "IR argsSize"
-  | _ => throw (IO.userError "expected crosscallAbiPacked")
-  -- Helper function emission for a known pack (no full module needed)
+  | _ => throw (IO.userError "expected static crosscallAbiPacked")
   let packSpec : ProofForge.Backend.Evm.Plan.AbiPackedHelperSpec :=
     match irExpr with
-    | .crosscallAbiPacked _ sel stores argsSize outSize =>
-        { selector := sel, stores := stores, argsSize := argsSize, outSize := outSize }
+    | .crosscallAbiPacked _ sel stores argsSize outSize dynOff _ =>
+        { selector := sel, stores := stores, argsSize := argsSize, outSize := outSize,
+          dynLenOffset? := dynOff }
     | _ => { selector := 0, stores := #[], argsSize := 0, outSize := 0 }
   let helperYul := renderStatements #[abiPackedHelperFunction packSpec]
   require (contains helperYul "__pf_abi_packed_") "abi packed helper name"
@@ -153,7 +153,24 @@ def main : IO UInt32 := do
   require (contains helperYul "call(") "helper issues CALL"
   require (contains helperYul "171") "inner Call target 0xab"
 
-  IO.println s!"abi-encode: ok (layout + yul + IR packed empty={empty.size} one={one.size} two={two.size})"
+  -- Runtime length: pack max 2 calls, overwrite length with runtime `n`
+  let calls2 := #[mkCall 0xab #[0x11], mkCall 0xcd #[0x22]]
+  let irDyn := irAggregateDynLen (.literal (.u64 0xcA11)) (.literal (.u64 1)) calls2 32
+  match irDyn with
+  | .crosscallAbiPacked _ _ _ _ _ (some 0x20) (some _) => pure ()
+  | _ => throw (IO.userError "expected dyn-len packed at offset 0x20")
+  let dynSpec : ProofForge.Backend.Evm.Plan.AbiPackedHelperSpec :=
+    match irDyn with
+    | .crosscallAbiPacked _ sel stores argsSize outSize dynOff _ =>
+        { selector := sel, stores := stores, argsSize := argsSize, outSize := outSize,
+          dynLenOffset? := dynOff }
+    | _ => { selector := 0, stores := #[], argsSize := 0, outSize := 0, dynLenOffset? := some 0x20 }
+  let dynYul := renderStatements #[abiPackedHelperFunction dynSpec]
+  require (contains dynYul "_dyn32" || contains dynYul "dyn") "dyn helper name"
+  require (contains dynYul "n") "runtime length param n"
+  require (contains dynYul "call(") "dyn helper CALL"
+
+  IO.println s!"abi-encode: ok (layout + yul + IR packed/dyn empty={empty.size} one={one.size} two={two.size})"
   pure 0
 
 end ProofForge.Tests.AbiEncode

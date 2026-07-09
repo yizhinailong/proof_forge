@@ -276,7 +276,7 @@ mutual
         exprPlanSupportsPlannedBody a && exprPlanSupportsPlannedBody b &&
           exprPlanSupportsPlannedBody c && exprPlanSupportsPlannedBody d &&
           exprPlanSupportsPlannedBody e && exprPlanSupportsPlannedBody f
-    | .crosscallAbiPacked target _ _ _ _ =>
+    | .crosscallAbiPacked target _ _ _ _ _ _ =>
         exprPlanSupportsPlannedBody target
     | .nativeValue => true
     | .effect effect => effectPlanSupportsPlannedBodyExpr effect

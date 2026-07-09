@@ -45,7 +45,9 @@ partial def canDuplicateExpr : Expr → Bool
   | .eip712PermitDigest a b c d e f =>
       canDuplicateExpr a && canDuplicateExpr b && canDuplicateExpr c &&
         canDuplicateExpr d && canDuplicateExpr e && canDuplicateExpr f
-  | .crosscallAbiPacked target _ _ _ _ => canDuplicateExpr target
+  | .crosscallAbiPacked target _ _ _ _ _ dynLen? =>
+      canDuplicateExpr target &&
+        match dynLen? with | none => true | some len => canDuplicateExpr len
   | .cast value _ => canDuplicateExpr value
   | .boolNot value => canDuplicateExpr value
   | .hashValue a b c d =>

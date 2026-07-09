@@ -434,7 +434,7 @@ mutual
         exprUsesCheckedArithmetic a || exprUsesCheckedArithmetic b ||
           exprUsesCheckedArithmetic c || exprUsesCheckedArithmetic d ||
           exprUsesCheckedArithmetic e || exprUsesCheckedArithmetic f
-    | .crosscallAbiPacked target _ _ _ _ =>
+    | .crosscallAbiPacked target _ _ _ _ _ _ =>
         exprUsesCheckedArithmetic target
     | .crosscallInvoke t m args | .crosscallInvokeTyped t m args _
     | .crosscallInvokeValueTyped t m _ args _

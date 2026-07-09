@@ -80,9 +80,10 @@ mutual
     | hashTwoToOne (lhs rhs : ExprPlan)
     | ecrecover (digest v r s : ExprPlan)
     | eip712PermitDigest (owner spender value nonce deadline domainSep : ExprPlan)
-    /-- Compile-time ABI-packed CALL: selector + static (offset,word) args region. -/
+    /-- ABI-packed CALL: static stores; optional runtime length overwrite. -/
     | crosscallAbiPacked (target : ExprPlan) (selector : Nat)
         (stores : Array (Nat × Nat)) (argsSize : Nat) (outSize : Nat)
+        (dynLenOffset? : Option Nat) (dynLen? : Option ExprPlan)
     | nativeValue
     | effect (effect : EffectPlan)
     deriving Repr
@@ -419,18 +420,21 @@ structure CreateHelperSpec where
 
 instance : BEq CreateHelperSpec := ⟨fun a b => a.mode == b.mode && a.initCodeHex == b.initCodeHex⟩
 
-/-- Compile-time ABI-packed CALL helper (selector + static args region). -/
+/-- ABI-packed CALL helper (selector + static args; optional runtime length). -/
 structure AbiPackedHelperSpec where
   selector : Nat
   stores : Array (Nat × Nat)
   argsSize : Nat
   outSize : Nat
+  /-- Args-region offset of the Call[] length word (e.g. `0x20` for aggregate). -/
+  dynLenOffset? : Option Nat := none
   deriving BEq, Repr
 
 instance : BEq AbiPackedHelperSpec :=
   ⟨fun a b =>
     a.selector == b.selector && a.stores == b.stores &&
-      a.argsSize == b.argsSize && a.outSize == b.outSize⟩
+      a.argsSize == b.argsSize && a.outSize == b.outSize &&
+      a.dynLenOffset? == b.dynLenOffset?⟩
 
 /-! ## StmtPlan: target-semantic statement plan -/
 
@@ -642,7 +646,10 @@ mutual
     | .eip712PermitDigest a b c d e f =>
         contextOpsFromExpr a ++ contextOpsFromExpr b ++ contextOpsFromExpr c ++
           contextOpsFromExpr d ++ contextOpsFromExpr e ++ contextOpsFromExpr f
-    | .crosscallAbiPacked target _ _ _ _ => contextOpsFromExpr target
+    | .crosscallAbiPacked target _ _ _ _ _ dynLen? =>
+        match dynLen? with
+        | none => contextOpsFromExpr target
+        | some len => contextOpsFromExpr target ++ contextOpsFromExpr len
     | .cast value _ | .boolNot value | .hash value => contextOpsFromExpr value
     | .hashValue a b c d =>
         contextOpsFromExpr a ++ contextOpsFromExpr b ++ contextOpsFromExpr c ++ contextOpsFromExpr d

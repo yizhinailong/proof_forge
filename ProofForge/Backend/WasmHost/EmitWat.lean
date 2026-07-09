@@ -621,7 +621,7 @@ mutual
       else .ok (la ++ lb ++ #[.call hashTwoName], .hash)
     | .ecrecover _ _ _ _ | .eip712PermitDigest _ _ _ _ _ _ =>
       err "EmitWat: ecrecover / EIP-712 permit require crypto.ecrecover (EVM-only)"
-    | .crosscallAbiPacked _ _ _ _ _ =>
+    | .crosscallAbiPacked _ _ _ _ _ _ _ =>
       err "EmitWat: crosscallAbiPacked (compile-time ABI Call[]) is EVM-only"
     | .local name =>
       match lookupLocal? env name with

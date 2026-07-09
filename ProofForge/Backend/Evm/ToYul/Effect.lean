@@ -321,11 +321,16 @@ partial def exprPlanExpr
         ← exprPlanExpr mkError lowerExpr lowerEffect deadline,
         ← exprPlanExpr mkError lowerExpr lowerEffect domainSep
       ])
-  | .crosscallAbiPacked target selector stores argsSize outSize => do
+  | .crosscallAbiPacked target selector stores argsSize outSize dynLenOffset? dynLen? => do
       let targetYul ← exprPlanExpr mkError lowerExpr lowerEffect target
       let spec : ProofForge.Backend.Evm.Plan.AbiPackedHelperSpec :=
-        { selector := selector, stores := stores, argsSize := argsSize, outSize := outSize }
-      .ok (ProofForge.Backend.Evm.ToYul.AbiEncode.abiPackedHelperCallExpr targetYul spec)
+        { selector := selector, stores := stores, argsSize := argsSize, outSize := outSize,
+          dynLenOffset? := dynLenOffset? }
+      let nYul ←
+        match dynLen? with
+        | none => pure none
+        | some len => .ok (some (← exprPlanExpr mkError lowerExpr lowerEffect len))
+      .ok (ProofForge.Backend.Evm.ToYul.AbiEncode.abiPackedHelperCallExpr targetYul spec nYul)
   | .nativeValue =>
       .ok (Lean.Compiler.Yul.builtin "callvalue" #[])
   | .effect effect =>

@@ -18,9 +18,11 @@ Selectors (canonical Multicall3):
    `encodeAggregate` / `encodeAggregate3` → `AbiEncode.Plan`
 2. **Yul emit** (Wave δ): `renderAggregateCallYul` / `renderAggregate3CallYul`
 3. **IR auto-lower** (Wave ε): `aggregateIr` / `aggregate3Ir` →
-   `crosscallAbiPacked` (compile-time stores; EVM helper with mstore+CALL).
-   Runtime-unknown lengths still open.
-4. **Portable scalar remote**: `aggregate` still uses `remoteCall` with scalar
+   `crosscallAbiPacked` (static stores; EVM helper with mstore+CALL).
+4. **Runtime length** (Wave ε.15): `aggregateIrDynLen` packs max Call[] then
+   overwrites the array length word with runtime `n` (n ≤ max). Fully dynamic
+   Call element data still open.
+5. **Portable scalar remote**: `aggregate` still uses `remoteCall` with scalar
    words for multi-target handle wiring / smoke.
 -/
 import ProofForge.Contract.Surface
@@ -90,7 +92,7 @@ def renderAggregate3CallYul (multicallTarget outSize : Nat) (calls : Array Call3
     ProofForge.Backend.Evm.ToYul.AbiEncode.defaultMemBase multicallTarget outSize calls
 
 /-- Wave ε: compile-time Call[] → IR `crosscallAbiPacked` (EVM auto-lower to
-helper with mstore+CALL). Runtime-unknown lengths still unsupported. -/
+helper with mstore+CALL). -/
 def aggregateIr (m : Multicall) (calls : Array Call) (outSize : Nat := 32) :
     ProofForge.IR.Expr :=
   ProofForge.Backend.Evm.ToYul.AbiEncode.irAggregate m.target calls outSize
@@ -98,5 +100,15 @@ def aggregateIr (m : Multicall) (calls : Array Call) (outSize : Nat := 32) :
 def aggregate3Ir (m : Multicall) (calls : Array Call3) (outSize : Nat := 32) :
     ProofForge.IR.Expr :=
   ProofForge.Backend.Evm.ToYul.AbiEncode.irAggregate3 m.target calls outSize
+
+/-- Runtime length `n` (0..calls.size]: pack full static Call[] then overwrite
+    array length word. Multicall iterates only `n` elements. -/
+def aggregateIrDynLen (m : Multicall) (n : ProofForge.IR.Expr) (calls : Array Call)
+    (outSize : Nat := 32) : ProofForge.IR.Expr :=
+  ProofForge.Backend.Evm.ToYul.AbiEncode.irAggregateDynLen m.target n calls outSize
+
+def aggregate3IrDynLen (m : Multicall) (n : ProofForge.IR.Expr) (calls : Array Call3)
+    (outSize : Nat := 32) : ProofForge.IR.Expr :=
+  ProofForge.Backend.Evm.ToYul.AbiEncode.irAggregate3DynLen m.target n calls outSize
 
 end ProofForge.Protocols.Evm.Multicall

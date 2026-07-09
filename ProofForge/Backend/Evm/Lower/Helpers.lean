@@ -114,7 +114,7 @@ mutual
           (← crosscallHelperSpecsFromExpr module env e)
           (← crosscallHelperSpecsFromExpr module env f)
         .ok (mergeCrosscallHelperSpecs (mergeCrosscallHelperSpecs ab cd) ef)
-    | .crosscallAbiPacked target _ _ _ _ =>
+    | .crosscallAbiPacked target _ _ _ _ _ _ =>
         crosscallHelperSpecsFromExpr module env target
     | .cast value _ | .boolNot value | .hash value =>
         crosscallHelperSpecsFromExpr module env value
@@ -397,7 +397,7 @@ mutual
           (← crosscallHelperSpecsFromExprPlan module e)
           (← crosscallHelperSpecsFromExprPlan module f)
         .ok (mergeCrosscallHelperSpecs (mergeCrosscallHelperSpecs ab cd) ef)
-    | .crosscallAbiPacked target _ _ _ _ =>
+    | .crosscallAbiPacked target _ _ _ _ _ _ =>
         crosscallHelperSpecsFromExprPlan module target
     | .hashPack a b c d | .hashValue a b c d => do
         let ab := mergeCrosscallHelperSpecs
@@ -633,7 +633,7 @@ mutual
             (mergeCreateHelperSpecs (createHelperSpecsFromExpr a) (createHelperSpecsFromExpr b))
             (mergeCreateHelperSpecs (createHelperSpecsFromExpr c) (createHelperSpecsFromExpr d)))
           (mergeCreateHelperSpecs (createHelperSpecsFromExpr e) (createHelperSpecsFromExpr f))
-    | .crosscallAbiPacked target _ _ _ _ =>
+    | .crosscallAbiPacked target _ _ _ _ _ _ =>
         createHelperSpecsFromExpr target
     | .cast value _ | .boolNot value | .hash value =>
         createHelperSpecsFromExpr value
@@ -782,9 +782,15 @@ mutual
             (mergeAbiPackedHelperSpecs (abiPackedHelperSpecsFromExpr a) (abiPackedHelperSpecsFromExpr b))
             (mergeAbiPackedHelperSpecs (abiPackedHelperSpecsFromExpr c) (abiPackedHelperSpecsFromExpr d)))
           (mergeAbiPackedHelperSpecs (abiPackedHelperSpecsFromExpr e) (abiPackedHelperSpecsFromExpr f))
-    | .crosscallAbiPacked target selector stores argsSize outSize =>
-        pushAbiPackedHelperSpecIfMissing (abiPackedHelperSpecsFromExpr target)
-          { selector, stores, argsSize, outSize }
+    | .crosscallAbiPacked target selector stores argsSize outSize dynLenOffset? dynLen? =>
+        let nested :=
+          match dynLen? with
+          | none => abiPackedHelperSpecsFromExpr target
+          | some len =>
+              mergeAbiPackedHelperSpecs (abiPackedHelperSpecsFromExpr target)
+                (abiPackedHelperSpecsFromExpr len)
+        pushAbiPackedHelperSpecIfMissing nested
+          { selector, stores, argsSize, outSize, dynLenOffset? }
     | .crosscallInvoke target methodId args
     | .crosscallInvokeTyped target methodId args _
     | .crosscallInvokeStaticTyped target methodId args _
@@ -959,7 +965,7 @@ mutual
         let cd := mergeCreateHelperSpecs (createHelperSpecsFromExprPlan c) (createHelperSpecsFromExprPlan d)
         let ef := mergeCreateHelperSpecs (createHelperSpecsFromExprPlan e) (createHelperSpecsFromExprPlan f)
         mergeCreateHelperSpecs (mergeCreateHelperSpecs ab cd) ef
-    | .crosscallAbiPacked target _ _ _ _ =>
+    | .crosscallAbiPacked target _ _ _ _ _ _ =>
         createHelperSpecsFromExprPlan target
     | .hashPack a b c d | .hashValue a b c d =>
         let ab := mergeCreateHelperSpecs

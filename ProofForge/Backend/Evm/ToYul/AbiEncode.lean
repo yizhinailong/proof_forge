@@ -181,11 +181,16 @@ open ProofForge.Backend.Evm.Plan (AbiPackedHelperSpec)
 def abiPackedHelperName (spec : AbiPackedHelperSpec) : String :=
   Id.run do
     let mut acc := s!"__pf_abi_packed_{spec.selector}_{spec.argsSize}_{spec.outSize}"
+    match spec.dynLenOffset? with
+    | some off => acc := s!"{acc}_dyn{off}"
+    | none => pure ()
     for s in spec.stores do
       acc := s!"{acc}_{s.1}_{s.2}"
     acc
 
-/-- Yul helper: pack selector+stores at `memBase`, CALL `target`, return first out word. -/
+/-- Yul helper: pack selector+stores at `memBase`, optional runtime length
+    overwrite, CALL `target`, return first out word.
+    Static: params `(target)`. Dyn length: params `(target, n)`. -/
 def abiPackedHelperFunction (spec : AbiPackedHelperSpec) (memBase : Nat := defaultMemBase) :
     Statement :=
   let plan : Plan := {
@@ -194,8 +199,17 @@ def abiPackedHelperFunction (spec : AbiPackedHelperSpec) (memBase : Nat := defau
   }
   let inSize := callInSize plan
   let pack := packCalldataStatements memBase spec.selector plan
+  let overwrite :=
+    match spec.dynLenOffset? with
+    | none => #[]
+    | some off =>
+        -- args region starts at memBase+4; overwrite length word with runtime `n`
+        #[.exprStmt (builtin "mstore" #[
+          .num (memBase + 4 + off),
+          .id "n"
+        ])]
   let body :=
-    pack ++ #[
+    pack ++ overwrite ++ #[
       .varDecl #[{ name := "_abi_ok" }] (some <|
         builtin "call" #[
           builtin "gas" #[],
@@ -213,31 +227,50 @@ def abiPackedHelperFunction (spec : AbiPackedHelperSpec) (memBase : Nat := defau
         (if spec.outSize == 0 then .num 0
          else builtin "mload" #[.num memBase])
     ]
-  .funcDef (abiPackedHelperName spec)
-    #[{ name := "target" }]
-    #[{ name := "result" }]
-    { statements := body }
+  let params : Array Lean.Compiler.Yul.TypedName :=
+    match spec.dynLenOffset? with
+    | none => #[{ name := "target" }]
+    | some _ => #[{ name := "target" }, { name := "n" }]
+  .funcDef (abiPackedHelperName spec) params #[{ name := "result" }] { statements := body }
 
-def abiPackedHelperCallExpr (target : Lean.Compiler.Yul.Expr) (spec : AbiPackedHelperSpec) :
-    Lean.Compiler.Yul.Expr :=
-  Lean.Compiler.Yul.call (abiPackedHelperName spec) #[target]
+def abiPackedHelperCallExpr (target : Lean.Compiler.Yul.Expr) (spec : AbiPackedHelperSpec)
+    (dynLen? : Option Lean.Compiler.Yul.Expr := none) : Lean.Compiler.Yul.Expr :=
+  match spec.dynLenOffset?, dynLen? with
+  | some _, some n => Lean.Compiler.Yul.call (abiPackedHelperName spec) #[target, n]
+  | _, _ => Lean.Compiler.Yul.call (abiPackedHelperName spec) #[target]
 
 /-- Build IR `crosscallAbiPacked` from an AbiEncode plan (args region). -/
 def irFromPlan (target : ProofForge.IR.Expr) (selector : Nat) (plan : Plan)
-    (outSize : Nat := 32) : ProofForge.IR.Expr :=
+    (outSize : Nat := 32)
+    (dynLenOffset? : Option Nat := none)
+    (dynLen? : Option ProofForge.IR.Expr := none) : ProofForge.IR.Expr :=
   ProofForge.IR.Expr.crosscallAbiPacked target selector
     (plan.stores.map fun s => (s.offset, wordNat s.value))
     plan.size
     outSize
+    dynLenOffset?
+    dynLen?
 
-/-- Multicall3 `aggregate(Call[])` as IR expr (compile-time calls). -/
+/-- Multicall3 `aggregate(Call[])` as IR expr (compile-time calls / length). -/
 def irAggregate (target : ProofForge.IR.Expr) (calls : Array Call) (outSize : Nat := 32) :
     ProofForge.IR.Expr :=
   irFromPlan target 0x252dba42 (encodeAggregateArgs calls) outSize
+
+/-- Multicall3 `aggregate(Call[])` with **runtime** length `n` (0..calls.size].
+    Packs the full static Call[] then overwrites the array length word at
+    args offset `0x20` with `n`. Multicall only iterates `n` elements. -/
+def irAggregateDynLen (target n : ProofForge.IR.Expr) (calls : Array Call)
+    (outSize : Nat := 32) : ProofForge.IR.Expr :=
+  irFromPlan target 0x252dba42 (encodeAggregateArgs calls) outSize (some 0x20) (some n)
 
 /-- Multicall3 `aggregate3(Call3[])` as IR expr. -/
 def irAggregate3 (target : ProofForge.IR.Expr) (calls : Array Call3) (outSize : Nat := 32) :
     ProofForge.IR.Expr :=
   irFromPlan target 0x82ad56cb (encodeAggregate3Args calls) outSize
+
+/-- Runtime-length aggregate3: length word at args offset `0x20`. -/
+def irAggregate3DynLen (target n : ProofForge.IR.Expr) (calls : Array Call3)
+    (outSize : Nat := 32) : ProofForge.IR.Expr :=
+  irFromPlan target 0x82ad56cb (encodeAggregate3Args calls) outSize (some 0x20) (some n)
 
 end ProofForge.Backend.Evm.ToYul.AbiEncode
