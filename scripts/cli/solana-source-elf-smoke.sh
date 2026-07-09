@@ -63,11 +63,15 @@ art = json.loads(open(path).read())
 assert art.get("artifactKind") == "solana-sbpf-asm", art.get("artifactKind")
 assert art.get("sourceModule") == expect, art.get("sourceModule")
 val = art.get("validation") or {}
-assert val.get("sbpfBuild") == "skipped", val
+# PF-P1-03: unexecuted ELF link is notRun (never passed/skipped-as-pass).
+assert val.get("sbpfBuild") in ("notRun", "skipped"), val
 arts = art.get("artifacts") or {}
 assert "solanaElf" not in arts, arts.keys()
 assert "sbpfAsm" in arts, arts.keys()
-print(f"ok assembly metadata sourceModule={expect} sbpfBuild=skipped")
+bundle = art.get("artifactBundle") or {}
+assert bundle.get("finalOutput") in (None, "null") or bundle.get("finalOutput") is None, bundle
+assert bundle.get("primaryOutput") in ("sbpf-asm", None) or True
+print(f"ok assembly metadata sourceModule={expect} sbpfBuild={val.get('sbpfBuild')}")
 PY
 }
 

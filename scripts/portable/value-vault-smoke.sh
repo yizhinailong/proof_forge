@@ -158,7 +158,7 @@ require(artifact.get("fixture") == "ValueVault", "fixture mismatch")
 require(artifact.get("sourceKind") == "contract-sdk", "sourceKind mismatch")
 require(artifact.get("sourceModule") == "ValueVault", "sourceModule mismatch")
 validation = artifact.get("validation") or {}
-require(validation.get("sbpfBuild") == "skipped", "assembly path must not claim sbpfBuild passed")
+require(validation.get("sbpfBuild") in ("skipped", "notRun"), "assembly path must not claim sbpfBuild passed")
 
 caps = set(artifact.get("capabilities", []))
 for cap in ["storage.scalar", "events.emit", "env.block"]:

@@ -18,6 +18,7 @@ import ProofForge.Contract.SdkSchema
 import ProofForge.Contract.Spec
 import ProofForge.IR
 import ProofForge.Target
+import ProofForge.Target.ArtifactBundle
 import ProofForge.Target.Preflight
 
 open System
@@ -84,6 +85,33 @@ unsafe def compileContractSourceSbpf (opts : CliOptions) : IO UInt32 := do
       let idlArtifact ← artifactEntryJson idlOutput
       let clientArtifact ← artifactEntryJson clientOutput
       let sourceArtifactEntry ← artifactEntryJson input
+      let asmDigest ← fileDigestAndBytes output
+      -- PF-P1-03 / PF-P0-03: assembly intermediate only; ELF not claimed.
+      let bundle : ProofForge.Target.ArtifactBundle.ArtifactBundle := {
+        targetId := ProofForge.Backend.Solana.SbpfAsm.targetId
+        source := {
+          moduleName := spec.name
+          path? := some input.toString
+          kind := "contract-source"
+        }
+        outputs := #[{
+          kind := "sbpf-asm"
+          role := .intermediate
+          path? := some output.toString
+          sha256? := some asmDigest.fst
+          bytes? := some asmDigest.snd
+        }]
+        primaryOutput? := some "sbpf-asm"
+        finalOutput? := none
+        toolchain := #[{ tool := "sbpf", stage := "final-deployable", available := false }]
+        validations := #[
+          { name := "contractSourceLowering", state := .passed },
+          { name := "sbpfBuild", state := .notRun, detail? := some "--format s: ELF link not requested" }
+        ]
+      }
+      let _ ← match ProofForge.Target.ArtifactBundle.validateHonesty bundle with
+        | .ok () => pure ()
+        | .error err => throw <| IO.userError s!"Solana ArtifactBundle honesty: {err.message}"
       let metadata := jsonObject #[
         ("schemaVersion", "1"),
         ("target", jsonString ProofForge.Backend.Solana.SbpfAsm.targetId),
@@ -128,11 +156,13 @@ unsafe def compileContractSourceSbpf (opts : CliOptions) : IO UInt32 := do
           ("solanaIdl", idlArtifact),
           ("solanaClientTs", clientArtifact)
         ]),
+        ("artifactBundle", ProofForge.Target.ArtifactBundle.ArtifactBundle.toJson bundle),
         ("validation", jsonObject #[
           ("contractSourceLowering", jsonString "passed"),
           ("targetRouting", jsonString "passed"),
           ("manifestGeneration", jsonString "passed"),
-          ("sbpfBuild", jsonString "skipped")
+          -- Honest intermediate: ELF not requested/run (was misleading "skipped").
+          ("sbpfBuild", jsonString "notRun")
         ])
       ]
       IO.FS.writeFile metadataOutput (metadata ++ "\n")
