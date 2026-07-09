@@ -90,6 +90,9 @@ def main : IO UInt32 := do
   require (m.state.any (fun s => s.id == "convertScratch")) "pro-rata scratch slot"
   require (m.state.any (fun s => s.id == "actualAssets")) "fot actual assets slot"
   require (m.state.any (fun s => s.id == "balanceScratch")) "fot balance scratch"
+  require (m.state.any (fun s => s.id == "recvActual")) "recipient FOT slot"
+  require (m.state.any (fun s => s.id == "recvBalScratch")) "recipient bal scratch"
+  require (recipientReceived 1000 100 == 990) "recipient FOT 1%"
 
   match ProofForge.Backend.Evm.Plan.buildModulePlan m with
   | .error e => throw (IO.userError s!"EVM plan: {e.message}")

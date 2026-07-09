@@ -23,9 +23,10 @@ client (`Protocols.Evm.IERC4626` / Product `external_vault`).
   (gross = `shares * 10000 / (10000 - feeBps)` when fee > 0). |
 | Exit fee | Same **`feeBps`** on withdraw/redeem: skim fee assets to
   `feeRecipient`; user receives net underlying. |
-| Fee-on-transfer assets | **deposit/mint**: pull then `balanceOf(vaultSelf)` **up-delta**.
-  **withdraw/redeem**: push then vault `balanceOf` **down-delta** for
-  `totalAssets` (user still requested net/gross; vault books actual left). |
+| Fee-on-transfer assets | **deposit/mint**: vault `balanceOf` **up-delta** after pull.
+  **withdraw/redeem**: vault **down-delta** for `totalAssets`; user push
+  measures recipient `balanceOf` **up-delta** (event/return use actual
+  received). Fee push to `feeRecipient` not re-measured on recipient. |
 | `preview*` | assume non-FOT (requested ≈ actual); fees still applied in Spec |
 
 Spec math lives in `Spec` (Nat formulas + fee/empty-vault theorems).
@@ -133,6 +134,11 @@ def redeemFot? (s : State) (shares actualLeft : Nat) (feeBps : Nat := 0) :
     Option (State × Nat) :=
   redeem? s shares feeBps (some actualLeft)
 
+/-- Recipient-side FOT: amount credited to receiver after a push of `transferred`
+    when the token skims `fotBps` on transfer (floor). -/
+def recipientReceived (transferred fotBps : Nat) : Nat :=
+  transferred - feeFromGross transferred fotBps
+
 theorem empty_convert_shares (a : Nat) : convertToShares empty a = a := by
   simp [convertToShares, empty]
 
@@ -213,6 +219,14 @@ def balanceScratch : ScalarRef :=
 /-- Actual assets received after pull (`balanceAfter - balanceBefore`). -/
 def actualAssetsScratch : ScalarRef :=
   ProofForge.Contract.Surface.slot "actualAssets" .u64
+
+/-- Pre-push recipient `balanceOf` for recipient-side FOT measure. -/
+def recvBalScratch : ScalarRef :=
+  ProofForge.Contract.Surface.slot "recvBalScratch" .u64
+
+/-- Actual assets credited to receiver after user push (recipient up-delta). -/
+def recvActualScratch : ScalarRef :=
+  ProofForge.Contract.Surface.slot "recvActual" .u64
 
 /-- Entry fee in basis points (0 = off, max 10000). -/
 def feeBps : ScalarRef :=
@@ -387,6 +401,27 @@ def pushAssets (recipient amount : ProofForge.IR.Expr) : EntryM Unit := do
       (ProofForge.Contract.Surface.u64 ierC20TransferSelector) #[recipient, amount]
   ProofForge.Contract.Builder.letBind "_pf_push" .u64 sent
 
+/-- Push to receiver and set `recvActualScratch` = recipient balance **up-delta**
+    (recipient-side fee-on-transfer honesty). -/
+def pushAssetsMeasuringRecv (recipient amount : ProofForge.IR.Expr) : EntryM Unit := do
+  let assetTok := ProofForge.Contract.Surface.read assetAddress
+  let before :=
+    ProofForge.Contract.Surface.remoteCall assetTok
+      (ProofForge.Contract.Surface.u64 ierC20BalanceOfSelector) #[recipient]
+  ProofForge.Contract.Surface.write recvBalScratch before
+  let sent :=
+    ProofForge.Contract.Surface.remoteCall assetTok
+      (ProofForge.Contract.Surface.u64 ierC20TransferSelector) #[recipient, amount]
+  ProofForge.Contract.Builder.letBind "_pf_push_recv" .u64 sent
+  let after :=
+    ProofForge.Contract.Surface.remoteCall assetTok
+      (ProofForge.Contract.Surface.u64 ierC20BalanceOfSelector) #[recipient]
+  ProofForge.Contract.Builder.letBind "_pf_recv_after" .u64 after
+  ProofForge.Contract.Surface.write recvActualScratch
+    (ProofForge.Contract.Surface.sub
+      (ProofForge.Contract.Builder.localVar "_pf_recv_after")
+      (ProofForge.Contract.Surface.read recvBalScratch))
+
 contract_mixin ERC4626Mixin do
   use ProofForge.Contract.Surface.scalar assetAddress
   use ProofForge.Contract.Surface.scalar vaultSelf
@@ -396,6 +431,8 @@ contract_mixin ERC4626Mixin do
   use ProofForge.Contract.Surface.scalar feeScratch
   use ProofForge.Contract.Surface.scalar balanceScratch
   use ProofForge.Contract.Surface.scalar actualAssetsScratch
+  use ProofForge.Contract.Surface.scalar recvBalScratch
+  use ProofForge.Contract.Surface.scalar recvActualScratch
   use ProofForge.Contract.Surface.scalar feeBps
   use ProofForge.Contract.Surface.scalar feeRecipient
   use ProofForge.Contract.Surface.mapState shareBalances
@@ -593,13 +630,14 @@ contract_mixin ERC4626Mixin do
     do mapWrite shareBalances holder (ownerBal -! shares);
     let ts : .u64 := totalSupply;
     totalSupply := ts -! shares;
-    -- Push then book **actual** vault balance decrease (exit FOT)
+    -- Vault measure for totalAssets; recipient measure for event/return honesty
     do beginVaultAssetMeasure;
-    do pushAssets (ProofForge.Contract.Surface.ref receiver)
+    do pushAssetsMeasuringRecv (ProofForge.Contract.Surface.ref receiver)
       (ProofForge.Contract.Surface.ref userAssets);
     do pushExitFeeAssetsIfAny;
     do endVaultAssetMeasure;
     let actualLeft : .u64 := actualAssetsScratch;
+    let actualRecv : .u64 := recvActualScratch;
     do ProofForge.Contract.Surface.requireGe
       (ProofForge.Contract.Surface.read totalAssetsSlot)
       (ProofForge.Contract.Surface.ref actualLeft) "actual left > totalAssets";
@@ -610,7 +648,7 @@ contract_mixin ERC4626Mixin do
       fieldAsName "receiver" receiver,
       fieldAsName "owner" holder
     ] data #[
-      fieldAsName "assets" userAssets,
+      fieldAsName "assets" actualRecv,
       fieldAsName "shares" shares
     ];
     emit Transfer indexed #[
@@ -645,11 +683,12 @@ contract_mixin ERC4626Mixin do
     let ts : .u64 := totalSupply;
     totalSupply := ts -! shares;
     do beginVaultAssetMeasure;
-    do pushAssets (ProofForge.Contract.Surface.ref receiver)
+    do pushAssetsMeasuringRecv (ProofForge.Contract.Surface.ref receiver)
       (ProofForge.Contract.Surface.ref userAssets);
     do pushExitFeeAssetsIfAny;
     do endVaultAssetMeasure;
     let actualLeft : .u64 := actualAssetsScratch;
+    let actualRecv : .u64 := recvActualScratch;
     do ProofForge.Contract.Surface.requireGe
       (ProofForge.Contract.Surface.read totalAssetsSlot)
       (ProofForge.Contract.Surface.ref actualLeft) "actual left > totalAssets";
@@ -660,10 +699,10 @@ contract_mixin ERC4626Mixin do
       fieldAsName "receiver" receiver,
       fieldAsName "owner" holder
     ] data #[
-      fieldAsName "assets" userAssets,
+      fieldAsName "assets" actualRecv,
       fieldAsName "shares" shares
     ];
-    return userAssets;
+    return actualRecv;
 
   entry transfer (recipient : .address, amount : .u64) returns(.bool) do
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref recipient)

@@ -185,9 +185,10 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 | ε.15 | Call[] runtime length via max-pack + length-word overwrite | **done** |
 | ε.16 | ERC-4626 exit FOT (vault balance down-delta on push) | **done** |
 | ε.17 | Call[] runtime targets + static calldata templates | **done** |
+| ε.18 | ERC-4626 recipient-side FOT (recv balance up-delta) | **done** |
 
-**Honesty still open:** recipient-side FOT re-measure; fully dynamic per-call
-bytes (runtime calldata blobs, not only targets/length).
+**Honesty still open:** fee-recipient push re-measure; fully dynamic per-call
+bytes (runtime calldata blobs, not only targets/length/static templates).
 
 ---
 
