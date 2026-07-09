@@ -491,19 +491,23 @@ def materializationNote (module : Module) : String :=
   if sites.isEmpty then
     "no portable crosscall sites"
   else
-    let peer :=
+    let peer? :=
       match module.nearCrosscallStrings[0]? with
-      | some s => if s.isEmpty then "portable.peer" else s
-      | none => "portable.peer"
+      | some s => if s.isEmpty then none else some s
+      | none => none
     let inferNote :=
-      match ProofForge.Target.CrosscallMaterialize.inferSolanaAccounts module peer with
-      | .ok (accs : Array ProofForge.Target.CrosscallMaterialize.InferredAccount) =>
-          let names :=
-            String.intercalate ","
-              (accs.toList.map (fun (a : ProofForge.Target.CrosscallMaterialize.InferredAccount) =>
-                a.name))
-          s!" inferredAccounts=[{names}] (authors do not pass metas)"
-      | .error e => s!" inference_pending={e}"
+      match peer? with
+      | none =>
+          " inferredAccounts=MISSING_PEER (declareRemote required; packing uses synthetic peer)"
+      | some peer =>
+          match ProofForge.Target.CrosscallMaterialize.inferSolanaAccounts module peer with
+          | .ok (accs : Array ProofForge.Target.CrosscallMaterialize.InferredAccount) =>
+              let names :=
+                String.intercalate ","
+                  (accs.toList.map
+                    (fun (a : ProofForge.Target.CrosscallMaterialize.InferredAccount) => a.name))
+              s!" inferredAccounts=[{names}] (authors do not pass metas; also in AccountEntry schema)"
+          | .error e => s!" inferredAccounts=ERROR({e})"
     s!"portable crosscall.invoke ×{sites.size} → Solana CPI via sol_invoke_signed_c \
 (ix data; selective accounts signer|writable|program|executable up to {MAX_PORTABLE_CPI_ACCOUNTS}; \
 PDA signers when declared; return-data u64){inferNote}"

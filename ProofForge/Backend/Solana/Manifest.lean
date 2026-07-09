@@ -12,6 +12,7 @@ See `docs/targets/solana-sbpf-asm.md` (D-026).
 
 import ProofForge.IR.Contract
 import ProofForge.Target.Plan
+import ProofForge.Target.CrosscallMaterialize
 import ProofForge.Backend.Solana.Extension
 
 namespace ProofForge.Backend.Solana.Manifest
@@ -505,21 +506,56 @@ def ensurePortableAuthAccounts (module : Module) (accounts : Array AccountEntry)
           }
           reindexAccounts (#[auth] ++ accounts)
 
+/-- Merge CrosscallMaterialize-inferred roles into the transaction account list
+so `selectPortableCpiAccountIndices` / sBPF packing see them (not note-only). -/
+def mergeInferredPortableAccounts (accounts : Array AccountEntry)
+    (inferred : Array ProofForge.Target.CrosscallMaterialize.InferredAccount) :
+    Array AccountEntry :=
+  inferred.foldl
+    (fun acc (inf : ProofForge.Target.CrosscallMaterialize.InferredAccount) =>
+      let owner :=
+        if inf.role.startsWith "peer:" || inf.name == "peer_program" ||
+            inf.name == "token_program" || inf.name == "system_program" ||
+            inf.role.endsWith "program" then
+          "executable"
+        else
+          "any"
+      pushAccount acc {
+        name := inf.name
+        index := 0
+        signer := inf.signer
+        writable := inf.writable
+        owner := owner
+      })
+    accounts
+
 /-- Phase B.3 / T3.2: when portable IR uses `crosscall.invoke`, synthesize the
 default CPI account roles on the transaction account list:
 
 * default state account (from `buildDefaultAccounts`; may be index ≥ 1 when
   portable auth put `authority` first)
-* `payer` — fee-payer signer (optional helper; skipped if a signer already exists)
+* roles from `CrosscallMaterialize.inferSolanaAccounts` (payer, peer, state, …)
 * `callee_program` — executable account for program-id lookup by index
 
 Authors still do not write CPI account metas; the lowerer **selectively** packs
-signer / writable / program-owned / executable accounts into `sol_invoke_signed_c`. -/
+signer / writable / program-owned / executable accounts into `sol_invoke_signed_c`.
+
+Peer id for inference: first `nearCrosscallStrings` entry when present; else a
+non-empty synthetic peer for packing-only (resolveSpec still requires a declared
+peer — see PortableHonesty). -/
 def ensurePortableCrosscallAccounts (module : Module) (accounts : Array AccountEntry) :
     Array AccountEntry :=
   if !(moduleUsesPortableCrosscall module) then
     accounts
   else
+    let peer :=
+      match module.nearCrosscallStrings[0]? with
+      | some s => if s.isEmpty then "portable.peer" else s
+      | none => "portable.peer"
+    let accounts :=
+      match ProofForge.Target.CrosscallMaterialize.inferSolanaAccounts module peer with
+      | .ok inferred => mergeInferredPortableAccounts accounts inferred
+      | .error _ => accounts
     let accounts :=
       if accounts.any (fun a => a.name == "payer") ||
           accounts.any (fun a => a.signer) then
@@ -532,7 +568,8 @@ def ensurePortableCrosscallAccounts (module : Module) (accounts : Array AccountE
           writable := true
           owner := "any"
         }
-    if accounts.any (fun a => a.name == "callee_program") then
+    if accounts.any (fun a => a.name == "callee_program") ||
+        accounts.any (fun a => a.name == "peer_program") then
       accounts
     else
       pushAccount accounts {

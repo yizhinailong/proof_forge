@@ -112,19 +112,20 @@ honesty reject);缺的是把还没抽象的概念灌进去,以及解决几个抽
 ## 五、到"真正完成"的建议路线
 
 1. **✅ HostEnv 去 EVM 化 + 管线** — `materializeEnv` 由 `PortableHonesty` 在
-   `resolveSpec`/`defaultResolve` 对 primary triad 强制执行;contextRead 无真实 lower → 拒。
-2. **✅ Identity 端到端** — `materializeIdentity` 挂 resolve;Solana `self`/contractId 拒;
-   EVM/NEAR self+caller ok。
-3. **✅ 跨调同步子集 + 账户推断** — portable `crosscallInvoke*` 不可混 promise_then;
-   Solana `inferSolanaAccounts` 写入 CPI `materializationNote`;空 peer 拒。
-4. **✅ Token planForTarget** — `FixedPoint.validateDecimals`;mint/burn 经
-   `materializeCoreOp` 门控;`TokenAuth` 无 NEP-141 allowance 假实现。
-5. **✅ 升级 resolveSpec** — `materializeUpgrade`(EVM **UUPS only**,transparent 拒;
-   Solana authority;NEAR redeploy+migrate)。
-6. **✅ 机械堆(首批 catalog+HostRuntime)** — `PortableMechanics` + HostRuntime honesty;
-   可迭代集合/NFT 仍属后续。
-7. **✅ FV/诚实** — `Tests/ChainAgnosticRoute.lean` 驱动 **resolveSpec/planForTarget/preflight**,
-   非纯表。
+   `resolveSpec` 对 primary triad 强制;无真实 lower → 拒。
+2. **✅ Identity 管线** — `materializeIdentity` 挂 resolve;Solana `self` 拒;EVM/NEAR ok。
+3. **✅ 跨调同步子集 + 账户推断进 schema** — portable 禁混 promise_then;Solana **空 peer 拒**;
+   `inferSolanaAccounts` 合并进 `Manifest.ensurePortableCrosscallAccounts`（进 AccountEntry,
+   非仅 note）;`materializationNote` 列出 `inferredAccounts=[…]`。
+4. **✅ Token planForTarget** — FixedPoint;mint/burn 门控;`TokenSpec.authFeatures` 走
+   `materializeAuth`（NEAR 拒 allowance）。
+5. **✅ 升级 resolveSpec** — UUPS only / transparent 拒 / Solana authority / NEAR redeploy。
+6. **✅ 机械堆挂管线** — `requireMechanicsHonesty` 在 resolveSpec 调 `materializeMechanic`
+   （crypto.hash / ecrecover / assertions→errorCode）;可迭代集合/NFT 仍缺。
+7. **✅ FV/诚实测试** — `Tests/ChainAgnosticRoute.lean` 驱动 resolveSpec/plan/ensurePortableCrosscallAccounts。
+
+**仍 remaining（未 ✅）:** 可迭代集合;NFT 全家;NEAR continuation;Solana self/timestamp lower;
+非 triad HostEnv 行;transparent proxy lower。
 
 ## 六、一句话
 

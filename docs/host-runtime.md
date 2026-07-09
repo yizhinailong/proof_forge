@@ -170,9 +170,13 @@ and suggested route step 1 (HostEnv before Address / sync-crosscall / Token).
 
 **Pipeline (not catalog-only):** `Target/PortableHonesty.lean` is invoked from
 `Adapter.defaultResolve` / `resolveSpec` on the primary triad so HostEnv,
-Identity, sync-crosscall, and upgrade materialize fail closed before codegen.
+Identity, sync-crosscall, **PortableMechanics**, and upgrade materialize fail
+closed before codegen. Solana portable remotes: empty peer rejects;
+`inferSolanaAccounts` merges into `Manifest.ensurePortableCrosscallAccounts`
+(AccountEntry schema used by CPI packing), not note-only.
 
-Smoke: `Tests/ChainAgnosticRoute.lean` (resolveSpec/plan paths) + `Tests/HostRuntime.lean`.
+Smoke: `Tests/ChainAgnosticRoute.lean` (resolveSpec / planForTarget /
+ensurePortableCrosscallAccounts) + `Tests/HostRuntime.lean`.
 
 ## 10. Tests
 

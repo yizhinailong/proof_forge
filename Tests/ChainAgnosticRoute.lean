@@ -21,6 +21,7 @@ import ProofForge.Target.PortableHonesty
 import ProofForge.IR.Contract
 import ProofForge.IR.Examples.Counter
 import ProofForge.Backend.Solana.PortableCrosscall
+import ProofForge.Backend.Solana.Manifest
 
 namespace ProofForge.Tests.ChainAgnosticRoute
 
@@ -333,7 +334,28 @@ def main : IO UInt32 := do
   | .error d => throw (IO.userError s!"EVM self must ok: {d.message}")
   | .ok _ => pure ()
 
-  -- Portable sync remote on Solana: resolveSpec ok + inference note in materialize.
+  -- Portable sync remote on Solana: requires declared peer; empty peer rejects.
+  let remoteModEmptyPeer : Module := {
+    name := "PortableRemoteEmptyPeer"
+    state := #[{ id := "vault", kind := .scalar, type := .u64 }]
+    entrypoints := #[{
+      name := "ping"
+      body := #[
+        .return
+          (.crosscallInvoke (.literal (.u64 1)) (.literal (.u64 2)) #[.literal (.u64 0)])
+      ]
+    }]
+    nearCrosscallStrings := #[]
+  }
+  match resolveSpec solanaSbpfAsm (ContractSpec.fromIR remoteModEmptyPeer) with
+  | .ok _ => throw (IO.userError "Solana empty peer must reject on resolveSpec")
+  | .error d =>
+      require (
+          contains d.message "peer" ||
+          contains d.message "infer" ||
+          contains d.message "PortableHonesty"
+        ) s!"empty peer reject, got: {d.message}"
+  -- With declared peer: resolve ok + note MUST list inferredAccounts=[...]
   let remoteMod : Module := {
     name := "PortableRemote"
     state := #[{ id := "vault", kind := .scalar, type := .u64 }]
@@ -344,13 +366,24 @@ def main : IO UInt32 := do
           (.crosscallInvoke (.literal (.u64 1)) (.literal (.u64 2)) #[.literal (.u64 0)])
       ]
     }]
+    nearCrosscallStrings := #["TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"]
   }
   match resolveSpec solanaSbpfAsm (ContractSpec.fromIR remoteMod) with
   | .error d => throw (IO.userError s!"Solana portable remote resolve: {d.message}")
   | .ok _ => pure ()
   let note := ProofForge.Backend.Solana.PortableCrosscall.materializationNote remoteMod
-  require (contains note "inferredAccounts" || contains note "portable crosscall")
-    s!"Solana materializationNote must mention inference, got: {note}"
+  require (contains note "inferredAccounts=[")
+    s!"Solana materializationNote must list inferredAccounts=[...], got: {note}"
+  require (contains note "vault" || contains note "payer" || contains note "token_program")
+    s!"inferred list must include real roles, got: {note}"
+  -- Manifest packing must merge inferred accounts (not note-only).
+  let packed :=
+    ProofForge.Backend.Solana.Manifest.ensurePortableCrosscallAccounts remoteMod #[]
+  require (packed.any (fun a => a.name == "payer"))
+    "ensurePortableCrosscallAccounts must include inferred payer"
+  require (packed.any (fun a => a.name == "vault" || a.name == "peer_program" ||
+      a.name == "token_program"))
+    s!"ensurePortableCrosscallAccounts must include inferred peer/state roles, got names"
 
   -- NEAR async-only module still resolves on wasm-near (host-extension).
   match resolveSpec wasmNear (ContractSpec.fromIR nearAsyncModule) with
@@ -405,7 +438,7 @@ def main : IO UInt32 := do
           contains d.message "Upgrade" || contains d.message "PortableHonesty")
         s!"transparent reject, got: {d.message}"
 
-  -- Token planForTarget: FixedPoint + mint gate on real path.
+  -- Token planForTarget: FixedPoint + mint gate + authFeatures on real path.
   match planForTarget evm {
     name := "T", symbol := "T", decimals := 18, features := #[]
   } with
@@ -424,14 +457,67 @@ def main : IO UInt32 := do
   } with
   | .ok _ => throw (IO.userError "decimals 99 must fail FixedPoint")
   | .error msg => require (contains msg "FixedPoint") "decimals reject FixedPoint"
-  -- NEP-141 must not materialize allowance
-  match materializeAuth "wasm-near" .allowance with
-  | .ok _ => throw (IO.userError "NEAR allowance still forbidden")
-  | .error _ => pure ()
+  -- Auth features on planForTarget (not table-only)
+  match planForTarget evm {
+    name := "T", symbol := "T", decimals := 18
+    features := #[]
+    authFeatures := #[.allowance]
+  } with
+  | .error msg => throw (IO.userError s!"EVM allowance plan: {msg}")
+  | .ok _ => pure ()
+  match planForTarget wasmNear {
+    name := "T", symbol := "T", decimals := 18
+    features := #[]
+    authFeatures := #[.allowance]
+  } with
+  | .ok _ => throw (IO.userError "NEAR plan must reject allowance authFeature")
+  | .error msg =>
+      require (contains msg "TokenAuth" || contains msg "allowance")
+        s!"NEAR allowance reject, got: {msg}"
+  match planForTarget wasmNear {
+    name := "T", symbol := "T", decimals := 18
+    features := #[]
+    authFeatures := #[.storageDeposit]
+  } with
+  | .error msg => throw (IO.userError s!"NEAR storageDeposit plan: {msg}")
+  | .ok _ => pure ()
+  match planForTarget solanaSbpfAsm {
+    name := "T", symbol := "T", decimals := 9
+    features := #[]
+    authFeatures := #[.authority]
+  } with
+  | .error msg => throw (IO.userError s!"Solana authority plan: {msg}")
+  | .ok _ => pure ()
 
   -- Preflight ready for Counter on triad
   let reports := runPrimary ProofForge.IR.Examples.Counter.module
   require (allReady reports) "Counter preflight allReady triad"
+
+  -- Mechanics on real resolveSpec path (crypto.ecrecover rejects on NEAR)
+  let ecrecoverMod : Module := {
+    name := "EcrecoverOnly"
+    state := #[]
+    entrypoints := #[{
+      name := "r"
+      body := #[
+        .return (.ecrecover
+          (.literal (.u64 0)) (.literal (.u64 0))
+          (.literal (.u64 0)) (.literal (.u64 0)))
+      ]
+    }]
+  }
+  match resolveSpec wasmNear (ContractSpec.fromIR ecrecoverMod) with
+  | .ok _ => throw (IO.userError "NEAR must reject ecrecover via PortableMechanics honesty")
+  | .error d =>
+      require (
+          contains d.message "PortableHonesty" ||
+          contains d.message "PortableMechanics" ||
+          contains d.message "ecrecover" ||
+          contains d.message "crypto"
+        ) s!"NEAR ecrecover reject, got: {d.message}"
+  match resolveSpec evm (ContractSpec.fromIR ecrecoverMod) with
+  | .error d => throw (IO.userError s!"EVM ecrecover should resolve: {d.message}")
+  | .ok _ => pure ()
 
   IO.println "chain-agnostic-route: ok (pipeline+identity+sync+token+upgrade+mechanics)"
   pure 0

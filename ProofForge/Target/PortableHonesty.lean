@@ -13,6 +13,7 @@ import ProofForge.IR.Contract
 import ProofForge.Target.HostRuntime
 import ProofForge.Target.Identity
 import ProofForge.Target.CrosscallMaterialize
+import ProofForge.Target.PortableMechanics
 import ProofForge.Contract.UpgradePolicy
 import ProofForge.Contract.UpgradePolicy.Lower
 
@@ -22,6 +23,7 @@ open ProofForge.IR
 open ProofForge.Target.HostRuntime
 open ProofForge.Target.Identity
 open ProofForge.Target.CrosscallMaterialize
+open ProofForge.Target.PortableMechanics
 open ProofForge.Contract
 open ProofForge.Contract.UpgradePolicy
 
@@ -182,34 +184,45 @@ def requireIdentityHonesty (targetId : String) (module : Module) : Except String
       | _ => .ok ())
     ()
 
+/-- Declared logical peer for Solana account inference (`declareRemote` / string pool).
+Empty or missing → inference cannot run; resolve must reject (no silent placeholder). -/
+def declaredPeerId? (module : Module) : Option String :=
+  match module.nearCrosscallStrings[0]? with
+  | some s => if s.isEmpty then none else some s
+  | none => none
+
 /-- Sync-subset: portable sync remotes cannot mix NEAR async host-extension nodes.
 Host-extension-only modules (promise_then without portable crosscallInvoke) are
-allowed on wasm-near only (family portability still applies elsewhere). -/
+allowed on wasm-near only (family portability still applies elsewhere).
+
+Solana: requires a **non-empty declared peer** in `nearCrosscallStrings` so
+`inferSolanaAccounts` runs (empty peer fails closed — no `portable.peer` invent). -/
 def requireSyncCrosscallHonesty (targetId : String) (module : Module) : Except String Unit := do
   if moduleUsesPortableSyncCrosscall module then
-    -- Portable product path: no promise_then / result APIs.
     requireSyncSubset module
     if targetId == "solana-sbpf-asm" then
-      -- Peer id for inference: prefer first nearCrosscallStrings entry as logical
-      -- peer token, else a non-empty portable peer placeholder.
-      let peer :=
-        match module.nearCrosscallStrings[0]? with
-        | some s => if s.isEmpty then "portable.peer" else s
-        | none => "portable.peer"
-      match materializeSyncRemote targetId module peer with
-      | .ok m =>
-          match m.inferredAccounts? with
-          | some accs =>
-              if accs.isEmpty then
-                .error
-                  "PortableHonesty Crosscall: Solana inferred account set is empty \
+      match declaredPeerId? module with
+      | none =>
+          .error
+            "PortableHonesty Crosscall: Solana portable remote requires non-empty peer id \
+in nearCrosscallStrings (declareRemote / PeerMap); empty peer cannot be inferred"
+      | some peer =>
+          match materializeSyncRemote targetId module peer with
+          | .ok m =>
+              match m.inferredAccounts? with
+              | some accs =>
+                  if accs.isEmpty then
+                    .error
+                      "PortableHonesty Crosscall: Solana inferred account set is empty \
 (authors must not pass metas; inference failed)"
-              else .ok ()
-          | none =>
-              .error "PortableHonesty Crosscall: Solana remote missing inferred accounts"
-      | .error msg => .error s!"PortableHonesty Crosscall: {msg}"
+                  else .ok ()
+              | none =>
+                  .error "PortableHonesty Crosscall: Solana remote missing inferred accounts"
+          | .error msg => .error s!"PortableHonesty Crosscall: {msg}"
     else if targetId == "evm" || targetId == "wasm-near" then
-      match materializeSyncRemote targetId module "portable.peer" with
+      -- Peer string optional on EVM/NEAR for sync materialize (no account metas).
+      let peer := (declaredPeerId? module).getD "portable.peer"
+      match materializeSyncRemote targetId module peer with
       | .ok _ => .ok ()
       | .error msg => .error s!"PortableHonesty Crosscall: {msg}"
     else
@@ -220,6 +233,35 @@ def requireSyncCrosscallHonesty (targetId : String) (module : Module) : Except S
 host extensions (portable sync-subset / wrong family)"
   else
     .ok ()
+
+/-- PortableMechanics honesty for IR-used crypto / error / serde shapes. -/
+def requireMechanicsHonesty (targetId : String) (module : Module) : Except String Unit := do
+  let caps := module.capabilities
+  -- crypto.hash → at least one of keccak/sha256 must materialize on triad
+  if caps.any (fun c => c == .cryptoHash) then
+    let keccakOk :=
+      match materializeMechanic targetId .cryptoKeccak with
+      | .ok _ => true
+      | .error _ => false
+    let shaOk :=
+      match materializeMechanic targetId .cryptoSha256 with
+      | .ok _ => true
+      | .error _ => false
+    if !(keccakOk || shaOk) then
+      .error
+        s!"PortableHonesty Mechanics: target `{targetId}` cannot materialize crypto.hash \
+(keccak/sha256 both reject)"
+  -- ecrecover / sig path
+  if caps.any (fun c => c == .cryptoEcrecover) then
+    match materializeMechanic targetId .cryptoEcrecover with
+    | .ok _ => pure ()
+    | .error msg => .error s!"PortableHonesty Mechanics: {msg}"
+  -- Always require portable error surface materialize on triad when assertions used
+  if caps.any (fun c => c == .assertions) then
+    match materializeMechanic targetId .errorCode with
+    | .ok _ => pure ()
+    | .error msg => .error s!"PortableHonesty Mechanics: {msg}"
+  pure ()
 
 /-- Upgrade intent materialize (UUPS-only on EVM, etc.). -/
 def requireUpgradeHonesty (targetId : String) (policy? : Option UpgradePolicy)
@@ -248,6 +290,7 @@ def requirePortableHonesty (targetId : String) (module : Module)
     requireHostEnvHonesty targetId module
     requireIdentityHonesty targetId module
     requireSyncCrosscallHonesty targetId module
+    requireMechanicsHonesty targetId module
   requireUpgradeHonesty targetId upgradePolicy? proxyPattern?
 
 end ProofForge.Target.PortableHonesty

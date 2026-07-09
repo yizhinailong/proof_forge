@@ -115,13 +115,19 @@ def TokenFeature.parse (id : String) : Except String TokenFeature :=
       .error s!"unknown token feature `{id}`; known features: {String.intercalate ", " knownFeatureIds.toList}"
 
 /-- Author-facing token intent. Intentionally has **no** `standard` field —
-standards are resolved only when a target is selected. -/
+standards are resolved only when a target is selected.
+
+`authFeatures` holds divergent auth models (`TokenAuthFeature`: allowance /
+authority / storageDeposit / transferCall). `planForTarget` materializes or
+honest-rejects each against the selected target (no ERC-20 allowance on NEAR).
+-/
 structure TokenSpec where
   name : String
   symbol : String
   decimals : Nat
   initialSupply? : Option Nat := none
   features : Array TokenFeature := #[]
+  authFeatures : Array TokenAuthFeature := #[]
   deriving Repr
 
 def TokenSpec.hasFeature (spec : TokenSpec) (feature : TokenFeature) : Bool :=
@@ -864,9 +870,11 @@ def planForTarget (target : TargetProfile) (spec : TokenSpec) : Except String To
     | .ok _ =>
         .error s!"TokenAuth: target `{target.id}` must reject burn without TokenFeature.burnable"
     | .error _ => pure ()
-  -- Divergent auth features: no ERC-20 allowance polyfill on NEAR, etc.
-  -- (TokenSpec does not yet carry TokenAuthFeature; home-host materialize is
-  -- exercised via TokenAuth.materializeAuth in tests + optional notes.)
+  -- Divergent auth: materialize home host or honest-reject (no allowance on NEP-141).
+  for auth in spec.authFeatures do
+    match materializeAuth target.id auth with
+    | .ok _ => pure ()
+    | .error msg => .error msg
   if target.family == .evm then
     .ok (evmErc20Plan target spec)
   else if target.family == .solana then
