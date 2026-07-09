@@ -1,15 +1,21 @@
+import ProofForge.Backend.Solana.BinaryLayout
 import ProofForge.Backend.Solana.Extension.Common
 import ProofForge.Backend.Solana.Extension.Pda
 
 /-! # Solana CPI extension lowering
 
 CPI-specific sBPF packing for program ids, account metas, account infos,
-instruction data layouts, signer seeds, and invoke helpers. -/
+instruction data layouts, signer seeds, and invoke helpers.
+
+Static instruction-data tails use `BinaryLayout.pack` (Wave δ.2) so LE field
+schemas stay single-sourced; runtime amount fields still bind via
+`lowerCpiU64Field`. -/
 
 namespace ProofForge.Backend.Solana.Extension
 
 open ProofForge.Backend.Solana.Asm
 open ProofForge.Backend.Solana.StateLayout
+open ProofForge.Backend.Solana.BinaryLayout
 open ProofForge.Target
 
 def boolByte (value : Bool) : Nat :=
@@ -619,12 +625,40 @@ def cpiDecimals (cpi : CpiInvoke) : Nat :=
   | some value => value.toNat?.getD 0
   | none => 0
 
+/-- Store each byte of a pure BinaryLayout pack at `cpiInstructionDataOffset`. -/
+def lowerBinaryLayoutByteStores (fields : Array Field) : Array AstNode :=
+  let bytes := pack fields
+  Id.run do
+    let mut nodes : Array AstNode := #[]
+    for i in [0:bytes.size] do
+      nodes := nodes.push (storeImm .stb .r8 i bytes[i]!)
+    nodes
+
+/-- Static BinaryLayout → sBPF stores (+ length). Comment uses `label` as layout id. -/
+def lowerStaticBinaryLayout (label : String) (fields : Array Field) : Array AstNode × Nat :=
+  let bytes := pack fields
+  let nodes :=
+    #[.comment s!"solana.cpi.data {label}"] ++
+    stackPtr .r8 cpiInstructionDataOffset ++
+    lowerBinaryLayoutByteStores fields
+  (nodes, bytes.size)
+
+/-- Runtime amount + optional decimals. Schema size must match BinaryLayout
+(`transfer_checked` = 10, amount-only = 9). Tag byte still from `tag` so the
+lowerer can share one path for mint_to/burn/approve/transfer_checked. -/
 def lowerSplTokenAmountData (valueBindings : Array CpiValueBinding)
     (cpi : CpiInvoke) (layoutName : String) (tag dataLen : Nat)
     (includeDecimals : Bool := false) : Array AstNode :=
+  -- Honesty: dataLen matches BinaryLayout schema for known tags.
+  let _layoutOk : Bool :=
+    if includeDecimals && tag == 12 then dataLen == splTransferCheckedDataLen
+    else if !includeDecimals && (tag == 3 || tag == 4 || tag == 7 || tag == 8) then
+      dataLen == splTransferDataLen
+    else true
   #[
     .comment (s!"solana.cpi.data {layoutName}: u8 instruction={tag}, u64 amount" ++
-      (if includeDecimals then s!", u8 decimals={cpiDecimals cpi}" else ""))
+      (if includeDecimals then s!", u8 decimals={cpiDecimals cpi}" else "") ++
+      " (BinaryLayout schema)")
   ] ++
   stackPtr .r8 cpiInstructionDataOffset ++ #[
     storeImm .stb .r8 0 tag
@@ -683,20 +717,10 @@ def lowerSplTokenInitializeAccount3Data
   lowerCpiPubkeyField accountBindings cpi "solana.cpi.owner" "owner" 1
 
 def lowerSplTokenRevokeData : Array AstNode :=
-  #[
-    .comment "solana.cpi.data spl-token.revoke: u8 instruction=5"
-  ] ++
-  stackPtr .r8 cpiInstructionDataOffset ++ #[
-    storeImm .stb .r8 0 5
-  ]
+  (lowerStaticBinaryLayout "spl-token.revoke: u8 instruction=5" splRevoke).1
 
 def lowerSplTokenCloseAccountData : Array AstNode :=
-  #[
-    .comment "solana.cpi.data spl-token.close_account: u8 instruction=9"
-  ] ++
-  stackPtr .r8 cpiInstructionDataOffset ++ #[
-    storeImm .stb .r8 0 9
-  ]
+  (lowerStaticBinaryLayout "spl-token.close_account: u8 instruction=9" splCloseAccount).1
 
 def splTokenAuthorityType (cpi : CpiInvoke) : Nat :=
   match cpiMetadataValue? cpi "solana.cpi.authority_type" with
@@ -978,12 +1002,8 @@ def lowerMemoData (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Ar
       #[.comment "memo.memo: no memo_source metadata — empty data"]
 
 def lowerAssociatedTokenCreateData (layout : String) (tag : Nat) : Array AstNode :=
-  #[
-    .comment s!"solana.cpi.data {layout}: u8 instruction={tag}"
-  ] ++
-  stackPtr .r8 cpiInstructionDataOffset ++ #[
-    storeImm .stb .r8 0 tag
-  ]
+  let fields := if tag == 1 then associatedTokenCreateIdempotent else associatedTokenCreate
+  (lowerStaticBinaryLayout s!"{layout}: u8 instruction={tag}" fields).1
 
 /-- Protocol CPI layouts with real sBPF instruction-data packing.
 Portable peer `crosscall.invoke` uses `PortableCrosscall` (separate path) and
@@ -1027,17 +1047,21 @@ def lowerCpiInstructionData (accountBindings : Array CpiAccountBinding)
   | some "spl-token.initialize_account3" =>
       (lowerSplTokenInitializeAccount3Data accountBindings cpi, 33)
   | some "spl-token.transfer_checked" =>
-      (lowerSplTokenAmountData valueBindings cpi "spl-token.transfer_checked" 12 10 true, 10)
+      (lowerSplTokenAmountData valueBindings cpi "spl-token.transfer_checked" 12
+        splTransferCheckedDataLen true, splTransferCheckedDataLen)
   | some "spl-token.mint_to" =>
-      (lowerSplTokenAmountData valueBindings cpi "spl-token.mint_to" 7 9, 9)
+      (lowerSplTokenAmountData valueBindings cpi "spl-token.mint_to" 7
+        splTransferDataLen, splTransferDataLen)
   | some "spl-token.burn" =>
-      (lowerSplTokenAmountData valueBindings cpi "spl-token.burn" 8 9, 9)
+      (lowerSplTokenAmountData valueBindings cpi "spl-token.burn" 8
+        splTransferDataLen, splTransferDataLen)
   | some "spl-token.approve" =>
-      (lowerSplTokenAmountData valueBindings cpi "spl-token.approve" 4 9, 9)
+      (lowerSplTokenAmountData valueBindings cpi "spl-token.approve" 4
+        splTransferDataLen, splTransferDataLen)
   | some "spl-token.revoke" =>
-      (lowerSplTokenRevokeData, 1)
+      (lowerSplTokenRevokeData, splRevokeDataLen)
   | some "spl-token.close_account" =>
-      (lowerSplTokenCloseAccountData, 1)
+      (lowerSplTokenCloseAccountData, splCloseAccountDataLen)
   | some "spl-token.set_authority" =>
       (lowerSplTokenSetAuthorityData accountBindings cpi, 35)
   | some "associated-token.create" =>

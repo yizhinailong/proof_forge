@@ -124,6 +124,13 @@ def main : IO UInt32 := do
   require (dense.size == 2) s!"empty dense words {dense.size}"
   require (dense[0]! == 0x20 && dense[1]! == 0) "dense empty aggregate"
 
+  -- Full Yul object (compile-time Call[] materialize)
+  let objYul := renderAggregateObjectYul "Agg" 0xcA11 0 #[mkCall 1 #[]]
+  require (contains objYul "object") "Yul object wrapper"
+  require (contains objYul "function main") "main entry"
+  require (contains objYul "call(") "object issues CALL"
+  require (contains objYul "return(") "object returns"
+
   IO.println s!"abi-encode: ok (layout + yul emit empty={empty.size} one={one.size} two={two.size})"
   pure 0
 

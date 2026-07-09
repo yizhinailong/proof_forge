@@ -85,4 +85,17 @@ def splTransfer (amount : Nat) : Array Field :=
 def systemTransfer (lamports : Nat) : Array Field :=
   #[.u32 2, .u64 lamports]
 
+/-- Static-only layouts (no runtime amount binding). -/
+def splRevoke : Array Field := #[.u8 5]
+def splCloseAccount : Array Field := #[.u8 9]
+def associatedTokenCreate : Array Field := #[.u8 0]
+def associatedTokenCreateIdempotent : Array Field := #[.u8 1]
+
+/-- Expected ix data lengths for CPI lowerer honesty checks. -/
+def splTransferCheckedDataLen : Nat := packSize (splTransferChecked 0 0)  -- 10
+def splTransferDataLen : Nat := packSize (splTransfer 0)  -- 9
+def systemTransferDataLen : Nat := packSize (systemTransfer 0)  -- 12
+def splRevokeDataLen : Nat := packSize splRevoke
+def splCloseAccountDataLen : Nat := packSize splCloseAccount
+
 end ProofForge.Backend.Solana.BinaryLayout

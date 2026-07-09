@@ -36,6 +36,11 @@ contract_source ExternalTokenTransfer do
     last_amount := amount;
     return amount;
 
+  entry set_allowance (spender : .u64, amount : .u64) returns(.u64) do
+    let _ok : .u64 := externalTokenApprove usdc spender amount;
+    last_amount := amount;
+    return amount;
+
   entry read_balance (holder : .u64) returns(.u64) do
     return externalTokenBalanceOf usdc holder;
 

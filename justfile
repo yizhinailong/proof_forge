@@ -719,6 +719,10 @@ product-token-solana:
 product-protocol-ft:
     scripts/portable/protocol-ft-smoke.sh
 
+# Wave δ follow-on: Multicall Call[] AbiEncode.Plan → full Yul object (+ solc if present).
+multicall-abi-yul:
+    scripts/evm/multicall-abi-yul-smoke.sh
+
 # Product multi-target Lean matrix (all Product contracts × primary hosts).
 product-matrix:
     lake build Examples.Product.AccessControl Examples.Product.ArrayExample Examples.Product.AuthRemoteCall Examples.Product.Counter Examples.Product.ExternalTokenTransfer Examples.Product.FeeToken Examples.Product.FungibleToken Examples.Product.Ownable Examples.Product.OwnableHash Examples.Product.OwnablePausable Examples.Product.Pausable Examples.Product.ReentrancyGuard Examples.Product.RemoteCall Examples.Product.RoleGatedToken Examples.Product.SoulboundToken Examples.Product.StakingVault Examples.Product.ValueVault ProofForge.IR.Examples.Counter ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmHost.EmitWat ProofForge.Target.Materialize

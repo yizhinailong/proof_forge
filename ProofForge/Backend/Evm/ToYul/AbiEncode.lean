@@ -148,4 +148,26 @@ def planDenseWords (plan : Plan) : Array Nat :=
         words := words.set! idx (wordNat s.value)
     words
 
+/-- Standalone Yul object that packs `aggregate(Call[])` and CALLs Multicall3.
+Compile-time Call[] materialize path (Wave δ follow-on): no portable IR nodes —
+fixture / smoke consume this object via solc `--strict-assembly`. -/
+def aggregateObject (objectName : String) (multicallTarget outSize : Nat)
+    (calls : Array Call) (memBase : Nat := defaultMemBase) : Object :=
+  let emit := emitAggregateCall memBase multicallTarget outSize calls
+  let body : Array Statement :=
+    emit.statements ++ #[
+      .exprStmt (builtin "return" #[.num memBase, .num outSize])
+    ]
+  {
+    name := objectName
+    code := {
+      statements := #[
+        .funcDef "main" #[] #[] { statements := body }
+      ]
+    }
+  }
+
+def renderAggregateObjectYul (objectName : String) (multicallTarget outSize : Nat)
+    (calls : Array Call) (memBase : Nat := defaultMemBase) : String :=
+  Printer.render (aggregateObject objectName multicallTarget outSize calls memBase)
 end ProofForge.Backend.Evm.ToYul.AbiEncode

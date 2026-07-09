@@ -136,6 +136,7 @@ just product-protocol-ft
 | NEAR token (plan + body) | `just product-token-near` |
 | Solana token (SPL plan) | `just product-token-solana` |
 | External FT protocol intent | `just product-protocol-ft` |
+| Multicall Call[] → Yul | `just multicall-abi-yul` |
 | Engineering CI subset | `just check` |
 
 ---

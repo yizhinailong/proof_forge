@@ -164,8 +164,11 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 | γ.2 | `just product-protocol-ft` multi-target smoke | **done** |
 | δ.1 | AbiEncode.Plan → Yul `mstore` + CALL (Multicall) | **done** |
 | δ.2 | Solana BinaryLayout pure LE pack helper | **done** |
+| δ.2b | BinaryLayout → static CPI stores (revoke/close/ATA) | **done** |
+| δ.3 | Multicall Call[] full Yul object + `just multicall-abi-yul` | **done** |
+| γ.3 | Product external approve path (`set_allowance`) | **done** |
 
-**Next:** IR Call[] auto-lower if product needs; Wave ε selective ecosystem depth.
+**Next:** portable IR runtime Call[] (dynamic) if product needs; Wave ε ERC-4626 / EIP-2612 only when TokenSpec product story requires them.
 
 ---
 

@@ -60,6 +60,9 @@ if command -v solc >/dev/null 2>&1; then
   # Decimal form of 0xa9059cbb
   require_contains "$OUT/evm/ExternalTokenTransfer.yul" "2835717307" \
     "EVM Yul should contain IERC20 transfer selector (0xa9059cbb = 2835717307)"
+  # approve selector 0x095ea7b3 = 157198259
+  require_contains "$OUT/evm/ExternalTokenTransfer.yul" "157198259" \
+    "EVM Yul should contain IERC20 approve selector (0x095ea7b3)"
   echo "evm protocol ft: ok"
 else
   echo "product-protocol-ft: solc missing; EVM emit skipped (Lean + other hosts still run)"
@@ -97,6 +100,7 @@ require_contains "$NEAR_WAT" "ft_transfer" "NEAR method ft_transfer"
 require_contains "$NEAR_WAT" "promise_create" "NEAR promise_create"
 require_contains "$NEAR_WAT" "ft_balance_of" "NEAR ft_balance_of"
 require_contains "$NEAR_WAT" "ft_total_supply" "NEAR ft_total_supply"
+require_contains "$NEAR_WAT" "approve" "NEAR pool registers approve method id"
 # NEP-141 object JSON is lowered as putc of field name chars (not a data string).
 # Object start `{` = 123 and `__pf_crosscall_args_putc` mark object packing.
 require_contains "$NEAR_WAT" "__pf_crosscall_args_putc" "NEAR JsonEncode putc packing"

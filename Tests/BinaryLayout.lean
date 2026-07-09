@@ -28,6 +28,12 @@ def main : IO UInt32 := do
   require (st.size == 4 + 8) "system transfer size"
   require (st[0]! == 2) "system tag LE u32"
 
+  require (splTransferCheckedDataLen == 10) "transfer_checked data len"
+  require (splTransferDataLen == 9) "amount-only data len"
+  require (splRevokeDataLen == 1) "revoke data len"
+  require (pack splRevoke == #[5]) "revoke tag byte"
+  require (pack splCloseAccount == #[9]) "close_account tag byte"
+
   IO.println "binary-layout: ok"
   pure 0
 
