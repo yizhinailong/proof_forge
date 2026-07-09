@@ -280,6 +280,48 @@ labels in generated sBPF (same place Anchor would inject constraint code).
 They must **not** become portable IR constructors (that would re-EVM/Solana-bias
 the authoring surface).
 
+#### Do we validate on the IR? (protocol validate → materialize)
+
+**Yes, but layered.** Not every check is “IR protocol validate”, and not every
+check materializes into chain code.
+
+```text
+contract_source / IR.Module
+  │
+  ├─ L0  Portability          family-only constructors (CREATE2, nearPromise*, …)
+  │                           ProofForge.IR.Portability
+  ├─ L1  Capability resolve   does --target advertise needed caps?
+  │                           Target.Adapter.resolveModule / Target.Preflight
+  ├─ L2  Protocol IR validate per-backend still *on IR* (types, returns, …)
+  │                           Evm.Validate · Solana plan · EmitWat diagnostics
+  ├─ L3  Materialize          roles → accounts / CALL plan / Promise pool
+  │                           Target.Materialize · Solana.Manifest · …
+  └─ L4  Prologue + emit      signer/owner traps, Yul CALL, promise_create WAT
+                              SbpfAsm.lowerAccountValidations · ToYul · EmitWat
+```
+
+| Question | Layer | Materialize? |
+|---|---|---|
+| Is this still portable / wrong family constructor? | L0 | No — hard reject |
+| Can this target run this module at all? | L1 | Gates materialize |
+| Are types / entrypoints well-formed for this protocol? | L2 | Feeds plan |
+| What accounts / ABI / host strings do we need? | L3 | **Is** materialize |
+| Runtime traps (signer, owner, executable) | L4 | Emit from L3 schema |
+
+**Implications:**
+
+1. **IR-based checks (L0–L2)** are chain-aware *routing and well-formedness*,
+   not Solana account constraints written into portable IR.
+2. **Protocol validate maps to materialize** when the result is *schema or
+   plan* (account roles, string pool, ABI arity) — L2/L3.
+3. **Protocol validate maps to emit traps** when the result is *runtime
+   guard code* (Anchor-like) — L4 from L3 schema.
+4. Shared helpers stay in `Backend.SharedValidate` only when diagnostics are
+   truly identical; family rules stay in backends (RFC 0014).
+
+API: `ProofForge.Target.Preflight.run profile module` = L0+L1 report
+(`readyToMaterialize`). Full L2 remains backend-owned.
+
 **Exit:** Shared RoleGatedToken / StakingVault / Counter compile to Solana
 **without** `import Source.Solana` and without any `account`/`cpi` line, and
 pass Solana light gates.
@@ -368,6 +410,9 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 | 4b | **Unified primary-chain materialize (EVM·Solana·Wasm-NEAR)** | ✅ `Target.Materialize` + artifact `materialization` on all three; `just primary-materialize` |
 | 4c | **Portable crosscall.invoke materialize (EVM CALL · Solana CPI · NEAR Promise)** | ✅ B.3; Solana `sol_invoke_signed_c` + AccountMeta/Info + return-data; NEAR `promise_create`; Shared `RemoteCall` |
 | 5 | NEAR Promise constructors out of portable product path (D-050 Slice 3) | ✅ Partial: `Source.Near` opt-in + portable-default ban; full Expr inductive removal deferred |
+| 5b | **Layered preflight (L0 portability + L1 capability) before materialize** | ✅ `Target.Preflight`; L2 stays backend; L3/L4 = materialize + prologue |
+| 5c | Dedicated portable CPI stack frame (16 → 64 account pack) | Solana stack re-layout |
+| 5d | Wire Preflight into CLI `check` / artifact `preflight` field | Operator visibility |
 | 6 | Mark `Source.Solana` fixture-only; demote from product docs | After auto-materialize works for Counter/Vault |
 | 7 | Stdlib portable policies → multi-target lowering | One Ownable/Token intent |
 | 8 | Spec/Builder de-EVM naming | Product surface cleanup |

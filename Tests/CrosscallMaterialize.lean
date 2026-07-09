@@ -16,10 +16,12 @@ import ProofForge.Backend.WasmNear.PortableCrosscall
 import ProofForge.Backend.CosmWasm.EmitWat
 import ProofForge.Backend.Psy.IR
 import ProofForge.Target.CrosscallMaterialize
+import ProofForge.Target.Preflight
 import ProofForge.Target.Registry
 
 open ProofForge.Target
 open ProofForge.Target.CrosscallMaterialize
+open ProofForge.Target.Preflight
 open ProofForge.Backend.Solana.PortableCrosscall
 open ProofForge.Backend.Solana.Manifest
 open ProofForge.Backend.Solana.StateLayout
@@ -146,6 +148,21 @@ def main : IO Unit := do
   -- Shared portable RemoteCall (contract_source + remoteCall) multi-target.
   let shared := Examples.Shared.RemoteCall.module
   require (moduleHasPortableCrosscall shared) "Shared.RemoteCall has portable crosscall"
+  -- L0+L1 preflight on primary targets before materialize/emit.
+  let pref := runPrimary shared
+  require (pref.size == 3) "primary preflight = evm · solana · near"
+  -- EVM + Solana accept portable crosscall.invoke; NEAR needs string pool (has it).
+  for r in pref do
+    require r.readyToMaterialize s!"preflight should be ready for {r.targetId}: {r.note}"
+  require ((run solanaSbpfAsm shared).crosscallNativeForm == "solana-cpi") "preflight solana form"
+  require ((run evm shared).crosscallNativeForm == "evm-call") "preflight evm form"
+  require ((run wasmNear shared).crosscallNativeForm == "near-promise") "preflight near form"
+  -- Family-only Promise module must fail Solana/EVM preflight portability.
+  let nearExt := ProofForge.IR.Examples.NearCrosscallProbe.promiseExtensionModule
+  require (!(run solanaSbpfAsm nearExt).portabilityOk)
+    "NEAR promise extension must fail Solana portability preflight"
+  require (!(run evm nearExt).portabilityOk)
+    "NEAR promise extension must fail EVM portability preflight"
   match ProofForge.Backend.Evm.Plan.buildModulePlan shared with
   | .error e => throw (IO.userError s!"EVM plan Shared.RemoteCall failed: {e.message}")
   | .ok _ => pure ()
