@@ -76,6 +76,7 @@ Facade: `ProofForge.Protocols.Solana`
 | System transfer / create_account | `system.*` | ✅ packed |
 | SPL Token transfer/mint/burn/approve/… | `spl-token.*` | ✅ packed |
 | SPL initialize_mint / initialize_account3 | `spl-token.initialize_*` | ✅ packed |
+| Vault-owned token account path | `system.create_account` → `initialize_account3` | ✅ example `Solana/Examples/VaultTokenAccountCpi` |
 | Associated Token create | `associated-token.*` | ✅ packed |
 | Memo | `memo.memo` | ✅ packed |
 | Token-2022 fee / hook / pause / … | `token-2022.*` | ✅ packed (subset) |

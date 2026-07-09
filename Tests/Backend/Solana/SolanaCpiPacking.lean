@@ -9,6 +9,7 @@ import ProofForge.Solana.Examples.SplToken2022PausableCpi
 import ProofForge.Solana.Examples.SplToken2022TransferHook
 import ProofForge.Solana.Examples.SplTokenCloseAccountCpi
 import ProofForge.Solana.Examples.SplTokenOpsCpi
+import ProofForge.Solana.Examples.VaultTokenAccountCpi
 
 set_option maxRecDepth 2048
 
@@ -175,6 +176,38 @@ def main : IO UInt32 := do
         "assembly missing CPI invoke for initialize_account3"
   | .error err =>
       throw <| IO.userError s!"Solana initialize_account3 CPI packing render failed: {err.render}"
+
+  -- Layer B end-to-end: create_account (owner=SPL Token) + initialize_account3 (owner=vault PDA).
+  match ProofForge.Backend.Solana.Package.renderPackageForSpec "vault-token-account-cpi"
+      ProofForge.Solana.Examples.VaultTokenAccountCpi.spec with
+  | .ok pkg =>
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw <| IO.userError "vault-token-account package missing sBPF assembly"
+      let asm := asmFile.contents
+      require (contains asm "solana.cpi create_token_account: system_program.create_account")
+        "vault path missing system create_account CPI"
+      require (contains asm "solana.cpi.data system.create_account:")
+        "vault path missing system.create_account packing"
+      require (contains asm "solana.cpi.value owner from account spl_token")
+        "vault path must set create_account owner = SPL Token program"
+      require (contains asm "solana.cpi init_token_account: spl_token.initialize_account3")
+        "vault path missing initialize_account3 CPI"
+      require (contains asm "solana.cpi.data spl-token.initialize_account3:")
+        "vault path missing initialize_account3 packing"
+      require (contains asm "stb [r8+0], 18")
+        "vault path missing InitializeAccount3 tag 18"
+      require (contains asm "solana.cpi.value owner from account vault_account")
+        "vault path must pack vault PDA as token-account owner"
+      require (contains asm "solana.pda.derive vault")
+        "vault path missing PDA derive for vault"
+      require (contains asm "call sol_invoke_signed_c")
+        "vault path missing CPI invoke"
+      require (!contains asm "owner source=vault_account missing")
+        "vault path must not reject vault_account owner binding"
+      require (!contains asm "owner source=spl_token missing")
+        "vault path must not reject spl_token owner binding"
+  | .error err =>
+      throw <| IO.userError s!"Solana vault token-account CPI packing render failed: {err.render}"
 
   match ProofForge.Backend.Solana.Package.renderPackageForSpec "system-cpi" systemTransferSpec with
   | .ok pkg =>
