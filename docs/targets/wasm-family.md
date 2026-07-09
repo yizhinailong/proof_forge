@@ -8,6 +8,15 @@ module plus a target-specific host bridge. ProofForge should share only the
 parts that are genuinely common. See [Cloudflare Workers target](cloudflare-workers.md)
 for the off-chain reinterpretation of capabilities.
 
+## Spike honesty (U7)
+
+- **NEAR (`wasm-near`)** is the primary Wasm product host (Experimental).
+- **CosmWasm:** portable remote uses a WasmMsg-shaped `execute_msg` **stub**;
+  Gate G1a (M3/M4) is **not started**.
+- **Soroban:** host adapter spike; interpreter auth is always-authorised until
+  real Env auth lands.
+- **Cloudflare Workers:** research / off-chain only.
+
 ## Common Shape
 
 The canonical Wasm-family backend is **`EmitWat`**, modeled on the in-repo

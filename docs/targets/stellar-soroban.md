@@ -1,6 +1,11 @@
 # Stellar Soroban Target
 
 Status: **Phase 4 WASM host-family adapter landed (first spike) —
+**SPIKE honesty (U7.2):** in-Lean `require_auth_for_args` is always-authorised
+in the interpreter (not real Env auth). Portable product triad remains
+EVM · Solana · NEAR.
+
+Status (continued): **Phase 4 WASM host-family adapter landed (first spike) —
 `wasm-stellar-soroban` host bridge is implemented as `ProofForge.Target.HostBridge.soroban`
 + `ProofForge.Backend.WasmHost.SorobanHost.lean`, reusing the shared `WasmExec` core.
 Not yet a separate registry id; the Counter refinement reuses the host-agnostic core.**

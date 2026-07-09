@@ -720,7 +720,7 @@ semantics — not a real peer); RemoteCall is therefore **out of fragment**.
 |----------------|----------------------|----------------------|-------|
 | Counter | **yes** | scalar storage, add, let, return | FV-9.4 bridge |
 | Ownable / OwnableHash / Pausable / Reentrancy | **yes** (typical) | scalar storage, caller `contextRead`, assert | no crosscall |
-| HostEnvProbe | **yes** | `contextRead` (time/height/self/caller), assign | U1 HostEnv; no peer call |
+| HostEnvProbe | **yes** (U5.4) | `contextRead` (time/height/self/caller), assign | U1 HostEnv triad; in-fragment; no peer call |
 | ValueVault | **yes** (typical) | scalar storage, arith, events, checkpoint | no crosscall |
 | RemoteCall / AuthRemoteCall | **no** | `crosscallInvoke*` | U2 stub; target materialize only |
 | ExternalTokenTransfer / ExternalVault | **no** | protocol remote / crosscall | peer materialize |

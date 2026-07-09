@@ -539,9 +539,9 @@ mutual
       (args : Array Expr) : Except EmitError (Array Insn × ValueType) :=
     lowerHostBridgeRemoteInvoke ctx env target method args "invoke_contract" "Soroban"
 
-  /-- Portable crosscall → CosmWasm host `execute_msg` (WasmMsg-shaped stub).
-  Real CosmWasm submessage encoding is a later spike; this unblocks general
-  peer remote on HostBridge.cosmWasm the same way Soroban uses invoke_contract. -/
+  /-- **SPIKE / STUB (U7.2):** portable crosscall → CosmWasm host `execute_msg`
+  (WasmMsg-shaped). Real CosmWasm submessage encoding, reply handling, and
+  Gate G1a M3/M4 are **not** started. Do not treat as production CosmWasm CPI. -/
   partial def lowerCosmWasmExecuteMsg (ctx : Ctx) (env : LocalTypes) (target method : Expr)
       (args : Array Expr) : Except EmitError (Array Insn × ValueType) :=
     lowerHostBridgeRemoteInvoke ctx env target method args "execute_msg" "CosmWasm"
@@ -1121,9 +1121,10 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
     .ok (boundedForInsns indexName start stop bodyInsns)
   | _ => err "EmitWat: this statement form is not yet supported"
 
-/-- C.9: Soroban host auth hook when the entrypoint reads caller/userId.
-Stub `require_auth_for_args` (always authorised in interpreter); real Env
-auth lands later. Authors still write only `guard_owner` / `caller`. -/
+/-- **SPIKE / STUB (U7.2):** Soroban host auth when entrypoint reads caller/userId.
+`require_auth_for_args` is **always authorised in the in-Lean interpreter** —
+not real Env auth. Real Soroban authorization is future work. Authors still
+write only `guard_owner` / `caller`. -/
 def sorobanAuthPrologue (ctx : Ctx) (ep : Entrypoint) : Array Insn :=
   if ctx.bridge == ProofForge.Target.HostBridge.soroban &&
       ep.capabilities.any (fun c => c == ProofForge.Target.Capability.callerSender) then

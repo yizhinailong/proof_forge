@@ -68,7 +68,7 @@ def cosmWasmMaterializationNote (module : Module) : String :=
   if moduleUsesPromiseExtension module then
     "CosmWasm: NEAR Promise constructors unsupported on this host bridge"
   else if moduleUsesPortableInvoke module then
-    "CosmWasm: portable crosscall.invoke → execute_msg (WasmMsg-shaped host stub; nearCrosscallStrings pool)"
+    "CosmWasm SPIKE: portable crosscall.invoke → execute_msg (WasmMsg-shaped STUB — not full CosmWasm submessages; Gate G1a not started)"
   else
     "CosmWasm: no portable crosscall sites (db storage surface only)"
 

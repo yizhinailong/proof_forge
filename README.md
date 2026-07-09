@@ -44,12 +44,20 @@ with local `sui move build/test` validation.
 | `evm` | Lean / portable IR → Yul → `solc` → bytecode | Experimental (production-grade gates) | golden Yul, diagnostics, Foundry runtime smoke (15 tests), Anvil deploy, dynamic constructor Anvil, constructor body, deploy gas-limit/price/priority flags, stdlib (ERC-20/721/1155/165/AccessControl/Ownable/Pausable/ReentrancyGuard/UUPS/Create2 — see [sdk-ecosystem-gaps](docs/sdk-ecosystem-gaps-2026-07.md)) |
 | `solana-sbpf-asm` | portable IR → sBPF assembly → `sbpf` → ELF | Experimental | Mollusk tests, Surfpool/Rust live smokes, Pinocchio equivalence gates, indexed events, Memo CPI, Associated Token `create_idempotent` CPI, Token-2022 extensions (transfer_fee/non_transferable/metadata_pointer/default_account_state/immutable_owner/permanent_delegate/interest_bearing/memo_transfer/transfer_hook_init/pausable), map storage, nativeValue lamports read |
 | `wasm-near` | portable IR → `EmitWat` (Wasm AST → WAT) → `wat2wasm` | Experimental | diagnostics, IR coverage manifests, formal trace obligations, target-first smoke, offline host smoke (signer+deposit+promise stubs), artifact/deploy metadata, NEP-141 FT stdlib, aggregate ABI params, nested mapKey paths, nativeValue U64 truncation, eventEmitIndexed flattening |
-| `wasm-cosmwasm` | portable IR → `EmitWat` → WAT → `wat2wasm` | Spike | Counter golden WAT, `just cosmwasm-counter-smoke` (optional GH job; needs `cosmwasm-check`) |
+| `wasm-cosmwasm` | portable IR → `EmitWat` → WAT → `wat2wasm` | Spike (**G1a not started**) | Counter golden WAT; portable remote uses **execute_msg STUB** (not full submessages); `just cosmwasm-counter-smoke` optional |
 | `move-aptos` | portable IR → Aptos Move package | Spike | Counter golden Move module, `just aptos-counter-smoke` (optional GH job; needs `aptos`) |
 | `move-sui` | portable IR → Sui Move package | Counter MVP | Counter package layout, local `sui move build/test`, unsupported-shape diagnostics, emit/build parity, object semantics, local-only validation, TypeScript client smoke |
 | `psy-dpn` | portable IR → `.psy` → Dargo → DPN circuit JSON | Experimental (restricted subset) | golden sources, diagnostics, `dargo` execute smokes |
 | `aleo-leo` | portable IR → Leo package → `leo build`/`leo test` | Research spike (CLI-only; not in `--list-targets`) | Counter/PureMath golden fixtures and smokes |
 | `wasm-cloudflare-workers` | portable IR → TypeScript Worker | Research spike | `tsc` type-check, `wrangler` dry-run |
+
+
+**Spike honesty (U7):** CosmWasm / Aptos / Soroban / Cloudflare are **not**
+primary-product hosts. CosmWasm portable crosscall is a WasmMsg-shaped
+`execute_msg` stub; Soroban interpreter `require_auth_for_args` is always-auth
+in Lean. Gate G1a/G1b (CosmWasm/Aptos M3–M4) stay **not started** until
+explicitly scheduled — see [gate-status](docs/gate-status.md) and
+[unified-support-roadmap](docs/superpowers/plans/2026-07-09-unified-support-roadmap.md) U7.
 
 The multi-chain Token SDK (`TokenSpec`, [RFC 0006](docs/rfcs/0006-multichain-token-sdk.md))
 routes one token intent to ERC-20 bytecode on EVM or SPL Token / Token-2022

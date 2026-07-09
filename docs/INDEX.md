@@ -103,6 +103,7 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - [Unified support roadmap (2026-07-09)](superpowers/plans/2026-07-09-unified-support-roadmap.md): **active** — HostEnv triad · crosscall honesty · FV-9 · platform debt (slow unification).
 - [CLI M4 legacy inventory](cli-m4-legacy-inventory.md): EmitMode/flag zoo inventory before alias deletion.
 - [RFC 0012 versioning](rfcs/0012-versioning-and-compatibility-policy.md) + `just versioning-policy`.
+- [Upgrade/signing ops (RFC 0013)](upgrade-signing-ops.md): unsigned emit + live-gate key conventions.
 - [Review checklist (English)](review-checklist.md)
 - [Target notes](targets/README.md): per-family research and spike plans.
   - [EVM](targets/evm.md)
