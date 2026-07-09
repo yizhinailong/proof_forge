@@ -104,7 +104,7 @@ Soroban token explicitly unsupported.
 | ID | Task | Work | Acceptance | Size | Deps | Status |
 |----|------|------|------------|------|------|--------|
 | **T3.1** | Remote scalar ABI MVP | Portable args (u64/bool/hash) encoding table across four hosts; extend Shared RemoteCall | Multi-target smoke with one parameterized remote | L | RemoteCall baseline | **done** (`call_with_args` + Surface ABI table + CrosscallMaterialize asserts) |
-| **T3.2** | Solana account auto-fill | Extend `ensurePortableAuthAccounts` pattern for transfer/remote intents; reduce Source.Solana need | Named Shared example emits without Solana Surface | L | T3.1 optional | pending |
+| **T3.2** | Solana account auto-fill | Extend `ensurePortableAuthAccounts` pattern for transfer/remote intents; reduce Source.Solana need | Named Shared example emits without Solana Surface | L | T3.1 optional | **done** (`ensurePortableNativeValueAccounts` + AuthRemoteCall + `just portable-solana-accounts`) |
 | **T3.3** | Identity docs + Solana Hash bound | Ownable vs OwnableHash chooser table; limb0 = Phase-1 product contract | Architecture + Surface comments; tests agree | S | OwnableHash landed | **done** (architecture table) |
 | **T3.4** | Error id → clients | Map assertion_id across EVM revert / Solana custom / NEAR panic into sdk-schema | Same id in three-host artifacts | M | — | **done** (`Tests/PortableErrorCatalog.lean` + `just portable-error-catalog`) |
 | **T3.5** | Soroban product close-out (non-token) | Counter/Ownable/RemoteCall artifact list, SDK extension, wat2wasm gates | Existing multi-target scripts stable | M | C.5–C.9 | **done** (remote-call multi-target + Soroban wat2wasm; justfile WasmHost paths) |
@@ -179,6 +179,7 @@ Then: T2.2, Wave 3, Wave 4 as capacity allows.
 | Remote multi-target | `just portable-remote-call-multi-target` (EVM·Solana·NEAR·Soroban + Soroban wat2wasm) |
 | Crosscall materialize | `just crosscall-materialize` |
 | Error catalogue parity | `just portable-error-catalog` |
+| Solana account auto-fill | `just portable-solana-accounts` |
 
 Update this table when recipes are renamed.
 
@@ -196,5 +197,6 @@ Update this table when recipes are renamed.
 | 2026-07-09 | **CosmWasm into EmitWat:** `HostBridge.cosmWasm` storage (`db_read`/`db_write`) in Scalar/Map/Imports; unified `EmitWat.renderModule` for all bridges; remove top-level `Backend.WasmNear` / `Backend.CosmWasm` shims. |
 | 2026-07-09 | **T2.2 + T3.1:** EVM TokenSpec permanent reject policy (fee/soulbound/permit); remote u64 scalar ABI locked in CrosscallMaterialize + Surface docs. CosmWasm product path still deferred. |
 | 2026-07-09 | **T3.4 + T3.5:** `PortableErrorCatalog` locks assertionId 1/2 on EVM·Solana·NEAR clients + sdk-schema + EmitWat `PF:id:code`; justfile lake modules `WasmNear`→`WasmHost`; remote-call Soroban step runs wat2wasm when available. |
+| 2026-07-09 | **T3.2:** Solana portable account auto-fill — `nativeValue` promotes writable signer@0; AuthRemoteCall Shared example (caller+debit+remote) without Source.Solana; `just portable-solana-accounts`. |
 
 When a task completes: set Status to `done`, add commit hash or PR note in changelog.

@@ -32,6 +32,7 @@ NEAR/Wasm:
 |---|---|---|
 | Counter | [Counter.lean](Counter.lean) | `just portable-counter-multi-target` |
 | RemoteCall | [RemoteCall.lean](RemoteCall.lean) | `just portable-remote-call-multi-target` + `just crosscall-materialize`; includes `call_with_args` (u64 scalar ABI) |
+| AuthRemoteCall | [AuthRemoteCall.lean](AuthRemoteCall.lean) | caller + debit + remote; Solana auto-fills authority/state/callee (`just portable-solana-accounts`) |
 | ArrayExample | [ArrayExample.lean](ArrayExample.lean) | `just portable-array-example-multi-target` |
 | Ownable | [Ownable.lean](Ownable.lean) | `just portable-stdlib-core-multi-target`; shared facade over the canonical stdlib mixin |
 | OwnableHash | [OwnableHash.lean](OwnableHash.lean) | hash-width owner; `Tests/PortableAuthMaterialize` · EVM·Solana·NEAR |

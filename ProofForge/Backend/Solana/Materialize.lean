@@ -85,13 +85,35 @@ def callerIdentityNote (module : Module) (accounts : Array AccountEntry) : Strin
   else
     ""
 
+/-- T3.2 product notes for transfer / remote / native-value auto-fill. -/
+def portableIntentNote (module : Module) (accounts : Array AccountEntry) : String :=
+  let parts : Array String := #[]
+  let parts :=
+    if module.capabilities.any (fun c => c == .crosscallInvoke) &&
+        accounts.any (fun a => a.name == "callee_program") then
+      parts.push "remote=callee_program auto-filled"
+    else parts
+  let parts :=
+    if module.capabilities.any (fun c => c == .valueNative) &&
+        (match accounts[0]? with | some a => a.signer && a.writable | none => false) then
+      parts.push "nativeValue=writable signer@0 (fee payer / deposit source)"
+    else parts
+  let parts :=
+    if module.capabilities.any (fun c => c == .callerSender) &&
+        accounts.any (fun a => a.signer) then
+      parts.push "transfer/auth=leading signer for caller"
+    else parts
+  String.intercalate "; " parts.toList
+
 def report (module : Module) (ext : ProgramExtensions := {}) : MaterializationReport :=
   let mode := materializationMode ext
   let accounts := materializeModuleAccounts module ext
   let authNote := callerIdentityNote module accounts
+  let intentNote := portableIntentNote module accounts
   let note :=
-    if authNote.isEmpty then mode.describe
-    else mode.describe ++ "; " ++ authNote
+    let base := mode.describe
+    let withAuth := if authNote.isEmpty then base else base ++ "; " ++ authNote
+    if intentNote.isEmpty then withAuth else withAuth ++ "; " ++ intentNote
   { mode := mode
     storageBinding := StorageBinding.accountData.id
     stateAccountCount := if module.state.isEmpty then 0 else 1

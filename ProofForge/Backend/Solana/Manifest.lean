@@ -435,6 +435,23 @@ def buildEntrypointAccounts (module : Module) (extensions : ProgramExtensions)
   alignInstructionAccountsWithModuleOrder moduleAccounts
     (buildInstructionAccounts module extensions entrypoint)
 
+/-- True when portable IR reads `nativeValue` (Solana = account[0] lamports). -/
+def moduleUsesNativeValue (module : Module) : Bool :=
+  module.capabilities.any (fun c => c == .valueNative)
+
+/-- True when portable IR reads caller (`userId` / `origin` / `caller`). -/
+def moduleUsesCaller (module : Module) : Bool :=
+  module.capabilities.any (fun c => c == .callerSender)
+
+/-- True when portable IR uses `crosscall.invoke` (remote intent). -/
+def moduleUsesPortableCrosscall (module : Module) : Bool :=
+  module.capabilities.any (fun c => c == .crosscallInvoke)
+
+/-- Leading fee-payer / authority should be writable when native value is read
+(deposit/withdraw style intents). Pure Ownable auth keeps non-writable. -/
+def portableAuthorityWritable (module : Module) : Bool :=
+  moduleUsesNativeValue module
+
 /-- Portable caller identity on Solana.
 
 `context.userId` / `origin` lower as **u64-le of sha256(account[0] full 32-byte
@@ -448,35 +465,48 @@ Materialize: when IR reads caller (`callerSender`), ensure a **leading signer**
 * account[0] = `authority` (signer) ← portable caller handle
 * account[1+] = program state / other roles
 
-Authors still only write `guard_owner` / `requireOwner` — no Source.Solana. -/
+When the module also reads `nativeValue`, the leading signer is **writable**
+(fee-payer / deposit source). Pure auth policies keep non-writable authority.
+
+Authors still only write `guard_owner` / `requireOwner` / `caller` — no
+Source.Solana. -/
 def ensurePortableAuthAccounts (module : Module) (accounts : Array AccountEntry) :
     Array AccountEntry :=
-  if !(module.capabilities.any (fun c => c == .callerSender)) then
+  if !(moduleUsesCaller module) then
     accounts
   else
+    let wantWritable := portableAuthorityWritable module
     let leadingSigner :=
       match accounts[0]? with
       | some a => a.signer
       | none => false
     if leadingSigner then
-      accounts
+      match accounts[0]? with
+      | some a =>
+          if wantWritable && !a.writable then
+            let rest := accounts.filter (fun x => x.name != a.name)
+            reindexAccounts (#[ { a with writable := true } ] ++ rest)
+          else
+            accounts
+      | none => accounts
     else
       match accounts.find? (fun a => a.signer) with
       | some auth =>
           let rest := accounts.filter (fun a => a.name != auth.name)
+          let auth := if wantWritable then { auth with writable := true } else auth
           reindexAccounts (#[auth] ++ rest)
       | none =>
           let auth : AccountEntry := {
             name := "authority"
             index := 0
             signer := true
-            writable := false
+            writable := wantWritable
             owner := "any"
           }
           reindexAccounts (#[auth] ++ accounts)
 
-/-- Phase B.3: when portable IR uses `crosscall.invoke`, synthesize the default
-CPI account roles on the transaction account list:
+/-- Phase B.3 / T3.2: when portable IR uses `crosscall.invoke`, synthesize the
+default CPI account roles on the transaction account list:
 
 * default state account (from `buildDefaultAccounts`; may be index ≥ 1 when
   portable auth put `authority` first)
@@ -487,7 +517,7 @@ Authors still do not write CPI account metas; the lowerer packs the full
 account vector into `sol_invoke_signed_c`. -/
 def ensurePortableCrosscallAccounts (module : Module) (accounts : Array AccountEntry) :
     Array AccountEntry :=
-  if !(module.capabilities.any (fun c => c == .crosscallInvoke)) then
+  if !(moduleUsesPortableCrosscall module) then
     accounts
   else
     let accounts :=
@@ -513,6 +543,46 @@ def ensurePortableCrosscallAccounts (module : Module) (accounts : Array AccountE
         owner := "executable"
       }
 
+/-- T3.2: nativeValue reads account[0] lamports. Ensure a leading **writable
+signer** exists (named `payer` when no caller authority was synthesized).
+
+Covers deposit/withdraw transfer intents without Source.Solana. -/
+def ensurePortableNativeValueAccounts (module : Module) (accounts : Array AccountEntry) :
+    Array AccountEntry :=
+  if !(moduleUsesNativeValue module) then
+    accounts
+  else
+    match accounts[0]? with
+    | some a =>
+        if a.signer && a.writable then
+          accounts
+        else if a.signer then
+          let rest := accounts.filter (fun x => x.name != a.name)
+          reindexAccounts (#[ { a with writable := true } ] ++ rest)
+        else
+          match accounts.find? (fun a => a.signer) with
+          | some payer =>
+              let rest := accounts.filter (fun x => x.name != payer.name)
+              reindexAccounts (#[ { payer with writable := true } ] ++ rest)
+          | none =>
+              reindexAccounts (#[
+                {
+                  name := "payer"
+                  index := 0
+                  signer := true
+                  writable := true
+                  owner := "any"
+                }
+              ] ++ accounts)
+    | none =>
+        #[{
+          name := "payer"
+          index := 0
+          signer := true
+          writable := true
+          owner := "any"
+        }]
+
 /-- Index of the portable default state account (by IR state id name), if any. -/
 def stateAccountIndex? (module : Module) (accounts : Array AccountEntry) : Option Nat :=
   if module.state.isEmpty then none
@@ -522,8 +592,11 @@ def stateAccountIndex? (module : Module) (accounts : Array AccountEntry) : Optio
 
 def buildModuleAccounts (module : Module) (extensions : ProgramExtensions) : Array AccountEntry :=
   let accounts := buildDefaultAccounts module
+  -- T3.2 order: auth (caller / transfer sender) → remote CPI roles → native
+  -- fee payer promotion. Source.Solana extensions still merge after.
   let accounts := ensurePortableAuthAccounts module accounts
   let accounts := ensurePortableCrosscallAccounts module accounts
+  let accounts := ensurePortableNativeValueAccounts module accounts
   let accounts :=
     extensions.pdas.foldl
       (fun accounts pda => pushAccount accounts (pdaInstructionAccount pda))

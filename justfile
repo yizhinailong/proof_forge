@@ -676,6 +676,7 @@ crosscall-materialize:
     lake env lean --run Tests/CrosscallMaterialize.lean
     just portable-auth-materialize
     just portable-error-catalog
+    just portable-solana-accounts
     just portable-remote-call-multi-target
 
 # Portable business checks (Ownable) + declareRemote RemoteCall on EVM·Solana·NEAR·Soroban.
@@ -686,6 +687,10 @@ portable-auth-materialize:
 # T3.4: assertionId catalogue parity across EVM · Solana · NEAR clients + sdk-schema + EmitWat PF.
 portable-error-catalog:
     lake env lean --run Tests/PortableErrorCatalog.lean
+
+# T3.2: Solana transfer/remote/nativeValue account auto-fill without Source.Solana.
+portable-solana-accounts:
+    lake env lean --run Tests/SolanaPortableAccounts.lean
 
 # Check translated documentation freshness and example topology.
 docs-check: examples-topology portable-default

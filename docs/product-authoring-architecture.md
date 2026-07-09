@@ -448,7 +448,7 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 |---|---|---|
 | C.1 | **RemoteCall: no host string-pool APIs in Shared** | ✅ `declareRemoteUnit` / `peerHandle` / `remoteCall`; gate bans `registerNearCrosscallString` / `nearAddressLit` |
 | C.2 | **Business checks → native fail on four hosts** | ✅ Ownable: EVM plan · Solana assert · NEAR/Soroban `unreachable`/`panic`; `Tests/PortableAuthMaterialize` |
-| C.3 | **Auth policy materialize** (owner/signer) | ✅ Solana `ensurePortableAuthAccounts`: leading `authority` signer when `callerSender`; state data offset by name |
+| C.3 | **Auth policy materialize** (owner/signer) | ✅ Solana `ensurePortableAuthAccounts`: leading `authority` signer when `callerSender`; state data offset by name; **T3.2** + `ensurePortableNativeValueAccounts` (writable fee payer) + remote `callee_program` for transfer/remote intents (`AuthRemoteCall`) |
 | C.4 | **Source.Solana fixture-only demotion** | ✅ module header + `Examples/Solana/README`; Shared already gated |
 | C.5 | **Soroban in portable multi-target scripts** | ✅ `remote-call-multi-target` + `crosscall-materialize` run portable-auth (Soroban invoke) |
 | C.6 | **Deploy-time peer map** (logical peer → account id) | ✅ `Target.PeerMap`; CLI `--peer` / `--peers-demo` (default **identity**, no silent rewrite) |
