@@ -25,7 +25,7 @@ contract SolanaVault {
     nonce = 0
   }
 
-  entry touch() {
+  entry touch(amount: u64, vault_bump: u64) {
     solana derive pda vault seeds [literal vault, account authority] bump vault_bump account vault_account signer
     solana invoke token_transfer spl_token_transfer_checked(
       source,

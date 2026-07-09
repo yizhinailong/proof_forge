@@ -6,7 +6,8 @@ capabilities = ["crosscall.invoke"]
 
 [[diagnostic]]
 target = "solana-sbpf-asm"
+# Portable crosscall.invoke is supported (CPI); empty peer fails closed via PortableHonesty.
 name = "crosscall.invoke unsupported"
 contains = [
-  "target `solana-sbpf-asm` does not support capability `crosscall.invoke`: capability is not present in the target profile",
+  "PortableHonesty Crosscall: Solana portable remote requires non-empty peer id in nearCrosscallStrings",
 ]

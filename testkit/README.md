@@ -28,8 +28,8 @@ Current scope:
   SHA-256 hash; nested `[[artifact.jsonArtifact]]` checks validate that a JSON
   value embedded in one artifact exactly matches another JSON artifact
 - scenario-declared negative diagnostics through `[[diagnostic]]` entries;
-  the first diagnostic-only scenario verifies that Solana rejects the portable
-  `crosscall.invoke` capability with the expected target/capability message
+  the first diagnostic-only scenario verifies that Solana rejects portable
+  `crosscall.invoke` without a declared peer (PortableHonesty empty-peer fail-closed)
 - `wasm-near` Counter and ValueVault execution through the existing
   deterministic `runtime/offline-host` wasmtime host, using WAT and metadata
   produced from shared `contract_source`

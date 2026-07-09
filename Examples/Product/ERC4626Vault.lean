@@ -14,10 +14,16 @@ just product-erc4626-vault
 ```
 -/
 import ProofForge.Contract.Stdlib.ERC4626
+import ProofForge.Contract.Spec
+import ProofForge.IR.Contract
 
 namespace Examples.Product.ERC4626Vault
 
-def spec := ProofForge.Contract.Stdlib.ERC4626.spec
-def module := ProofForge.Contract.Stdlib.ERC4626.module
+/-- Thin product re-export of the stdlib vault body (Layer C). -/
+def spec : ProofForge.Contract.ContractSpec :=
+  ProofForge.Contract.Stdlib.ERC4626.spec
+
+def module : ProofForge.IR.Module :=
+  ProofForge.Contract.Stdlib.ERC4626.module
 
 end Examples.Product.ERC4626Vault

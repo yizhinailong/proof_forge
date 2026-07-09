@@ -23,6 +23,7 @@ Canonical sources (change only `--target` to build EVM · Solana · NEAR · …)
   `AccessControl.lean`, `ReentrancyGuard.lean`
 - `RoleGatedToken.lean`, `StakingVault.lean`, `ValueVault.lean`
 - `FungibleToken.lean`, `FeeToken.lean`, `SoulboundToken.lean`
+- `ERC4626Vault.lean`, `ExternalVault.lean`, `ExternalTokenTransfer.lean`
 
 Rules: no Solana account/PDA/CPI DSL, no NEAR Promise, no hand-written EVM
 selectors, no author-chosen token standard. Enforced by `just portable-default`.

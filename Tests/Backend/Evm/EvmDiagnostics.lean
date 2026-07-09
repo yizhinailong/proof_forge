@@ -750,12 +750,12 @@ def cases : Array (String × Module × String) := #[
   (
     "crosscall target type mismatch",
     crosscallTargetTypeModule,
-    "crosscall target contract id expected `U64`, got `Bool`"
+    "crosscall target contract id expected `U64` or `Address` (portable handle), got `Bool`"
   ),
   (
     "crosscall method type mismatch",
     crosscallMethodTypeModule,
-    "crosscall method id expected `U64`, got `Bool`"
+    "crosscall method id expected `U64` or `Address` (portable handle), got `Bool`"
   ),
   (
     "crosscall argument type mismatch",

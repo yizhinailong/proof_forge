@@ -133,10 +133,22 @@ if any(instruction.get("computeBudget") != [] for instruction in idl_instruction
     raise SystemExit(f"IDL instruction compute budget should be empty for SDK vault fixture: {idl_instructions}")
 if any(instruction.get("returns") != "Unit" for instruction in idl_instructions):
     raise SystemExit(f"IDL instruction return schema mismatch: {idl_instructions}")
-if any(instruction.get("minDataLen") != 1 for instruction in instructions):
-    raise SystemExit(f"artifact instruction minDataLen mismatch: {instructions}")
-if any(instruction.get("params") != [] for instruction in instructions):
-    raise SystemExit(f"artifact instruction params should be empty for SDK vault fixture: {instructions}")
+# initialize: tag only. touch: tag + amount (u64) + vault_bump (u64) for valueBindings.
+by_name = {ins.get("name"): ins for ins in instructions}
+init_ins = by_name.get("initialize")
+touch_ins = by_name.get("touch")
+if init_ins is None or touch_ins is None:
+    raise SystemExit(f"artifact missing initialize/touch instructions: {instructions}")
+if init_ins.get("minDataLen") != 1 or init_ins.get("params") != []:
+    raise SystemExit(f"initialize schema mismatch (expect minDataLen=1, empty params): {init_ins}")
+if touch_ins.get("minDataLen") != 17:
+    raise SystemExit(f"touch minDataLen mismatch (expect 17 for amount+vault_bump): {touch_ins}")
+expected_touch_params = [
+    {"name": "amount", "type": "U64", "offset": 1, "byteSize": 8, "encoding": "le-u64"},
+    {"name": "vault_bump", "type": "U64", "offset": 9, "byteSize": 8, "encoding": "le-u64"},
+]
+if touch_ins.get("params") != expected_touch_params:
+    raise SystemExit(f"touch params mismatch: {touch_ins.get('params')}")
 instruction_accounts = [account.get("name") for account in instructions[0].get("accounts", [])]
 expected_instruction_accounts = [
     "nonce",
@@ -234,10 +246,21 @@ if manifest_account_decls != expected_account_decls:
     raise SystemExit(f"manifest account declarations mismatch: {manifest_account_decls}")
 if len(manifest_instructions) != 2:
     raise SystemExit(f"manifest instruction schema count mismatch: {len(manifest_instructions)}")
-if any(instruction.get("min_data_len") != 1 for instruction in manifest_instructions):
-    raise SystemExit(f"manifest instruction min_data_len mismatch: {manifest_instructions}")
-if any(instruction.get("params") != [] for instruction in manifest_instructions):
-    raise SystemExit(f"manifest instruction params should be empty for SDK vault fixture: {manifest_instructions}")
+manifest_by_name = {ins.get("name"): ins for ins in manifest_instructions}
+m_init = manifest_by_name.get("initialize")
+m_touch = manifest_by_name.get("touch")
+if m_init is None or m_touch is None:
+    raise SystemExit(f"manifest missing initialize/touch: {manifest_instructions}")
+if m_init.get("min_data_len") != 1 or m_init.get("params") != []:
+    raise SystemExit(f"manifest initialize schema mismatch: {m_init}")
+if m_touch.get("min_data_len") != 17:
+    raise SystemExit(f"manifest touch min_data_len mismatch: {m_touch}")
+expected_manifest_touch_params = [
+    {"name": "amount", "type": "U64", "offset": 1, "byte_size": 8, "encoding": "le-u64"},
+    {"name": "vault_bump", "type": "U64", "offset": 9, "byte_size": 8, "encoding": "le-u64"},
+]
+if m_touch.get("params") != expected_manifest_touch_params:
+    raise SystemExit(f"manifest touch params mismatch: {m_touch.get('params')}")
 manifest_instruction_accounts = [account.get("name") for account in manifest_instructions[0].get("accounts", [])]
 if manifest_instruction_accounts != expected_instruction_accounts:
     raise SystemExit(f"manifest instruction accounts mismatch: {manifest_instruction_accounts}")
@@ -281,12 +304,7 @@ for needle in [
     "solana.pda.seed vault[0] \"vault\"",
     "stb [r5+0], 118",
     "solana.pda.seed vault[1] account authority pubkey",
-    "solana.pda.seed vault[2] bump vault_bump missing (revert)",
-    "ja error_pda_bump",
-    "stxdw [r6+0], r5",
-    "stxdw [r6+8], r3",
-    "mov64 r9, r3",
-    "mov64 r3, r9",
+    "solana.pda.seed vault[2] bump vault_bump from instruction param",
     "call sol_create_program_address",
     "PDA result stored at stack offset 64",
     "solana.pda.validate vault account vault_account",
@@ -298,12 +316,13 @@ for needle in [
     "solana.cpi.account_info source account[2]",
     "solana.cpi.account_info destination account[4]",
     "solana.cpi.data spl-token.transfer_checked: u8 instruction=12, u64 amount, u8 decimals=9",
-    "solana.cpi.value amount source=amount placeholder=0",
+    "solana.cpi.value amount from instruction param amount",
     "stb [r8+0], 12",
     "stb [r8+9], 9",
     "solana.cpi.instruction record: C SolInstruction",
     "call sol_invoke_signed_c",
     "call sol_cpi_token_transfer",
+    "solana.cpi.signer_seed token_transfer[2] bump vault_bump from instruction param",
 ]:
     if needle not in asm:
         raise SystemExit(f"assembly missing {needle!r}")

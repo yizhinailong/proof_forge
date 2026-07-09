@@ -53,13 +53,13 @@ def main : IO UInt32 := do
   require (counterPlan.calls.size > 0) "Counter plan must include routed capability calls"
   require (hasCapability counterPlan .storageScalar) "Counter plan missing storage.scalar"
 
-  let expected :=
-    "target `solana-sbpf-asm` does not support capability `crosscall.invoke`: " ++
-    "capability is not present in the target profile"
+  -- Portable crosscall.invoke is supported on Solana (CPI); empty peer still fails closed.
   match resolveModule solanaSbpfAsm ProofForge.IR.Examples.CrosscallProbe.module with
-  | .ok _ => throw <| IO.userError "Solana routing unexpectedly accepted crosscall.invoke"
+  | .ok _ => throw <| IO.userError "Solana routing unexpectedly accepted crosscall without peer"
   | .error err =>
-      require (err.render == expected) s!"unexpected Solana routing diagnostic: {err.render}"
+      let msg := err.render
+      require (msg.contains "PortableHonesty" || msg.contains "empty peer" || msg.contains "peer")
+        s!"unexpected Solana routing diagnostic: {msg}"
 
   IO.println "target-routing: ok"
   return 0

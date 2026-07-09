@@ -70,7 +70,7 @@ require_file "$OUT/solana/manifest.toml"
 require_contains "$OUT/solana/RemoteCall.s" "sol_invoke_signed_c" "Solana CPI invoke"
 require_contains "$OUT/solana/RemoteCall.s" "sol_get_return_data" "Solana return-data"
 require_contains "$OUT/solana/RemoteCall.s" "AccountMeta" "Solana account metas"
-require_contains "$OUT/solana/RemoteCall.s" "forward" "Solana forwards full account vector"
+require_contains "$OUT/solana/RemoteCall.s" "selective pack" "Solana selective CPI account pack"
 require_contains "$OUT/solana/manifest.toml" "callee_program" "manifest callee_program account"
 GOLDEN_SOL="$ROOT/Examples/Product/goldens/RemoteCall.solana.s"
 if [[ -f "$GOLDEN_SOL" ]]; then

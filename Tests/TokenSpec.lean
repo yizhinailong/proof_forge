@@ -176,11 +176,28 @@ def main : IO UInt32 := do
       require (err.contains "transfer_fee")
         s!"unexpected incompatible-feature diagnostic: {err}"
 
-  match planForTarget wasmNear fungibleToken with
-  | .ok _ => throw <| IO.userError "wasm-near unexpectedly accepted TokenSpec"
+  let nearPlan ←
+    match planForTarget wasmNear fungibleToken with
+    | .ok plan => pure plan
+    | .error err => throw <| IO.userError s!"wasm-near TokenSpec plan failed: {err}"
+  require (nearPlan.standard == .nep141) "NEAR token plan should use NEP-141"
+  require (nearPlan.artifactKind == .nearNep141Plan) "NEAR token plan should emit NEP-141 plan"
+  require (hasOperation nearPlan "ft_transfer") "NEAR NEP-141 plan missing ft_transfer"
+  require (hasOperation nearPlan "ft_balance_of") "NEAR NEP-141 plan missing ft_balance_of"
+  require (hasOperation nearPlan "ft_mint") "NEAR NEP-141 plan missing mintable ft_mint"
+  -- Token-2022-shaped features still reject on NEAR (no silent drop).
+  match planForTarget wasmNear transferFeeToken with
+  | .ok _ => throw <| IO.userError "wasm-near unexpectedly accepted transferFee TokenSpec"
   | .error err =>
-      require (err == "target `wasm-near` does not have a TokenSpec lowering plan yet")
-        s!"unexpected unsupported-target diagnostic: {err}"
+      require (err.contains "transfer" || err.contains "Token-2022" || err.contains "feature" ||
+          err.contains "near" || err.contains "NEAR" || err.contains "wasm-near")
+        s!"unexpected NEAR transferFee reject: {err}"
+  -- Hosts without a TokenSpec lane still fail closed.
+  match planForTarget wasmStellarSoroban fungibleToken with
+  | .ok _ => throw <| IO.userError "soroban unexpectedly accepted TokenSpec"
+  | .error err =>
+      require (err.contains "no TokenSpec lane" || err.contains "wasm-stellar-soroban")
+        s!"unexpected no-lane diagnostic: {err}"
 
   IO.println "token-spec: ok"
   return 0

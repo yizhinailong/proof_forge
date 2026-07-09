@@ -125,6 +125,9 @@ Expr	crosscallInvokeStaticTyped	unsupported	Psy IR v0 rejects static typed scala
 Expr	crosscallInvokeDelegateTyped	unsupported	Psy IR v0 rejects delegate typed scalar crosscalls with an explicit diagnostic because the current Psy lowering only models untyped Felt-returning __invoke_sync calls.
 Expr	crosscallCreate	unsupported	Psy IR v0 rejects EVM contract creation with an explicit diagnostic because DPN does not expose EVM create semantics.
 Expr	crosscallCreate2	unsupported	Psy IR v0 rejects EVM deterministic contract creation with an explicit diagnostic because DPN does not expose EVM create2 semantics.
+Expr	crosscallAbiPacked	unsupported	Psy IR v0 rejects compile-time ABI-packed CALL (EVM ERC20/protocol helper); not a DPN primitive.
+Expr	ecrecover	unsupported	Psy IR v0 rejects EVM ecrecover precompile Expr; circuit crypto uses host-specific gadgets, not ECDSA recovery.
+Expr	eip712PermitDigest	unsupported	Psy IR v0 rejects EIP-712 permit digest Expr (EVM ERC20Permit path).
 Expr	nearCrosscallInvokePool	unsupported	Psy IR v0 rejects NEAR string-pool promise creation with the explicit "NEAR promise API is not supported by Psy IR v0" diagnostic.
 Expr	nearPromiseThen	unsupported	Psy IR v0 rejects NEAR promise chaining with the explicit "NEAR promise API is not supported by Psy IR v0" diagnostic.
 Expr	nearPromiseResultsCount	unsupported	Psy IR v0 rejects NEAR callback promise-result count reads with the explicit "NEAR promise API is not supported by Psy IR v0" diagnostic.

@@ -19,7 +19,7 @@ emits:
 -/
 import ProofForge.Contract.Stdlib.NearFungibleToken
 
-namespace Examples.WasmNear.FungibleToken
+namespace Examples.Backend.WasmNear.FungibleToken
 
 def demoReceiverAccount : String :=
   "demo.receiver.testnet"
@@ -36,4 +36,4 @@ def spec : ProofForge.Contract.ContractSpec :=
 def module : ProofForge.IR.Module :=
   ProofForge.Contract.Stdlib.NearFungibleToken.module
 
-end Examples.WasmNear.FungibleToken
+end Examples.Backend.WasmNear.FungibleToken

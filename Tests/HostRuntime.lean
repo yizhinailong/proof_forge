@@ -286,8 +286,8 @@ no silent wrong binding — especially not block_index / sol_get_cluster)")
     | .ok _ => throw (IO.userError s!"epoch must reject on {tid}")
     | .error msg => require (contains msg "HostEnv") s!"epoch@{tid} HostEnv"
 
-  -- Chain-only: EVM-only terms ok on EVM, reject on Solana/NEAR.
-  for env in #[HostEnv.gasPrice, .baseFee, .txOrigin, .coinbase] do
+  -- Chain-only EVM economics: ok on EVM, reject on Solana/NEAR.
+  for env in #[HostEnv.gasPrice, .baseFee, .coinbase] do
     match materializeEnv "evm" env with
     | .error msg => throw (IO.userError s!"EVM must materialize {env.id}: {msg}")
     | .ok m => require (!isNaSymbol m.binding.symbol) s!"evm {env.id}"
@@ -298,6 +298,19 @@ no silent wrong binding — especially not block_index / sol_get_cluster)")
           require (contains msg "HostEnv") s!"{env.id}@{tid} names HostEnv"
           require (contains msg tid) s!"{env.id} reject names {tid}"
           require (contains msg env.id) s!"{env.id} reject names term"
+  -- txOrigin: EVM native; Solana weak alias of first signer (matches backend lower);
+  -- NEAR still rejects.
+  match materializeEnv "evm" .txOrigin with
+  | .error msg => throw (IO.userError s!"EVM txOrigin: {msg}")
+  | .ok m => require (m.binding.symbol == "origin") "evm origin symbol"
+  match materializeEnv "solana-sbpf-asm" .txOrigin with
+  | .error msg => throw (IO.userError s!"Solana txOrigin alias must ok: {msg}")
+  | .ok m =>
+      require (contains m.binding.symbol "signer" || contains m.binding.symbol "tx")
+        "solana txOrigin alias symbol"
+  match materializeEnv "wasm-near" .txOrigin with
+  | .ok _ => throw (IO.userError "NEAR txOrigin must reject")
+  | .error msg => require (contains msg "HostEnv") "near txOrigin HostEnv"
   match materializeEnv "solana-sbpf-asm" .solanaRent with
   | .ok m => require (contains m.binding.symbol "rent") "solana rent symbol"
   | .error msg => throw (IO.userError s!"solanaRent: {msg}")

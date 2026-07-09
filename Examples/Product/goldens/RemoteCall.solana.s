@@ -1,8 +1,8 @@
   ; ProofForge generated sBPF — RemoteCall (Phase 1)
   ; Target: solana-sbpf-asm (D-026)
 
-.equ INSTRUCTION_DATA_LEN, 31024
-.equ INSTRUCTION_DATA, 31032
+.equ INSTRUCTION_DATA_LEN, 31216
+.equ INSTRUCTION_DATA, 31224
 .equ MARKER_DATA, 96
 
 .globl entrypoint
@@ -57,6 +57,36 @@ entrypoint_account_scan_1_aligned:
   sub64 r6, r5
   add64 r3, r6
 entrypoint_account_scan_2_aligned:
+  mov64 r6, r10
+  sub64 r6, 3488
+  stxdw [r6+24], r3
+  ldxdw r4, [r3+80]
+  add64 r3, 88
+  add64 r3, r4
+  add64 r3, 10240
+  add64 r3, 8
+  mov64 r5, r3
+  and64 r5, 7
+  jeq r5, 0, entrypoint_account_scan_3_aligned
+  mov64 r6, 8
+  sub64 r6, r5
+  add64 r3, r6
+entrypoint_account_scan_3_aligned:
+  mov64 r6, r10
+  sub64 r6, 3488
+  stxdw [r6+32], r3
+  ldxdw r4, [r3+80]
+  add64 r3, 88
+  add64 r3, r4
+  add64 r3, 10240
+  add64 r3, 8
+  mov64 r5, r3
+  and64 r5, 7
+  jeq r5, 0, entrypoint_account_scan_4_aligned
+  mov64 r6, 8
+  sub64 r6, r5
+  add64 r3, r6
+entrypoint_account_scan_4_aligned:
   mov64 r9, r3
   add64 r9, 8
   stxdw [r10-4008], r9
@@ -121,10 +151,24 @@ sol_initialize:
   add64 r7, 2
   ldxb r2, [r7+0]
   jeq r2, 0, error_not_writable
-  ; account.validation[2:callee_program]: owner=executable
+  ; account.validation[2:peer_program]: owner=executable
   mov64 r7, r10
   sub64 r7, 3488
   ldxdw r7, [r7+16]
+  add64 r7, 3
+  ldxb r2, [r7+0]
+  jeq r2, 0, error_owner
+  ; account.validation[3:system_program]: owner=executable
+  mov64 r7, r10
+  sub64 r7, 3488
+  ldxdw r7, [r7+24]
+  add64 r7, 3
+  ldxb r2, [r7+0]
+  jeq r2, 0, error_owner
+  ; account.validation[4:callee_program]: owner=executable
+  mov64 r7, r10
+  sub64 r7, 3488
+  ldxdw r7, [r7+32]
   add64 r7, 3
   ldxb r2, [r7+0]
   jeq r2, 0, error_owner
@@ -181,10 +225,24 @@ sol_call_remote:
   add64 r7, 2
   ldxb r2, [r7+0]
   jeq r2, 0, error_not_writable
-  ; account.validation[2:callee_program]: owner=executable
+  ; account.validation[2:peer_program]: owner=executable
   mov64 r7, r10
   sub64 r7, 3488
   ldxdw r7, [r7+16]
+  add64 r7, 3
+  ldxb r2, [r7+0]
+  jeq r2, 0, error_owner
+  ; account.validation[3:system_program]: owner=executable
+  mov64 r7, r10
+  sub64 r7, 3488
+  ldxdw r7, [r7+24]
+  add64 r7, 3
+  ldxb r2, [r7+0]
+  jeq r2, 0, error_owner
+  ; account.validation[4:callee_program]: owner=executable
+  mov64 r7, r10
+  sub64 r7, 3488
+  ldxdw r7, [r7+32]
   add64 r7, 3
   ldxb r2, [r7+0]
   jeq r2, 0, error_owner
@@ -197,7 +255,7 @@ sol_call_remote:
   mov64 r8, r10
   sub64 r8, 1184
   stxdw [r8+0], r2
-  ; portable crosscall → sol_invoke_signed_c (data_len=8, accounts=3/64, signers=0)
+  ; portable crosscall → sol_invoke_signed_c (data_len=8, accounts=5/64, signers=0)
   stxdw [r10-4000], r1
   ; portable CPI: program_id ← input account[target].key (32 bytes)
   mov64 r6, r10
@@ -217,11 +275,11 @@ sol_call_remote:
   stxdw [r8+16], r3
   ldxdw r3, [r7+24]
   stxdw [r8+24], r3
-  ; portable CPI: forward 3 tx accounts (max=64=tx locks; infos@heap base=12884901888)
+  ; portable CPI: selective pack 5 accounts [0,1,2,3,4] (signer|writable|program|executable; max=64; infos@heap base=12884901888)
   mov64 r6, r10
   sub64 r6, 3488
   ldxdw r7, [r6+0]
-  ; portable CPI: AccountMeta[0] from input account[0] header flags
+  ; portable CPI: AccountMeta[0] ← input account[0] header flags
   mov64 r6, r10
   sub64 r6, 128
   add64 r6, 0
@@ -235,7 +293,7 @@ sol_call_remote:
   mov64 r6, r10
   sub64 r6, 3488
   ldxdw r7, [r6+0]
-  ; portable CPI: AccountInfo[0] @ heap+0 from input account[0]
+  ; portable CPI: AccountInfo[0] @ heap+0 ← input account[0]
   lddw r6, 12884901888
   mov64 r8, r7
   add64 r8, 8
@@ -264,7 +322,7 @@ sol_call_remote:
   mov64 r6, r10
   sub64 r6, 3488
   ldxdw r7, [r6+8]
-  ; portable CPI: AccountMeta[1] from input account[1] header flags
+  ; portable CPI: AccountMeta[1] ← input account[1] header flags
   mov64 r6, r10
   sub64 r6, 128
   add64 r6, 16
@@ -278,7 +336,7 @@ sol_call_remote:
   mov64 r6, r10
   sub64 r6, 3488
   ldxdw r7, [r6+8]
-  ; portable CPI: AccountInfo[1] @ heap+56 from input account[1]
+  ; portable CPI: AccountInfo[1] @ heap+56 ← input account[1]
   lddw r6, 12884901944
   mov64 r8, r7
   add64 r8, 8
@@ -307,7 +365,7 @@ sol_call_remote:
   mov64 r6, r10
   sub64 r6, 3488
   ldxdw r7, [r6+16]
-  ; portable CPI: AccountMeta[2] from input account[2] header flags
+  ; portable CPI: AccountMeta[2] ← input account[2] header flags
   mov64 r6, r10
   sub64 r6, 128
   add64 r6, 32
@@ -321,7 +379,7 @@ sol_call_remote:
   mov64 r6, r10
   sub64 r6, 3488
   ldxdw r7, [r6+16]
-  ; portable CPI: AccountInfo[2] @ heap+112 from input account[2]
+  ; portable CPI: AccountInfo[2] @ heap+112 ← input account[2]
   lddw r6, 12884902000
   mov64 r8, r7
   add64 r8, 8
@@ -347,7 +405,93 @@ sol_call_remote:
   stxb [r6+49], r3
   ldxb r3, [r7+3]
   stxb [r6+50], r3
-  ; portable CPI: SolInstruction (program_id, 3 metas, ix data)
+  mov64 r6, r10
+  sub64 r6, 3488
+  ldxdw r7, [r6+24]
+  ; portable CPI: AccountMeta[3] ← input account[3] header flags
+  mov64 r6, r10
+  sub64 r6, 128
+  add64 r6, 48
+  mov64 r8, r7
+  add64 r8, 8
+  stxdw [r6+0], r8
+  ldxb r3, [r7+2]
+  stxb [r6+8], r3
+  ldxb r3, [r7+1]
+  stxb [r6+9], r3
+  mov64 r6, r10
+  sub64 r6, 3488
+  ldxdw r7, [r6+24]
+  ; portable CPI: AccountInfo[3] @ heap+168 ← input account[3]
+  lddw r6, 12884902056
+  mov64 r8, r7
+  add64 r8, 8
+  stxdw [r6+0], r8
+  mov64 r8, r7
+  add64 r8, 72
+  stxdw [r6+8], r8
+  mov64 r8, r7
+  add64 r8, 80
+  ldxdw r3, [r8+0]
+  stxdw [r6+16], r3
+  mov64 r8, r7
+  add64 r8, 88
+  stxdw [r6+24], r8
+  mov64 r8, r7
+  add64 r8, 40
+  stxdw [r6+32], r8
+  mov64 r3, 0
+  stxdw [r6+40], r3
+  ldxb r3, [r7+1]
+  stxb [r6+48], r3
+  ldxb r3, [r7+2]
+  stxb [r6+49], r3
+  ldxb r3, [r7+3]
+  stxb [r6+50], r3
+  mov64 r6, r10
+  sub64 r6, 3488
+  ldxdw r7, [r6+32]
+  ; portable CPI: AccountMeta[4] ← input account[4] header flags
+  mov64 r6, r10
+  sub64 r6, 128
+  add64 r6, 64
+  mov64 r8, r7
+  add64 r8, 8
+  stxdw [r6+0], r8
+  ldxb r3, [r7+2]
+  stxb [r6+8], r3
+  ldxb r3, [r7+1]
+  stxb [r6+9], r3
+  mov64 r6, r10
+  sub64 r6, 3488
+  ldxdw r7, [r6+32]
+  ; portable CPI: AccountInfo[4] @ heap+224 ← input account[4]
+  lddw r6, 12884902112
+  mov64 r8, r7
+  add64 r8, 8
+  stxdw [r6+0], r8
+  mov64 r8, r7
+  add64 r8, 72
+  stxdw [r6+8], r8
+  mov64 r8, r7
+  add64 r8, 80
+  ldxdw r3, [r8+0]
+  stxdw [r6+16], r3
+  mov64 r8, r7
+  add64 r8, 88
+  stxdw [r6+24], r8
+  mov64 r8, r7
+  add64 r8, 40
+  stxdw [r6+32], r8
+  mov64 r3, 0
+  stxdw [r6+40], r3
+  ldxb r3, [r7+1]
+  stxb [r6+48], r3
+  ldxb r3, [r7+2]
+  stxb [r6+49], r3
+  ldxb r3, [r7+3]
+  stxb [r6+50], r3
+  ; portable CPI: SolInstruction (program_id, 5 metas, ix data)
   mov64 r5, r10
   sub64 r5, 64
   mov64 r8, r10
@@ -356,7 +500,7 @@ sol_call_remote:
   mov64 r7, r10
   sub64 r7, 128
   stxdw [r5+8], r7
-  mov64 r3, 3
+  mov64 r3, 5
   stxdw [r5+16], r3
   mov64 r8, r10
   sub64 r8, 1184
@@ -366,10 +510,10 @@ sol_call_remote:
   mov64 r1, r10
   sub64 r1, 64
   lddw r2, 12884901888
-  mov64 r3, 3
+  mov64 r3, 5
   mov64 r4, 0
   mov64 r5, 0
-  ; r1=instruction_ptr r2=heap_infos_ptr r3=3 r4=0 r5=0
+  ; r1=instruction_ptr r2=heap_infos_ptr r3=5 r4=0 r5=0
   call sol_invoke_signed_c
   jne r0, 0, error_cpi
   ldxdw r1, [r10-4000]
@@ -450,10 +594,24 @@ sol_call_with_args:
   add64 r7, 2
   ldxb r2, [r7+0]
   jeq r2, 0, error_not_writable
-  ; account.validation[2:callee_program]: owner=executable
+  ; account.validation[2:peer_program]: owner=executable
   mov64 r7, r10
   sub64 r7, 3488
   ldxdw r7, [r7+16]
+  add64 r7, 3
+  ldxb r2, [r7+0]
+  jeq r2, 0, error_owner
+  ; account.validation[3:system_program]: owner=executable
+  mov64 r7, r10
+  sub64 r7, 3488
+  ldxdw r7, [r7+24]
+  add64 r7, 3
+  ldxb r2, [r7+0]
+  jeq r2, 0, error_owner
+  ; account.validation[4:callee_program]: owner=executable
+  mov64 r7, r10
+  sub64 r7, 3488
+  ldxdw r7, [r7+32]
   add64 r7, 3
   ldxb r2, [r7+0]
   jeq r2, 0, error_owner
@@ -474,7 +632,7 @@ sol_call_with_args:
   mov64 r8, r10
   sub64 r8, 1184
   stxdw [r8+16], r2
-  ; portable crosscall → sol_invoke_signed_c (data_len=24, accounts=3/64, signers=0)
+  ; portable crosscall → sol_invoke_signed_c (data_len=24, accounts=5/64, signers=0)
   stxdw [r10-4000], r1
   ; portable CPI: program_id ← input account[target].key (32 bytes)
   mov64 r6, r10
@@ -494,11 +652,11 @@ sol_call_with_args:
   stxdw [r8+16], r3
   ldxdw r3, [r7+24]
   stxdw [r8+24], r3
-  ; portable CPI: forward 3 tx accounts (max=64=tx locks; infos@heap base=12884901888)
+  ; portable CPI: selective pack 5 accounts [0,1,2,3,4] (signer|writable|program|executable; max=64; infos@heap base=12884901888)
   mov64 r6, r10
   sub64 r6, 3488
   ldxdw r7, [r6+0]
-  ; portable CPI: AccountMeta[0] from input account[0] header flags
+  ; portable CPI: AccountMeta[0] ← input account[0] header flags
   mov64 r6, r10
   sub64 r6, 128
   add64 r6, 0
@@ -512,7 +670,7 @@ sol_call_with_args:
   mov64 r6, r10
   sub64 r6, 3488
   ldxdw r7, [r6+0]
-  ; portable CPI: AccountInfo[0] @ heap+0 from input account[0]
+  ; portable CPI: AccountInfo[0] @ heap+0 ← input account[0]
   lddw r6, 12884901888
   mov64 r8, r7
   add64 r8, 8
@@ -541,7 +699,7 @@ sol_call_with_args:
   mov64 r6, r10
   sub64 r6, 3488
   ldxdw r7, [r6+8]
-  ; portable CPI: AccountMeta[1] from input account[1] header flags
+  ; portable CPI: AccountMeta[1] ← input account[1] header flags
   mov64 r6, r10
   sub64 r6, 128
   add64 r6, 16
@@ -555,7 +713,7 @@ sol_call_with_args:
   mov64 r6, r10
   sub64 r6, 3488
   ldxdw r7, [r6+8]
-  ; portable CPI: AccountInfo[1] @ heap+56 from input account[1]
+  ; portable CPI: AccountInfo[1] @ heap+56 ← input account[1]
   lddw r6, 12884901944
   mov64 r8, r7
   add64 r8, 8
@@ -584,7 +742,7 @@ sol_call_with_args:
   mov64 r6, r10
   sub64 r6, 3488
   ldxdw r7, [r6+16]
-  ; portable CPI: AccountMeta[2] from input account[2] header flags
+  ; portable CPI: AccountMeta[2] ← input account[2] header flags
   mov64 r6, r10
   sub64 r6, 128
   add64 r6, 32
@@ -598,7 +756,7 @@ sol_call_with_args:
   mov64 r6, r10
   sub64 r6, 3488
   ldxdw r7, [r6+16]
-  ; portable CPI: AccountInfo[2] @ heap+112 from input account[2]
+  ; portable CPI: AccountInfo[2] @ heap+112 ← input account[2]
   lddw r6, 12884902000
   mov64 r8, r7
   add64 r8, 8
@@ -624,7 +782,93 @@ sol_call_with_args:
   stxb [r6+49], r3
   ldxb r3, [r7+3]
   stxb [r6+50], r3
-  ; portable CPI: SolInstruction (program_id, 3 metas, ix data)
+  mov64 r6, r10
+  sub64 r6, 3488
+  ldxdw r7, [r6+24]
+  ; portable CPI: AccountMeta[3] ← input account[3] header flags
+  mov64 r6, r10
+  sub64 r6, 128
+  add64 r6, 48
+  mov64 r8, r7
+  add64 r8, 8
+  stxdw [r6+0], r8
+  ldxb r3, [r7+2]
+  stxb [r6+8], r3
+  ldxb r3, [r7+1]
+  stxb [r6+9], r3
+  mov64 r6, r10
+  sub64 r6, 3488
+  ldxdw r7, [r6+24]
+  ; portable CPI: AccountInfo[3] @ heap+168 ← input account[3]
+  lddw r6, 12884902056
+  mov64 r8, r7
+  add64 r8, 8
+  stxdw [r6+0], r8
+  mov64 r8, r7
+  add64 r8, 72
+  stxdw [r6+8], r8
+  mov64 r8, r7
+  add64 r8, 80
+  ldxdw r3, [r8+0]
+  stxdw [r6+16], r3
+  mov64 r8, r7
+  add64 r8, 88
+  stxdw [r6+24], r8
+  mov64 r8, r7
+  add64 r8, 40
+  stxdw [r6+32], r8
+  mov64 r3, 0
+  stxdw [r6+40], r3
+  ldxb r3, [r7+1]
+  stxb [r6+48], r3
+  ldxb r3, [r7+2]
+  stxb [r6+49], r3
+  ldxb r3, [r7+3]
+  stxb [r6+50], r3
+  mov64 r6, r10
+  sub64 r6, 3488
+  ldxdw r7, [r6+32]
+  ; portable CPI: AccountMeta[4] ← input account[4] header flags
+  mov64 r6, r10
+  sub64 r6, 128
+  add64 r6, 64
+  mov64 r8, r7
+  add64 r8, 8
+  stxdw [r6+0], r8
+  ldxb r3, [r7+2]
+  stxb [r6+8], r3
+  ldxb r3, [r7+1]
+  stxb [r6+9], r3
+  mov64 r6, r10
+  sub64 r6, 3488
+  ldxdw r7, [r6+32]
+  ; portable CPI: AccountInfo[4] @ heap+224 ← input account[4]
+  lddw r6, 12884902112
+  mov64 r8, r7
+  add64 r8, 8
+  stxdw [r6+0], r8
+  mov64 r8, r7
+  add64 r8, 72
+  stxdw [r6+8], r8
+  mov64 r8, r7
+  add64 r8, 80
+  ldxdw r3, [r8+0]
+  stxdw [r6+16], r3
+  mov64 r8, r7
+  add64 r8, 88
+  stxdw [r6+24], r8
+  mov64 r8, r7
+  add64 r8, 40
+  stxdw [r6+32], r8
+  mov64 r3, 0
+  stxdw [r6+40], r3
+  ldxb r3, [r7+1]
+  stxb [r6+48], r3
+  ldxb r3, [r7+2]
+  stxb [r6+49], r3
+  ldxb r3, [r7+3]
+  stxb [r6+50], r3
+  ; portable CPI: SolInstruction (program_id, 5 metas, ix data)
   mov64 r5, r10
   sub64 r5, 64
   mov64 r8, r10
@@ -633,7 +877,7 @@ sol_call_with_args:
   mov64 r7, r10
   sub64 r7, 128
   stxdw [r5+8], r7
-  mov64 r3, 3
+  mov64 r3, 5
   stxdw [r5+16], r3
   mov64 r8, r10
   sub64 r8, 1184
@@ -643,10 +887,10 @@ sol_call_with_args:
   mov64 r1, r10
   sub64 r1, 64
   lddw r2, 12884901888
-  mov64 r3, 3
+  mov64 r3, 5
   mov64 r4, 0
   mov64 r5, 0
-  ; r1=instruction_ptr r2=heap_infos_ptr r3=3 r4=0 r5=0
+  ; r1=instruction_ptr r2=heap_infos_ptr r3=5 r4=0 r5=0
   call sol_invoke_signed_c
   jne r0, 0, error_cpi
   ldxdw r1, [r10-4000]

@@ -8,8 +8,8 @@ Authors call an already-deployed vault without `Protocols.*` import.
 
   --target evm → IERC4626 selectors (deposit / convertToShares / …)
 
-TokenSpec still does **not** generate ERC-4626 *bodies* (Layer C); this is
-ecosystem integration only.
+The token-intent planner still does **not** generate ERC-4626 *bodies*
+(Layer C); this is ecosystem integration only.
 
 ```bash
 just product-protocol-vault

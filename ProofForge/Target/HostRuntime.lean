@@ -273,10 +273,11 @@ def HostEffect.adapterBindings : HostEffect → Array NativeBinding
         note? := some "spike WasmMsg-shaped execute; not full CosmWasm Querier" }
     ]
   | .assertFail => #[
-      { targetId := "wasm-stellar-soroban", kind := .hostImport, symbol := "n/a",
-        note? := some "trap / panic intrinsic" },
-      { targetId := "wasm-cosmwasm", kind := .hostImport, symbol := "n/a",
-        note? := some "ContractError return / trap" }
+      -- EmitWat lowers assert-fail as Wasm `unreachable` (same as NEAR no-ErrorRef path).
+      { targetId := "wasm-stellar-soroban", kind := .hostImport, symbol := "unreachable",
+        note? := some "Wasm trap; EmitWat assert without ErrorRef" },
+      { targetId := "wasm-cosmwasm", kind := .hostImport, symbol := "unreachable",
+        note? := some "Wasm trap / ContractError return path" }
     ]
   | .memoryCopy | .memorySet => #[
       { targetId := "wasm-stellar-soroban", kind := .hostImport, symbol := "memory.intrinsic" },
@@ -368,16 +369,25 @@ def honestyError (targetId : String) (cap : Capability) (effect : HostEffect) : 
   s!"HostRuntime: target `{targetId}` cannot use capability `{cap.id}`: \
 host effect `{effect.id}` has no native binding (symbol `{sym}`)"
 
+/-- Targets with HostEffect catalog rows (primary triad + Wasm adapters).
+Other registry targets (psy/aleo/move/…) use profile capabilities only. -/
+def isHostRuntimeTarget (targetId : String) : Bool :=
+  primaryTargetIds.contains targetId || adapterTargetIds.contains targetId
+
 /-- Reject when any requested capability maps to an n/a HostEffect on this target.
-Shipped honesty gate — call from capability plan resolve / preflight. -/
+Only applies to `isHostRuntimeTarget` hosts; Psy/Aleo/Move skip this gate so
+backend-specific diagnostics still fire first. -/
 def requireHostRuntimeHonesty (targetId : String) (capabilities : Array Capability) :
     Except String Unit :=
-  capabilities.foldlM
-    (fun _ cap =>
-      match firstUnsupportedEffect? cap targetId with
-      | some effect => .error (honestyError targetId cap effect)
-      | none => .ok ())
-    ()
+  if !isHostRuntimeTarget targetId then
+    .ok ()
+  else
+    capabilities.foldlM
+      (fun _ cap =>
+        match firstUnsupportedEffect? cap targetId with
+        | some effect => .error (honestyError targetId cap effect)
+        | none => .ok ())
+      ()
 
 /-- Count supported effects on a target (for smoke metrics). -/
 def supportedCount (targetId : String) : Nat :=
@@ -632,6 +642,11 @@ def materializeEnv (targetId : String) (env : HostEnv) :
       .error (hostEnvReject targetId env "EVM-only basefee (EIP-1559)")
   | .txOrigin, "evm" =>
       .ok (mk .opcode "origin" none none)
+  | .txOrigin, "solana-sbpf-asm" =>
+      -- Backend already lowers ContextField.origin as first-signer pubkey digest
+      -- (same path as userId). Not EVM tx.origin semantics — document the alias.
+      .ok (mk .syscall "tx_signer_account" (some "alias of first signer / userId")
+        (some "NOT EVM tx.origin; same as env.caller on Solana"))
   | .txOrigin, _ =>
       .error (hostEnvReject targetId env "EVM-only tx.origin; use env.caller")
   | .coinbase, "evm" =>

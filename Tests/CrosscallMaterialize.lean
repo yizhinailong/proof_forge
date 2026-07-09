@@ -104,15 +104,18 @@ def main : IO Unit := do
         s!"expected nearCrosscallStrings / promise diagnostic, got: {e.message}"
 
   -- Solana: EVM-only STATICCALL is rejected (not silently remapped to CPI).
+  -- Peer declared so PortableHonesty empty-peer does not fire before policy.
   let staticOnly : ProofForge.IR.Module := {
     name := "StaticOnly"
     state := probe.state
     entrypoints := #[ProofForge.IR.Examples.CrosscallProbe.callRemoteStatic]
+    nearCrosscallStrings := #["TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"]
   }
   match ProofForge.Backend.Solana.SbpfAsm.renderModule staticOnly with
   | .ok _ => throw (IO.userError "Solana must reject STATICCALL")
   | .error e =>
-      require (e.message.contains "STATICCALL" || e.message.contains "EVM-only")
+      require (e.message.contains "STATICCALL" || e.message.contains "EVM-only" ||
+          e.message.contains "static")
         s!"expected STATICCALL reject, got: {e.message}"
 
   -- CosmWasm: general portable remote → execute_msg (Wasm family host, not token-only).

@@ -18,7 +18,7 @@ entrypoint:
   mov64 r3, r1
   add64 r3, 8
   mov64 r6, r10
-  sub64 r6, 3328
+  sub64 r6, 3488
   stxdw [r6+0], r3
   ldxdw r4, [r3+80]
   add64 r3, 88
@@ -34,13 +34,13 @@ entrypoint:
 entrypoint_account_scan_0_aligned:
   mov64 r9, r3
   add64 r9, 8
-  stxdw [r10-3584], r9
+  stxdw [r10-4008], r9
   ; instruction_data.length >= 1
-  ldxdw r3, [r10-3584]
+  ldxdw r3, [r10-4008]
   sub64 r3, 8
   ldxdw r2, [r3+0]
   jlt r2, 1, error_instruction_data
-  ldxdw r3, [r10-3584]
+  ldxdw r3, [r10-4008]
   ldxb r2, [r3+0]
   jeq r2, 0, sol_initialize
   jeq r2, 1, sol_deposit
@@ -57,7 +57,7 @@ sol_initialize:
   ; account.validation: generated account schema
   ; account.validation[0:balance]: writable=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 2
   ldxb r2, [r7+0]
@@ -70,7 +70,7 @@ sol_initialize:
   add64 r4, r2
   stxdw [r10-3600], r4
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 40
   ldxdw r4, [r10-3600]
@@ -117,6 +117,7 @@ sol_initialize:
   stxdw [r1+128], r2
   mov64 r2, 1
   stxdw [r1+136], r2
+  ; HostRuntime host.log.emit → syscall:sol_log_64_
   ; solana.event.emit VaultInitialized: sol_log_64_ scalar fields
   ldxdw r2, [r10-8]
   ; solana.event.field VaultInitialized.initial: tag=2316149127 index=0
@@ -146,7 +147,7 @@ sol_deposit:
   ; account.validation: generated account schema
   ; account.validation[0:balance]: writable=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 2
   ldxb r2, [r7+0]
@@ -159,7 +160,7 @@ sol_deposit:
   add64 r4, r2
   stxdw [r10-3600], r4
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 40
   ldxdw r4, [r10-3600]
@@ -207,6 +208,7 @@ sol_deposit:
   stxdw [r1+120], r2
   ldxdw r2, [r10-40]
   stxdw [r1+136], r2
+  ; HostRuntime host.log.emit → syscall:sol_log_64_
   ; solana.event.emit ValueDeposited: sol_log_64_ scalar fields
   ldxdw r2, [r10-8]
   ; solana.event.field ValueDeposited.amount: tag=419180867 index=0
@@ -246,7 +248,7 @@ sol_charge_fee:
   ; account.validation: generated account schema
   ; account.validation[0:balance]: writable=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 2
   ldxb r2, [r7+0]
@@ -259,7 +261,7 @@ sol_charge_fee:
   add64 r4, r2
   stxdw [r10-3600], r4
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 40
   ldxdw r4, [r10-3600]
@@ -339,6 +341,7 @@ sol_charge_fee:
   stxdw [r1+120], r2
   ldxdw r2, [r10-80]
   stxdw [r1+136], r2
+  ; HostRuntime host.log.emit → syscall:sol_log_64_
   ; solana.event.emit ValueCharged: sol_log_64_ scalar fields
   ldxdw r2, [r10-8]
   ; solana.event.field ValueCharged.gross: tag=2567218288 index=0
@@ -388,7 +391,7 @@ sol_release:
   ; account.validation: generated account schema
   ; account.validation[0:balance]: writable=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 2
   ldxb r2, [r7+0]
@@ -401,7 +404,7 @@ sol_release:
   add64 r4, r2
   stxdw [r10-3600], r4
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 40
   ldxdw r4, [r10-3600]
@@ -460,6 +463,7 @@ sol_release:
   stxdw [r1+120], r2
   ldxdw r2, [r10-56]
   stxdw [r1+136], r2
+  ; HostRuntime host.log.emit → syscall:sol_log_64_
   ; solana.event.emit ValueReleased: sol_log_64_ scalar fields
   ldxdw r2, [r10-8]
   ; solana.event.field ValueReleased.amount: tag=3275777927 index=0
@@ -499,7 +503,7 @@ sol_snapshot:
   ; account.validation: generated account schema
   ; account.validation[0:balance]: writable=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 2
   ldxb r2, [r7+0]
@@ -512,7 +516,7 @@ sol_snapshot:
   add64 r4, r2
   stxdw [r10-3600], r4
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 40
   ldxdw r4, [r10-3600]
@@ -545,6 +549,7 @@ sol_snapshot:
   stxdw [r10-32], r2
   ldxdw r2, [r10-8]
   stxdw [r1+128], r2
+  ; HostRuntime host.log.emit → syscall:sol_log_64_
   ; solana.event.emit ValueSnapshot: sol_log_64_ scalar fields
   ldxdw r2, [r10-16]
   ; solana.event.field ValueSnapshot.balance: tag=1266048818 index=0
@@ -601,7 +606,7 @@ sol_get_balance:
   ; account.validation: generated account schema
   ; account.validation[0:balance]: writable=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 2
   ldxb r2, [r7+0]
@@ -614,7 +619,7 @@ sol_get_balance:
   add64 r4, r2
   stxdw [r10-3600], r4
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 40
   ldxdw r4, [r10-3600]
@@ -645,7 +650,7 @@ sol_get_net_value:
   ; account.validation: generated account schema
   ; account.validation[0:balance]: writable=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 2
   ldxb r2, [r7+0]
@@ -658,7 +663,7 @@ sol_get_net_value:
   add64 r4, r2
   stxdw [r10-3600], r4
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 40
   ldxdw r4, [r10-3600]
@@ -723,6 +728,10 @@ error_pda_bump:
 
 error_array_bounds:
   mov64 r0, 12
+  exit
+
+error_cpi:
+  mov64 r0, 8
   exit
 
 error_syscall:

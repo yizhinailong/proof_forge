@@ -130,7 +130,9 @@ def main : IO UInt32 := do
     ["--contract-source-sbpf", "-o", "build/portable-counter/Counter.s", "--root", ".", "Examples/Product/Counter.lean"]
   requireLegacy
     ["build", "--target", "wasm-near", "--root", ".", "-o", "build/portable-counter/near", "Examples/Product/Counter.lean"]
-    ["--contract-source-emitwat", "-o", "build/portable-counter/near", "--root", ".", "Examples/Product/Counter.lean"]
+    -- Host bridge (NEAR vs Soroban) is selected from --target on EmitWat path.
+    ["--contract-source-emitwat", "-o", "build/portable-counter/near", "--root", ".", "--target", "wasm-near",
+      "Examples/Product/Counter.lean"]
   requireLegacy
     ["emit", "--target", "psy-dpn", "--fixture", "assert", "--format", "psy", "-o", "build/psy/AssertProbe.psy"]
     ["--emit-assert-ir-psy", "-o", "build/psy/AssertProbe.psy"]

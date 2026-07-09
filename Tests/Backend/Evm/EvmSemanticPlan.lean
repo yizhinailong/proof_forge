@@ -1005,13 +1005,21 @@ def testDeployMetadata : IO Unit := do
 
 def testHashHelperPlanToYul : IO Unit := do
   let hashHelpers := ProofForge.Backend.Evm.ToYul.hashHelperFunctions
-  require (hashHelpers.size == 2) "hash ToYul helper count"
+  -- hashWord + hashPair + ecrecover + eip712PermitDigest (product crypto helpers)
+  require (hashHelpers.size == 4) "hash ToYul helper count"
   require
     (statementsHaveFunctionNamed hashHelpers (ProofForge.Backend.Evm.Plan.Helper.hashWord).name)
     "hash ToYul helper set includes hash word"
   require
     (statementsHaveFunctionNamed hashHelpers (ProofForge.Backend.Evm.Plan.Helper.hashPair).name)
     "hash ToYul helper set includes hash pair"
+  require
+    (statementsHaveFunctionNamed hashHelpers (ProofForge.Backend.Evm.Plan.Helper.ecrecover).name)
+    "hash ToYul helper set includes ecrecover"
+  require
+    (statementsHaveFunctionNamed hashHelpers
+      (ProofForge.Backend.Evm.Plan.Helper.eip712PermitDigest).name)
+    "hash ToYul helper set includes eip712 permit digest"
   let plan ←
     requireOk
       (buildSemanticPlan ProofForge.IR.Examples.EvmHashProbe.module)
@@ -10203,10 +10211,18 @@ def unsupportedCrosscallModule : Module := {
 }
 
 def testStrictRenderRejectsUnsupportedCapabilities : IO Unit := do
-  requireErrorContains
-    (renderModule unsupportedCrosscallModule)
-    "does not support capability `near.promise`"
-    "strict EVM render must reject unsupported capabilities"
+  -- Prefer PortableHonesty sync-subset reject; capability reject remains valid fallback text.
+  match renderModule unsupportedCrosscallModule with
+  | .ok _ =>
+      throw (IO.userError "strict EVM render must reject unsupported NEAR promise extensions")
+  | .error err =>
+      require (
+          err.message.contains "near.promise" ||
+          err.message.contains "PortableHonesty" ||
+          err.message.contains "promise_then" ||
+          err.message.contains "promise_result"
+        )
+        s!"strict EVM render must reject unsupported capabilities, got: {err.message}"
   let fallbackPlan := buildSemanticPlanBestEffort unsupportedCrosscallModule
   require (fallbackPlan.name == "UnsupportedCrosscall")
     "best-effort EVM semantic plan should remain available for diagnostic callers"

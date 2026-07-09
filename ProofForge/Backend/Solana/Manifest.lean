@@ -568,8 +568,9 @@ def ensurePortableCrosscallAccounts (module : Module) (accounts : Array AccountE
           writable := true
           owner := "any"
         }
-    if accounts.any (fun a => a.name == "callee_program") ||
-        accounts.any (fun a => a.name == "peer_program") then
+    -- Always keep historical `callee_program` role for CPI program-id packing /
+    -- product-matrix expectations; inference may also add `peer_program`.
+    if accounts.any (fun a => a.name == "callee_program") then
       accounts
     else
       pushAccount accounts {

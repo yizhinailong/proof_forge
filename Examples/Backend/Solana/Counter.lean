@@ -23,7 +23,7 @@ Build the Solana ELF (requires `sbpf` on PATH):
 
 import Examples.Product.Counter
 
-namespace Examples.Solana.Counter
+namespace Examples.Backend.Solana.Counter
 
 def spec : ProofForge.Contract.ContractSpec :=
   Examples.Product.Counter.spec
@@ -31,4 +31,4 @@ def spec : ProofForge.Contract.ContractSpec :=
 def module : ProofForge.IR.Module :=
   spec.module
 
-end Examples.Solana.Counter
+end Examples.Backend.Solana.Counter

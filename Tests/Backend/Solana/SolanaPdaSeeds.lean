@@ -30,9 +30,10 @@ def pdaOnlySpec : ProofForge.Contract.ContractSpec :=
         (account? := some "vault_account")
       effect (storageScalarWrite "nonce" (localVar "vault_bump"))
 
-/-- Signer PDA + portable peer crosscall → invoke_signed with seed packing. -/
+/-- Signer PDA + portable peer crosscall → invoke_signed with seed packing.
+Declared peer id is required for Solana PortableHonesty account inference. -/
 def portablePdaRemoteSpec : ProofForge.Contract.ContractSpec :=
-  build "SolanaPortablePdaRemote" do
+  let s := build "SolanaPortablePdaRemote" do
     scalarState "nonce" .u64
 
     pdaAccount "vault" #[literalSeed "vault", accountSeed "authority"]
@@ -48,6 +49,7 @@ def portablePdaRemoteSpec : ProofForge.Contract.ContractSpec :=
         (isSigner := true)
       ret (ProofForge.IR.Expr.crosscallInvoke
         (localVar "target") (localVar "method") #[])
+  { s with module := { s.module with nearCrosscallStrings := #["portable.callee"] } }
 
 def main : IO UInt32 := do
   match ProofForge.Backend.Solana.Package.renderPackageForSpec "pda-seeds" pdaOnlySpec with
@@ -113,7 +115,7 @@ def main : IO UInt32 := do
 
   -- Selective pack: readonly spectator should be omitted; signer/writable/program kept.
   let selectiveSpec : ProofForge.Contract.ContractSpec :=
-    build "SolanaSelectiveCpiAccounts" do
+    let s := build "SolanaSelectiveCpiAccounts" do
       scalarState "nonce" .u64
       writableAccountConstraint "authority"
       readonlyAccountConstraint "spectator"
@@ -122,6 +124,7 @@ def main : IO UInt32 := do
           #[("target", .u64), ("method", .u64)] .u64 do
         ret (ProofForge.IR.Expr.crosscallInvoke
           (localVar "target") (localVar "method") #[])
+    { s with module := { s.module with nearCrosscallStrings := #["portable.callee"] } }
   match ProofForge.Backend.Solana.Package.renderPackageForSpec
       "selective-cpi-accounts" selectiveSpec with
   | .ok pkg =>
