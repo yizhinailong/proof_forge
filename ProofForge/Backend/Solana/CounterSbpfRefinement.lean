@@ -516,18 +516,12 @@ theorem counterSbpfCore_canonical_safe_trace_simulates :
       counterTraceSafe_initialize_get_increment_get
   exact ⟨finalIr, finalCore, observables, hirTrace, hcoreTrace, hrelFinal⟩
 
-/-! ### FV-9.3 Solana cap: the structural `∀ (m : Module)` sBPF fragment-refines
+/-! ### FV-9.5 Solana cap: content-honest `∀ (m : Module)` sBPF fragment-refines
 
-The Solana sBPF core-tail target's `∀ (m : Module)` theorem. This is the
-Solana-first replication of FV-9.3: the compiler-correctness theorem quantified
-over every module `m` in the supported fragment, with the sBPF core-tail as
-the target machine and `CounterSbpfRel` as the simulation relation.
-
-The proof reduces to the existing `counterSbpfCore_trace_simulates_from_obligations`
-via `moduleIrStep m = irStep` (`rfl`), because the Solana refinement already
-uses `counterIRStep` (an alias of the canonical `irStep`) and `CounterSbpfRel`.
-The `isCounterModule m = true` hypothesis scopes `m` to the counter-model
-fragment; `moduleInCoveredFragment m = true` ensures FV-9.2 constructor coverage.
+The Solana sBPF core-tail target's `∀ (m : Module)` theorem. `moduleIrStep m`
+runs **`m`'s own entrypoint bodies**; agreement with `irStep` is
+`moduleIrStep_eq_irStep_of_isCounterModule` (body extraction), then the
+existing `counterSbpfCore_trace_simulates_from_obligations`.
 -/
 
 open ProofForge.Backend.Refinement.CounterUniversal
@@ -535,7 +529,7 @@ open ProofForge.Backend.Refinement.ConstructorCoverage
 
 theorem solanaSbpf_fragment_refines_all
     (m : Module) (hm : isCounterModule m = true)
-    (hcovered : moduleInCoveredFragment m = true)
+    ( _hcovered : moduleInCoveredFragment m = true)
     (calls : List CounterCall) {irState : IRState} {core : CounterCoreState}
     (hrel : CounterSbpfRel irState core) :
     ∃ finalIr finalCore observables,
@@ -544,7 +538,9 @@ theorem solanaSbpf_fragment_refines_all
       CounterSbpfRel finalIr finalCore ∧
       IRTraceMatches (moduleIrStep m) irState calls observables ∧
       IRTraceMatches counterSbpfCoreTraceStep core calls observables := by
-  rw [show moduleIrStep m = irStep from rfl]
+  have hfun : moduleIrStep m = irStep :=
+    funext fun s => funext fun c => moduleIrStep_eq_irStep_of_isCounterModule hm c s
+  rw [hfun]
   exact counterSbpfCore_trace_simulates_from_obligations counterSbpfCoreObligations calls hrel
 
 end ProofForge.Backend.Solana.CounterSbpfRefinement

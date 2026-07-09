@@ -9,6 +9,7 @@ lists from related states, and init-prefixed traces from arbitrary IR states.
 
 namespace ProofForge.Tests.CounterUniversalRefinement
 
+open ProofForge.Backend.Refinement
 open ProofForge.Backend.Refinement.CounterUniversal
 
 #check counter_initialize_simulates
@@ -61,20 +62,21 @@ preservation + traceSimulation_lift chain composes. -/
 
 #check counterModel_fragment_refines
 
-/-! ## FV-9.3 cap: the structural `∀ (m : Module)` fragment-refines theorem
+/-! ## FV-9.5: content-honest `∀ (m : Module)` fragment-refines
 
 The keystone FV-9 deliverable: the compiler-correctness theorem quantified over
-**every module `m`** in the supported fragment, not just the canonical Counter
-witness. `counterModel_fragment_refines_all` takes `m : Module`, `hm :
-isCounterModule m = true` (the counter-model fragment), and `hcovered :
-moduleInCoveredFragment m = true` (FV-9.2 constructor coverage) and proves the
-trace simulation for every call list from every related state. The proof is
-`rfl`-reducible because `moduleIrStep m` resolves entrypoints via the canonical
-`CounterCall.entrypoint` (the fragment guarantees the bodies match). -/
+**every module `m`** in the supported fragment. `moduleIrStep m` looks up
+entrypoints in **`m.entrypoints`** and runs those bodies.
+`moduleIrStep_eq_irStep_of_isCounterModule` bridges to the canonical `irStep`
+via body-extraction lemmas (not `rfl` / discarded `m`). -/
 
+#check moduleEntrypointForCall
 #check moduleIrStep
 #check moduleIrStep_eq_irStep_of_isCounterModule
 #check counterModel_fragment_refines_all
+#check isCounterInitializeEntrypoint_body
+#check isCounterIncrementEntrypoint_body
+#check isCounterGetEntrypoint_body
 
 theorem sample_fragment_refines_all
     (state : ProofForge.IR.Semantics.State) (count : Nat)

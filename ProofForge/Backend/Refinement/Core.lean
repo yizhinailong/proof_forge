@@ -166,40 +166,192 @@ def noArgFunctionReturning (entrypoint : Entrypoint) (name : String)
 
 def isCounterStateDecl (decl : StateDecl) : Bool :=
   decl.id == "count" &&
-    decl.kind == .scalar &&
-    decl.type == .u64
+    decide (decl.kind = .scalar) &&
+    decide (decl.type = .u64)
+
+/-! ### Counter body predicates (FV-9.5 decide-friendly form)
+
+Body matches bind open variables and compare with `==` / `decide`, rather than
+embedding concrete `"count"` / `0` in the match pattern. That makes
+body-extraction lemmas provable by nested `cases` + `beq_iff_eq` without needing
+`DecidableEq` on the mutual `Expr`/`Effect`/`Statement` family (which Lean
+cannot derive because of nested `Array` recursion).
+-/
+
+/-- Initialize body: `storageScalarWrite "count" (literal (u64 0))`. -/
+def isCounterInitializeBody (body : List Statement) : Bool :=
+  match body with
+  | [.effect (.storageScalarWrite stateId (.literal (.u64 n)))] =>
+      stateId == "count" && n == 0
+  | _ => false
+
+/-- Increment body: read `count` into `n`, write `count := n + 1` (checked add). -/
+def isCounterIncrementBody (body : List Statement) : Bool :=
+  match body with
+  | [
+      .letBind localName localType (.effect (.storageScalarRead readStateId)),
+      .effect (.storageScalarWrite writeStateId
+        (.add (.local addLocalName) (.literal (.u64 n)) overflowChecked))
+    ] =>
+      localName == "n" &&
+        decide (localType = .u64) &&
+        readStateId == "count" &&
+        writeStateId == "count" &&
+        addLocalName == "n" &&
+        n == 1 &&
+        overflowChecked == true
+  | _ => false
+
+/-- Get body: `return (storageScalarRead "count")`. -/
+def isCounterGetBody (body : List Statement) : Bool :=
+  match body with
+  | [.return (.effect (.storageScalarRead stateId))] =>
+      stateId == "count"
+  | _ => false
+
+theorem isCounterInitializeBody_eq (body : List Statement)
+    (h : isCounterInitializeBody body = true) :
+    body = [.effect (.storageScalarWrite "count" (.literal (.u64 0)))] := by
+  cases body with
+  | nil => simp [isCounterInitializeBody] at h
+  | cons s rest =>
+    cases rest with
+    | cons _ _ => simp [isCounterInitializeBody] at h
+    | nil =>
+      cases s with
+      | effect e =>
+        cases e with
+        | storageScalarWrite stateId v =>
+          cases v with
+          | literal lit =>
+            cases lit with
+            | u64 n =>
+              simp [isCounterInitializeBody, Bool.and_eq_true, beq_iff_eq] at h
+              obtain ⟨rfl, rfl⟩ := h
+              rfl
+            | _ => simp [isCounterInitializeBody] at h
+          | _ => simp [isCounterInitializeBody] at h
+        | _ => simp [isCounterInitializeBody] at h
+      | _ => simp [isCounterInitializeBody] at h
+
+theorem isCounterIncrementBody_eq (body : List Statement)
+    (h : isCounterIncrementBody body = true) :
+    body = [
+      .letBind "n" .u64 (.effect (.storageScalarRead "count")),
+      .effect (.storageScalarWrite "count"
+        (.add (.local "n") (.literal (.u64 1)) true))
+    ] := by
+  cases body with
+  | nil => simp [isCounterIncrementBody] at h
+  | cons s1 rest1 =>
+    cases rest1 with
+    | nil => simp [isCounterIncrementBody] at h
+    | cons s2 rest2 =>
+      cases rest2 with
+      | cons _ _ => simp [isCounterIncrementBody] at h
+      | nil =>
+        cases s1 with
+        | letBind localName localType v1 =>
+          cases v1 with
+          | effect e1 =>
+            cases e1 with
+            | storageScalarRead readStateId =>
+              cases s2 with
+              | effect e2 =>
+                cases e2 with
+                | storageScalarWrite writeStateId v2 =>
+                  cases v2 with
+                  | add lhs rhs overflowChecked =>
+                    cases lhs with
+                    | «local» addLocalName =>
+                      cases rhs with
+                      | literal lit =>
+                        cases lit with
+                        | u64 n =>
+                          simp [isCounterIncrementBody, Bool.and_eq_true, beq_iff_eq,
+                            decide_eq_true_eq] at h
+                          obtain ⟨⟨⟨⟨⟨⟨rfl, rfl⟩, rfl⟩, rfl⟩, rfl⟩, rfl⟩, rfl⟩ := h
+                          rfl
+                        | _ => simp [isCounterIncrementBody] at h
+                      | _ => simp [isCounterIncrementBody] at h
+                    | _ => simp [isCounterIncrementBody] at h
+                  | _ => simp [isCounterIncrementBody] at h
+                | _ => simp [isCounterIncrementBody] at h
+              | _ => simp [isCounterIncrementBody] at h
+            | _ => simp [isCounterIncrementBody] at h
+          | _ => simp [isCounterIncrementBody] at h
+        | _ => simp [isCounterIncrementBody] at h
+
+theorem isCounterGetBody_eq (body : List Statement)
+    (h : isCounterGetBody body = true) :
+    body = [.return (.effect (.storageScalarRead "count"))] := by
+  cases body with
+  | nil => simp [isCounterGetBody] at h
+  | cons s rest =>
+    cases rest with
+    | cons _ _ => simp [isCounterGetBody] at h
+    | nil =>
+      cases s with
+      | «return» v =>
+        cases v with
+        | effect e =>
+          cases e with
+          | storageScalarRead stateId =>
+            simp [isCounterGetBody, beq_iff_eq] at h
+            subst h
+            rfl
+          | _ => simp [isCounterGetBody] at h
+        | _ => simp [isCounterGetBody] at h
+      | _ => simp [isCounterGetBody] at h
 
 def isCounterInitializeEntrypoint (entrypoint : Entrypoint) : Bool :=
   noArgFunctionReturning entrypoint "initialize" .unit &&
     entrypoint.selector? == some "8129fc1c" &&
-    match entrypoint.body.toList with
-    | [.effect (.storageScalarWrite stateId (.literal (.u64 0)))] =>
-        stateId == "count"
-    | _ => false
+    isCounterInitializeBody entrypoint.body.toList
 
 def isCounterIncrementEntrypoint (entrypoint : Entrypoint) : Bool :=
   noArgFunctionReturning entrypoint "increment" .unit &&
     entrypoint.selector? == some "d09de08a" &&
-    match entrypoint.body.toList with
-    | [
-        .letBind localName localType (.effect (.storageScalarRead readStateId)),
-        .effect (.storageScalarWrite writeStateId
-          (.add (.local addLocalName) (.literal (.u64 1))))
-      ] =>
-        localName == "n" &&
-          localType == .u64 &&
-          readStateId == "count" &&
-          writeStateId == "count" &&
-          addLocalName == "n"
-    | _ => false
+    isCounterIncrementBody entrypoint.body.toList
 
 def isCounterGetEntrypoint (entrypoint : Entrypoint) : Bool :=
   noArgFunctionReturning entrypoint "get" .u64 &&
     entrypoint.selector? == some "6d4ce63c" &&
-    match entrypoint.body.toList with
-    | [.return (.effect (.storageScalarRead stateId))] =>
-        stateId == "count"
-    | _ => false
+    isCounterGetBody entrypoint.body.toList
+
+theorem isCounterInitializeEntrypoint_body (entrypoint : Entrypoint)
+    (h : isCounterInitializeEntrypoint entrypoint = true) :
+    entrypoint.body.toList =
+      [.effect (.storageScalarWrite "count" (.literal (.u64 0)))] := by
+  simp only [isCounterInitializeEntrypoint, Bool.and_eq_true] at h
+  exact isCounterInitializeBody_eq _ h.2
+
+theorem isCounterIncrementEntrypoint_body (entrypoint : Entrypoint)
+    (h : isCounterIncrementEntrypoint entrypoint = true) :
+    entrypoint.body.toList = [
+      .letBind "n" .u64 (.effect (.storageScalarRead "count")),
+      .effect (.storageScalarWrite "count"
+        (.add (.local "n") (.literal (.u64 1)) true))
+    ] := by
+  simp only [isCounterIncrementEntrypoint, Bool.and_eq_true] at h
+  exact isCounterIncrementBody_eq _ h.2
+
+theorem isCounterGetEntrypoint_body (entrypoint : Entrypoint)
+    (h : isCounterGetEntrypoint entrypoint = true) :
+    entrypoint.body.toList =
+      [.return (.effect (.storageScalarRead "count"))] := by
+  simp only [isCounterGetEntrypoint, Bool.and_eq_true] at h
+  exact isCounterGetBody_eq _ h.2
+
+/-- Shape half of `isCounterModule`: exactly one state decl + three entrypoints. -/
+def isCounterModuleShape (state : List StateDecl) (entrypoints : List Entrypoint) : Bool :=
+  match state, entrypoints with
+  | stateDecl :: [], entry0 :: entry1 :: entry2 :: [] =>
+      isCounterStateDecl stateDecl &&
+        isCounterInitializeEntrypoint entry0 &&
+        isCounterIncrementEntrypoint entry1 &&
+        isCounterGetEntrypoint entry2
+  | _, _ => false
 
 def isCounterModule (module : Module) : Bool :=
   module.name == "Counter" &&
@@ -207,13 +359,49 @@ def isCounterModule (module : Module) : Bool :=
     module.proxyPattern?.isNone &&
     module.nearCrosscallStrings.size == 0 &&
     !module.overflowChecked &&
-    match module.state.toList, module.entrypoints.toList with
-    | stateDecl :: [], entry0 :: entry1 :: entry2 :: [] =>
-        isCounterStateDecl stateDecl &&
-          isCounterInitializeEntrypoint entry0 &&
-          isCounterIncrementEntrypoint entry1 &&
-          isCounterGetEntrypoint entry2
-    | _, _ => false
+    isCounterModuleShape module.state.toList module.entrypoints.toList
+
+/-- From `isCounterModuleShape`, recover the three entrypoints and their predicates. -/
+theorem isCounterModuleShape_entrypoints
+    (state : List StateDecl) (entrypoints : List Entrypoint)
+    (h : isCounterModuleShape state entrypoints = true) :
+    ∃ e0 e1 e2,
+      entrypoints = [e0, e1, e2] ∧
+      isCounterInitializeEntrypoint e0 = true ∧
+      isCounterIncrementEntrypoint e1 = true ∧
+      isCounterGetEntrypoint e2 = true := by
+  cases state with
+  | nil => simp [isCounterModuleShape] at h
+  | cons _ srest =>
+    cases srest with
+    | cons _ _ => simp [isCounterModuleShape] at h
+    | nil =>
+      cases entrypoints with
+      | nil => simp [isCounterModuleShape] at h
+      | cons e0 r0 =>
+        cases r0 with
+        | nil => simp [isCounterModuleShape] at h
+        | cons e1 r1 =>
+          cases r1 with
+          | nil => simp [isCounterModuleShape] at h
+          | cons e2 r2 =>
+            cases r2 with
+            | cons _ _ => simp [isCounterModuleShape] at h
+            | nil =>
+              -- ((state ∧ init) ∧ incr) ∧ get
+              simp [isCounterModuleShape, Bool.and_eq_true] at h
+              exact ⟨e0, e1, e2, rfl, h.1.1.2, h.1.2, h.2⟩
+
+/-- Content-honest decomposition: any `m` in the Counter fragment has three
+entrypoints whose bodies are fixed by the body-extraction lemmas. -/
+theorem isCounterModule_entrypoints {m : Module} (hm : isCounterModule m = true) :
+    ∃ e0 e1 e2,
+      m.entrypoints.toList = [e0, e1, e2] ∧
+      isCounterInitializeEntrypoint e0 = true ∧
+      isCounterIncrementEntrypoint e1 = true ∧
+      isCounterGetEntrypoint e2 = true := by
+  simp only [isCounterModule, Bool.and_eq_true] at hm
+  exact isCounterModuleShape_entrypoints m.state.toList m.entrypoints.toList hm.2
 
 def FormalFragment.acceptsModule : FormalFragment → Module → Bool
   | .counter, module => isCounterModule module

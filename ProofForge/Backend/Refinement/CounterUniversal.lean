@@ -291,78 +291,114 @@ theorem counter_trace_simulates_after_initialize (calls : List CounterCall)
       finalState restObservables hirStep hirRest
   · simp [targetRunTraceList, htargetStep, htargetRest]
 
-/-! ### FV-9.3 cap: the structural `∀ (m : Module)` fragment-refines theorem
+/-! ### FV-9.5: content-honest `∀ (m : Module)` fragment-refines
 
-This is the keystone FV-9 deliverable: the theorem quantified over **every
-module `m`** in the supported fragment, not just the canonical Counter witness.
-The shape is:
-
-```
-∀ (m : Module) (hm : isCounterModule m = true) (hcovered : moduleInCoveredFragment m = true)
-  (calls : List CounterCall) (state : State) (count : Nat)
-  (hrel : CounterStateRel state count),
-  ∃ finalIr finalMs observables,
-    runTraceListGen (moduleIrStep m) calls state = .ok (finalIr, observables) ∧
-    runTraceListGen counterModelTargetSemantics.traceStep calls count = .ok (finalMs, observables) ∧
-    CounterStateRel finalIr finalMs ∧
-    IRTraceMatches (moduleIrStep m) state calls observables ∧
-    IRTraceMatches counterModelTargetSemantics.traceStep count calls observables
-```
-
-The proof works because `isCounterModule m = true` fixes the entrypoint bodies
-to exactly the canonical Counter shape, so the shared fueled interpreter
-(`moduleIrStep m`, which runs `m`'s entrypoints via `SemanticsFuel`) computes
-the same results as the canonical `irStep`. The `moduleInCoveredFragment`
-hypothesis ensures every constructor in `m`'s bodies is within the FV-9.2
-covered fragment, so the interpreter never hits an `unsupported*` fallthrough.
+The keystone theorem quantifies over **every module `m`** in the supported
+fragment. `moduleIrStep m` looks up entrypoints in **`m.entrypoints`** (not the
+canonical Counter fixture) and runs those bodies under the shared fueled
+interpreter. Agreement with `irStep` is proved by body-extraction lemmas
+(`isCounter*Entrypoint_body`) once `isCounterModule m = true`.
 -/
 
 open ProofForge.IR.SemanticsFuel
 open ProofForge.Backend.Refinement.ConstructorCoverage
 
-/-- Generic module-qualified IR step. Takes `m` as a parameter so the theorem
-quantifies over it. **NOTE (2026-07-09 honesty review):** this implementation
-discards `m` and runs the canonical `CounterCall.entrypoint` (the canonical
-Counter entrypoint bodies), NOT `m`'s own entrypoint bodies. So
-`moduleIrStep m = irStep` by `rfl`, and the `∀ m` theorem is real and
-`sorry`-free — but `m` is a *structural* parameter only; this is the scaffold
-form, not the content-honest "runs `m`'s own bodies" version (FV-9.5, open).
-The content-honest version needs `moduleEntrypointForCall m call` (lookup by
-name in `m.entrypoints`) + body-extraction lemmas proving the agreement. -/
+/-- Resolve a Counter call against **`m`'s own** entrypoint list (index order
+fixed by `isCounterModuleShape`: initialize, increment, get). -/
+def moduleEntrypointForCall (m : Module) (call : CounterCall) : Option Entrypoint :=
+  match call, m.entrypoints.toList with
+  | .initialize, e0 :: _ => some e0
+  | .increment, _ :: e1 :: _ => some e1
+  | .get, _ :: _ :: e2 :: _ => some e2
+  | _, _ => none
+
+/-- Content-honest module-qualified IR step: runs `m`'s entrypoint body for
+`call` under the shared fueled interpreter. -/
 def moduleIrStep (m : Module) (state : State) (call : CounterCall) :
     Except String (State × ObservableReturn) := do
-  let _ := m  -- structural only; see honesty note above
-  let (nextState, value?) ← runEntrypointNoArgsFuel defaultFuel state call.entrypoint
+  let some ep := moduleEntrypointForCall m call
+    | .error s!"Counter module missing entrypoint for call"
+  let (nextState, value?) ← runEntrypointNoArgsFuel defaultFuel state ep
   let observable ← counterObservableReturn call value?
   .ok (nextState, observable)
 
-/-- When `isCounterModule m = true`, `moduleIrStep m state call = irStep state call`
-by `rfl` — both run the canonical entrypoint via the shared fueled interpreter
-(because `moduleIrStep` discards `m`). This is the scaffold bridge. The
-content-honest version (FV-9.5, open) replaces this with a real lemma proving
-`m`'s own entrypoint bodies agree with the canonical ones. -/
-theorem moduleIrStep_eq_irStep_of_isCounterModule {m : Module} (hm : isCounterModule m = true)
-    (call : CounterCall) (state : State) :
-    moduleIrStep m state call = irStep state call := by
+/-- The fueled interpreter depends only on `entrypoint.body.toList`. -/
+theorem runEntrypointNoArgsFuel_congr_body (fuel : Nat) (state : State)
+    (ep₁ ep₂ : Entrypoint) (h : ep₁.body.toList = ep₂.body.toList) :
+    runEntrypointNoArgsFuel fuel state ep₁ = runEntrypointNoArgsFuel fuel state ep₂ := by
+  simp [runEntrypointNoArgsFuel, h]
+
+private theorem canonical_initialize_body :
+    ProofForge.IR.Examples.Counter.initializeEntrypoint.body.toList =
+      [.effect (.storageScalarWrite "count" (.literal (.u64 0)))] := by
   rfl
 
-/-- The structural `∀ (m : Module)` fragment-refines theorem for the
-counter-model target. This is the FV-9 keystone: the compiler-correctness
-theorem quantified over **every module `m`** in the supported fragment, not
-just the canonical Counter witness.
+private theorem canonical_increment_body :
+    ProofForge.IR.Examples.Counter.increment.body.toList = [
+      .letBind "n" .u64 (.effect (.storageScalarRead "count")),
+      .effect (.storageScalarWrite "count"
+        (.add (.local "n") (.literal (.u64 1)) true))
+    ] := by
+  rfl
 
-The `isCounterModule m = true` hypothesis scopes `m` to the counter-model's
-fragment (fixed name, one `count` state, three entrypoints with fixed bodies).
-The `moduleInCoveredFragment m = true` hypothesis ensures every constructor
-in `m`'s bodies is within the FV-9.2 covered fragment. Together, these two
-hypotheses are the `SupportedFragment counter-model m` obligation.
+private theorem canonical_get_body :
+    ProofForge.IR.Examples.Counter.get.body.toList =
+      [.return (.effect (.storageScalarRead "count"))] := by
+  rfl
 
-The proof reduces to `counterModel_fragment_refines` via
-`moduleIrStep_eq_irStep_of_isCounterModule`, which shows the module-qualified
-IR step agrees with the canonical one when `m` is in the fragment. -/
+/-- Finish a moduleIrStep = irStep goal once the module entrypoint `ep` is known
+to have the same body as the canonical `canon`. -/
+private theorem moduleIrStep_eq_irStep_of_body
+    (m : Module) (call : CounterCall) (state : State)
+    (ep canon : Entrypoint)
+    (hlookup : moduleEntrypointForCall m call = some ep)
+    (hbody : ep.body.toList = canon.body.toList)
+    (hcanon : call.entrypoint = canon) :
+    moduleIrStep m state call = irStep state call := by
+  have hrun := runEntrypointNoArgsFuel_congr_body defaultFuel state ep canon hbody
+  simp only [moduleIrStep, irStep, runCounterEntrypoint, runEntrypointFuel, hlookup,
+    hcanon, hrun]
+
+/-- When `m` is in the Counter fragment, each call resolves to an entrypoint of
+`m` whose body is definitionally the canonical Counter body — so running `m`'s
+entrypoint equals running the fixture entrypoint. -/
+theorem moduleIrStep_eq_irStep_of_isCounterModule {m : Module}
+    (hm : isCounterModule m = true) (call : CounterCall) (state : State) :
+    moduleIrStep m state call = irStep state call := by
+  obtain ⟨e0, e1, e2, heps, h0, h1, h2⟩ := isCounterModule_entrypoints hm
+  match call with
+  | .initialize =>
+    apply moduleIrStep_eq_irStep_of_body (ep := e0)
+      (canon := ProofForge.IR.Examples.Counter.initializeEntrypoint)
+    · -- lookup
+      simp [moduleEntrypointForCall, heps]
+    · -- body
+      exact (isCounterInitializeEntrypoint_body e0 h0).trans
+        canonical_initialize_body.symm
+    · -- canon identity
+      rfl
+  | .increment =>
+    apply moduleIrStep_eq_irStep_of_body (ep := e1)
+      (canon := ProofForge.IR.Examples.Counter.increment)
+    · simp [moduleEntrypointForCall, heps]
+    · exact (isCounterIncrementEntrypoint_body e1 h1).trans
+        canonical_increment_body.symm
+    · rfl
+  | .get =>
+    apply moduleIrStep_eq_irStep_of_body (ep := e2)
+      (canon := ProofForge.IR.Examples.Counter.get)
+    · simp [moduleEntrypointForCall, heps]
+    · exact (isCounterGetEntrypoint_body e2 h2).trans canonical_get_body.symm
+    · rfl
+
+/-- Content-honest `∀ (m : Module)` fragment-refines for the counter-model target.
+
+`moduleIrStep m` runs **`m`'s own entrypoint bodies**. The bridge
+`moduleIrStep_eq_irStep_of_isCounterModule` (body extraction, not `rfl`)
+reduces the quantifier to the canonical `counterModel_fragment_refines`. -/
 theorem counterModel_fragment_refines_all
     (m : Module) (hm : isCounterModule m = true)
-    (hcovered : moduleInCoveredFragment m = true)
+    (_hcovered : moduleInCoveredFragment m = true)
     (calls : List CounterCall) (state : State) (count : Nat)
     (hrel : CounterStateRel state count) :
     ∃ finalIr finalMs observables,
@@ -372,14 +408,11 @@ theorem counterModel_fragment_refines_all
       CounterStateRel finalIr finalMs ∧
       IRTraceMatches (moduleIrStep m) state calls observables ∧
       IRTraceMatches counterModelTargetSemantics.traceStep count calls observables := by
-  -- Key: when `isCounterModule m = true`, `moduleIrStep m state call = irStep state call`
-  -- by `rfl` (both run `call.entrypoint` via the shared fueled interpreter), so
-  -- the trace runners are definitionally identical and the canonical theorem
-  -- applies directly. The `hm`/`hcovered` hypotheses scope the theorem to the
-  -- supported fragment; the proof is `rfl`-reducible because `moduleIrStep`
-  -- carries `m` as a parameter but resolves entrypoints via the canonical
-  -- `CounterCall.entrypoint` (the fragment guarantees the bodies match).
-  rw [show moduleIrStep m = irStep from rfl]
+  have hstep : ∀ c s, moduleIrStep m s c = irStep s c :=
+    fun c s => moduleIrStep_eq_irStep_of_isCounterModule hm c s
+  -- Pointwise step equality lifts to equal trace runners.
+  have hfun : moduleIrStep m = irStep := funext fun s => funext fun c => hstep c s
+  rw [hfun]
   exact counterModel_fragment_refines calls hrel
 
 end ProofForge.Backend.Refinement.CounterUniversal

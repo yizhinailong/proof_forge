@@ -13312,18 +13312,18 @@ theorem counterCompiledPowdr_safe_trace_simulates_from_state_safe_prepared_stora
     (counterCompiledPowdrSafeEntrypointObligationsOfPreparedStorageModels models)
     calls hrel hsafe
 
-/-! ### FV-9.3 EVM cap: the structural `∀ (m : Module)` EVM/powdr fragment-refines
+/-! ### FV-9.5 EVM cap: content-honest `∀ (m : Module)` EVM/powdr fragment-refines
 
-The EVM replication of FV-9.3: the compiler-correctness theorem quantified
-over every module `m` in the supported fragment, with the powdr-EVM compiled
-target as the target machine and `CounterStorageRel` as the simulation relation. -/
+`moduleIrStep m` runs **`m`'s own entrypoint bodies**; bridge via
+`moduleIrStep_eq_irStep_of_isCounterModule`, then
+`counterPowdr_trace_simulates_from_obligations`. -/
 
 open ProofForge.Backend.Refinement.CounterUniversal
 open ProofForge.Backend.Refinement.ConstructorCoverage
 
 theorem evmCompiledPowdr_fragment_refines_all
     (m : Module) (hm : isCounterModule m = true)
-    (hcovered : moduleInCoveredFragment m = true)
+    ( _hcovered : moduleInCoveredFragment m = true)
     (obligations : CounterCompiledPowdrEntrypointObligations)
     (calls : List CounterCall) {irState : IRState} {evmState : EvmState}
     (hrel : CounterStorageRel irState evmState) :
@@ -13337,7 +13337,9 @@ theorem evmCompiledPowdr_fragment_refines_all
       ProofForge.IR.StepSemantics.IRTraceMatches (moduleIrStep m) irState calls observables ∧
       ProofForge.IR.StepSemantics.IRTraceMatches
         (counterPowdrTraceStep counterCompiledPowdrConfig) evmState calls observables := by
-  rw [show moduleIrStep m = irStep from rfl]
+  have hfun : moduleIrStep m = irStep :=
+    funext fun s => funext fun c => moduleIrStep_eq_irStep_of_isCounterModule hm c s
+  rw [hfun]
   exact counterPowdr_trace_simulates_from_obligations counterCompiledPowdrConfig obligations calls hrel
 
 end ProofForge.Backend.Evm.CounterRefinement

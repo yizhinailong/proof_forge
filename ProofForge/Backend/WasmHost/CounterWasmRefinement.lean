@@ -525,23 +525,18 @@ theorem counterWasmCore_canonical_safe_trace_simulates :
       counterTraceSafe_initialize_get_increment_get
   exact ⟨finalIr, finalCore, observables, hirTrace, hcoreTrace, hrelFinal⟩
 
-/-! ### FV-9.3 Wasm cap: the structural `∀ (m : Module)` Wasm core fragment-refines
+/-! ### FV-9.5 Wasm cap: content-honest `∀ (m : Module)` Wasm core fragment-refines
 
-The Wasm host target's `∀ (m : Module)` theorem. This is the Wasm replication
-of FV-9.3: the compiler-correctness theorem quantified over every module `m`
-in the supported fragment, with the Wasm core-tail as the target machine and
-`CounterWasmRel` as the simulation relation.
-
-The proof reduces to the existing `counterWasmCore_trace_simulates_from_obligations`
-via `moduleIrStep m = irStep` (`rfl`), because the Wasm refinement already uses
-`counterIRStep` (an alias of the canonical `irStep`) and `CounterWasmRel`.
+`moduleIrStep m` runs **`m`'s own entrypoint bodies**; bridge via
+`moduleIrStep_eq_irStep_of_isCounterModule`, then
+`counterWasmCore_trace_simulates_from_obligations`.
 -/
 
 open ProofForge.Backend.Refinement.ConstructorCoverage
 
 theorem wasmCore_fragment_refines_all
     (m : Module) (hm : isCounterModule m = true)
-    (hcovered : moduleInCoveredFragment m = true)
+    ( _hcovered : moduleInCoveredFragment m = true)
     (calls : List CounterCall) {irState : IRState} {core : CounterWasmCoreState}
     (hrel : CounterWasmRel irState core) :
     ∃ finalIr finalCore observables,
@@ -550,7 +545,9 @@ theorem wasmCore_fragment_refines_all
       CounterWasmRel finalIr finalCore ∧
       IRTraceMatches (moduleIrStep m) irState calls observables ∧
       IRTraceMatches counterWasmCoreTraceStep core calls observables := by
-  rw [show moduleIrStep m = irStep from rfl]
+  have hfun : moduleIrStep m = irStep :=
+    funext fun s => funext fun c => moduleIrStep_eq_irStep_of_isCounterModule hm c s
+  rw [hfun]
   exact counterWasmCore_trace_simulates_from_obligations counterWasmCoreObligations calls hrel
 
 end ProofForge.Backend.WasmHost.CounterWasmRefinement
