@@ -59,6 +59,48 @@ backend ASTs.
   seeds. They should not be the primary representation for accounts, owners,
   capability names, methods, or deployment configuration.
 
+## EVM selectors and de-EVM naming (T4.1)
+
+**Default product path: no selectors in source.**
+
+| Author writes | What happens |
+|---------------|--------------|
+| `entry increment do …` / `query get returns(.u64) do …` | Name-only entrypoints; portable IR has `selector? := none` |
+| `entrySelector "…"` / `methodWithSelector` / Learn `selector "…"` | **Optional EVM materialization** — pins a 4-byte method id for ABI dispatch fixtures |
+
+Rules:
+
+1. **Shared / tutorials** use `entry` / `query` only (see
+   [Examples/Shared](../Examples/Shared/README.md)). Do not hand-write selectors
+   for portable demos.
+2. **EVM dispatch** may hydrate selectors later via CLI / `cast` / token stdlib
+   canonical maps (`Token.EvmSpec`). That is backend materialization, not
+   author-facing chain bias.
+3. Builder helpers keep historical names for fixtures:
+   - Prefer: `entry`, `entryReturns`, `entryWithParams`, `ConstructorParam`,
+     `constructorParams`, `abiWord?`, `defaultParamAbiWords`
+   - EVM-shaped opt-in: `entrySelector*`, `methodWithSelector`, CLI
+     `--evm-constructor-*` aliases
+4. Solana instruction tags and NEAR method names are **not** EVM selectors;
+   targets derive their own dispatch from entrypoint **names** unless a fixture
+   pins protocol bytes.
+
+## Chain-only constructors stay off the author path (T4.3)
+
+Portable IR still *can* represent family-only forms for backend fixtures, but
+authors must not use them on the Shared product path:
+
+| Form | Portability class | Product path |
+|------|-------------------|--------------|
+| `crosscall.invoke` / `remoteCallRef` | family-shared | **preferred** portable remote |
+| `create` / `create2` / `create2Deploy` | EVM family-only | EVM fixtures only — **banned in Shared** |
+| `fallback` / `receive` | EVM family-only | EVM fixtures only |
+| `nearPromise*` / `nearCrosscallPool` | Wasm-NEAR family-only | NEAR fixtures / `Source.Near` only |
+| Solana account/PDA/CPI DSL | Solana extension | `Source.Solana` only |
+
+Classification is machine-checked in `ProofForge.IR.Portability` and
+`just ir-portability-smoke`. Shared ban list: `just portable-default`.
+
 ## Current Syntax Boundary
 
 `ProofForge.Contract.Source` is the current executable Lean syntax layer and

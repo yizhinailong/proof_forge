@@ -13,7 +13,7 @@ entrypoint:
   mov64 r3, r1
   add64 r3, 8
   mov64 r6, r10
-  sub64 r6, 3328
+  sub64 r6, 3488
   stxdw [r6+0], r3
   ldxdw r4, [r3+80]
   add64 r3, 88
@@ -29,13 +29,13 @@ entrypoint:
 entrypoint_account_scan_0_aligned:
   mov64 r9, r3
   add64 r9, 8
-  stxdw [r10-3584], r9
+  stxdw [r10-4008], r9
   ; instruction_data.length >= 1
-  ldxdw r3, [r10-3584]
+  ldxdw r3, [r10-4008]
   sub64 r3, 8
   ldxdw r2, [r3+0]
   jlt r2, 1, error_instruction_data
-  ldxdw r3, [r10-3584]
+  ldxdw r3, [r10-4008]
   ldxb r2, [r3+0]
   jeq r2, 0, sol_initialize
   jeq r2, 1, sol_increment
@@ -48,7 +48,7 @@ sol_initialize:
   ; account.validation: generated account schema
   ; account.validation[0:count]: writable=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 2
   ldxb r2, [r7+0]
@@ -61,7 +61,7 @@ sol_initialize:
   add64 r4, r2
   stxdw [r10-3600], r4
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 40
   ldxdw r4, [r10-3600]
@@ -87,7 +87,7 @@ sol_increment:
   ; account.validation: generated account schema
   ; account.validation[0:count]: writable=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 2
   ldxb r2, [r7+0]
@@ -100,7 +100,7 @@ sol_increment:
   add64 r4, r2
   stxdw [r10-3600], r4
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 40
   ldxdw r4, [r10-3600]
@@ -132,7 +132,7 @@ sol_get:
   ; account.validation: generated account schema
   ; account.validation[0:count]: writable=true
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 2
   ldxb r2, [r7+0]
@@ -145,7 +145,7 @@ sol_get:
   add64 r4, r2
   stxdw [r10-3600], r4
   mov64 r7, r10
-  sub64 r7, 3328
+  sub64 r7, 3488
   ldxdw r7, [r7+0]
   add64 r7, 40
   ldxdw r4, [r10-3600]
@@ -201,4 +201,8 @@ error_pda_bump:
 
 error_array_bounds:
   mov64 r0, 12
+  exit
+
+error_cpi:
+  mov64 r0, 8
   exit

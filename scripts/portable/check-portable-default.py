@@ -37,6 +37,17 @@ FORBIDDEN_NEAR_EXTENSION = [
     "nearCrosscallInvokePool",
 ]
 
+# EVM family-only chain constructors (T4.3) — use portable remoteCall instead.
+FORBIDDEN_EVM_FAMILY = [
+    "create2Deploy",
+    "crosscallCreate2",
+    "crosscallCreate(",
+    "entrySelector",
+    "methodWithSelector",
+    "entrySelectorReturns",
+    "entrySelectorWithParams",
+]
+
 # Host string-pool / index APIs are materializer concerns. Shared must use
 # declareRemote / declareRemoteUnit / peerHandle / remoteCall only.
 FORBIDDEN_NEAR_METADATA = [
@@ -111,6 +122,14 @@ def check_shared_file(path: Path) -> None:
                 f"{rel}: portable Shared must not use NEAR Promise host-extension `{needle}`; "
                 "use remoteCall (portable crosscall.invoke) and let --target materialize "
                 "(or import ProofForge.Contract.Source.Near only in NEAR fixtures)"
+            )
+
+    for needle in FORBIDDEN_EVM_FAMILY:
+        if needle in text:
+            fail(
+                f"{rel}: portable Shared must not use EVM family-only / selector pin `{needle}`; "
+                "use name-only entry/query (no entrySelector) and remoteCallRef for remotes; "
+                "CREATE2 and selector fixtures stay under Examples/Evm (T4.1/T4.3)"
             )
 
     for needle in FORBIDDEN_NEAR_METADATA:

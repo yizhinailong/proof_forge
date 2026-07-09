@@ -692,6 +692,18 @@ portable-error-catalog:
 portable-solana-accounts:
     lake env lean --run Tests/SolanaPortableAccounts.lean
 
+# T4.2: Shared product tutorial path (Counter → Ownable → Token → Remote).
+# Docs: docs/tutorials/portable-shared-path.md · Examples/Shared/README.md
+portable-tutorial:
+    just portable-default
+    just portable-counter-multi-target
+    just portable-auth-materialize
+    just shared-token-intent
+    just token-feature-matrix
+    just portable-remote-call-multi-target
+    just portable-solana-accounts
+    @echo "portable-tutorial: ok (Counter · Ownable · Token · Remote · AuthRemote)"
+
 # Check translated documentation freshness and example topology.
 docs-check: examples-topology portable-default
     scripts/i18n/check-sync.sh

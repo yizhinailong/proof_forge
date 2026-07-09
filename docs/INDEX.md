@@ -61,6 +61,7 @@ Editable hand-drawn-style diagrams for presentations and onboarding — open on
 - [Shared scenario: Counter](shared-scenario.md): cross-target acceptance test.
 - [Doc↔code sync audit (2026-07)](doc-code-sync-audit-2026-07.md): drift register and maintenance checklist.
 - [Tutorial: one module, three targets](tutorials/portable-contract-three-targets.md): portable `contract_source` walkthrough (CS-5.3).
+- [Tutorial: Shared path from zero](tutorials/portable-shared-path.md): Counter → Ownable → Token → Remote (`just portable-tutorial`, T4.2).
 
 ## RFCs
 

@@ -18,10 +18,37 @@ materializes chain form (EVM slots/ABI, Solana accounts/CPI/SPL, NEAR host, …)
 - No host string-pool APIs (`registerNearCrosscallString`, `nearAddressLit`) —
   use `remote name "peer.callee" "method";` then `remoteCallRef name #[]`.
   Host ids: CLI `--peer logical=host` or `--peers-demo` (default **no** rewrite).
+- **Name-only entrypoints** (`entry` / `query`) — do not pin EVM 4-byte method
+  ids in Shared. ABI dispatch is materialization (T4.1).
+- **No CREATE2 / family-only deploy helpers** in Shared — portable remotes use
+  `remote` + `remoteCallRef` (T4.3).
 
 Target directories such as `Examples/Evm`, `Examples/Solana`, and
 `Examples/WasmNear` keep chain-specific fixtures, golden files, and
 compatibility entrypoints. New portable product examples should start here.
+
+## Tutorial from zero (T4.2)
+
+Run these from the **repo root** after `lake build` (or let each `just` build
+what it needs). Full narrative:
+[docs/tutorials/portable-shared-path.md](../../docs/tutorials/portable-shared-path.md).
+
+| Step | What you learn | Source | Gate |
+|------|----------------|--------|------|
+| 0 | Shared rules only | this directory | `just portable-default` |
+| 1 | Counter state + entrypoints | [Counter.lean](Counter.lean) | `just portable-counter-multi-target` |
+| 2 | Owner / pause policies | [Ownable.lean](Ownable.lean), [OwnablePausable.lean](OwnablePausable.lean) | `just portable-auth-materialize` |
+| 3 | Token intent (features, not standards) | [FungibleToken.lean](FungibleToken.lean) | `just shared-token-intent` · `just token-feature-matrix` |
+| 4 | Remote call (no host string pool) | [RemoteCall.lean](RemoteCall.lean) | `just portable-remote-call-multi-target` |
+| 5 | Caller + debit + remote (Solana accounts auto) | [AuthRemoteCall.lean](AuthRemoteCall.lean) | `just portable-solana-accounts` |
+
+One-shot aggregate:
+
+```bash
+just portable-tutorial
+```
+
+Each step is also runnable alone. Artifacts land under `build/` (git-ignored).
 
 ## Primary Multi-Target Examples
 

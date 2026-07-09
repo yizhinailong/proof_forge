@@ -93,11 +93,15 @@ def bindingWithAbi (id : String) (type : ValueType) (evmAbiWord : String) : Bind
 def event (name : String) : EventRef :=
   { name }
 
-/-- Method with explicit EVM selector. Prefer `method` + CLI selector hydration. -/
+/-- Pin an EVM 4-byte selector for ABI fixtures only.
+
+Prefer `method` on the portable product path; Shared examples and tutorials
+must not require hand-written selectors (T4.1 / `docs/authoring-model.md`). -/
 def methodWithSelector (name selector : String) (params : Array BindingRef := #[])
     (returns : ValueType := .unit) : MethodRef :=
   { name, selector? := some selector, params, returns }
 
+/-- Default: name-only method (no EVM selector). Portable tutorials use this. -/
 def method (name : String) (params : Array BindingRef := #[])
     (returns : ValueType := .unit) : MethodRef :=
   { name, selector? := none, params, returns }
@@ -408,7 +412,9 @@ def remoteCallRef (remote : RemoteRef) (args : Array ProofForge.IR.Expr) :
 def hash4 (a b c d : Nat) : ProofForge.IR.Expr :=
   .literal (.hash4 a b c d)
 
-/-- Deterministic CREATE2 deployment of fixed init-code hex; returns the deployed address word. -/
+/-- EVM family-only CREATE2 deploy (init-code hex). **Not portable** — banned in
+`Examples/Shared` (`just portable-default`). Prefer portable `remoteCallRef` for
+cross-contract intent; keep CREATE2 in EVM fixtures only (T4.3). -/
 def create2Deploy (callValue salt : ProofForge.IR.Expr) (initCodeHex : String) : ProofForge.IR.Expr :=
   .crosscallCreate2 callValue salt initCodeHex
 

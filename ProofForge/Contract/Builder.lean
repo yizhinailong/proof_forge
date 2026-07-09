@@ -195,14 +195,20 @@ def defaultParamEvmAbiWords (params : Array (String × ValueType)) : Array (Opti
 def entry (name : String) (body : EntryM Unit) : ModuleM Unit :=
   entryFull name none .unit #[] #[] body
 
-/-- Optional 4-byte method id for EVM dispatch materialization. Portable
-authors should prefer `entry` and let CLI/`cast` hydrate selectors. -/
+/-- Optional 4-byte method id for **EVM dispatch materialization** only.
+
+Portable product authors and Shared examples must prefer `entry` /
+`entryReturns` / `entryWithParams` with **no** selector — tutorials never
+require hand-written 4-byte ids. Use this only for EVM ABI fixtures that pin a
+known selector; CLI/`cast` may also hydrate selectors after compile. See
+`docs/authoring-model.md` § EVM selectors (T4.1). -/
 def entrySelector (name selector : String) (body : EntryM Unit) : ModuleM Unit :=
   entryFull name (some selector) .unit #[] #[] body
 
 def entryReturns (name : String) (returns : ValueType) (body : EntryM Unit) : ModuleM Unit :=
   entryFull name none returns #[] #[] body
 
+/-- EVM-fixture only — prefer `entryReturns` on the portable path (T4.1). -/
 def entrySelectorReturns (name selector : String) (returns : ValueType) (body : EntryM Unit) : ModuleM Unit :=
   entryFull name (some selector) returns #[] #[] body
 
@@ -210,6 +216,7 @@ def entryWithParams (name : String) (params : Array (String × ValueType)) (retu
     (body : EntryM Unit) : ModuleM Unit :=
   entryFull name none returns params (defaultParamAbiWords params) body
 
+/-- EVM-fixture only — prefer `entryWithParams` on the portable path (T4.1). -/
 def entrySelectorWithParams (name selector : String) (params : Array (String × ValueType))
     (returns : ValueType) (body : EntryM Unit) : ModuleM Unit :=
   entryFull name (some selector) returns params (defaultParamAbiWords params) body

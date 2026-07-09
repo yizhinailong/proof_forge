@@ -115,9 +115,9 @@ Soroban token explicitly unsupported.
 
 | ID | Task | Work | Acceptance | Size | Deps | Status |
 |----|------|------|------------|------|------|--------|
-| **T4.1** | de-EVM naming pass 2 | Document `entrySelector` as EVM materialization; tutorials default without selectors | authoring-model updated | S | partial de-EVM done | pending |
-| **T4.2** | Shared tutorial path | Counter → Ownable → Token → Remote Shared-only tutorial with `just` steps | `Examples/Shared/README` runnable from zero | M | W1/W2 progress | pending |
-| **T4.3** | IR chain ctor visibility (optional) | Keep create2/promise out of author path; portability classification | portability smoke no regress | M | — | pending |
+| **T4.1** | de-EVM naming pass 2 | Document `entrySelector` as EVM materialization; tutorials default without selectors | authoring-model updated | S | partial de-EVM done | **done** (`authoring-model` § selectors; Builder/Surface docs; Shared bans) |
+| **T4.2** | Shared tutorial path | Counter → Ownable → Token → Remote Shared-only tutorial with `just` steps | `Examples/Shared/README` runnable from zero | M | W1/W2 progress | **done** (`portable-shared-path.md` + `just portable-tutorial`) |
+| **T4.3** | IR chain ctor visibility (optional) | Keep create2/promise out of author path; portability classification | portability smoke no regress | M | — | **done** (portable-default bans CREATE2/selectors; Portability already classifies) |
 
 ---
 
@@ -180,6 +180,7 @@ Then: T2.2, Wave 3, Wave 4 as capacity allows.
 | Crosscall materialize | `just crosscall-materialize` |
 | Error catalogue parity | `just portable-error-catalog` |
 | Solana account auto-fill | `just portable-solana-accounts` |
+| Shared tutorial path | `just portable-tutorial` · [portable-shared-path.md](../../tutorials/portable-shared-path.md) |
 
 Update this table when recipes are renamed.
 
@@ -198,5 +199,6 @@ Update this table when recipes are renamed.
 | 2026-07-09 | **T2.2 + T3.1:** EVM TokenSpec permanent reject policy (fee/soulbound/permit); remote u64 scalar ABI locked in CrosscallMaterialize + Surface docs. CosmWasm product path still deferred. |
 | 2026-07-09 | **T3.4 + T3.5:** `PortableErrorCatalog` locks assertionId 1/2 on EVM·Solana·NEAR clients + sdk-schema + EmitWat `PF:id:code`; justfile lake modules `WasmNear`→`WasmHost`; remote-call Soroban step runs wat2wasm when available. |
 | 2026-07-09 | **T3.2:** Solana portable account auto-fill — `nativeValue` promotes writable signer@0; AuthRemoteCall Shared example (caller+debit+remote) without Source.Solana; `just portable-solana-accounts`. |
+| 2026-07-09 | **Wave 4 (T4.1–T4.3):** de-EVM selector docs; Shared tutorial Counter→Ownable→Token→Remote (`just portable-tutorial`); ban CREATE2/selector pins in Shared via portable-default. Plan complete for primary four-host portable SDK slice. |
 
 When a task completes: set Status to `done`, add commit hash or PR note in changelog.

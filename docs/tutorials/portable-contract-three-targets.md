@@ -165,9 +165,13 @@ stdlib composition examples remain under `Examples/Evm/Contracts/`.
 
 ## Next steps
 
+- Continue the **Shared product path** (Ownable → Token → Remote):
+  [portable-shared-path.md](portable-shared-path.md) or `just portable-tutorial`.
 - Read [shared-scenario.md](../shared-scenario.md) for Counter/ValueVault
   capability tables and budget baseline notes.
 - Scaffold a new project with `proof-forge init` and point `--root` at your
   workspace.
+- Selectors: tutorials never require hand-written EVM method ids
+  ([authoring-model](../authoring-model.md) T4.1).
 - Track product backlog items in
   [implementation-backlog.md](../implementation-backlog.md) Workstream 34.
