@@ -154,7 +154,8 @@ mutual
       Except LowerError Expr :=
     lowerCrosscallArgContributionFromIr ctx arg
 
-  /-- Deterministic crosscall stub: sum target, method, and scalar args (MBT/replay aligned with IR semantics). -/
+  /-- **IR-aligned crosscall stub (not a real peer).** Sum target + method + scalar
+  args for Quint MBT/replay. Matches `IR.Semantics.evalCrosscallInvokeSum` (U2). -/
   partial def lowerCrosscallInvokeSumExpr (ctx : LowerCtx) (target methodId : ProofForge.IR.Expr)
       (args : Array ProofForge.IR.Expr) : Except LowerError Expr := do
     let target' ← lowerExpr ctx target

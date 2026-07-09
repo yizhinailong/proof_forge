@@ -2,7 +2,8 @@
 Copyright (c) 2026 DaviRain. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
-Phase B.3: portable crosscall materialization on primary chains.
+Phase B.3 / U2: portable crosscall **target materialization** on primary chains.
+Does **not** exercise IR `Semantics` crosscall stubs (see `Tests/IRCrosscallStub.lean`).
 -/
 import ProofForge.IR.Examples.CrosscallProbe
 import ProofForge.IR.Examples.NearCrosscallProbe

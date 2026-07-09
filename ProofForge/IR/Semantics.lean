@@ -39,6 +39,12 @@ local instance instDecidableEqExcept {ε α : Type} [DecidableEq ε] [DecidableE
 This is the first formal anchor for proving the NEAR Wasm path: proofs can
 state the intended IR behavior here, while later refinement lemmas relate
 EmitWat output to these traces.
+
+**Crosscall honesty (U2):** `crosscall.invoke*` / create variants are evaluated
+by a **deterministic stub** (`evalCrosscallInvokeSum` + cast helpers). They do
+**not** model EVM CALL, Solana CPI, or NEAR Promise peers. Product remotes are
+validated by target materialize smokes; see `docs/portable-ir.md` § Crosscall
+semantics honesty.
 -/
 
 inductive Value where
@@ -557,7 +563,9 @@ partial def evalExpr (state : State) (frame : Frame) : Expr → Except String Ex
   | .nativeValue => .ok (state, .u64 0)
   | _ => .error "expression is not supported by the scalar semantics model"
 
-/-- Deterministic crosscall stub: sum target, method, and scalar args (aligned with Quint lowering). -/
+/-- **IR crosscall stub (not a real peer).** Deterministic sum of target + method
++ scalar/aggregate arg contributions. Aligned with Quint `lowerCrosscallInvokeSumExpr`.
+Must not be equated to target CALL/CPI/Promise results (U2). -/
 partial def evalCrosscallInvokeSum (state : State) (frame : Frame) (target methodId : Expr)
     (args : Array Expr) : Except String (State × Nat) := do
   let (stateAfterTarget, targetValue) ← evalExpr state frame target

@@ -56,6 +56,19 @@ Full chain-native IR↔target refinement remains in progress." Avoid
 "ProofForge is formally verified" without naming the tier; today that statement
 is only defensible for the specific tier and fragment being cited.
 
+### Crosscall honesty (U2)
+
+IR executable semantics and Quint treat `crosscall.*` as a **deterministic sum
+stub** (not a peer VM). That is intentional and documented in
+[portable-ir.md](portable-ir.md) § Crosscall semantics honesty.
+
+- **Tier A / IR self-replay** may use the stub for determinism.
+- **Product remote correctness** is validated only by **target materialize**
+  (CALL / CPI / Promise / …) and multi-target smokes — never by equating IR
+  stub returns to chain-native returns.
+- **C-proof fragment** must not silently include stub crosscall as “real peer
+  semantics” until an oracle path exists (roadmap U2.4 / U5.3).
+
 ## Trusted Computing Base (Track 1.6 audit)
 
 The `native_decide` vs `decide` distinction is the main axis of the Lean FV

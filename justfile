@@ -670,6 +670,11 @@ primary-materialize:
     lake build ProofForge.Target.Materialize ProofForge.Target.CrosscallMaterialize Examples.Product.Counter
     lake env lean --run Tests/PrimaryMaterialize.lean
 
+# U2: IR executable crosscall is a deterministic sum stub (not chain peer).
+ir-crosscall-stub:
+    lake build ProofForge.IR.Semantics ProofForge.IR.Examples.CrosscallProbe
+    lake env lean --run Tests/IRCrosscallStub.lean
+
 # Phase B.3: portable crosscall.invoke materialization (EVM CALL · Solana CPI · NEAR Promise).
 crosscall-materialize:
     lake build ProofForge.Target.Preflight ProofForge.Backend.Solana.PortableCrosscall ProofForge.Backend.WasmHost.PortableCrosscall ProofForge.IR.Examples.CrosscallProbe ProofForge.IR.Examples.NearCrosscallProbe ProofForge.IR.Examples.Counter Examples.Product.RemoteCall ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmHost.EmitWat ProofForge.Backend.WasmHost.CosmWasm.EmitWat ProofForge.Backend.Psy.IR

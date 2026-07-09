@@ -183,6 +183,30 @@ CosmWasm maps to string-keyed KV; Aptos maps to an account resource field.
 - [x] EVM portable IR bytecode metadata records `irVersion:
       portable-ir-v0` in `proof-forge-artifact.json`.
 
+
+## Crosscall semantics honesty (U2)
+
+Portable IR can *represent* remote calls (`crosscall.invoke` / typed variants /
+CREATE*). **Executable IR semantics does not simulate a real peer.**
+
+| Layer | What happens on `crosscall.*` | Trust / use |
+|-------|-------------------------------|-------------|
+| **IR `Semantics`** | **Deterministic stub**: sum target + method + scalar args (and optional tags for static/delegate/create); typed returns are cast from that sum (`crosscallHashStubValue` for hashes). | Quint MBT / IR self-replay / fixture determinism only |
+| **Quint lowering** | Same sum stub (`lowerCrosscallInvokeSumExpr`) aligned with IR | Tier A design validation |
+| **Target materialize** | Real host form: EVM CALL · Solana CPI · NEAR `promise_create` · Soroban `invoke_contract` · CosmWasm `execute_msg` | Product / gates: `just crosscall-materialize`, `just portable-remote-call-multi-target` |
+
+**Do not claim** that IR `runEntrypoint` return values equal EVM CALL / CPI /
+Promise results. Product remote correctness is proven by **target emit + host
+smokes**, not by IR↔chain return equality on crosscall.
+
+Optional future (U2.4): an IR peer-oracle registry for FV could replace the sum
+stub for selected modules; until then, stub crosscall stays **outside** the
+universal C-proof fragment (see FV-9 / U5.3).
+
+Related: `ProofForge/IR/Semantics.lean` (`evalCrosscallInvokeSum`),
+`ProofForge/Backend/Quint/Lower.lean`, `ProofForge/Target/CrosscallMaterialize.lean`,
+`Tests/IRCrosscallStub.lean`, `Tests/CrosscallMaterialize.lean`.
+
 ## Open Questions
 
 - How much of LCNF to reuse vs. a fresh contract IR AST?

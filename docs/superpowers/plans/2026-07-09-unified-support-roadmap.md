@@ -126,10 +126,10 @@ U7  Secondary hosts discipline (spike freeze / optional)     [LOW]
 
 | ID | Task | Work | Acceptance | Size | Deps | Status |
 |----|------|------|------------|------|------|--------|
-| **U2.1** | Document stub boundary | `docs/portable-ir.md` + `formal-verification.md` Tier table: crosscall = stub; backends = real | Docs + link from FV tiers | S | — | pending |
-| **U2.2** | Code comments / API names | Rename or annotate `evalCrosscallInvokeSum` as `stub`; Quint Lower same | Grep “stub” consistent; no behavior change | S | U2.1 | pending |
-| **U2.3** | Test split | Separate tests: (a) IR stub determinism (b) target remote materialize smokes | Tests do not claim IR==EVM CALL | M | U2.1 | pending |
-| **U2.4** | Design real-peer oracle (spec only) | RFC/note: optional IR peer mock registry for FV later | Design doc only | M | U2.1 | pending |
+| **U2.1** | Document stub boundary | `docs/portable-ir.md` + `formal-verification.md` Tier table: crosscall = stub; backends = real | Docs + link from FV tiers | S | — | **done** |
+| **U2.2** | Code comments / API names | Rename or annotate `evalCrosscallInvokeSum` as `stub`; Quint Lower same | Grep “stub” consistent; no behavior change | S | U2.1 | **done** |
+| **U2.3** | Test split | Separate tests: (a) IR stub determinism (b) target remote materialize smokes | Tests do not claim IR==EVM CALL | M | U2.1 | **done** |
+| **U2.4** | Design real-peer oracle (spec only) | RFC/note: optional IR peer mock registry for FV later | Design doc only | M | U2.1 | **done** (note in portable-ir § Crosscall) |
 | **U2.5** | Portable return decode MVP | Typed scalar returns already partial; extend table or honest reject richer shapes | CrosscallMaterialize + multi-target smoke | L | U2.3 | pending |
 
 ---
