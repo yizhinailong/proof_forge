@@ -282,6 +282,7 @@ def extensionKeyForTarget? : String → Option String
   | "evm" => some "evm"
   | "solana-sbpf-asm" => some "solana"
   | "wasm-near" => some "near"
+  | "wasm-stellar-soroban" => some "soroban"
   | "move-sui" => some "sui"
   | _ => none
 

@@ -266,6 +266,12 @@ def requireZero (slot : ScalarRef) (message : String) : EntryM Unit :=
 def requireOwner (ownerSlot : ScalarRef) (message : String := "not owner") : EntryM Unit :=
   requireEq caller (read ownerSlot) message
 
+/-- Hash-width owner check: compare `callerHash` to a `.hash` owner slot.
+Prefer for NEAR account-id identity; Solana lowers `userIdHash` as full-pubkey
+digest. EVM does not support `userIdHash` yet — use `requireOwner` (u64) there. -/
+def requireOwnerHash (ownerSlot : ScalarRef) (message : String := "not owner") : EntryM Unit :=
+  requireEq callerHash (read ownerSlot) message
+
 def requireNotPaused (pausedSlot : ScalarRef) (message : String := "paused") : EntryM Unit :=
   requireEq (read pausedSlot) (u64 0) message
 

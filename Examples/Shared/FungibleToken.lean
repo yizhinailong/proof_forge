@@ -24,6 +24,7 @@ Compile the same token intent by changing only `--target`:
 
   - `evm` → ERC-20 contract
   - `solana-sbpf-asm` → SPL Token plan (or Token-2022 if features require it)
+  - `wasm-near` → NEP-141 plan (metadata/ops; compose Stdlib.NearFungibleToken for body)
 -/
 import ProofForge.Contract.Token
 

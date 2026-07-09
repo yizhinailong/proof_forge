@@ -103,12 +103,29 @@ if [[ -f "$GOLDEN_NEAR" ]]; then
 fi
 require_file "$OUT/near/RemoteCall.near-artifact.json"
 
-echo "portable-remote-call: Soroban host bridge (EmitWat invoke_contract)"
-# No registry --target yet; gate via Lean emit of Shared.RemoteCall on HostBridge.soroban.
+echo "portable-remote-call: Soroban (wasm-stellar-soroban list-targets)"
 mkdir -p "$OUT/soroban"
-(cd "$ROOT" && lake build Examples.Shared.RemoteCall ProofForge.Backend.WasmNear.EmitWat >/dev/null)
-(cd "$ROOT" && lake env lean --run Tests/PortableAuthMaterialize.lean) \
-  || fail "Soroban RemoteCall/Ownable portable-auth gate failed"
-echo "portable-remote-call: Soroban invoke_contract path checked (portable-auth-materialize)"
+"${proof_forge[@]}" build --target wasm-stellar-soroban --root . \
+  --peers-demo \
+  -o "$OUT/soroban" \
+  --artifact-output "$OUT/soroban/RemoteCall.soroban-artifact.json" \
+  "$SOURCE" \
+  || fail "wasm-stellar-soroban build failed"
+SOROBAN_WAT=""
+if [[ -f "$OUT/soroban/remotecall.wat" ]]; then
+  SOROBAN_WAT="$OUT/soroban/remotecall.wat"
+elif [[ -f "$OUT/soroban/RemoteCall.wat" ]]; then
+  SOROBAN_WAT="$OUT/soroban/RemoteCall.wat"
+else
+  SOROBAN_WAT="$(find "$OUT/soroban" -name '*.wat' | head -n1 || true)"
+fi
+[[ -n "$SOROBAN_WAT" && -f "$SOROBAN_WAT" ]] || fail "Soroban WAT not written under $OUT/soroban"
+require_contains "$SOROBAN_WAT" "invoke_contract" "Soroban invoke_contract"
+require_contains "$SOROBAN_WAT" "callee.example.near" "PeerMap nearDemo on Soroban"
+if grep -Fq "promise_create" "$SOROBAN_WAT"; then
+  fail "Soroban WAT must not contain promise_create"
+fi
+require_file "$OUT/soroban/RemoteCall.soroban-artifact.json"
+echo "portable-remote-call: Soroban ok"
 
 echo "portable-remote-call-multi-target: ok (evm · solana · near · soroban)"

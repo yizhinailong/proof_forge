@@ -6,6 +6,7 @@ Portable business checks (Ownable / require*) materialize on EVM · Solana ·
 NEAR · Soroban without chain DSL in source.
 -/
 import Examples.Shared.Ownable
+import Examples.Shared.OwnableHash
 import Examples.Shared.RemoteCall
 import ProofForge.Backend.Evm.Plan
 import ProofForge.Backend.Solana.Manifest
@@ -133,4 +134,18 @@ def main : IO Unit := do
       require r.readyToMaterialize
         s!"preflight should be ready for {r.targetId} on {mod.name}: {r.note}"
 
-  IO.println "portable-auth-materialize: ok (Ownable checks + RemoteCall declareRemote · EVM·Solana·NEAR·Soroban)"
+  -- Hash-width Ownable: product path for NEAR (callerHash). Solana still needs
+  -- hash-literal/param support before full OwnableHash emit; u64 Ownable remains
+  -- the Solana triad path with full-pubkey digest handle.
+  let ownableHash := Examples.Shared.OwnableHash.module
+  require (ownableHash.state.any (fun s => s.id == "owner" && s.type == .hash))
+    "OwnableHash stores owner as Hash"
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule ownableHash with
+  | .error e => throw (IO.userError s!"NEAR OwnableHash: {e.message}")
+  | .ok wat =>
+      require (wat.contains "unreachable" || wat.contains "panic")
+        "OwnableHash NEAR should assert"
+      require (wat.contains "sha256" || wat.contains "predecessor")
+        "OwnableHash NEAR uses host identity path"
+
+  IO.println "portable-auth-materialize: ok (Ownable·OwnableHash + RemoteCall · EVM·Solana·NEAR·Soroban)"

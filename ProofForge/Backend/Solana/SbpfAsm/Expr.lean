@@ -29,6 +29,42 @@ open ProofForge.Backend.Solana.Syscalls
 def res (opcode : Opcode) (src : Option Reg := none) (off : Option MemOff := none) (imm : Option Imm := none) : Inst :=
   { opcode, dst := some .r2, src, off, imm }
 
+/-- Lower account[0] full 32-byte pubkey → `sol_sha256` → portable u64 handle
+(digest LE word 0). Shared by `userId` / `origin`. Returns nodes + updated ctx. -/
+def lowerAccount0PubkeyDigestU64 (ctx : LowerCtx) (label : String) :
+    Array AstNode × LowerCtx :=
+  let (inputPtrSave, ctx) := ctx.allocScratch
+  let (inputBuf, ctx) := ctx.allocScratchBytes 32
+  let (digestBuf, ctx) := ctx.allocScratchBytes 32
+  let (sliceTable, ctx) := ctx.allocScratchBytes 16
+  (#[
+    .comment s!"solana.context.{label}: sha256(account[0] full 32-byte pubkey) → u64-le digest[0..8]",
+    .instruction { opcode := .stxdw, dst := some .r10, off := some (.num inputPtrSave), src := some .r1 },
+    .instruction { opcode := .mov64, dst := some .r3, src := some .r10 },
+    .instruction { opcode := .sub64, dst := some .r3, imm := some (.num inputBuf) },
+    .instruction { opcode := .ldxdw, dst := some .r4, src := some .r1, off := some (.num 16) },
+    .instruction { opcode := .stxdw, dst := some .r3, off := some (.num 0), src := some .r4 },
+    .instruction { opcode := .ldxdw, dst := some .r4, src := some .r1, off := some (.num 24) },
+    .instruction { opcode := .stxdw, dst := some .r3, off := some (.num 8), src := some .r4 },
+    .instruction { opcode := .ldxdw, dst := some .r4, src := some .r1, off := some (.num 32) },
+    .instruction { opcode := .stxdw, dst := some .r3, off := some (.num 16), src := some .r4 },
+    .instruction { opcode := .ldxdw, dst := some .r4, src := some .r1, off := some (.num 40) },
+    .instruction { opcode := .stxdw, dst := some .r3, off := some (.num 24), src := some .r4 },
+    .instruction { opcode := .mov64, dst := some .r5, src := some .r10 },
+    .instruction { opcode := .sub64, dst := some .r5, imm := some (.num sliceTable) },
+    .instruction { opcode := .stxdw, dst := some .r5, off := some (.num 0), src := some .r3 },
+    .instruction { opcode := .mov64, dst := some .r6, imm := some (.num 32) },
+    .instruction { opcode := .stxdw, dst := some .r5, off := some (.num 8), src := some .r6 },
+    .instruction { opcode := .mov64, dst := some .r1, src := some .r5 },
+    .instruction { opcode := .mov64, dst := some .r2, imm := some (.num 1) },
+    .instruction { opcode := .mov64, dst := some .r3, src := some .r10 },
+    .instruction { opcode := .sub64, dst := some .r3, imm := some (.num digestBuf) },
+    .instruction { opcode := .call, imm := some (.sym sol_sha256) },
+    .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_syscall") },
+    .instruction { opcode := .ldxdw, dst := some .r2, src := some .r10, off := some (.num digestBuf) },
+    .instruction { opcode := .ldxdw, dst := some .r1, src := some .r10, off := some (.num inputPtrSave) }
+  ], ctx)
+
 /-- Combine already-lowered LHS/RHS nodes for a commutative binary ALU op.
 The result lands in r2. LHS is stashed to the scratch slot, RHS is evaluated
 into r2, then LHS is reloaded into r3 and `op r2, r3` is applied. Order does
@@ -340,75 +376,22 @@ partial def lowerExpr (ctx : LowerCtx) (expr : IR.Expr) : Except LowerError (Arr
       .instruction { opcode := .ldxdw, dst := some .r1, src := some .r10, off := some (.num inputPtrScratch) }
     ], ctx)
   | .effect (.contextRead .userId) =>
-    -- Full 32-byte account[0] pubkey → sol_sha256 → portable u64 handle (digest LE word 0).
-    -- Uses the whole identity (not a raw 8-byte slice). ensurePortableAuthAccounts
-    -- places `authority` first when callerSender is present.
-    let (inputPtrSave, ctx) := ctx.allocScratch
-    let (inputBuf, ctx) := ctx.allocScratchBytes 32
-    let (digestBuf, ctx) := ctx.allocScratchBytes 32
-    let (sliceTable, ctx) := ctx.allocScratchBytes 16
-    .ok (#[
-      .comment "solana.context.userId: sha256(account[0] full 32-byte pubkey) → u64-le digest[0..8]",
-      .instruction { opcode := .stxdw, dst := some .r10, off := some (.num inputPtrSave), src := some .r1 },
-      .instruction { opcode := .mov64, dst := some .r3, src := some .r10 },
-      .instruction { opcode := .sub64, dst := some .r3, imm := some (.num inputBuf) },
-      .instruction { opcode := .ldxdw, dst := some .r4, src := some .r1, off := some (.num 16) },
-      .instruction { opcode := .stxdw, dst := some .r3, off := some (.num 0), src := some .r4 },
-      .instruction { opcode := .ldxdw, dst := some .r4, src := some .r1, off := some (.num 24) },
-      .instruction { opcode := .stxdw, dst := some .r3, off := some (.num 8), src := some .r4 },
-      .instruction { opcode := .ldxdw, dst := some .r4, src := some .r1, off := some (.num 32) },
-      .instruction { opcode := .stxdw, dst := some .r3, off := some (.num 16), src := some .r4 },
-      .instruction { opcode := .ldxdw, dst := some .r4, src := some .r1, off := some (.num 40) },
-      .instruction { opcode := .stxdw, dst := some .r3, off := some (.num 24), src := some .r4 },
-      .instruction { opcode := .mov64, dst := some .r5, src := some .r10 },
-      .instruction { opcode := .sub64, dst := some .r5, imm := some (.num sliceTable) },
-      .instruction { opcode := .stxdw, dst := some .r5, off := some (.num 0), src := some .r3 },
-      .instruction { opcode := .mov64, dst := some .r6, imm := some (.num 32) },
-      .instruction { opcode := .stxdw, dst := some .r5, off := some (.num 8), src := some .r6 },
-      .instruction { opcode := .mov64, dst := some .r1, src := some .r5 },
-      .instruction { opcode := .mov64, dst := some .r2, imm := some (.num 1) },
-      .instruction { opcode := .mov64, dst := some .r3, src := some .r10 },
-      .instruction { opcode := .sub64, dst := some .r3, imm := some (.num digestBuf) },
-      .instruction { opcode := .call, imm := some (.sym sol_sha256) },
-      .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_syscall") },
-      .instruction { opcode := .ldxdw, dst := some .r2, src := some .r10, off := some (.num digestBuf) },
-      .instruction { opcode := .ldxdw, dst := some .r1, src := some .r10, off := some (.num inputPtrSave) }
-    ], ctx)
+      let (nodes, ctx) := lowerAccount0PubkeyDigestU64 ctx "userId"
+      .ok (nodes, ctx)
   | .effect (.contextRead .origin) =>
-    -- Same full-pubkey digest as userId (tx authority account[0] under portable auth).
-    let (inputPtrSave, ctx) := ctx.allocScratch
-    let (inputBuf, ctx) := ctx.allocScratchBytes 32
-    let (digestBuf, ctx) := ctx.allocScratchBytes 32
-    let (sliceTable, ctx) := ctx.allocScratchBytes 16
-    .ok (#[
-      .comment "solana.context.origin: sha256(account[0] full 32-byte pubkey) → u64-le digest[0..8]",
-      .instruction { opcode := .stxdw, dst := some .r10, off := some (.num inputPtrSave), src := some .r1 },
-      .instruction { opcode := .mov64, dst := some .r3, src := some .r10 },
-      .instruction { opcode := .sub64, dst := some .r3, imm := some (.num inputBuf) },
-      .instruction { opcode := .ldxdw, dst := some .r4, src := some .r1, off := some (.num 16) },
-      .instruction { opcode := .stxdw, dst := some .r3, off := some (.num 0), src := some .r4 },
-      .instruction { opcode := .ldxdw, dst := some .r4, src := some .r1, off := some (.num 24) },
-      .instruction { opcode := .stxdw, dst := some .r3, off := some (.num 8), src := some .r4 },
-      .instruction { opcode := .ldxdw, dst := some .r4, src := some .r1, off := some (.num 32) },
-      .instruction { opcode := .stxdw, dst := some .r3, off := some (.num 16), src := some .r4 },
-      .instruction { opcode := .ldxdw, dst := some .r4, src := some .r1, off := some (.num 40) },
-      .instruction { opcode := .stxdw, dst := some .r3, off := some (.num 24), src := some .r4 },
-      .instruction { opcode := .mov64, dst := some .r5, src := some .r10 },
-      .instruction { opcode := .sub64, dst := some .r5, imm := some (.num sliceTable) },
-      .instruction { opcode := .stxdw, dst := some .r5, off := some (.num 0), src := some .r3 },
-      .instruction { opcode := .mov64, dst := some .r6, imm := some (.num 32) },
-      .instruction { opcode := .stxdw, dst := some .r5, off := some (.num 8), src := some .r6 },
-      .instruction { opcode := .mov64, dst := some .r1, src := some .r5 },
-      .instruction { opcode := .mov64, dst := some .r2, imm := some (.num 1) },
-      .instruction { opcode := .mov64, dst := some .r3, src := some .r10 },
-      .instruction { opcode := .sub64, dst := some .r3, imm := some (.num digestBuf) },
-      .instruction { opcode := .call, imm := some (.sym sol_sha256) },
-      .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_syscall") },
-      .instruction { opcode := .ldxdw, dst := some .r2, src := some .r10, off := some (.num digestBuf) },
-      .instruction { opcode := .ldxdw, dst := some .r1, src := some .r10, off := some (.num inputPtrSave) }
-    ], ctx)
+      let (nodes, ctx) := lowerAccount0PubkeyDigestU64 ctx "origin"
+      .ok (nodes, ctx)
+  | .effect (.contextRead .userIdHash) =>
+      -- Full 32-byte identity digest left at digest buffer; r2 holds limb0 and
+      -- subsequent limbs are reloaded by hash-typed consumers from the buffer
+      -- when they treat the result as a stack-backed hash (same limb0 convention
+      -- as other Solana hash lowers). Product: full-pubkey identity for hash owner.
+      let (nodes, ctx) := lowerAccount0PubkeyDigestU64 ctx "userIdHash"
+      .ok (nodes ++ #[
+        .comment "solana.context.userIdHash: same full-pubkey sha256; portable Hash limb0 in r2"
+      ], ctx)
   | .effect (.contextRead field) =>
-    .error { message := s!"Solana context read `{field.name}` is not supported; userId/origin are sha256(account[0] pubkey)→u64, checkpointId maps to Clock.slot" }
+    .error { message := s!"Solana context read `{field.name}` is not supported; userId/origin/userIdHash are sha256(account[0] pubkey), checkpointId maps to Clock.slot" }
   | .hashValue a b c d => do
     let (an, ctx) ← lowerExpr ctx a
     let (scratchA, ctx) := ctx.allocScratch

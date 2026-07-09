@@ -34,7 +34,6 @@ contract_source RemoteCall do
     return ProofForge.Contract.Surface.remoteCallRef callee #[];
 
   entry call_with_args returns(.u64) do
-    return ProofForge.Contract.Surface.remoteCallRef callee
-      #[u64 42, u64 7];
+    return ProofForge.Contract.Surface.remoteCallRef callee #[u64 42, u64 7];
 
 end Examples.Shared.RemoteCall

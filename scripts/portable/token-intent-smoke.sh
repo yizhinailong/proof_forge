@@ -13,6 +13,7 @@ export PATH="$HOME/.elan/bin:$HOME/.local/bin:$HOME/.foundry/bin:$PATH"
 OUT_DIR="${PROOF_FORGE_TOKEN_INTENT_OUT:-${PROOF_FORGE_LEARN_TOKEN_OUT:-build/portable/token-intent}}"
 EVM_DIR="$OUT_DIR/evm"
 SOLANA_DIR="$OUT_DIR/solana"
+NEAR_DIR="$OUT_DIR/near"
 
 PROOF_TOKEN="Examples/Learn/ProofToken.learn"
 FEE_TOKEN="Examples/Learn/FeeToken.learn"
@@ -41,7 +42,7 @@ command -v python3 >/dev/null 2>&1 || fail "python3 not on PATH"
 command -v cargo >/dev/null 2>&1 || fail "cargo not on PATH"
 
 rm -rf "$OUT_DIR"
-mkdir -p "$EVM_DIR" "$SOLANA_DIR"
+mkdir -p "$EVM_DIR" "$SOLANA_DIR" "$NEAR_DIR"
 
 if command -v solc >/dev/null 2>&1; then
   echo "=== Token intent step 1: emit Lean TokenSpec to EVM ERC-20 Yul/bytecode ==="
@@ -317,5 +318,28 @@ cargo run --manifest-path testkit/harness-solana/Cargo.toml \
 cargo run --manifest-path testkit/harness-solana/Cargo.toml \
   --bin token_plan_smoke -- "$LEAN_SOLANA_SOULBOUND_TOKEN_2022_PLAN" \
   || fail "Lean Solana Token-2022 non-transferable plan Rust validation failed"
+
+echo "=== Token intent step 9: emit Lean TokenSpec to NEAR NEP-141 plan ==="
+LEAN_NEAR_PLAN="$NEAR_DIR/FungibleToken.near-token-plan.json"
+lake env proof-forge build --target wasm-near --token --root . \
+  -o "$LEAN_NEAR_PLAN" \
+  "$LEAN_TOKEN" \
+  || fail "proof-forge build --target wasm-near --token failed for Lean TokenSpec"
+
+require_file "$LEAN_NEAR_PLAN"
+python3 - "$LEAN_NEAR_PLAN" <<'PY'
+import json
+import sys
+
+plan = json.load(open(sys.argv[1]))
+assert plan["format"] == "proof-forge-token-plan-v0"
+assert plan["sourceKind"] == "lean-token-source"
+assert plan["target"] == "wasm-near"
+assert plan["standard"] == "nep-141"
+assert plan["artifactKind"] == "near-nep141-plan"
+assert "ft_transfer" in plan["operations"]
+assert plan["validation"]["leanTokenLoading"] == "passed"
+print("lean near nep-141 plan: ok")
+PY
 
 echo "token-intent-smoke: PASS"

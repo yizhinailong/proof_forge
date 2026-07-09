@@ -134,11 +134,13 @@ def stripNearPromiseImports (imports : Array Import) : Array Import :=
     | "promise_result" | "promise_return" => false
     | _ => true
 
-/-- C.8: drop NEAR storage register ABI; Soroban scalars use `_get`/`_put`. -/
+/-- C.8: drop NEAR storage_* ABI; Soroban scalars use `_get`/`_put`.
+Keep `read_register` — entry param prologue still uses NEAR input+register
+shape until Soroban-specific input encoding lands. -/
 def stripNearStorageImports (imports : Array Import) : Array Import :=
   imports.filter fun import_ =>
     match import_.name with
-    | "storage_read" | "storage_write" | "storage_has_key" | "read_register" => false
+    | "storage_read" | "storage_write" | "storage_has_key" => false
     | _ => true
 
 def sorobanGetImport : Import :=

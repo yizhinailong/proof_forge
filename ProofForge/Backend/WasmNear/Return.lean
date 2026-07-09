@@ -8,6 +8,7 @@ import ProofForge.Backend.WasmNear.Diagnostics
 import ProofForge.Backend.WasmNear.ExprAnalysis
 import ProofForge.Backend.WasmNear.Scalar
 import ProofForge.Backend.WasmNear.Types
+import ProofForge.Target.HostBridge
 
 namespace ProofForge.Backend.WasmNear.Return
 
@@ -21,10 +22,13 @@ open ProofForge.Backend.WasmNear.Types
 /-! Return-value encoding helpers for EmitWat. -/
 
 def returnInsnsForLoweredExpr (expected : ValueType) (expr : Expr)
-    (insns : Array Insn) (actual : ValueType) : Except EmitError (Array Insn) := do
+    (insns : Array Insn) (actual : ValueType)
+    (bridge : ProofForge.Target.HostBridge := .near) : Except EmitError (Array Insn) := do
   if actual != expected then
     err s!"EmitWat: return expected `{expected.name}`, got `{actual.name}`"
-  else if exprReturnsNearPromise expr then
+  else if bridge == .near && exprReturnsNearPromise expr then
+    -- NEAR Promise id must be passed to promise_return; Soroban invoke returns a
+    -- host handle and uses ordinary value_return encoding.
     .ok (insns ++ #[.call "promise_return"])
   else match actual with
     | .u64 => .ok (insns ++ #[.call returnU64Name])
