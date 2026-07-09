@@ -138,10 +138,12 @@ def main : IO Unit := do
   -- Solana account ceilings used by portable CPI packing.
   require (MAX_TX_ACCOUNT_LOCKS == 64) "Solana tx lock limit is 64"
   require (MAX_CPI_ACCOUNT_INFOS == 128) "Solana CPI account infos ceiling is 128"
-  require (MAX_PORTABLE_CPI_ACCOUNTS == min MAX_TX_ACCOUNT_LOCKS MAX_PORTABLE_CPI_STACK_ACCOUNTS)
-    "portable CPI max is min(tx locks, stack capacity)"
-  require (MAX_PORTABLE_CPI_ACCOUNTS == 40)
-    "dedicated portable CPI frame packs 40 accounts (min of 64 locks and stack)"
+  require (MAX_PORTABLE_CPI_ACCOUNTS == MAX_TX_ACCOUNT_LOCKS)
+    "portable CPI max equals full tx lock limit (heap infos)"
+  require (MAX_PORTABLE_CPI_ACCOUNTS == 64)
+    "heap-backed infos pack full MAX_TX_ACCOUNT_LOCKS (64)"
+  require (HEAP_START_ADDRESS == 0x300000000) "Solana heap base"
+  require (PORTABLE_CPI_INFO_HEAP_BYTES == 64 * 56) "heap reserve for 64 AccountInfos"
   require ((forProfile moveAptos).nativeForm == NativeForm.moveCall) "Aptos form"
   require ((forProfile moveSui).nativeForm == NativeForm.moveCall) "Sui form"
 

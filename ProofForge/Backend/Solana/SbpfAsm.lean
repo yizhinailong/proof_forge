@@ -474,7 +474,7 @@ partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions
       message :=
         s!"Solana account schema has {schema.accounts.size} accounts; " ++
         s!"portable CPI packing supports at most {MAX_PORTABLE_CPI_ACCOUNTS} " ++
-        s!"(min of MAX_TX_ACCOUNT_LOCKS={MAX_TX_ACCOUNT_LOCKS} and stack capacity)"
+        s!"(= MAX_TX_ACCOUNT_LOCKS; infos on heap, metas on stack)"
     }
   else
     lowerModuleCoreWithSeed module schema.accounts schema.inputLayout extensions ctx

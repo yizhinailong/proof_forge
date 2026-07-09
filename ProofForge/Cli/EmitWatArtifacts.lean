@@ -17,6 +17,7 @@ import ProofForge.IR.Examples.ErrorRefProbe
 import ProofForge.IR.Examples.HashProbe
 import ProofForge.IR.Examples.MapProbe
 import ProofForge.Target
+import ProofForge.Target.Preflight
 
 open System
 open ProofForge.Cli.JsonUtil
@@ -186,6 +187,14 @@ def writeEmitWatArtifactMetadata
       | none => "unknown")),
     ("materialization", materializationJson),
     ("crosscallMaterialization", crosscallJson),
+    ("preflight",
+      match ProofForge.Target.find? targetId with
+      | some profile =>
+          ProofForge.Target.Preflight.Report.json
+            (ProofForge.Target.Preflight.run profile module)
+      | none =>
+          ProofForge.Target.Preflight.Report.json
+            (ProofForge.Target.Preflight.run ProofForge.Target.wasmNear module)),
     ("artifactKind", jsonString "wasm"),
     ("fixture", jsonString fixture),
     ("sourceKind", jsonString sourceKind),

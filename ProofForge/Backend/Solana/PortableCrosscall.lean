@@ -41,36 +41,38 @@ open ProofForge.Backend.Solana.Extension
 open ProofForge.Backend.Solana.StateLayout
 open ProofForge.Backend.Solana.Syscalls
 
-/-! ## Dedicated portable CPI stack frame
+/-! ## Dedicated portable CPI frame (stack metas + heap infos)
 
-Does **not** reuse Extension CPI offsets (`cpiAccountMetaOffset` …) so Source.Solana
-hand-tuned CPI keeps its layout. Layout (offsets from r10, low → high usage):
+Does **not** reuse Extension CPI offsets so Source.Solana hand-tuned CPI keeps
+its layout.
 
 ```
-portableCpiIxOffset          SolInstruction (40)
-portableCpiMetaOffset        AccountMeta[MAX] (MAX×16)
-portableCpiProgramIdOffset   program id (32)
-portableCpiDataOffset        ix data (portable args)
-portableCpiInfoOffset        AccountInfo[MAX] (MAX×56)
-portableReturnDataOffset     return-data buffer (8+)
-portableTargetIndexSave      target account index word
-accountPtrTableOffset        64 account ptrs (shared entry prologue)
-entryInputSaveOffset …
+STACK (r10-relative):
+  portableCpiIxOffset          SolInstruction (40)
+  portableCpiMetaOffset        AccountMeta[64] (64×16 = 1024)
+  portableCpiProgramIdOffset   program id (32)
+  portableCpiDataOffset        ix data (portable args)
+  portableReturnDataOffset     return-data buffer
+  portableTargetIndexSave      target account index word
+  accountPtrTableOffset        64 account ptrs (entry prologue)
+  entryInputSaveOffset …
+
+HEAP (absolute, HEAP_START_ADDRESS):
+  SolAccountInfo[64]           64×56 = 3584 bytes reserved at heap start
 ```
 -/
 
 def portableCpiIxOffset : Nat := 64
 def portableCpiMetaOffset : Nat := 128
-/-- Metas consume `MAX_PORTABLE_CPI_ACCOUNTS × 16` bytes from `portableCpiMetaOffset`. -/
+/-- Metas: full lock limit on stack (`64 × 16` from offset 128 → ends 1152). -/
 def portableCpiProgramIdOffset : Nat :=
-  portableCpiMetaOffset + MAX_PORTABLE_CPI_ACCOUNTS * 16  -- 128+640=768
-def portableCpiDataOffset : Nat := portableCpiProgramIdOffset + 32  -- 800
-def portableCpiInfoOffset : Nat := portableCpiDataOffset + 256  -- 1056, room for many u64 args
-/-- Infos: 40×56=2240 → end 1056+2240=3296; return data just below account table (3488). -/
-def portableReturnDataOffset : Nat := 3360
-def portableReturnDataProgramIdOffset : Nat := 3368
-/-- Target account index save; below return-data, above infos end (~3296). -/
-def portableTargetIndexSaveOffset : Nat := 3336
+  portableCpiMetaOffset + MAX_PORTABLE_CPI_ACCOUNTS * 16  -- 128+1024=1152
+def portableCpiDataOffset : Nat := portableCpiProgramIdOffset + 32  -- 1184
+/-- Absolute heap base for AccountInfo array (not r10-relative). -/
+def portableCpiInfoHeapBase : Nat := HEAP_START_ADDRESS
+def portableReturnDataOffset : Nat := 3200
+def portableReturnDataProgramIdOffset : Nat := 3208
+def portableTargetIndexSaveOffset : Nat := 3248
 
 /-- Store r2 (u64) into portable instruction data at word index `wordIdx`. -/
 def storeIxDataWord (wordIdx : Nat) : Array AstNode :=
@@ -162,9 +164,19 @@ def storeAccountMetaFromR7 (slotIdx : Nat) : Array AstNode :=
     storeReg .stxb .r6 9 .r3
   ]
 
-/-- After r7 holds the account start pointer, write SolAccountInfo at CPI slot. -/
+/-- Load absolute heap address of AccountInfo[slotIdx] into `dst`. -/
+def loadHeapInfoPtr (dst : Reg) (slotIdx : Nat) : Array AstNode :=
+  #[
+    .instruction {
+      opcode := .lddw
+      dst := some dst
+      imm := some (.num (portableCpiInfoHeapBase + slotIdx * 56))
+    }
+  ]
+
+/-- After r7 holds the account start pointer, write SolAccountInfo at CPI slot
+on the **runtime heap** (full 64-account capacity). -/
 def storeAccountInfoFromR7 (slotIdx : Nat) : Array AstNode :=
-  let infoOffset := slotIdx * 56
   let signerOff := 1
   let writableOff := 2
   let executableOff := 3
@@ -174,10 +186,9 @@ def storeAccountInfoFromR7 (slotIdx : Nat) : Array AstNode :=
   let dataLenRel := lamportsRel + U64_SIZE
   let dataStartRel := dataLenRel + U64_SIZE
   #[
-    .comment s!"portable CPI: AccountInfo[{slotIdx}] from input account[{slotIdx}]"
+    .comment s!"portable CPI: AccountInfo[{slotIdx}] @ heap+{slotIdx * 56} from input account[{slotIdx}]"
   ] ++
-  stackPtr .r6 portableCpiInfoOffset ++ #[
-    .instruction { opcode := .add64, dst := some .r6, imm := some (.num infoOffset) },
+  loadHeapInfoPtr .r6 slotIdx ++ #[
     .instruction { opcode := .mov64, dst := some .r8, src := some .r7 },
     .instruction { opcode := .add64, dst := some .r8, imm := some (.num keyRel) },
     storeReg .stxdw .r6 0 .r8,
@@ -212,13 +223,12 @@ def packOneAccount (accountIndex : Nat) : Array AstNode :=
   storeAccountInfoFromR7 accountIndex
 
 /-- Forward the **full** instruction account list into the CPI frame (capped at
-`MAX_PORTABLE_CPI_ACCOUNTS`). `program_id` is still resolved from `target`;
-authors never list metas by hand — remaining accounts are the schema vector
-(state, payer, callee_program, …). -/
+`MAX_PORTABLE_CPI_ACCOUNTS` = 64). Metas on stack; infos on heap at
+`HEAP_START_ADDRESS`. `program_id` still from `target`. -/
 def packAllTxAccounts (accountCount : Nat) : Array AstNode :=
   let n := min accountCount maxPortableCpiAccounts
   #[
-    .comment s!"portable CPI: forward {n} tx accounts (max={maxPortableCpiAccounts}; tx locks={maxTxAccountLocks})"
+    .comment s!"portable CPI: forward {n} tx accounts (max={maxPortableCpiAccounts}=tx locks; infos@heap base={portableCpiInfoHeapBase})"
   ] ++
   (List.range n).foldl (fun acc i => acc ++ packOneAccount i) #[]
 
@@ -293,11 +303,11 @@ def invokeSignedC (dataLen accountCount : Nat) (retNoneLabel retEndLabel : Strin
   packAllTxAccounts n ++
   packSolInstruction dataLen n ++
   stackPtr .r1 portableCpiIxOffset ++
-  stackPtr .r2 portableCpiInfoOffset ++ #[
+  loadHeapInfoPtr .r2 0 ++ #[
     loadImm .r3 n,
     loadImm .r4 0,
     loadImm .r5 0,
-    .comment s!"r1=instruction_ptr r2=account_infos_ptr r3={n} r4=0 r5=0",
+    .comment s!"r1=instruction_ptr r2=heap_infos_ptr r3={n} r4=0 r5=0",
     callSyscall sol_invoke_signed_c,
     .instruction {
       opcode := .jne

@@ -12,6 +12,7 @@ import ProofForge.IR.Examples.ErrorRefProbe
 import ProofForge.IR.Examples.HashProbe
 import ProofForge.IR.Examples.MapProbe
 import ProofForge.Target.Registry
+import ProofForge.Target.Preflight
 
 open System Lean
 open ProofForge.Cli.JsonUtil
@@ -220,15 +221,32 @@ unsafe def checkContractSource (profile : ProofForge.Target.TargetProfile) (inpu
       validation := pushValidation next.validation "contractSource" "failed"
     }
       | .ok spec =>
+          -- L0+L1 preflight (portability hard + capability) before materialize/emit.
+          let pref := ProofForge.Target.Preflight.run profile spec.module
+          if !pref.readyToMaterialize then
+            return {
+              next with
+              diagnostics := pushDiagnostic next.diagnostics {
+                severity := .error
+                code := "preflight.failed"
+                message := pref.note
+                file? := some input.toString
+              }
+              validation := pushValidation next.validation "preflight" "failed"
+            }
+          let preflighted := {
+            next with
+            validation := pushValidation next.validation "preflight" "passed"
+          }
           match ProofForge.Target.resolveSpec profile spec with
           | .error diag =>
             return {
-              next with
-              diagnostics := pushDiagnostic next.diagnostics (diagnosticFromTarget diag "capability.unsupported" .error)
-              validation := pushValidation next.validation "capabilities" "failed"
+              preflighted with
+              diagnostics := pushDiagnostic preflighted.diagnostics (diagnosticFromTarget diag "capability.unsupported" .error)
+              validation := pushValidation preflighted.validation "capabilities" "failed"
             }
           | .ok _ =>
-            let resolved := { next with validation := pushValidation next.validation "capabilities" "passed" }
+            let resolved := { preflighted with validation := pushValidation preflighted.validation "capabilities" "passed" }
             if profile.id == ProofForge.Target.wasmNear.id then
               match ProofForge.Backend.WasmNear.EmitWat.renderModule spec.module with
               | .ok _ =>

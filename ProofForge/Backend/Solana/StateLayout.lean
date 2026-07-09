@@ -35,19 +35,24 @@ def MAX_TX_ACCOUNT_LOCKS : Nat := 64
 SIMD-0339 may raise this further; we still stack-pack within the frame. -/
 def MAX_CPI_ACCOUNT_INFOS : Nat := 128
 
-/-- Dedicated portable CPI frame packs metas + infos below the account pointer
-table (`accountPtrTableOffset` 3488). Budget for infos:
-`table - portableCpiInfoBase`, with metas/program_id/data below infos.
-`40 × 56 = 2240` infos + `40 × 16 = 640` metas + headers fit under 3488 with
-headroom for return-data scratch. Full `MAX_TX_ACCOUNT_LOCKS` (64) would need
-heap-backed infos (table+infos alone are `64 × 64 = 4096` bytes). -/
-def MAX_PORTABLE_CPI_STACK_ACCOUNTS : Nat := 40
+/-- Solana runtime heap base (`HEAP_START_ADDRESS`). Portable CPI places the
+`SolAccountInfo[MAX_TX_ACCOUNT_LOCKS]` array here so packing can reach the full
+tx-lock ceiling without exhausting the 4 KiB sBPF stack. Metas remain on-stack. -/
+def HEAP_START_ADDRESS : Nat := 0x300000000
 
-/-- Effective max accounts for portable CPI materialization — the maximum the
-product path will forward into `sol_invoke_signed_c` (full instruction account
-vector, clipped to this ceiling). Equals `min(64, 40)` today. -/
-def MAX_PORTABLE_CPI_ACCOUNTS : Nat :=
-  min MAX_TX_ACCOUNT_LOCKS MAX_PORTABLE_CPI_STACK_ACCOUNTS
+/-- Bytes reserved at heap start for portable CPI AccountInfo array
+(`MAX_TX_ACCOUNT_LOCKS × 56`). Bump allocators should start above this region. -/
+def PORTABLE_CPI_INFO_HEAP_BYTES : Nat := MAX_TX_ACCOUNT_LOCKS * 56  -- 3584
+
+/-- On-stack metas can hold the full lock limit (`64 × 16 = 1024` bytes). -/
+def MAX_PORTABLE_CPI_STACK_METAS : Nat := MAX_TX_ACCOUNT_LOCKS
+
+/-- Heap-backed infos can hold the full lock limit. -/
+def MAX_PORTABLE_CPI_HEAP_INFOS : Nat := MAX_TX_ACCOUNT_LOCKS
+
+/-- Effective max accounts for portable CPI materialization — full Solana
+tx-lock ceiling (64). Infos live on the runtime heap; metas on stack. -/
+def MAX_PORTABLE_CPI_ACCOUNTS : Nat := MAX_TX_ACCOUNT_LOCKS
 
 def alignTo8 (n : Nat) : Nat :=
   let r := n % 8
