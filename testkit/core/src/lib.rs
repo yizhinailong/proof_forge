@@ -2383,7 +2383,7 @@ targets = ["solana-sbpf-asm"]
 [[diagnostic]]
 target = "solana-sbpf-asm"
 name = "crosscall.invoke unsupported"
-contains = ["PortableHonesty Crosscall: Solana portable remote requires non-empty peer id"]
+contains = ["PortableHonesty Crosscall: Solana portable remote requires a non-empty peer id"]
 "#,
         )
         .unwrap();

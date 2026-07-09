@@ -9,5 +9,5 @@ target = "solana-sbpf-asm"
 # Portable crosscall.invoke is supported (CPI); empty peer fails closed via PortableHonesty.
 name = "crosscall.invoke unsupported"
 contains = [
-  "PortableHonesty Crosscall: Solana portable remote requires non-empty peer id in nearCrosscallStrings",
+  "PortableHonesty Crosscall: Solana portable remote requires a non-empty peer id",
 ]
