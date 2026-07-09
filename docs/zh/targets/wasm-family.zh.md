@@ -2,6 +2,15 @@
 
 Wasm 家族包括 NEAR、CosmWasm、Stellar/Soroban、Internet Computer canisters，以及后续 Polkadot/ink 风格合约。它们共享一种可执行格式，但合约 ABI 并不相同。ProofForge 只应共享真正通用的部分。
 
+## Spike 诚实性 (U7)
+
+- **NEAR (`wasm-near`)** 是主要 Wasm 产品 host（Experimental）。
+- **CosmWasm：**portable remote 使用 WasmMsg 形状的 `execute_msg` **stub**；
+  Gate G1a（M3/M4）**未开始**。
+- **Soroban：**host adapter spike；在真实 Env auth 落地前，interpreter auth
+  始终授权。
+- **Cloudflare Workers：**仅用于 research / off-chain。
+
 ## 通用形态
 
 规范的 Wasm-family backend 是 **`EmitWat`**，它参考的是仓库内 portable-IR → Yul renderer `ProofForge/Backend/Evm/IR.lean`（所有 `--emit-*-ir-yul` CLI mode 使用的路径），而不是单独的 LCNF-based `Compiler/LCNF/EmitYul.lean`。`Backend/Evm/IR.lean` 将 portable IR（`Module`/`Entrypoint`/`Statement`/`Expr`）lower 到 `Yul.AST`，再由 `Printer` 渲染为 Yul 文本，最后交给 `solc` 编译。`EmitWat` 做同样的事情，只是目标变为 WAT：portable IR → `Wasm.AST` → WAT text → `wat2wasm`。

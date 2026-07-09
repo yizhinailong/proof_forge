@@ -17,6 +17,7 @@ Related docs:
 - [RFC 0002](rfcs/0002-target-implementation-design.md)
 - [Target notes](targets/README.md)
 - [Validation gates](validation-gates.md)
+- [Multi-chain vision gap audit (2026-07-10)](multi-chain-gap-audit-2026-07-10.md)
 
 ## Primary-chain completion covenant (D-045)
 
@@ -3437,6 +3438,12 @@ English README changes.
 - CI covers stdlib + at least one multi-target shared-scenario build.
 
 ## Suggested Order
+
+**Current priority override:** use the
+[multi-chain vision gap audit](multi-chain-gap-audit-2026-07-10.md) for active
+P0-P3 remediation order. The workstream sequence below is retained as
+historical implementation context and does not override source-identity,
+command-support, artifact-honesty or validation-contract fixes from that audit.
 
 Workstreams 1, 1.5, 2–3, 6–7 (registry, portable IR, EVM metadata, Solana
 asm) are substantially complete; remaining per-target detail lives in each

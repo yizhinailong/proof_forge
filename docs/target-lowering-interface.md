@@ -1,8 +1,15 @@
 # Target lowering interface
 
-Status: **Phase 0 design (RFC 0014)**
+Status: **Historical Phase 0 design; implementation table is stale**
 
 Date: 2026-07-06
+
+Current source: [Multi-chain Vision Gap Audit (2026-07-10)](multi-chain-gap-audit-2026-07-10.md).
+Since this page was written, `SolanaModulePlan` and `NearModulePlan` have
+landed, although neither full plan is yet the generic CLI production driver.
+Rows below that call those plans nonexistent describe the old Phase 0 state and
+must not be used as current implementation status. PF-P1-06 tracks the rewrite
+of this page after the driver boundary is settled.
 
 Related: [RFC 0014](rfcs/0014-unified-semantic-lowering-contract.md) (the
 contract this page elaborates), [RFC 0004](rfcs/0004-evm-semantic-plan.md)

@@ -53,6 +53,7 @@ python3 scripts/translate-docs.py --model glm-4.7
 - [Portable IR](../portable-ir.md) / [中文](portable-ir.zh.md)
 - [Shared scenario](../shared-scenario.md) / [中文](shared-scenario.zh.md)
 - [Implementation backlog](../implementation-backlog.md) / [中文](implementation-backlog.zh.md)
+- [Multi-chain vision gap audit (2026-07-10)](../multi-chain-gap-audit-2026-07-10.md) / [中文](multi-chain-gap-audit-2026-07-10.zh.md)
 - [Development standards](../development-standards.md) / [中文](development-standards.zh.md)
 - [Contributor onboarding](../onboarding.md) / [中文](onboarding.zh.md)
 - [Validation gates](../validation-gates.md) / [中文](validation-gates.zh.md)

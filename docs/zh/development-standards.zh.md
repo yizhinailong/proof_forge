@@ -14,6 +14,7 @@
 | 目标生命周期与各目标注释 | `docs/targets/README.md`, 以及具体的 `docs/targets/*.md` 注释 |
 | EVM 基准详情 | `docs/targets/evm.md`, `Examples/Backend/Evm/README.md` |
 | 共享的跨目标 Counter 场景 | `docs/shared-scenario.md` |
+| 当前全项目差距与修复优先级 | `docs/multi-chain-gap-audit-2026-07-10.md` |
 | 执行积压工作与验收标准 | `docs/implementation-backlog.md` |
 | 验证命令与工具先决条件 | `docs/validation-gates.md` |
 | 中文叙述 / 策略文档 | `docs/zh/*.md`；它们必须与英文工程文档保持一致，且不得引入独立的工程策略 |

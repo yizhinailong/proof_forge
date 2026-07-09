@@ -70,6 +70,7 @@ DOC_MAP: dict[str, str] = {
     "docs/tutorials/portable-contract-three-targets.md": "docs/zh/tutorials/portable-contract-three-targets.zh.md",
     "docs/tutorials/portable-shared-path.md": "docs/zh/tutorials/portable-shared-path.zh.md",
     "docs/examples-and-tests-taxonomy.md": "docs/zh/examples-and-tests-taxonomy.zh.md",
+    "docs/multi-chain-gap-audit-2026-07-10.md": "docs/zh/multi-chain-gap-audit-2026-07-10.zh.md",
     "docs/implementation-backlog.md": "docs/zh/implementation-backlog.zh.md",
     "docs/review-checklist.md": "docs/zh/review-checklist.zh.md",
     "docs/development-standards.md": "docs/zh/development-standards.zh.md",

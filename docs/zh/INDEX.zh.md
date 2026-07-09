@@ -2,7 +2,11 @@
 
 ProofForge 是一个 Lean 优先的多链智能合约平台。主干包含 EVM 基线，以及在统一的可移植 IR 和能力注册表之下的 Solana (sBPF 汇编)、NEAR (EmitWat)、Sui (Counter MVP)、CosmWasm 和 Aptos (Counter spike)、Psy/DPN、Aleo Leo 以及 Cloudflare Workers (TypeScript spike) 后端，遵循 2026-07 分支合并。
 
-**当前阶段：** 三个主要产品链的 Gate P0 已关闭：`solana-sbpf-asm`、`evm` 和 `wasm-near`。下一个加固路径是从遗留标志到 `proof-forge build|emit|check --target ...` 的 CLI M3/M4 迁移；Tier-1 M3/M4 工作在该清理工作完成后进行。
+**当前阶段：** 三个主要产品链（`solana-sbpf-asm`、`evm` 和
+`wasm-near`）的历史 Gate P0 已关闭，但
+[2026-07-10 多链愿景差距审查](multi-chain-gap-audit-2026-07-10.zh.md)
+发现了源码身份、命令支持、制品和验证契约问题；这些正确性任务必须先于更广的
+target 晋级。CLI M4 兼容性清理排在这些任务之后。
 
 ## 文档地图
 
@@ -72,7 +76,9 @@ flowchart TB
 - [RFC 0007: 统一 Rust 测试框架](rfcs/0007-unified-rust-test-framework.md) (草案 —— 基于 revm/Mollusk/wasmtime 的测试套件场景)
 - [RFC 0008: 链解耦的分配器抽象](rfcs/0008-allocator-abstraction.md) (草案 —— 每个目标绑定一个分配器模型)
 
-## 工程- [开发标准](development-standards.md)：贡献者规则与单一事实来源图谱。
+## 工程
+
+- [开发标准](development-standards.zh.md)：贡献者规则与单一事实来源图谱。
 - [新手入门](onboarding.md)：本地设置路径、编辑器说明以及新贡献者的最小验证循环。
 - [Quint 模型生成](quint.md)：从可移植 IR 发射可执行状态机模型，进行模拟、模型检查并重放 MBT 追踪。
 - [开发日志](development-log.md)：带有验证笔记和后续步骤的里程碑日志。
@@ -83,9 +89,16 @@ flowchart TB
 - [WASM 可执行追踪](wasm-executable-trace.md)：Lean 内置的 Counter + ValueVault 标量/事件，以及用于 EmitWat/NEAR 的 fixed-array/u64-map 存储目标语义。
 - [目标组合路线图](target-roadmap.md)：剩余 Research 目标与 Bitcoin 策略家族 (D-034) 的分层排序。
 - [平台差距分析 2026-07](platform-gaps-2026-07.md)：未计划的维度（CLI 界面、版本控制、预算、升级/签名、错误模型、客户端）及其排序钩子。
+- [多链愿景差距审查 (2026-07-10)](multi-chain-gap-audit-2026-07-10.zh.md)：基于代码证据的 target 状态、分级问题、修复波次和验收门禁。
 - [实现待办列表](implementation-backlog.md)：阶段性任务与验收标准。
 - [产品编写架构](product-authoring-architecture.md)：业务意图 vs 链上具象化；阶段 A–C 状态。
-- [可移植 SDK 统一计划 (2026-07-09)](superpowers/plans/2026-07-09-portable-sdk-unification.md)：仅针对 EVM · Solana · NEAR · Soroban 的下一阶段多波次任务（policy · Token · remote）。
+- [可移植 SDK 统一计划 (2026-07-09)](../superpowers/plans/2026-07-09-portable-sdk-unification.md)：**已完成**（policy · Token · remote · author polish）。
+- [统一支持路线图 (2026-07-09)](../superpowers/plans/2026-07-09-unified-support-roadmap.md)：**进行中** —— HostEnv 三链、crosscall 诚实性、FV-9、平台债务。
+- [CLI M4 legacy inventory](../cli-m4-legacy-inventory.md)：删除 alias 前的 EmitMode/flag 清单。
+- [CLI M4 删除清单](../cli-m4-deletion-checklist.md)：兼容窗口后的有序删除步骤。
+- [RFC 0012 版本策略](../rfcs/0012-versioning-and-compatibility-policy.md) + `just versioning-policy`。
+- [升级/签名运维 (RFC 0013)](../upgrade-signing-ops.md)：unsigned emit 与 live-gate key 约定。
+- [Client schema 一致性 (U6.4)](../client-schema-parity.md)：entrypoint 名称与 assertionId 目录。
 - [评审清单 (英文)](review-checklist.md)
 - [目标笔记](targets/README.md)：各家族的 Research 与 spike 计划。
   - [EVM](targets/evm.md)
@@ -121,7 +134,9 @@ flowchart TB
 - [多链方案 Review 清单](zh/review-checklist.md)
 - [Psy/DPN ZK Target 初步分析](zh/zk-psy-target-analysis.md)
 
-## 当前实现基线- 目标注册表 (`ProofForge/Target/Registry.lean`)、可移植 IR (`ProofForge/IR/Contract.lean`)、能力路由以及 `proof-forge-artifact.json` 发射已实现。
+## 当前实现基线
+
+- 目标注册表 (`ProofForge/Target/Registry.lean`)、可移植 IR (`ProofForge/IR/Contract.lean`)、能力路由以及 `proof-forge-artifact.json` 发射已实现。
 - EVM：`proof-forge build --target evm` 通过可移植 IR、EVM 语义计划、Yul 以及 `solc --strict-assembly` 编译 `contract_source` 模块。Foundry 和 Anvil 冒烟测试验证了运行时行为。
 - Solana：`proof-forge emit --target solana-sbpf-asm --format s|elf` 发射 sBPF 汇编和 ELF 包，由 Mollusk、Surfpool/Rust 和 Pinocchio 等效性门控验证。
 - NEAR：`proof-forge emit|build --target wasm-near --format wat` 通过 Wasm AST 将可移植 IR 降级为 WAT，具有形式化追踪义务 (`Tests/NearWasmFormal.lean`)、目标优先元数据以及离线宿主冒烟测试。

@@ -26,21 +26,32 @@ ProofForge 的目标是：一份经过验证的 Lean 合约代码库，可以在
 
 所有后端都在 `main` 上（"链"是目录和 target id，不是分支）。生命周期阶段见
 [docs/targets/README.md](../targets/README.md)。
-主三链完成规约 (D-045) 已关闭：`solana-sbpf-asm`、`evm` 和 `wasm-near`
-已经具备生产级本地/CI 门禁。下一条硬化主线是 CLI M3/M4，把 legacy flags
-迁移到 `proof-forge build|emit|check --target ...`，然后再推进 Tier-1 M3/M4 工作。
+主三链完成规约 (D-045) 已关闭，`evm`、`solana-sbpf-asm` 和 `wasm-near`
+的全部 P0 SDK blocker 均已解决：当前剩余 **0 个开放 P0 blocker**。通过
+portable Counter 流程，`evm`、`solana-sbpf-asm`、`wasm-near` 和
+`move-sui` 已具有统一 SDK schema/layout 输出。三链 portable 场景
+（Counter、ValueVault）可通过 `just portable-counter-multi-target` 和
+`just portable-value-vault` 在 EVM、Solana 和 NEAR 上编译并执行；Sui
+有意限定为 Counter MVP，并使用本地 `sui move build/test` 验证。
 
 | Target id | 管线 | 阶段 | 本地验证 |
 |---|---|---|---|
 | `evm` | Lean / portable IR → Yul → `solc` → bytecode | Experimental（生产级门禁） | golden Yul、诊断、Foundry 运行时冒烟（15 个测试）、Anvil 部署、动态构造函数 Anvil、构造函数 body、部署 gas-limit/price/priority flags、stdlib（ERC-20/721/1155/165/AccessControl/Ownable/Pausable/ReentrancyGuard/UUPS/Create2；见 [sdk-ecosystem-gaps](../sdk-ecosystem-gaps-2026-07.md)） |
 | `solana-sbpf-asm` | portable IR → sBPF assembly → `sbpf` → ELF | Experimental | Mollusk 测试、Surfpool/Rust live 冒烟、Pinocchio 等价性门禁、indexed events、Memo CPI、Associated Token `create_idempotent` CPI、Token-2022 扩展、map storage、nativeValue lamports read |
 | `wasm-near` | portable IR → `EmitWat`（Wasm AST → WAT）→ `wat2wasm` | Experimental | 诊断、IR 覆盖清单、形式化 trace obligation、target-first 冒烟、离线宿主冒烟（signer+deposit+promise stubs）、artifact/deploy metadata、NEP-141 FT stdlib、aggregate ABI params、nested mapKey paths、nativeValue U64 truncation、eventEmitIndexed flattening |
-| `wasm-cosmwasm` | portable IR → EmitWat → WAT → `wat2wasm` | Spike | Counter golden WAT、`just cosmwasm-counter-smoke`（可选 CI） |
+| `wasm-cosmwasm` | portable IR → `EmitWat` → WAT → `wat2wasm` | Spike（**G1a 未开始**） | Counter golden WAT；portable remote 使用 **execute_msg STUB**（不是完整 submessage）；`just cosmwasm-counter-smoke` 可选 |
 | `move-aptos` | portable IR → Aptos Move 包 | Spike | Counter golden Move、`just aptos-counter-smoke`（可选 CI） |
 | `move-sui` | portable IR → Sui Move 包 | Counter MVP | 本地 `sui move build/test`、`just sui-counter-smoke` 等 |
 | `psy-dpn` | portable IR → `.psy` → Dargo → DPN circuit JSON | Experimental（受限子集） | golden source、诊断、`dargo` execute 冒烟 |
 | `aleo-leo` | portable IR → Leo package → `leo build`/`leo test` | Research spike（仅 CLI） | Counter/PureMath golden fixture 与冒烟 |
 | `wasm-cloudflare-workers` | portable IR → TypeScript Worker | Research spike | `tsc` 类型检查、`wrangler` dry-run |
+
+**Spike 诚实性 (U7)：**CosmWasm / Aptos / Soroban / Cloudflare 不是主要产品
+host。CosmWasm portable crosscall 是 WasmMsg 形状的 `execute_msg` stub；
+Soroban interpreter 的 `require_auth_for_args` 在 Lean 中始终授权。Gate G1a/G1b
+（CosmWasm/Aptos M3-M4）在显式排期前保持**未开始**；参见
+[gate-status](../gate-status.md) 和
+[unified-support-roadmap](../superpowers/plans/2026-07-09-unified-support-roadmap.md) U7。
 
 多链 Token SDK（`TokenSpec`，[RFC 0006](../rfcs/0006-multichain-token-sdk.md)）
 把同一份 token 意图在 EVM 上路由为 ERC-20 bytecode，在 Solana 上路由为

@@ -15,6 +15,7 @@ source-of-truth docs and states when they must be updated.
 | Target lifecycle and per-target notes | `docs/targets/README.md`, then the specific `docs/targets/*.md` note |
 | EVM baseline details | `docs/targets/evm.md`, `Examples/Backend/Evm/README.md` |
 | Shared cross-target Counter scenario | `docs/shared-scenario.md` |
+| Current project-wide gaps and remediation priority | `docs/multi-chain-gap-audit-2026-07-10.md` |
 | Execution backlog and acceptance criteria | `docs/implementation-backlog.md` |
 | Validation commands and tool prerequisites | `docs/validation-gates.md` |
 | Chinese narrative / strategy docs | `docs/zh/*.md`; they must align to English engineering docs and must not introduce independent engineering policy |

@@ -146,6 +146,37 @@ EVM 降级将 `storage.scalar` 映射到 slot 存储；Solana 映射到账户数
 - [ ] 能力检查器针对每个非 EVM 目标拒绝至少一个不支持的能力，并提供清晰的诊断信息。
 - [x] EVM 可移植 IR 字节码元数据记录 `irVersion: portable-ir-v0` in `proof-forge-artifact.json`。
 
+## Crosscall 语义诚实性 (U2)
+
+Portable IR 可以表示远程调用（`crosscall.invoke` / typed variants / CREATE*），
+但**可执行 IR 语义不会模拟真实 peer**。
+
+| 层 | `crosscall.*` 上发生的行为 | 信任边界 / 用途 |
+|---|---|---|
+| **IR `Semantics`** | **确定性 stub**：target、method、scalar args 与可选 static/delegate/create tag 求和；typed return 从该和转换（hash 使用 `crosscallHashStubValue`） | 仅用于 Quint MBT / IR 自重放 / fixture 确定性 |
+| **Quint lowering** | 与 IR 对齐的同一求和 stub（`lowerCrosscallInvokeSumExpr`） | Tier A 设计验证 |
+| **Target materialize** | 真实 host 形式：EVM CALL · Solana CPI · NEAR `promise_create` · Soroban `invoke_contract` · CosmWasm `execute_msg` | 产品 / 门禁：`just crosscall-materialize`、`just portable-remote-call-multi-target` |
+
+**不得宣称** IR `runEntrypoint` 返回值等于 EVM CALL / CPI / Promise 结果。
+产品 remote 正确性由 **target emit + host smoke** 证明，而不是 crosscall 上的
+IR 与链返回值相等。
+
+可选未来工作 (U2.4)：用于 FV 的 IR peer-oracle registry 可以替换选定模块的
+求和 stub；在此之前，stub crosscall 保持在 universal C-proof fragment 之外
+（参见 FV-9 / U5.3）。
+
+### Portable 返回值解码 (U2.5)
+
+产品 portable remote 物化**标量返回值**（主要是 `u64` / bool-as-word）。
+Solana portable CPI 把 return data 解码为**单个 u64**
+（`decodeReturnDataU64`）。更丰富的 aggregate / dynamic return 当前不是
+portable 产品承诺：应使用 target extension，或在 materialize/plan 阶段诚实拒绝，
+而不是发明跨 host ABI。IR stub 的 typed return 仍是从求和结果转换，不是 peer ABI。
+
+相关代码：`ProofForge/IR/Semantics.lean`（`evalCrosscallInvokeSum`）、
+`ProofForge/Backend/Quint/Lower.lean`、`ProofForge/Target/CrosscallMaterialize.lean`、
+`Tests/IRCrosscallStub.lean`、`Tests/CrosscallMaterialize.lean`。
+
 ## 待解决问题
 
 - 复用多少 LCNF 还是构建全新的合约 IR AST？

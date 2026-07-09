@@ -6,11 +6,12 @@ contains the EVM baseline plus Solana (sBPF assembly), NEAR (EmitWat), Sui
 Cloudflare Workers (TypeScript spike) backends behind one portable IR and
 capability registry, following the 2026-07 branch consolidation.
 
-**Current phase:** Gate P0 is closed for the three primary product chains:
-`solana-sbpf-asm`, `evm`, and `wasm-near`. The next hardening lane is the
-CLI M3/M4 migration from legacy flags to
-`proof-forge build|emit|check --target ...`; Tier-1 M3/M4 work waits behind
-that cleanup.
+**Current phase:** the historical Gate P0 is closed for the three primary
+product chains (`solana-sbpf-asm`, `evm`, and `wasm-near`), but the
+[2026-07-10 multi-chain gap audit](multi-chain-gap-audit-2026-07-10.md)
+identified source-identity, command-support, artifact and validation-contract
+work that must precede broader target promotion. CLI M4 compatibility cleanup
+remains behind those correctness tasks.
 
 ## Documentation Map
 
@@ -97,6 +98,7 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - [WASM executable trace](wasm-executable-trace.md): in-Lean Counter + ValueVault scalar/event plus fixed-array/u64-map storage target semantics for EmitWat/NEAR.
 - [Target portfolio roadmap](target-roadmap.md): tiered sequencing for the remaining research targets and the Bitcoin policy family (D-034).
 - [Platform gap analysis 2026-07](platform-gaps-2026-07.md): unplanned dimensions (CLI surface, versioning, budgets, upgrades/signing, error model, clients) and their sequencing hooks.
+- [Multi-chain vision gap audit (2026-07-10)](multi-chain-gap-audit-2026-07-10.md): code-backed target status, prioritized findings, remediation waves, and acceptance gates.
 - [Implementation backlog](implementation-backlog.md): staged tasks and acceptance criteria.
 - [Product authoring architecture](product-authoring-architecture.md): business-intent vs chain materialization; Phase A–C status.
 - [Portable SDK unification plan (2026-07-09)](superpowers/plans/2026-07-09-portable-sdk-unification.md): **complete** (policy · Token · remote · author polish).

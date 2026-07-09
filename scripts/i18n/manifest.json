@@ -1,9 +1,9 @@
 {
   "README.md": {
-    "sha256": "2549894e110c44ad3a18c89b5c4659c9cb073c62059999a39f9c2eb8757dde8b",
+    "sha256": "deff3e964a1045eef729a8a3cdd4822802c116fa37f04bf44e4ca603f3f20483",
     "zh": "docs/zh/README-root.zh.md",
-    "model": "gemini-3-flash-preview",
-    "note": "synced after Product/Backend reorg path renames"
+    "model": "manual-zh",
+    "note": "manually synced through the 2026-07-10 audit integration"
   },
   "CONTRIBUTING.md": {
     "sha256": "b47c1fcaf0d003718e5487575f74486b403ed4bbfb88dc7fc1891cbe23cc7b64",
@@ -11,9 +11,9 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/INDEX.md": {
-    "sha256": "8f55e2fa039b4e1d42148166d8fadb8c119991dad57f88b70f5d2528ccc44ff3",
+    "sha256": "f52290abb58dec2b645d2dcf94fb7d614e5725b11715750e79943c8c6886e3f2",
     "zh": "docs/zh/INDEX.zh.md",
-    "model": "gemini-3-flash-preview"
+    "model": "manual-zh"
   },
   "docs/onboarding.md": {
     "sha256": "84fe6b63515b634c383822479e1e8c89ed25aa1365b4d5deabf4850697b7fb39",
@@ -38,9 +38,9 @@
     "note": "synced after Product/Backend reorg path renames"
   },
   "docs/portable-ir.md": {
-    "sha256": "68925cdf6b7ed814764c8e871d5cb5a1298b8f95d4c9be4cb6082bfab80d11df",
+    "sha256": "d28f500c252fcfbeb905950ec2f67ee3c43a331e4c4c7dafdaccbfde762015c2",
     "zh": "docs/zh/portable-ir.zh.md",
-    "model": "gemini-3-flash-preview"
+    "model": "manual-zh"
   },
   "docs/shared-scenario.md": {
     "sha256": "0b81393e19813124fccbec1300a9279ece2c5280a2c46dbb24841d6320736856",
@@ -54,11 +54,16 @@
     "model": "gemini-3-flash-preview",
     "note": "synced after Product/Backend reorg path renames"
   },
+  "docs/multi-chain-gap-audit-2026-07-10.md": {
+    "sha256": "276c64c129b742c7ef901c7346b646944282e4efc3e70248a1b3ed461f526e8e",
+    "zh": "docs/zh/multi-chain-gap-audit-2026-07-10.zh.md",
+    "model": "manual-zh"
+  },
   "docs/implementation-backlog.md": {
-    "sha256": "a81fa79e848c115762a8866c679de39bdd0ba8920939617fd24bda811a807b4f",
+    "sha256": "a462a23264e3664f0a538a3fe32f0bb2e0f8e8601f1ea24fa6cf59e37256cfb7",
     "zh": "docs/zh/implementation-backlog.zh.md",
-    "model": "gemini-3-flash-preview",
-    "note": "synced after Product/Backend reorg path renames"
+    "model": "manual-zh",
+    "note": "manually synced through the 2026-07-10 audit integration"
   },
   "docs/review-checklist.md": {
     "sha256": "c2a11658b0c9f51316f973e88195de3bc26f9863a1b81016b8f364a22856c979",
@@ -66,10 +71,10 @@
     "model": "manual"
   },
   "docs/development-standards.md": {
-    "sha256": "1d1381a5869f812814ec80492cf30e3c49fae42aba785f0138466699eae0e034",
+    "sha256": "0841ffcb77ec15ed6fccf8628d7d336a9a9ed8439abe6405a75d2ebaff25fcef",
     "zh": "docs/zh/development-standards.zh.md",
-    "model": "gemini-3-flash-preview",
-    "note": "synced after Product/Backend reorg path renames"
+    "model": "manual-zh",
+    "note": "manually synced through the 2026-07-10 audit integration"
   },
   "docs/validation-gates.md": {
     "sha256": "6394a975afad3df6888ca148911662f74e6864f1add87583dc63f4e14b461f7d",
@@ -122,10 +127,10 @@
     "note": "synced after Product/Backend reorg path renames"
   },
   "docs/targets/wasm-family.md": {
-    "sha256": "bd39869758cfdbe4a75f07b497a727390729f644de3e3af2a93a7b2827af03f7",
+    "sha256": "0d8ad12a12330b444e6e3fae672ff2c315fcf0b3308af516531cd38c9390a3c5",
     "zh": "docs/zh/targets/wasm-family.zh.md",
-    "model": "gemini-3-flash-preview",
-    "note": "synced after Product/Backend reorg path renames"
+    "model": "manual-zh",
+    "note": "manually synced through the 2026-07-10 audit integration"
   },
   "docs/targets/solana-sbf.md": {
     "sha256": "98fa9fcada4a214df7291553e65891c7a2c3b66a1d163d96a2eb280db3fffbfa",

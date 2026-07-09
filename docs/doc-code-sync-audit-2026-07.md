@@ -1,6 +1,11 @@
 # Doc↔Code Sync Audit (2026-07)
 
-Status: **Audit complete — fixes applied in same PR series**
+Status: **Historical snapshot — not current project status**
+
+Current source: [Multi-chain Vision Gap Audit (2026-07-10)](multi-chain-gap-audit-2026-07-10.md).
+The mechanical audit currently reports new findings after this snapshot's
+fixes; re-run `just doc-sync-audit` rather than treating the resolution counts
+below as current.
 
 This report records doc↔code drift found during the July 2026 sync audit.
 Mechanical findings from `scripts/docs/audit-doc-code-sync.sh` are merged
