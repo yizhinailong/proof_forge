@@ -226,14 +226,18 @@ def main : IO UInt32 := do
   | .ok m =>
       require (contains m.binding.symbol "clock" || contains m.binding.symbol "sol_get_clock")
         "solana blockTime → sol_get_clock_sysvar"
-  -- selfAddress: EVM + NEAR; Solana reject.
-  for tid in #["evm", "wasm-near"] do
+  -- selfAddress: full triad (Solana program_id digest lower).
+  for tid in primaryTargetIds do
     match materializeEnv tid .selfAddress with
     | .error msg => throw (IO.userError s!"selfAddress must materialize on {tid}: {msg}")
-    | .ok m => require (!isNaSymbol m.binding.symbol) s!"selfAddress@{tid}"
+    | .ok m =>
+        require (!isNaSymbol m.binding.symbol) s!"selfAddress@{tid}"
+        require (supportsHostEnv tid .selfAddress) s!"supportsHostEnv selfAddress@{tid}"
   match materializeEnv "solana-sbpf-asm" .selfAddress with
-  | .ok _ => throw (IO.userError "Solana selfAddress must honest-reject")
-  | .error msg => require (contains msg "HostEnv") "Solana selfAddress HostEnv"
+  | .error msg => throw (IO.userError s!"Solana selfAddress: {msg}")
+  | .ok m =>
+      require (contains m.binding.symbol "program")
+        "solana selfAddress → program_id"
   -- chainId: EVM only — never alias block_index / invent sol_get_cluster.
   match materializeEnv "evm" .chainId with
   | .ok m => require (m.binding.symbol == "chainid") "evm chainId → chainid"
@@ -338,11 +342,13 @@ no silent wrong binding — especially not block_index / sol_get_cluster)")
   require (ContextField.randomSeed.toHostEnv == .randomness) "randomSeed→randomness"
   require ((ContextField.blockHash (.literal (.u64 0))).toHostEnv == .blockHash)
     "blockHash→blockHash"
-  -- Product portable-core env = HostRuntime triad materialize (after U1.1 blockTime).
+  -- Product portable-core env = HostRuntime triad materialize (U1.1–U1.2).
   require ContextField.checkpointId.isPortableEnv "checkpointId portable-core (triad)"
   require ContextField.userId.isPortableEnv "userId portable-core (triad)"
   require ContextField.timestamp.isPortableEnv
     "timestamp portable-core after Solana Clock.unix_timestamp lower (U1.1)"
+  require ContextField.contractId.isPortableEnv
+    "contractId portable-core after Solana program_id lower (U1.2)"
   require (!ContextField.baseFee.isPortableEnv) "baseFee still non-portable core"
   require (!ContextField.gasLeft.isPortableEnv)
     "gasLeft stays non-core (approximate HostEnv, not portable-core)"
@@ -372,6 +378,32 @@ no silent wrong binding — especially not block_index / sol_get_cluster)")
         "asm must mark Clock.unix_timestamp lower"
       require (contains asm "call sol_get_clock_sysvar")
         "asm must call sol_get_clock_sysvar for timestamp"
+
+  -- Solana HostEnv U1.2: contextRead.contractId lowers program_id digest.
+  let selfModule : Module := {
+    name := "HostEnvSelfAddress"
+    state := #[]
+    entrypoints := #[{
+      name := "me"
+      body := #[
+        .letBind "a" .u64 (.effect (.contextRead .contractId))
+        , .return (.local "a")
+      ]
+    }]
+  }
+  match resolveModule solanaSbpfAsm selfModule with
+  | .error err => throw (IO.userError s!"resolve Solana contractId module: {err.render}")
+  | .ok _ => pure ()
+  match ProofForge.Backend.Solana.Package.renderPackage "hostenv-self" selfModule with
+  | .error err => throw (IO.userError s!"render Solana contractId: {err.render}")
+  | .ok pkg =>
+      let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)
+        | throw (IO.userError "self package missing asm")
+      let asm := asmFile.contents
+      require (contains asm "program_id")
+        "asm must mark program_id / contractId lower"
+      require (contains asm "call sol_sha256")
+        "asm must sha256 program_id for portable self handle"
 
   IO.println s!"host-runtime: ok (effects={allEffects.size} hostEnvs={allHostEnvs.size} evm={evmN} solana={solN} near={nearN} soroban={sorobanN} cosmwasm={cosmwasmN}; adapters+catalog-ref+HostEnv)"
   pure 0

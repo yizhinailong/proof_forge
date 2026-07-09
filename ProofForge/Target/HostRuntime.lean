@@ -532,12 +532,11 @@ alias another field (e.g. `chainId` ↛ `block_index`) and never invent syscalls
 the lowerer does not emit. General-bucket membership is **portable intent**;
 triad coverage grows as lowers land — until then, reject.
 
-Primary triad matrix (context / nativeValue paths as of HostEnv step U1.1):
+Primary triad matrix (context / nativeValue paths as of HostEnv step U1.2):
 * `blockTime` — triad (EVM `timestamp` · Solana `Clock.unix_timestamp` · NEAR `block_timestamp`)
 * `blockHeight` — triad (EVM `number` · Solana `Clock.slot` · NEAR `block_index`)
 * `chainId` — EVM only (Solana/NEAR plan reject `contextRead.chainId`)
-* `caller` / `attachedValue` — triad
-* `selfAddress` — EVM + NEAR; Solana reject (no `contractId` context lower)
+* `caller` / `attachedValue` / `selfAddress` — triad
 * `epoch` — NEAR only (`epoch_height`); EVM/Solana reject
 * `gasOrComputeBudgetLeft` — EVM only (`gas`); Solana/NEAR context paths reject
 * `blockHash` — EVM only; Solana/NEAR reject
@@ -588,8 +587,9 @@ def materializeEnv (targetId : String) (env : HostEnv) :
   | .selfAddress, "wasm-near" =>
       .ok (mk .hostImport "env.current_account_id" none none)
   | .selfAddress, "solana-sbpf-asm" =>
-      .error (hostEnvReject targetId env
-        "no contextRead.contractId lower; program id not yet a HostEnv context path")
+      .ok (mk .syscall "program_id"
+        (some "contextRead.contractId → sha256(program_id) limb0")
+        (some "32-byte program id; portable u64 handle matches OwnableHash limb0"))
   | .attachedValue, "evm" =>
       .ok (mk .opcode "callvalue" none none)
   | .attachedValue, "solana-sbpf-asm" =>

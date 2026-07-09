@@ -83,10 +83,10 @@ def main : IO UInt32 := do
       require (m.byteWidth?.isNone) "near caller variable width"
       require (m.hostSymbol? == some "env.predecessor_account_id") "near caller host"
   match materializeIdentity "solana-sbpf-asm" .self with
-  | .ok _ => throw (IO.userError "sol self must reject until program-id context lower")
-  | .error msg =>
-      require (contains msg "Identity") "sol self names Identity"
-      require (contains msg "identity.self") "sol self names role"
+  | .error msg => throw (IO.userError s!"sol self must ok after U1.2: {msg}")
+  | .ok m =>
+      require (m.byteWidth? == some 32) "sol self width 32"
+      require (m.hostSymbol? == some "program_id") "sol self host program_id"
   match materializeIdentity "wasm-near" .self with
   | .error msg => throw (IO.userError s!"near self: {msg}")
   | .ok m => require (m.hostSymbol? == some "env.current_account_id") "near self"
@@ -316,7 +316,7 @@ def main : IO UInt32 := do
       require (contains d.message "HostEnv" || contains d.message "PortableHonesty")
         "NEAR baseFee honesty"
 
-  -- Solana self (contractId) fails Identity until program-id lower exists.
+  -- Solana self (contractId) resolves after program-id HostEnv path (U1.2).
   let selfMod : Module := {
     name := "SelfOnly"
     state := #[]
@@ -326,10 +326,8 @@ def main : IO UInt32 := do
     }]
   }
   match resolveSpec solanaSbpfAsm (ContractSpec.fromIR selfMod) with
-  | .ok _ => throw (IO.userError "Solana self/contractId must reject Identity")
-  | .error d =>
-      require (contains d.message "Identity" || contains d.message "PortableHonesty")
-        s!"sol self reject, got: {d.message}"
+  | .error d => throw (IO.userError s!"Solana self/contractId must ok: {d.message}")
+  | .ok _ => pure ()
   match resolveSpec evm (ContractSpec.fromIR selfMod) with
   | .error d => throw (IO.userError s!"EVM self must ok: {d.message}")
   | .ok _ => pure ()

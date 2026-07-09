@@ -86,8 +86,8 @@ def byteWidthForEncoding : NativeIdentityEncoding → Option Nat
 /-- Materialize portable identity for `role` on `targetId`.
 
 Honesty: only primary triad has full rows. Unknown targets reject.
-Solana `self` currently has no `contextRead.contractId` lower — reject until
-wired (matches HostEnv.selfAddress honesty). -/
+Solana `self` uses `contextRead.contractId` → program-id sha256 limb0
+(HostEnv.selfAddress / OwnableHash convention). -/
 def materializeIdentity (targetId : String) (role : IdentityRole) :
     Except String IdentityMaterialization :=
   let enc := encodingForTarget targetId
@@ -119,8 +119,11 @@ def materializeIdentity (targetId : String) (role : IdentityRole) :
         semanticsNote? := some "first signer pubkey (sha256 limb0 in u64 context path)"
       }
   | .solanaPubkey32, "solana-sbpf-asm", .self =>
-      .error (identityReject targetId role
-        "no contextRead.contractId / program-id HostEnv path yet; Self identity pending")
+      .ok {
+        targetId := targetId, role := role, encoding := enc
+        byteWidth? := some 32, hostSymbol? := some "program_id"
+        semanticsNote? := some "program id pubkey; contextRead.contractId uses sha256 limb0 u64"
+      }
   | .solanaPubkey32, "solana-sbpf-asm", .peer =>
       .ok {
         targetId := targetId, role := role, encoding := enc

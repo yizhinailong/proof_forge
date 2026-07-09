@@ -136,7 +136,7 @@ Triad snapshot (context / `nativeValue` paths):
 | `blockHeight` | ok | ok (`Clock.slot`) | ok |
 | `chainId` | ok | reject | reject |
 | `caller` / `attachedValue` | ok | ok | ok |
-| `selfAddress` | ok | reject | ok |
+| `selfAddress` | ok | ok (`program_id` sha256 limb0) | ok |
 | `epoch` | reject | reject | ok |
 | `gasOrComputeBudgetLeft` | ok | reject | reject |
 | `blockHash` | ok | reject | reject |

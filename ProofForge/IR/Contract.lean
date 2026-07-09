@@ -329,11 +329,12 @@ def ContextField.toHostEnv : ContextField → ProofForge.Target.HostRuntime.Host
 target (`evm` · `solana-sbpf-asm` · `wasm-near`) materializes the field via
 `HostRuntime.materializeEnv` without reject.
 
-Derived from HostRuntime so the list cannot drift from honesty. After U1.1 that
-includes `caller` (userId / userIdHash), `blockHeight` (checkpointId), and
-`blockTime` (timestamp via Solana `Clock.unix_timestamp`). Fields such as
-`chainId`, `contractId`, and `epochHeight` are not triad-safe — authors get
-honest reject on unsupported targets rather than a false "portable" label.
+Derived from HostRuntime so the list cannot drift from honesty. After U1.1–U1.2
+that includes `caller` (userId / userIdHash), `blockHeight` (checkpointId),
+`blockTime` (timestamp via Solana `Clock.unix_timestamp`), and `selfAddress`
+(contractId via Solana program_id sha256 limb0). Fields such as `chainId` and
+`epochHeight` are not triad-safe — authors get honest reject on unsupported
+targets rather than a false "portable" label.
 Fine-grained per-target honesty still uses `HostEnv.bucket` + `materializeEnv`. -/
 def ContextField.isPortableEnv (field : ContextField) : Bool :=
   ProofForge.Target.HostRuntime.primaryTargetIds.all fun targetId =>

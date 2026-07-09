@@ -74,16 +74,16 @@ def main : IO Unit := do
     "portable IR must not emit storage.object"
 
   -- Product portable-core env = HostRuntime triad materialize only (auto-derived).
-  -- Today: userId / userIdHash / checkpointId / timestamp. Not triad-safe:
-  -- chainId, contractId (Solana self pending), epochHeight, EVM-only fields.
+  -- Today: userId / userIdHash / checkpointId / timestamp / contractId.
+  -- Not triad-safe: chainId, epochHeight, EVM-only fields.
   require ContextField.userId.isPortableEnv "userId must be portable-core env"
   require ContextField.userIdHash.isPortableEnv "userIdHash must be portable-core env"
   require ContextField.checkpointId.isPortableEnv "checkpointId must be portable-core env"
   require ContextField.timestamp.isPortableEnv
     "timestamp must be portable-core (EVM + Solana Clock + NEAR)"
+  require ContextField.contractId.isPortableEnv
+    "contractId must be portable-core after Solana program_id lower (U1.2)"
   require (!ContextField.chainId.isPortableEnv) "chainId is EVM-only materialize"
-  require (!ContextField.contractId.isPortableEnv)
-    "contractId not triad-safe (Solana self pending)"
   require (!ContextField.epochHeight.isPortableEnv) "epochHeight is NEAR-only"
   require (!ContextField.baseFee.isPortableEnv) "baseFee must be EVM-only"
   require (!ContextField.prevRandao.isPortableEnv) "prevRandao must be EVM-only"
