@@ -97,6 +97,13 @@ mutual
     | .arrayGet lhs rhs
     | .hashTwoToOne lhs rhs =>
         exprPlanUsesCheckedArithmetic lhs || exprPlanUsesCheckedArithmetic rhs
+    | .ecrecover a b c d =>
+        exprPlanUsesCheckedArithmetic a || exprPlanUsesCheckedArithmetic b ||
+          exprPlanUsesCheckedArithmetic c || exprPlanUsesCheckedArithmetic d
+    | .eip712PermitDigest a b c d e f =>
+        exprPlanUsesCheckedArithmetic a || exprPlanUsesCheckedArithmetic b ||
+          exprPlanUsesCheckedArithmetic c || exprPlanUsesCheckedArithmetic d ||
+          exprPlanUsesCheckedArithmetic e || exprPlanUsesCheckedArithmetic f
     | .hashPack a b c d | .hashValue a b c d =>
         exprPlanUsesCheckedArithmetic a ||
           exprPlanUsesCheckedArithmetic b ||
@@ -357,6 +364,25 @@ mutual
         mergeLocalArrayHelperRequirements
           (localArrayHelperRequirementsFromExprPlan lhs)
           (localArrayHelperRequirementsFromExprPlan rhs)
+    | .ecrecover a b c d =>
+        mergeLocalArrayHelperRequirements
+          (mergeLocalArrayHelperRequirements
+            (localArrayHelperRequirementsFromExprPlan a)
+            (localArrayHelperRequirementsFromExprPlan b))
+          (mergeLocalArrayHelperRequirements
+            (localArrayHelperRequirementsFromExprPlan c)
+            (localArrayHelperRequirementsFromExprPlan d))
+    | .eip712PermitDigest a b c d e f =>
+        let ab := mergeLocalArrayHelperRequirements
+          (localArrayHelperRequirementsFromExprPlan a)
+          (localArrayHelperRequirementsFromExprPlan b)
+        let cd := mergeLocalArrayHelperRequirements
+          (localArrayHelperRequirementsFromExprPlan c)
+          (localArrayHelperRequirementsFromExprPlan d)
+        let ef := mergeLocalArrayHelperRequirements
+          (localArrayHelperRequirementsFromExprPlan e)
+          (localArrayHelperRequirementsFromExprPlan f)
+        mergeLocalArrayHelperRequirements (mergeLocalArrayHelperRequirements ab cd) ef
     | .hashPack a b c d | .hashValue a b c d =>
         let ab := mergeLocalArrayHelperRequirements
           (localArrayHelperRequirementsFromExprPlan a)
@@ -553,7 +579,7 @@ def isMemoryArrayHelper : Helper → Bool
   | _ => false
 
 def isHashHelper : Helper → Bool
-  | .hashWord | .hashPair => true
+  | .hashWord | .hashPair | .ecrecover | .eip712PermitDigest => true
   | _ => false
 
 def isStorageArrayHelper : Helper → Bool
@@ -566,7 +592,8 @@ def isMapHelper : Helper → Bool
 
 def removeHashHelpers (helpers : HelperSet) : HelperSet :=
   helpers.filter fun helper =>
-    !(helper == Helper.hashWord) && !(helper == Helper.hashPair)
+    !(helper == Helper.hashWord) && !(helper == Helper.hashPair) &&
+      !(helper == Helper.ecrecover) && !(helper == Helper.eip712PermitDigest)
 
 def replaceHashHelpers (helpers hashHelpers : HelperSet) : HelperSet :=
   mergeHelperSets (removeHashHelpers helpers) hashHelpers
@@ -692,6 +719,20 @@ mutual
             (plannedHelpersFromExprPlan lhs)
             (plannedHelpersFromExprPlan rhs))
           .hashPair
+    | .ecrecover digest v r s =>
+        let d := plannedHelpersFromExprPlan digest
+        let vr := mergeHelperSets (plannedHelpersFromExprPlan v) (plannedHelpersFromExprPlan r)
+        let rs := mergeHelperSets vr (plannedHelpersFromExprPlan s)
+        HelperSet.insert (mergeHelperSets d rs) .ecrecover
+    | .eip712PermitDigest owner spender value nonce deadline domainSep =>
+        let o := plannedHelpersFromExprPlan owner
+        let s := mergeHelperSets o (plannedHelpersFromExprPlan spender)
+        let v := mergeHelperSets s (plannedHelpersFromExprPlan value)
+        let n := mergeHelperSets v (plannedHelpersFromExprPlan nonce)
+        let d := mergeHelperSets n (plannedHelpersFromExprPlan deadline)
+        HelperSet.insert
+          (mergeHelperSets d (plannedHelpersFromExprPlan domainSep))
+          .eip712PermitDigest
     | .hashPack a b c d | .hashValue a b c d =>
         let ab := mergeHelperSets
           (plannedHelpersFromExprPlan a)
@@ -970,6 +1011,15 @@ mutual
         mergeContextPlans
           (contextOpsFromExprPlan lhs)
           (contextOpsFromExprPlan rhs)
+    | .ecrecover a b c d =>
+        mergeContextPlans
+          (mergeContextPlans (contextOpsFromExprPlan a) (contextOpsFromExprPlan b))
+          (mergeContextPlans (contextOpsFromExprPlan c) (contextOpsFromExprPlan d))
+    | .eip712PermitDigest a b c d e f =>
+        let ab := mergeContextPlans (contextOpsFromExprPlan a) (contextOpsFromExprPlan b)
+        let cd := mergeContextPlans (contextOpsFromExprPlan c) (contextOpsFromExprPlan d)
+        let ef := mergeContextPlans (contextOpsFromExprPlan e) (contextOpsFromExprPlan f)
+        mergeContextPlans (mergeContextPlans ab cd) ef
     | .hashPack a b c d | .hashValue a b c d =>
         let ab := mergeContextPlans
           (contextOpsFromExprPlan a)

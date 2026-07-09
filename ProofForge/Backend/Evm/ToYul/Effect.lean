@@ -304,6 +304,22 @@ partial def exprPlanExpr
         ← exprPlanExpr mkError lowerExpr lowerEffect lhs,
         ← exprPlanExpr mkError lowerExpr lowerEffect rhs
       ])
+  | .ecrecover digest v r s => do
+      .ok (helperCall Helper.ecrecover #[
+        ← exprPlanExpr mkError lowerExpr lowerEffect digest,
+        ← exprPlanExpr mkError lowerExpr lowerEffect v,
+        ← exprPlanExpr mkError lowerExpr lowerEffect r,
+        ← exprPlanExpr mkError lowerExpr lowerEffect s
+      ])
+  | .eip712PermitDigest owner spender value nonce deadline domainSep => do
+      .ok (helperCall Helper.eip712PermitDigest #[
+        ← exprPlanExpr mkError lowerExpr lowerEffect owner,
+        ← exprPlanExpr mkError lowerExpr lowerEffect spender,
+        ← exprPlanExpr mkError lowerExpr lowerEffect value,
+        ← exprPlanExpr mkError lowerExpr lowerEffect nonce,
+        ← exprPlanExpr mkError lowerExpr lowerEffect deadline,
+        ← exprPlanExpr mkError lowerExpr lowerEffect domainSep
+      ])
   | .nativeValue =>
       .ok (Lean.Compiler.Yul.builtin "callvalue" #[])
   | .effect effect =>

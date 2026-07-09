@@ -95,6 +95,7 @@ def evm : TargetProfile := {
     .dataDynamicBytes,
     .dataStruct,
     .cryptoHash,
+    .cryptoEcrecover,
     .assertions,
     .checkedArithmetic,
     .accountExplicit

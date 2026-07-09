@@ -449,4 +449,13 @@ def whenPositive (value : ProofForge.IR.Expr) (body : EntryM Unit) : EntryM Unit
   let (_, entryBuilder) := body.run {}
   ProofForge.Contract.Builder.ifElse (ProofForge.Contract.Builder.gt value (u64 0)) entryBuilder.body #[]
 
+/-- EVM `ecrecover(digest, v, r, s)` → address word. Requires `crypto.ecrecover`. -/
+def ecrecover (digest v r s : ProofForge.IR.Expr) : ProofForge.IR.Expr :=
+  .ecrecover digest v r s
+
+/-- EIP-712 permit digest for ERC-2612 (EVM helper). -/
+def eip712PermitDigest (owner spender value nonce deadline domainSep : ProofForge.IR.Expr) :
+    ProofForge.IR.Expr :=
+  .eip712PermitDigest owner spender value nonce deadline domainSep
+
 end ProofForge.Contract.Surface

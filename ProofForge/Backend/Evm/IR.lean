@@ -354,8 +354,18 @@ def plannedHashHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
       helpers.push ProofForge.Backend.Evm.ToYul.hashWordHelperFunction
     else
       helpers
-  if plan.hasHelper .hashPair then
-    helpers.push ProofForge.Backend.Evm.ToYul.hashPairHelperFunction
+  let helpers :=
+    if plan.hasHelper .hashPair then
+      helpers.push ProofForge.Backend.Evm.ToYul.hashPairHelperFunction
+    else
+      helpers
+  let helpers :=
+    if plan.hasHelper .ecrecover then
+      helpers.push ProofForge.Backend.Evm.ToYul.ecrecoverHelperFunction
+    else
+      helpers
+  if plan.hasHelper .eip712PermitDigest then
+    helpers.push ProofForge.Backend.Evm.ToYul.eip712PermitDigestHelperFunction
   else
     helpers
 
@@ -417,6 +427,13 @@ mutual
         || exprUsesCheckedArithmetic c || exprUsesCheckedArithmetic d
     | .hash p => exprUsesCheckedArithmetic p
     | .hashTwoToOne l r => exprUsesCheckedArithmetic l || exprUsesCheckedArithmetic r
+    | .ecrecover a b c d =>
+        exprUsesCheckedArithmetic a || exprUsesCheckedArithmetic b ||
+          exprUsesCheckedArithmetic c || exprUsesCheckedArithmetic d
+    | .eip712PermitDigest a b c d e f =>
+        exprUsesCheckedArithmetic a || exprUsesCheckedArithmetic b ||
+          exprUsesCheckedArithmetic c || exprUsesCheckedArithmetic d ||
+          exprUsesCheckedArithmetic e || exprUsesCheckedArithmetic f
     | .crosscallInvoke t m args | .crosscallInvokeTyped t m args _
     | .crosscallInvokeValueTyped t m _ args _
     | .crosscallInvokeStaticTyped t m args _ | .crosscallInvokeDelegateTyped t m args _ =>

@@ -95,6 +95,25 @@ mutual
         let lhsSpecs ← crosscallHelperSpecsFromExpr module env lhs
         let rhsSpecs ← crosscallHelperSpecsFromExpr module env rhs
         .ok (mergeCrosscallHelperSpecs lhsSpecs rhsSpecs)
+    | .ecrecover a b c d => do
+        let ab := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsFromExpr module env a)
+          (← crosscallHelperSpecsFromExpr module env b)
+        let cd := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsFromExpr module env c)
+          (← crosscallHelperSpecsFromExpr module env d)
+        .ok (mergeCrosscallHelperSpecs ab cd)
+    | .eip712PermitDigest a b c d e f => do
+        let ab := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsFromExpr module env a)
+          (← crosscallHelperSpecsFromExpr module env b)
+        let cd := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsFromExpr module env c)
+          (← crosscallHelperSpecsFromExpr module env d)
+        let ef := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsFromExpr module env e)
+          (← crosscallHelperSpecsFromExpr module env f)
+        .ok (mergeCrosscallHelperSpecs (mergeCrosscallHelperSpecs ab cd) ef)
     | .cast value _ | .boolNot value | .hash value =>
         crosscallHelperSpecsFromExpr module env value
     | .hashValue a b c d => do
@@ -357,6 +376,25 @@ mutual
         .ok (mergeCrosscallHelperSpecs
           (← crosscallHelperSpecsFromExprPlan module lhs)
           (← crosscallHelperSpecsFromExprPlan module rhs))
+    | .ecrecover a b c d => do
+        .ok (mergeCrosscallHelperSpecs
+          (mergeCrosscallHelperSpecs
+            (← crosscallHelperSpecsFromExprPlan module a)
+            (← crosscallHelperSpecsFromExprPlan module b))
+          (mergeCrosscallHelperSpecs
+            (← crosscallHelperSpecsFromExprPlan module c)
+            (← crosscallHelperSpecsFromExprPlan module d)))
+    | .eip712PermitDigest a b c d e f => do
+        let ab := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsFromExprPlan module a)
+          (← crosscallHelperSpecsFromExprPlan module b)
+        let cd := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsFromExprPlan module c)
+          (← crosscallHelperSpecsFromExprPlan module d)
+        let ef := mergeCrosscallHelperSpecs
+          (← crosscallHelperSpecsFromExprPlan module e)
+          (← crosscallHelperSpecsFromExprPlan module f)
+        .ok (mergeCrosscallHelperSpecs (mergeCrosscallHelperSpecs ab cd) ef)
     | .hashPack a b c d | .hashValue a b c d => do
         let ab := mergeCrosscallHelperSpecs
           (← crosscallHelperSpecsFromExprPlan module a)
@@ -581,6 +619,16 @@ mutual
     | .lt lhs rhs | .le lhs rhs | .gt lhs rhs | .ge lhs rhs
     | .boolAnd lhs rhs | .boolOr lhs rhs | .hashTwoToOne lhs rhs =>
         mergeCreateHelperSpecs (createHelperSpecsFromExpr lhs) (createHelperSpecsFromExpr rhs)
+    | .ecrecover a b c d =>
+        mergeCreateHelperSpecs
+          (mergeCreateHelperSpecs (createHelperSpecsFromExpr a) (createHelperSpecsFromExpr b))
+          (mergeCreateHelperSpecs (createHelperSpecsFromExpr c) (createHelperSpecsFromExpr d))
+    | .eip712PermitDigest a b c d e f =>
+        mergeCreateHelperSpecs
+          (mergeCreateHelperSpecs
+            (mergeCreateHelperSpecs (createHelperSpecsFromExpr a) (createHelperSpecsFromExpr b))
+            (mergeCreateHelperSpecs (createHelperSpecsFromExpr c) (createHelperSpecsFromExpr d)))
+          (mergeCreateHelperSpecs (createHelperSpecsFromExpr e) (createHelperSpecsFromExpr f))
     | .cast value _ | .boolNot value | .hash value =>
         createHelperSpecsFromExpr value
     | .hashValue a b c d =>
@@ -756,6 +804,15 @@ mutual
         mergeCreateHelperSpecs
           (createHelperSpecsFromExprPlan lhs)
           (createHelperSpecsFromExprPlan rhs)
+    | .ecrecover a b c d =>
+        mergeCreateHelperSpecs
+          (mergeCreateHelperSpecs (createHelperSpecsFromExprPlan a) (createHelperSpecsFromExprPlan b))
+          (mergeCreateHelperSpecs (createHelperSpecsFromExprPlan c) (createHelperSpecsFromExprPlan d))
+    | .eip712PermitDigest a b c d e f =>
+        let ab := mergeCreateHelperSpecs (createHelperSpecsFromExprPlan a) (createHelperSpecsFromExprPlan b)
+        let cd := mergeCreateHelperSpecs (createHelperSpecsFromExprPlan c) (createHelperSpecsFromExprPlan d)
+        let ef := mergeCreateHelperSpecs (createHelperSpecsFromExprPlan e) (createHelperSpecsFromExprPlan f)
+        mergeCreateHelperSpecs (mergeCreateHelperSpecs ab cd) ef
     | .hashPack a b c d | .hashValue a b c d =>
         let ab := mergeCreateHelperSpecs
           (createHelperSpecsFromExprPlan a)

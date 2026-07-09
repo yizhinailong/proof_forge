@@ -28,7 +28,7 @@ gaps.
 | ERC-721 (NFT) | Covered (limited) | `ProofForge/Contract/Stdlib/ERC721.lean` stdlib mixin (ownerOf/transferFrom/safeTransferFrom/mint/burn + three-indexed Transfer event); `Examples/Backend/Evm/Contracts/stdlib/ERC721.lean` golden Yul. **Limitation:** `safeTransferFrom` does not invoke `onERC721Received` (documented in stdlib header) | P1 |
 | ERC-1155 (multi-token) | Partial | `ProofForge/Contract/Stdlib/ERC1155.lean` stdlib mixin covers balances, operator approvals, mint, burn, and single `safeTransferFrom`; `Examples/Backend/Evm/Contracts/stdlib/ERC1155.lean` golden Yul; `foundry-smoke.sh` exercises mint/approval/transfer/burn. **Gap:** batch operations and receiver callbacks remain open | P1 |
 | ERC-4626 (vault standard) | Partial | **Call** peer: `IERC4626` / `external_vault`. **Deploy body:** `Stdlib.ERC4626` 1:1 synthetic vault (`just product-erc4626-vault`). Full fee/underlying pull / TokenSpec vault feature still open | P1 |
-| ERC-2612 (permit) | Partial | **Call** external `permit`: `IERC20Permit`. TokenSpec/stdlib **body** still blocked (no IR `ecrecover`) | P1 |
+| ERC-2612 (permit) | Partial | **Call** peer: `IERC20Permit`. **Deploy body:** `Stdlib.ERC20Permit` (`just product-erc20-permit`) with IR `ecrecover` + EIP-712 digest (EVM-only `crypto.ecrecover`). TokenSpec `--token` still rejects `permit` feature (separate lane) | P1 |
 | ERC-1820 / ERC-777 | Missing | No hook registry or ERC-777 sender/recipient hooks | P2 |
 | ERC-165 (supportsInterface) | Covered | `ProofForge/Contract/Stdlib/ERC165.lean` stdlib mixin (supportsInterface + registerInterface); `Examples/Backend/Evm/Contracts/stdlib/ERC165.lean` golden Yul | — |
 

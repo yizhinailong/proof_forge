@@ -138,6 +138,8 @@ inductive Helper where
   | memoryArrayGet
   | hashWord
   | hashPair
+  | ecrecover
+  | eip712PermitDigest
   deriving DecidableEq, Repr
 
 def Helper.beq : Helper → Helper → Bool
@@ -153,6 +155,8 @@ def Helper.beq : Helper → Helper → Bool
   | .memoryArrayGet, .memoryArrayGet => true
   | .hashWord, .hashWord => true
   | .hashPair, .hashPair => true
+  | .ecrecover, .ecrecover => true
+  | .eip712PermitDigest, .eip712PermitDigest => true
   | _, _ => false
 
 instance : BEq Helper := ⟨Helper.beq⟩
@@ -182,6 +186,8 @@ def Helper.name : Helper → String
   | .memoryArrayGet => "__proof_forge_memory_array_get"
   | .hashWord => "__proof_forge_hash_word"
   | .hashPair => "__proof_forge_hash_pair"
+  | .ecrecover => "__proof_forge_ecrecover"
+  | .eip712PermitDigest => "__proof_forge_eip712_permit_digest"
 
 abbrev HelperSet := Array Helper
 

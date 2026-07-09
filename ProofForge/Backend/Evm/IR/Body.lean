@@ -269,6 +269,13 @@ mutual
         exprPlanSupportsPlannedBody d
     | .hash preimage => exprPlanSupportsPlannedBody preimage
     | .hashTwoToOne lhs rhs => exprPlanSupportsPlannedBody lhs && exprPlanSupportsPlannedBody rhs
+    | .ecrecover a b c d =>
+        exprPlanSupportsPlannedBody a && exprPlanSupportsPlannedBody b &&
+          exprPlanSupportsPlannedBody c && exprPlanSupportsPlannedBody d
+    | .eip712PermitDigest a b c d e f =>
+        exprPlanSupportsPlannedBody a && exprPlanSupportsPlannedBody b &&
+          exprPlanSupportsPlannedBody c && exprPlanSupportsPlannedBody d &&
+          exprPlanSupportsPlannedBody e && exprPlanSupportsPlannedBody f
     | .nativeValue => true
     | .effect effect => effectPlanSupportsPlannedBodyExpr effect
     | .crosscall _ target methodId callValue? args returnType =>

@@ -393,6 +393,15 @@ partial def collectFromExpr (entrypoint : String) (acc : Array PortableCrosscall
   | .eq a b | .ne a b | .lt a b | .le a b | .gt a b | .ge a b
   | .boolAnd a b | .boolOr a b | .hashTwoToOne a b =>
       collectFromExpr entrypoint (collectFromExpr entrypoint acc a) b
+  | .ecrecover a b c d =>
+      collectFromExpr entrypoint
+        (collectFromExpr entrypoint
+          (collectFromExpr entrypoint (collectFromExpr entrypoint acc a) b) c) d
+  | .eip712PermitDigest a b c d e f =>
+      let acc := collectFromExpr entrypoint
+        (collectFromExpr entrypoint
+          (collectFromExpr entrypoint (collectFromExpr entrypoint acc a) b) c) d
+      collectFromExpr entrypoint (collectFromExpr entrypoint acc e) f
   | .cast a _ | .boolNot a | .hash a | .memoryArrayLength a | .field a _
   | .nearPromiseResultStatus a | .nearPromiseResultU64 a =>
       collectFromExpr entrypoint acc a

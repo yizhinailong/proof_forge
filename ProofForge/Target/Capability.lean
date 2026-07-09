@@ -21,6 +21,9 @@ inductive Capability where
   | dataDynamicArray
   | dataStruct
   | cryptoHash
+  /-- EVM `ecrecover` (secp256k1). Not portable to Solana/NEAR without native
+  signature hosts — preflight rejects non-EVM. -/
+  | cryptoEcrecover
   | assertions
   | accountExplicit
   | runtimeAllocator
@@ -52,6 +55,7 @@ def Capability.id : Capability → String
   | .dataDynamicBytes => "data.dynamic_bytes"
   | .dataStruct => "data.struct"
   | .cryptoHash => "crypto.hash"
+  | .cryptoEcrecover => "crypto.ecrecover"
   | .assertions => "assertions.check"
   | .accountExplicit => "account.explicit"
   | .runtimeAllocator => "runtime.allocator"

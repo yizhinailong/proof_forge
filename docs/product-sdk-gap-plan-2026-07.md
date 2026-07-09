@@ -171,9 +171,12 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 | ε.1 | IERC4626 external client + `external_vault` product | **done** |
 | ε.2 | EIP-2612 external `permit` client (call peer; not TokenSpec body) | **done** |
 | ε.3 | ERC-4626 Layer C stdlib body (1:1 synthetic) | **done** |
+| ε.4 | IR `ecrecover` + EIP-712 digest helpers (EVM) | **done** |
+| ε.5 | ERC20Permit Layer C body (`setPermitSig` + `permit`) | **done** |
 
-**Honesty still open:** TokenSpec `permit` **body** (needs IR `ecrecover`); ERC-4626
-underlying ERC-20 pull + non-1:1 rates; dynamic IR Call[] auto-lower.
+**Honesty still open:** TokenSpec `--token` `permit` feature wiring (use stdlib
+ERC20Permit instead); ERC-4626 underlying ERC-20 pull + non-1:1 rates; dynamic
+IR Call[] auto-lower.
 
 ---
 

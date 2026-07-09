@@ -138,6 +138,7 @@ just product-protocol-ft
 | External FT protocol intent | `just product-protocol-ft` |
 | External ERC-4626 vault | `just product-protocol-vault` |
 | Deploy ERC-4626 vault body | `just product-erc4626-vault` |
+| Deploy ERC20Permit body (EVM) | `just product-erc20-permit` |
 | Multicall Call[] → Yul | `just multicall-abi-yul` |
 | Engineering CI subset | `just check` |
 

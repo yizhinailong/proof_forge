@@ -141,8 +141,9 @@ EIP-2612 `permit` are **not** lowered into the generated ERC-20 contract.
 
 * Use `--target solana-sbpf-asm` for `transfer_fee` / `non_transferable` / other
   Token-2022 extensions.
-* `permit` stays portable intent only until a dedicated EIP-2612 materializer
-  ships; until then reject on `evm` like other non-lowered features.
+* `permit` on the **TokenSpec `--token` lane** still rejects on `evm`. Deploy an
+  EIP-2612 body via `Contract.Stdlib.ERC20Permit` (`just product-erc20-permit`)
+  which uses IR `ecrecover` + EIP-712 digest (EVM-only `crypto.ecrecover`).
 
 Core ERC-20 lane on EVM remains: mintable / burnable / capped / pausable. -/
 def TokenSpec.evmUnsupportedFeatures (spec : TokenSpec) : Array TokenFeature :=
