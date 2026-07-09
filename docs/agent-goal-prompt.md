@@ -107,8 +107,8 @@ implementation SHA is only known after the implementation commit exists.
 | 0 | PF-P0-04 | done: verified@295132ed; just soroban-profile; just product | immediately; prefer after PF-P0-03 |
 | 0 | PF-P0-05 | done: verified@42e025e8; just doc-sync-audit-strict; scripts/i18n/check-sync.sh | immediately; generated support tables remain PF-P1-02 |
 | 0 | PF-P0-06 | done: verified@e94bc185; just testkit; offline-host wasmtimeFuel* fields | immediately |
-| 0 | PF-P0-07 | pending | immediately |
-| 0 | PF-P0-08 | pending | immediately |
+| 0 | PF-P0-07 | done: verified@0334cbaa; just check-l2-parity | immediately |
+| 0 | PF-P0-08 | done: verified@0334cbaa; just wat2wasm-fail-closed | immediately |
 | 1 | PF-P1-01 | pending | all Wave 0 tasks done |
 | 1 | PF-P1-02 | pending | all Wave 0 tasks done; coordinate with PF-P1-01 |
 | 1 | PF-P1-03 | pending | PF-P1-01 and PF-P1-02 done |
