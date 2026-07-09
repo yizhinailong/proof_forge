@@ -273,14 +273,16 @@ def lowerCpiU64Field (bindings : Array CpiValueBinding) (cpi : CpiInvoke)
                 storeReg .stxdw .r8 fieldOff .r3
               ]
           | none =>
+              -- Named source must bind (entry param / state); never pack silent 0.
               #[
-                .comment s!"solana.cpi.value {fieldName} source={source} placeholder=0",
-                loadImm .r3 0,
-                storeReg .stxdw .r8 fieldOff .r3
+                .comment s!"solana.cpi.value {fieldName} source={source} missing (reject)",
+                .instruction { opcode := .ja, off := some (.sym "error_cpi") }
               ]
   | none =>
+      -- Optional field not declared in CPI metadata — leave zero only when the
+      -- protocol layout omits the field; required sources use amount_source etc.
       #[
-        .comment s!"solana.cpi.value {fieldName} missing placeholder=0",
+        .comment s!"solana.cpi.value {fieldName} metadata absent (zero)",
         loadImm .r3 0,
         storeReg .stxdw .r8 fieldOff .r3
       ]
@@ -315,13 +317,12 @@ def lowerCpiU16Field (bindings : Array CpiValueBinding) (cpi : CpiInvoke)
               ]
           | none =>
               #[
-                .comment s!"solana.cpi.value {fieldName} source={source} placeholder=0",
-                loadImm .r3 0,
-                storeReg .stxh .r8 fieldOff .r3
+                .comment s!"solana.cpi.value {fieldName} source={source} missing (reject)",
+                .instruction { opcode := .ja, off := some (.sym "error_cpi") }
               ]
   | none =>
       #[
-        .comment s!"solana.cpi.value {fieldName} missing placeholder=0",
+        .comment s!"solana.cpi.value {fieldName} metadata absent (zero)",
         loadImm .r3 0,
         storeReg .stxh .r8 fieldOff .r3
       ]

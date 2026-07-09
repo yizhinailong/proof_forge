@@ -20,7 +20,12 @@ import ProofForge.Contract.Source.Solana
 
 contract_source MyProgram do
   account vault writable
-  ...
+  binding amount : .u64
+  binding vault_bump : .u64
+  -- Values used as PDA/CPI seeds or amount_source MUST appear as entry params
+  -- so Solana valueBindings resolve (honest materialize; no silent zero packs):
+  entry touch (amount : .u64, vault_bump : .u64) do
+    ...
 ```
 
 Allowed locations:

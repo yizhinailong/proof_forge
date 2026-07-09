@@ -206,17 +206,15 @@ def main : IO UInt32 := do
         "package assembly missing vault seed byte store"
       require (contains asmFile.contents "solana.pda.seed vault[1] account authority pubkey")
         "package assembly missing authority account PDA seed packing"
-      -- Unbound bump: runtime trap (not 255 placeholder). Account seed zeros
-      -- are preflight-rejected; bump may still lower to error_pda_bump until
-      -- Surface bindings wire into value bindings.
-      require (contains asmFile.contents "solana.pda.seed vault[2] bump vault_bump missing (revert)"
-          || contains asmFile.contents "bump vault_bump from instruction param")
-        "package assembly missing vault_bump seed packing or honest revert"
-      require (contains asmFile.contents "ja error_pda_bump"
-          || contains asmFile.contents "from instruction param")
-        "package assembly missing PDA bump revert jump or bound bump packing"
-      require (!contains asmFile.contents "account authority missing placeholder=zero")
-        "authority account seed must not fall back to zero placeholder"
+      -- Entry params (amount, vault_bump) bind into valueBindings — no silent zeros.
+      require (contains asmFile.contents "solana.pda.seed vault[2] bump vault_bump from instruction param")
+        "package assembly missing vault_bump instruction-param packing"
+      require (!contains asmFile.contents "placeholder=zero")
+        "package assembly must not pack zero PDA/signer seed placeholders"
+      require (!contains asmFile.contents "placeholder=0")
+        "package assembly must not pack silent zero CPI value placeholders"
+      require (!contains asmFile.contents "placeholder=255")
+        "package assembly must not pack 255 bump placeholders"
       require (contains asmFile.contents "stxdw [r6+0], r5")
         "package assembly missing PDA seed slice ptr store"
       require (contains asmFile.contents "stxdw [r6+8], r3")
@@ -245,8 +243,9 @@ def main : IO UInt32 := do
         "package assembly missing destination account info binding"
       require (contains asmFile.contents "solana.cpi.data spl-token.transfer_checked: u8 instruction=12, u64 amount, u8 decimals=9")
         "package assembly missing SPL Token transfer_checked data packing"
-      require (contains asmFile.contents "solana.cpi.value amount")
-        "package assembly missing SPL Token amount value packing"
+      require (contains asmFile.contents "solana.cpi.value amount from instruction param amount"
+          || contains asmFile.contents "from instruction param amount")
+        "package assembly missing bound amount instruction-param packing"
       require (contains asmFile.contents "stb [r8+0], 12")
         "package assembly missing SPL Token transfer_checked discriminator store"
       require (contains asmFile.contents "stb [r8+9], 9")

@@ -113,14 +113,12 @@ def lowerRuntimeAllocator (allocator : RuntimeAllocator) : Array AstNode := #[
 def lowerRuntimeAllocators (extensions : ProgramExtensions) : Array AstNode :=
   extensions.allocators.foldl (fun acc allocator => acc ++ lowerRuntimeAllocator allocator) #[]
 
-/-- Preflight: reject PDA/CPI seed paths that would pack **zero pubkeys**
-(wrong PDA / wrong signer). Unbound bumps and instruction params still lower
-to runtime traps (`error_pda` / `error_pda_bump`) when Surface bindings are not
-yet wired into value bindings (legacy fixtures). -/
+/-- Preflight: PDA/CPI seeds must resolve — never silent zero seeds. -/
 def validatePdaSeedBindings (accountBindings : Array CpiAccountBinding)
-    (_valueBindings : Array CpiValueBinding) (pda : PdaDerive) : Except String Unit := do
+    (valueBindings : Array CpiValueBinding) (pda : PdaDerive) : Except String Unit := do
   for seed in pda.effectiveSeeds do
     match seed.kind with
+    | .literal => pure ()
     | .account =>
         if (cpiAccountBinding? accountBindings seed.value).isNone then
           throw s!"Solana PDA `{pda.name}`: seed account `{seed.value}` is not bound in the account schema"
@@ -129,8 +127,12 @@ def validatePdaSeedBindings (accountBindings : Array CpiAccountBinding)
         | some n =>
             if n >= 256 then
               throw s!"Solana PDA `{pda.name}`: bump literal {n} out of range (need 0..255)"
-        | none => pure ()
-    | .literal | .instructionParam => pure ()
+        | none =>
+            if (cpiValueBinding? valueBindings seed.value).isNone then
+              throw s!"Solana PDA `{pda.name}`: bump source `{seed.value}` is not bound (declare it as an entry param)"
+    | .instructionParam =>
+        if (cpiValueBinding? valueBindings seed.value).isNone then
+          throw s!"Solana PDA `{pda.name}`: instruction-param seed `{seed.value}` is not bound (declare it as an entry param)"
   match pda.account? with
   | none => pure ()
   | some acc =>
@@ -138,10 +140,11 @@ def validatePdaSeedBindings (accountBindings : Array CpiAccountBinding)
         throw s!"Solana PDA `{pda.name}`: result account `{acc}` is not bound"
 
 def validateCpiSignerSeedBindings (accountBindings : Array CpiAccountBinding)
-    (_valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Except String Unit := do
+    (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Except String Unit := do
   for raw in cpi.signerSeeds do
     let seed := parsePdaSeed raw
     match seed.kind with
+    | .literal => pure ()
     | .account =>
         if (cpiAccountBinding? accountBindings seed.value).isNone then
           throw s!"Solana CPI `{cpi.name}`: signer seed account `{seed.value}` is not bound"
@@ -150,8 +153,23 @@ def validateCpiSignerSeedBindings (accountBindings : Array CpiAccountBinding)
         | some n =>
             if n >= 256 then
               throw s!"Solana CPI `{cpi.name}`: signer bump literal {n} out of range"
-        | none => pure ()
-    | .literal | .instructionParam => pure ()
+        | none =>
+            if (cpiValueBinding? valueBindings seed.value).isNone then
+              throw s!"Solana CPI `{cpi.name}`: signer bump `{seed.value}` is not bound (declare it as an entry param)"
+    | .instructionParam =>
+        if (cpiValueBinding? valueBindings seed.value).isNone then
+          throw s!"Solana CPI `{cpi.name}`: signer instruction-param `{seed.value}` is not bound (declare it as an entry param)"
+
+/-- Named CPI value sources (amount_source, etc.) must resolve to entry/state bindings. -/
+def validateCpiValueSources (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) :
+    Except String Unit := do
+  for key in #["solana.cpi.amount_source", "solana.cpi.lamports_source", "solana.cpi.fee_source"] do
+    match metadataValue? cpi.metadata key with
+    | none => pure ()
+    | some source =>
+        if source.toNat?.isSome then pure ()
+        else if (cpiValueBinding? valueBindings source).isNone then
+          throw s!"Solana CPI `{cpi.name}`: value source `{source}` ({key}) is not bound (declare it as an entry param)"
 
 def validateProgramExtensionBindings (accountBindings : Array CpiAccountBinding)
     (valueBindings : Array CpiValueBinding) (extensions : ProgramExtensions) :
@@ -160,6 +178,7 @@ def validateProgramExtensionBindings (accountBindings : Array CpiAccountBinding)
     validatePdaSeedBindings accountBindings valueBindings pda
   for cpi in extensions.cpis do
     validateCpiSignerSeedBindings accountBindings valueBindings cpi
+    validateCpiValueSources valueBindings cpi
 
 def lowerProgramExtensionsWithBindings
     (accountBindings : Array CpiAccountBinding) (valueBindings : Array CpiValueBinding)

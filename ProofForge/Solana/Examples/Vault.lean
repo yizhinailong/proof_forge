@@ -32,7 +32,8 @@ contract_source SolanaVault do
   entry «initialize» do
     nonce := u64 0;
 
-  entry touch do
+  -- Params on the entry so Solana valueBindings resolve (amount / vault_bump).
+  entry touch (amount : .u64, vault_bump : .u64) do
     derive pda vault seeds [literal_seed "vault", account_seed authority]
       bump vault_bump account vault_account signer;
     invoke token_transfer spl_token_transfer_checked(
