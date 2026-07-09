@@ -648,7 +648,7 @@ where
           signed := true
         }
         (ProofForge.Backend.Solana.Extension.lowerCpiSignerSeeds
-          workCtx.accountBindings workCtx.valueBindings stub, 1)
+          workCtx.accountBindings workCtx.valueBindings #[] stub, 1)
     nodes := nodes ++
       invokeSignedC dataBytes accountIndices numSigners signerNodes retNoneLabel retEndLabel
     .ok (nodes, ctxFinal)

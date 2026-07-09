@@ -206,7 +206,8 @@ def lowerProgramExtensionsWithBindings
     #[.blankLine, .comment "Solana SDK target extension syscall helpers"] ++
     lowerRuntimeAllocators extensions ++
     extensions.pdas.foldl (fun acc pda => acc ++ lowerPdaDerive accountBindings valueBindings pda) #[] ++
-    extensions.cpis.foldl (fun acc cpi => acc ++ lowerCpiInvoke accountBindings valueBindings cpi) #[] ++
+    extensions.cpis.foldl
+      (fun acc cpi => acc ++ lowerCpiInvoke accountBindings valueBindings extensions.pdas cpi) #[] ++
     (uniqueMemoryHelpers extensions).foldl (fun acc action => acc ++ lowerMemoryHelper valueBindings action) #[] ++
     (uniqueCryptoHashHelpers extensions).foldl (fun acc action => acc ++ lowerCryptoHashHelper valueBindings action) #[] ++
     (uniqueSysvarHelpers extensions).foldl (fun acc action => acc ++ lowerSysvarHelper valueBindings action) #[] ++

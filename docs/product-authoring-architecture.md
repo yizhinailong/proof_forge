@@ -182,7 +182,7 @@ today still tempts people to write chain DSL by hand.
 | Scalar / map state | storage slots / layout | **one program data account** (default) + borsh/layout | host KV keys |
 | Token balances | map in contract / ERC-20 | **mint + ATA + SPL/Token-2022 CPI plan** (TokenSpec already partial) | NEP-141 |
 | Auth (ownable) | address + guard | signer/authority account checks synthesized | predecessor |
-| Cross-call intent | CALL | **CPI frame from intent** (portable peer + protocol CPI; no silent empty ix data) | Promise create/then from intent |
+| Cross-call intent | CALL | **CPI frame from intent** (portable peer + protocol CPI; PDA signer seeds expanded; selective accounts; no silent empty ix data) | Promise create/then from intent |
 | Events | LOG topics | sol_log / structured log | log_utf8 JSON |
 | PDA (only if needed) | n/a | **derived from business ids** (vault id, mint, …) not author seed tables | n/a |
 

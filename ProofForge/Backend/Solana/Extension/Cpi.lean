@@ -1,4 +1,5 @@
 import ProofForge.Backend.Solana.Extension.Common
+import ProofForge.Backend.Solana.Extension.Pda
 
 /-! # Solana CPI extension lowering
 
@@ -521,27 +522,66 @@ def lowerCpiSignerSeed (accountBindings : Array CpiAccountBinding)
   | .bump => lowerCpiSignerBumpSeed valueBindings cpiName idx seed.value
   | .instructionParam => lowerCpiSignerInstructionParamSeed valueBindings cpiName idx seed.value
 
+/-- True when `raw` is already a typed seed descriptor (`literal:…`, `account:…`, …). -/
+def isPrefixedSeedDescriptor (raw : String) : Bool :=
+  raw.startsWith "literal:" || raw.startsWith "utf8:" || raw.startsWith "account:" ||
+    raw.startsWith "bump:" || raw.startsWith "param:" || raw.startsWith "instruction:"
+
+/-- Expand author-facing signer seed list into packable descriptors.
+
+* Prefixed descriptors pass through.
+* A bare name matching a PDA expands to that PDA's **effective** seeds
+  (`literal:` / `account:` / `bump:`) — so `pda_seed vault` is honest.
+* A bare name matching a PDA bump source becomes `bump:name` (deduped if the
+  PDA expansion already included it).
+* Other bare strings become `literal:…` (legacy).
+
+This is what makes arbitrary vault-style contracts CPI as PDA authority, not
+just fixed Counter/Vault fixtures. -/
+def expandCpiSignerSeeds (pdas : Array PdaDerive) (rawSeeds : Array String) : Array String :=
+  rawSeeds.foldl
+    (fun acc raw =>
+      if isPrefixedSeedDescriptor raw then
+        if acc.any (fun s => s == raw) then acc else acc.push raw
+      else
+        match pdas.find? (fun p => p.name == raw) with
+        | some pda =>
+            let expanded := (PdaDerive.effectiveSeeds pda).map (fun s => s.raw)
+            expanded.foldl
+              (fun a s => if a.any (fun x => x == s) then a else a.push s) acc
+        | none =>
+            let asBump :=
+              if pdas.any (fun p => p.bump? == some raw) then "bump:" ++ raw
+              else "literal:" ++ raw
+            if acc.any (fun s => s == asBump) then acc else acc.push asBump)
+    #[]
+
 def lowerCpiSignerSeeds (accountBindings : Array CpiAccountBinding)
-    (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Array AstNode :=
-  if cpi.signerSeeds.isEmpty then
+    (valueBindings : Array CpiValueBinding) (pdas : Array PdaDerive) (cpi : CpiInvoke) :
+    Array AstNode :=
+  let seeds := expandCpiSignerSeeds pdas cpi.signerSeeds
+  if seeds.isEmpty then
     #[
       .comment "solana.cpi.signer_seeds none"
     ]
   else
     let seedTable :=
-      cpi.signerSeeds.mapIdx (fun idx seed =>
+      seeds.mapIdx (fun idx seed =>
         lowerCpiSignerSeed accountBindings valueBindings cpi.name idx seed)
         |>.foldl (fun acc nodes => acc ++ nodes) #[]
+    #[
+      .comment s!"solana.cpi.signer_seeds expanded count={seeds.size} (from {cpi.signerSeeds.size} raw)"
+    ] ++
     seedTable ++
     stackPtr .r8 cpiSignerEntriesOffset ++
     stackPtr .r7 cpiSignerSeedTableOffset ++ #[
       storeReg .stxdw .r8 0 .r7,
-      loadImm .r3 cpi.signerSeeds.size,
+      loadImm .r3 seeds.size,
       storeReg .stxdw .r8 8 .r3
     ]
 
-def lowerCpiSignerArgs (cpi : CpiInvoke) : Array AstNode :=
-  if cpi.signerSeeds.isEmpty then
+def lowerCpiSignerArgs (hasSignerSeeds : Bool) : Array AstNode :=
+  if !hasSignerSeeds then
     #[
       loadImm .r4 0,
       loadImm .r5 0
@@ -1056,12 +1096,12 @@ def lowerCpiInstructionRecord (cpi : CpiInvoke) (dataLen : Nat) : Array AstNode 
     storeReg .stxdw .r5 32 .r3
   ]
 
-def lowerCpiCall (cpi : CpiInvoke) : Array AstNode :=
+def lowerCpiCall (cpi : CpiInvoke) (hasSignerSeeds : Bool) : Array AstNode :=
   stackPtr .r1 cpiInstructionOffset ++
   stackPtr .r2 cpiAccountInfoOffset ++ #[
     loadImm .r3 cpi.accounts.size
   ] ++
-  lowerCpiSignerArgs cpi ++ #[
+  lowerCpiSignerArgs hasSignerSeeds ++ #[
     .comment "r1=instruction_ptr r2=account_infos_ptr r3=num_accounts r4=signer_seeds_ptr r5=num_signers",
     callSyscall ProofForge.Backend.Solana.Syscalls.sol_invoke_signed_c,
     .instruction { opcode := .jne, dst := some .r0, imm := some (.num 0), off := some (.sym "error_cpi") },
@@ -1070,8 +1110,10 @@ def lowerCpiCall (cpi : CpiInvoke) : Array AstNode :=
   ]
 
 def lowerSystemTransferCpi (accountBindings : Array CpiAccountBinding)
-    (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Array AstNode :=
+    (valueBindings : Array CpiValueBinding) (pdas : Array PdaDerive) (cpi : CpiInvoke) :
+    Array AstNode :=
   let (dataNodes, dataLen) := lowerCpiInstructionData accountBindings valueBindings cpi
+  let expanded := expandCpiSignerSeeds pdas cpi.signerSeeds
   #[
     .comment "solana.cpi.pack system.transfer"
   ] ++
@@ -1082,12 +1124,14 @@ def lowerSystemTransferCpi (accountBindings : Array CpiAccountBinding)
   dataNodes ++
   lowerCpiInstructionRecord cpi dataLen ++
   lowerCpiAccountInfos accountBindings cpi ++
-  lowerCpiSignerSeeds accountBindings valueBindings cpi ++
-  lowerCpiCall cpi
+  lowerCpiSignerSeeds accountBindings valueBindings pdas cpi ++
+  lowerCpiCall cpi (!expanded.isEmpty)
 
 def lowerGenericCpiInvoke (accountBindings : Array CpiAccountBinding)
-    (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Array AstNode :=
+    (valueBindings : Array CpiValueBinding) (pdas : Array PdaDerive) (cpi : CpiInvoke) :
+    Array AstNode :=
   let (dataNodes, dataLen) := lowerCpiInstructionData accountBindings valueBindings cpi
+  let expanded := expandCpiSignerSeeds pdas cpi.signerSeeds
   #[
     .comment "generic CPI C ABI packing"
   ] ++
@@ -1098,19 +1142,20 @@ def lowerGenericCpiInvoke (accountBindings : Array CpiAccountBinding)
   dataNodes ++
   lowerCpiInstructionRecord cpi dataLen ++
   lowerCpiAccountInfos accountBindings cpi ++
-  lowerCpiSignerSeeds accountBindings valueBindings cpi ++
-  lowerCpiCall cpi
+  lowerCpiSignerSeeds accountBindings valueBindings pdas cpi ++
+  lowerCpiCall cpi (!expanded.isEmpty)
 
 def lowerCpiInvoke (accountBindings : Array CpiAccountBinding)
-    (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Array AstNode :=
+    (valueBindings : Array CpiValueBinding) (pdas : Array PdaDerive) (cpi : CpiInvoke) :
+    Array AstNode :=
   #[
     .blankLine,
     .comment s!"solana.cpi {cpi.name}: {cpi.program}.{cpi.instruction}",
     .label cpi.label
   ] ++
   if cpi.protocol? == some "system" && cpi.dataLayout? == some "system.transfer" then
-    lowerSystemTransferCpi accountBindings valueBindings cpi
+    lowerSystemTransferCpi accountBindings valueBindings pdas cpi
   else
-    lowerGenericCpiInvoke accountBindings valueBindings cpi
+    lowerGenericCpiInvoke accountBindings valueBindings pdas cpi
 
 end ProofForge.Backend.Solana.Extension
