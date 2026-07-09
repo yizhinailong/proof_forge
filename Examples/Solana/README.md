@@ -6,6 +6,12 @@ assembly, and manifest fixtures for the canonical Solana route
 assembled and linked by the [blueshift-gg/sbpf](https://github.com/blueshift-gg/sbpf)
 toolchain.
 
+**Product authoring is not here.** Shared portable contracts live under
+`Examples/Shared` with `import ProofForge.Contract.Source` only. Account / PDA /
+CPI syntax (`import ProofForge.Contract.Source.Solana`) is **fixture / research
+only** — for backend goldens, Pinocchio gates, and hand-tuned layouts that the
+portable materializer does not cover yet.
+
 ## `Counter.lean`
 
 `Counter.lean` imports the canonical shared Counter source from

@@ -356,7 +356,9 @@ def extensionAccountDataSize (extensions : ProgramExtensions) (account : Account
     0
 
 def accountDataSize (module : Module) (extensions : ProgramExtensions) (account : AccountEntry) : Nat :=
-  if !module.state.isEmpty && account.index == 0 && account.name == defaultStateAccountName module then
+  -- State is identified by IR state-id name (may not be index 0 when portable
+  -- auth places `authority` first for caller/userId).
+  if !module.state.isEmpty && account.name == defaultStateAccountName module then
     moduleDataSize module
   else
     extensionAccountDataSize extensions account

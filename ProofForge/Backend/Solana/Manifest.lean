@@ -435,15 +435,53 @@ def buildEntrypointAccounts (module : Module) (extensions : ProgramExtensions)
   alignInstructionAccountsWithModuleOrder moduleAccounts
     (buildInstructionAccounts module extensions entrypoint)
 
+/-- Phase C.3: when portable IR reads caller (`userId` / `origin` →
+`callerSender`), ensure a **leading signer** account named `authority`.
+
+Solana `context.userId` lowers as account[0] pubkey (first 8 bytes). Without
+this materialization, Ownable's state account (program data) sat at index 0 and
+`guard_owner` compared the wrong identity. With `authority` first:
+
+* account[0] = transaction authority (signer) ← caller / userId
+* account[1+] = program state / other roles
+
+Authors still only write `guard_owner` / `requireOwner` — no Source.Solana. -/
+def ensurePortableAuthAccounts (module : Module) (accounts : Array AccountEntry) :
+    Array AccountEntry :=
+  if !(module.capabilities.any (fun c => c == .callerSender)) then
+    accounts
+  else
+    let leadingSigner :=
+      match accounts[0]? with
+      | some a => a.signer
+      | none => false
+    if leadingSigner then
+      accounts
+    else
+      match accounts.find? (fun a => a.signer) with
+      | some auth =>
+          let rest := accounts.filter (fun a => a.name != auth.name)
+          reindexAccounts (#[auth] ++ rest)
+      | none =>
+          let auth : AccountEntry := {
+            name := "authority"
+            index := 0
+            signer := true
+            writable := false
+            owner := "any"
+          }
+          reindexAccounts (#[auth] ++ accounts)
+
 /-- Phase B.3: when portable IR uses `crosscall.invoke`, synthesize the default
 CPI account roles on the transaction account list:
 
-* `state` / default state account (index 0, already from `buildDefaultAccounts`)
-* `payer` — fee-payer signer (optional helper; not required in CPI metas)
+* default state account (from `buildDefaultAccounts`; may be index ≥ 1 when
+  portable auth put `authority` first)
+* `payer` — fee-payer signer (optional helper; skipped if a signer already exists)
 * `callee_program` — executable account for program-id lookup by index
 
-Authors still do not write CPI account metas; the lowerer packs state@0 +
-callee@target into `sol_invoke_signed_c`. -/
+Authors still do not write CPI account metas; the lowerer packs the full
+account vector into `sol_invoke_signed_c`. -/
 def ensurePortableCrosscallAccounts (module : Module) (accounts : Array AccountEntry) :
     Array AccountEntry :=
   if !(module.capabilities.any (fun c => c == .crosscallInvoke)) then
@@ -472,8 +510,16 @@ def ensurePortableCrosscallAccounts (module : Module) (accounts : Array AccountE
         owner := "executable"
       }
 
+/-- Index of the portable default state account (by IR state id name), if any. -/
+def stateAccountIndex? (module : Module) (accounts : Array AccountEntry) : Option Nat :=
+  if module.state.isEmpty then none
+  else
+    let name := defaultStateAccountName module
+    accounts.findIdx? (fun a => a.name == name)
+
 def buildModuleAccounts (module : Module) (extensions : ProgramExtensions) : Array AccountEntry :=
   let accounts := buildDefaultAccounts module
+  let accounts := ensurePortableAuthAccounts module accounts
   let accounts := ensurePortableCrosscallAccounts module accounts
   let accounts :=
     extensions.pdas.foldl

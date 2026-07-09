@@ -1,8 +1,19 @@
 /-
-# Solana extension entrypoint for `contract_source` (opt-in)
+# Solana extension entrypoint for `contract_source` (**fixture / research only**)
 
-Import **this** module when a contract intentionally uses Solana-native
-account / PDA / CPI / bump-allocator syntax:
+**Product path:** `import ProofForge.Contract.Source` only. Portable Shared
+examples must never import this file (`just portable-default`).
+
+Solana account / PDA / CPI / bump-allocator syntax is **not** the product
+authoring language. Prefer:
+
+```lean
+import ProofForge.Contract.Source
+-- business logic only; --target solana-sbpf-asm auto-materializes accounts/CPI
+```
+
+Import **this** module only for backend fixtures, Pinocchio/live gates, or
+hand-tuned layouts that the portable materializer does not yet cover:
 
 ```lean
 import ProofForge.Contract.Source.Solana
@@ -12,16 +23,13 @@ contract_source MyProgram do
   ...
 ```
 
-Portable Shared examples must keep:
+Allowed locations:
 
-```lean
-import ProofForge.Contract.Source
-```
+* `ProofForge/Solana/Examples/*`
+* `Examples/Solana/*` (chain-specific goldens / probes)
+* Internal backend tests that deliberately exercise extension surface
 
-and must not import this file (`just portable-default` enforces that).
-
-This module is a thin re-export: it loads the shared `contract_source` elaborator
-together with Solana Surface/Builders so expanded account/PDA/CPI terms resolve.
+Not allowed: `Examples/Shared/*`, stdlib portable mixins, product tutorials.
 -/
 import ProofForge.Contract.Source
 import ProofForge.Solana.Surface

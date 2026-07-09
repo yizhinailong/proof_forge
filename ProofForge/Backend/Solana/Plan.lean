@@ -249,9 +249,15 @@ def buildSolanaModulePlan (module : Module) (capPlan? : Option ProofForge.Target
   let stateDataOff :=
     if module.state.isEmpty then 0
     else
-      match inputLayout.accounts[0]? with
-      | some layout => layout.dataStart
-      | none => 0
+      match stateAccountIndex? module accounts with
+      | some idx =>
+          match inputLayout.accounts[idx]? with
+          | some layout => layout.dataStart
+          | none => 0
+      | none =>
+          match inputLayout.accounts[0]? with
+          | some layout => layout.dataStart
+          | none => 0
   let stateFields := buildStateFieldPlan module stateDataOff
   let mut tag := 0
   let mut entrypointPlans := #[]

@@ -669,11 +669,12 @@ primary-materialize:
 crosscall-materialize:
     lake build ProofForge.Target.Preflight ProofForge.Backend.Solana.PortableCrosscall ProofForge.Backend.WasmNear.PortableCrosscall ProofForge.IR.Examples.CrosscallProbe ProofForge.IR.Examples.NearCrosscallProbe ProofForge.IR.Examples.Counter Examples.Shared.RemoteCall ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmNear.EmitWat ProofForge.Backend.CosmWasm.EmitWat ProofForge.Backend.Psy.IR
     lake env lean --run Tests/CrosscallMaterialize.lean
+    just portable-auth-materialize
     just portable-remote-call-multi-target
 
 # Portable business checks (Ownable) + declareRemote RemoteCall on EVM·Solana·NEAR·Soroban.
 portable-auth-materialize:
-    lake build Examples.Shared.Ownable Examples.Shared.RemoteCall ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmNear.EmitWat ProofForge.Target.Preflight
+    lake build Examples.Shared.Ownable Examples.Shared.RemoteCall ProofForge.Backend.Evm.Plan ProofForge.Backend.Solana.Manifest ProofForge.Backend.Solana.SbpfAsm ProofForge.Backend.WasmNear.EmitWat ProofForge.Target.Preflight
     lake env lean --run Tests/PortableAuthMaterialize.lean
 
 

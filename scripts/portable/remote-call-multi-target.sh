@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Portable RemoteCall multi-target smoke.
 #
-# One Shared source → EVM CALL plan/emit, Solana CPI asm, NEAR promise_create WAT.
+# One Shared source → EVM CALL · Solana CPI · NEAR promise_create · Soroban
+# invoke_contract (host bridge; not a --list-targets id yet).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -100,4 +101,12 @@ if [[ -f "$GOLDEN_NEAR" ]]; then
 fi
 require_file "$OUT/near/RemoteCall.near-artifact.json"
 
-echo "portable-remote-call-multi-target: ok"
+echo "portable-remote-call: Soroban host bridge (EmitWat invoke_contract)"
+# No registry --target yet; gate via Lean emit of Shared.RemoteCall on HostBridge.soroban.
+mkdir -p "$OUT/soroban"
+(cd "$ROOT" && lake build Examples.Shared.RemoteCall ProofForge.Backend.WasmNear.EmitWat >/dev/null)
+(cd "$ROOT" && lake env lean --run Tests/PortableAuthMaterialize.lean) \
+  || fail "Soroban RemoteCall/Ownable portable-auth gate failed"
+echo "portable-remote-call: Soroban invoke_contract path checked (portable-auth-materialize)"
+
+echo "portable-remote-call-multi-target: ok (evm · solana · near · soroban)"

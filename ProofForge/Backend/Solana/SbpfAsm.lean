@@ -457,17 +457,29 @@ partial def lowerModuleCoreWithSeed (module : IR.Module)
     ]
   .ok nodes
 
+/-- Resolve portable state account dataStart when `authority` may occupy index 0. -/
+def stateDataStartFromSchema (module : IR.Module) (schema : ModuleInputSchema) :
+    Except LowerError Nat :=
+  if module.state.isEmpty then
+    .ok 0
+  else
+    match stateAccountIndex? module schema.accounts with
+    | none =>
+        .error {
+          message :=
+            s!"Solana account schema missing state account `{defaultStateAccountName module}`"
+        }
+    | some idx =>
+        match schema.inputLayout.accounts[idx]? with
+        | some accountLayout => .ok accountLayout.dataStart
+        | none =>
+            .error { message := "Solana input layout missing state account slot" }
+
 partial def lowerModuleCore (module : IR.Module) (extensions : ProgramExtensions) :
     Except LowerError (Array AstNode) := do
   validateCapabilities module
   let schema := buildModuleInputSchema module extensions
-  let stateDataOff ←
-    if module.state.isEmpty then
-      .ok 0
-    else
-      match schema.inputLayout.accounts[0]? with
-      | some accountLayout => .ok accountLayout.dataStart
-      | none => .error { message := "Solana account schema must contain at least one state account" }
+  let stateDataOff ← stateDataStartFromSchema module schema
   let ctx := buildLowerCtx module stateDataOff schema.accounts.size
   if schema.accounts.size > MAX_PORTABLE_CPI_ACCOUNTS then
     .error {
@@ -495,11 +507,8 @@ def lowerModuleWithPlan (module : IR.Module) (plan : ProofForge.Target.Capabilit
   let extensions := ProgramExtensions.fromPlan plan
   let schema := buildModuleInputSchema module extensions
   let accountBindings := buildCpiAccountBindings schema.accounts schema.inputLayout.accounts
-  let valueBindings :=
-    match schema.inputLayout.accounts[0]? with
-    | some accountLayout =>
-        buildCpiValueBindings module accountLayout.dataStart
-    | none => #[]
+  let stateDataOff ← stateDataStartFromSchema module schema
+  let valueBindings := buildCpiValueBindings module stateDataOff
   let nodes ← lowerModuleCore module extensions
   .ok (nodes ++
     ProofForge.Backend.Solana.Extension.lowerProgramExtensionsWithBindings

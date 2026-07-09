@@ -8,6 +8,7 @@ NEAR · Soroban without chain DSL in source.
 import Examples.Shared.Ownable
 import Examples.Shared.RemoteCall
 import ProofForge.Backend.Evm.Plan
+import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Backend.WasmNear.EmitWat
 import ProofForge.Target.HostBridge
@@ -16,6 +17,7 @@ import ProofForge.Target.Registry
 
 open ProofForge.Target
 open ProofForge.Target.Preflight
+open ProofForge.Backend.Solana.Manifest
 
 def require (cond : Bool) (msg : String) : IO Unit :=
   if cond then pure () else throw (IO.userError msg)
@@ -37,11 +39,30 @@ def main : IO Unit := do
   | .error e => throw (IO.userError s!"EVM Ownable plan: {e.message}")
   | .ok _ => pure ()
 
+  -- C.3: portable Ownable synthesizes leading `authority` signer so userId
+  -- is the tx authority, not the program state account.
+  let ownableAccounts := buildModuleAccounts ownable {}
+  require (ownableAccounts.any (fun a => a.name == "authority" && a.signer))
+    "Ownable Solana schema must synthesize authority signer for caller"
+  require (
+      match ownableAccounts[0]? with
+      | some a => a.signer
+      | none => false)
+    "authority/signer must lead account list so context.userId is correct"
+  require (ownableAccounts.any (fun a => a.name == "owner" && a.owner == "program"))
+    "Ownable state account remains program-owned data"
+
   match ProofForge.Backend.Solana.SbpfAsm.renderModule ownable with
   | .error e => throw (IO.userError s!"Solana Ownable lower: {e.message}")
   | .ok src =>
       require (src.contains "assert" || src.contains "assert_fail" || src.contains "error_")
         "Solana Ownable should emit assert/trap materialization for business checks"
+      require (src.contains "account.validation[0:authority]: signer=true" ||
+          src.contains "signer=true")
+        "Solana Ownable prologue validates authority signer"
+      require (src.contains "control.assert" || src.contains "assert_eq" ||
+          src.contains "assert_fail")
+        "guard_owner materializes as control.assert"
 
   match ProofForge.Backend.WasmNear.EmitWat.renderModule ownable with
   | .error e => throw (IO.userError s!"NEAR Ownable lower: {e.message}")

@@ -17,12 +17,12 @@ Portable Shared examples must keep:
 import ProofForge.Contract.Source
 ```
 
-and use only `remoteCall` (portable `crosscall.invoke`) plus optional
-`registerNearCrosscallString` for the NEAR string pool. `just portable-default`
+and use only `declareRemoteUnit` + `peerHandle` + `remoteCall` on the portable
+path. Host string-pool registration is automatic. `just portable-default`
 forbids importing this file from `Examples/Shared`.
 
 Promise constructors remain IR constructors for EmitWat coverage (D-050 Slice 3
-partial) but are **host-extension product surface**, not portable authoring.
+partial) but are **host-extension / fixture surface**, not portable authoring.
 -/
 import ProofForge.Contract.Source
 

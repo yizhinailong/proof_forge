@@ -447,19 +447,21 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 | Order | Slice | Status |
 |---|---|---|
 | C.1 | **RemoteCall: no host string-pool APIs in Shared** | ✅ `declareRemoteUnit` / `peerHandle` / `remoteCall`; gate bans `registerNearCrosscallString` / `nearAddressLit` |
-| C.2 | **Business checks → native fail on four hosts** | ✅ Ownable: EVM plan · Solana assert trap · NEAR/Soroban `panic`; `Tests/PortableAuthMaterialize` |
-| C.3 | **Auth policy materialize table** (owner/signer/require_auth) | 🔲 document + deepen Solana signer schema / Soroban require_auth beyond assert |
-| C.4 | **Source.Solana fixture-only demotion** | 🔲 product docs + lint outside Shared |
-| C.5 | **Soroban in portable multi-target scripts** | 🔲 extend `stdlib-core` / `remote-call` smoke (bridge, not list-targets) |
+| C.2 | **Business checks → native fail on four hosts** | ✅ Ownable: EVM plan · Solana assert · NEAR/Soroban `unreachable`/`panic`; `Tests/PortableAuthMaterialize` |
+| C.3 | **Auth policy materialize** (owner/signer) | ✅ Solana `ensurePortableAuthAccounts`: leading `authority` signer when `callerSender`; state data offset by name |
+| C.4 | **Source.Solana fixture-only demotion** | ✅ module header + `Examples/Solana/README`; Shared already gated |
+| C.5 | **Soroban in portable multi-target scripts** | ✅ `remote-call-multi-target` + `crosscall-materialize` run portable-auth (Soroban invoke) |
 | C.6 | **Deploy-time peer map** (logical peer → account id) | 🔲 replace hard-coded deployment strings in source |
 | C.7 | Promote `wasm-stellar-soroban` to `Registry.all` | 🔲 needs Stellar CLI + contract-spec |
 | C.8 | EmitWat storage remap off NEAR `storage_*` | 🔲 Env-shaped `_put`/`_get` only |
+| C.9 | Soroban `require_auth` vs business Ownable | 🔲 host auth beyond assert/`unreachable` |
 
-**Business-check materialization (C.2):**
+**Business-check + auth materialization (C.2–C.3):**
 
 | Author surface | EVM | Solana | NEAR | Soroban |
 |---|---|---|---|---|
-| `require*` / `assert` / `guard_owner` | revert | assert trap | `env.panic` | `env.panic` (shared EmitWat) |
+| `require*` / `assert` / `guard_owner` | revert | assert trap + **authority signer @0** | `unreachable`/`panic` | same EmitWat fail |
+| `caller` / `userId` | `CALLER` | account[0] pubkey (`authority` when synthesized) | predecessor | shared host path |
 | `remoteCall` + `declareRemoteUnit` | CALL | CPI | `promise_create` | `invoke_contract` |
 
 **Deferred (new chains):**
