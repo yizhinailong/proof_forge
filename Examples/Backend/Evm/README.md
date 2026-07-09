@@ -51,8 +51,8 @@ The `stdlib/Ownable.lean`, `stdlib/Pausable.lean`, and
 `stdlib/ReentrancyGuard.lean` paths are also compatibility wrappers around
 shared facades for the canonical stdlib mixins.
 
-`Ierc20Client` (Layer B: CALL an external ERC-20 via `Protocols.Evm.IERC20`;
-not the deployable `Stdlib.ERC20` mixin),
+`Ierc20Client` / `Ierc721Client` (Layer B: CALL external ERC-20 / ERC-721 via
+`Protocols.Evm.IERC20` / `IERC721`; not the deployable `Stdlib` mixins),
 `SimpleToken`, `OwnableERC20`, `AccessControlProbe`, `VerifiedVault.lean`,
 constructor probes, proxy probes, and the remaining `stdlib/` wrappers are
 EVM-focused fixtures because they exercise EVM ABI, ERC-style stdlib

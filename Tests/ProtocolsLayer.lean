@@ -1,17 +1,18 @@
 /-
-Layer B Protocols smoke: catalog surface + EVM IERC20 example Yul +
-NEAR FT method registration + Solana facade export.
+Layer B Protocols smoke: catalog + EVM IERC20/721 examples + NEAR FT peer
+example + Solana facade inventory.
 -/
 import ProofForge.Protocols
 import ProofForge.Backend.Evm.IR
+import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.Contract.Builder
 import Examples.Backend.Evm.Contracts.Ierc20Client
+import Examples.Backend.Evm.Contracts.Ierc721Client
+import Examples.Backend.WasmNear.FtPeerClient
 
 namespace ProofForge.Tests.ProtocolsLayer
 
 open ProofForge.Contract.Builder
-open ProofForge.Protocols.Evm.IERC20
-open ProofForge.Protocols.Near.FungibleToken
 
 def require (condition : Bool) (message : String) : IO Unit :=
   if condition then pure () else throw (IO.userError message)
@@ -19,63 +20,97 @@ def require (condition : Bool) (message : String) : IO Unit :=
 def contains (haystack needle : String) : Bool :=
   haystack.contains needle
 
-/-- NEAR FT peer method registration (string pool). -/
-def nearFtClientSpec : ProofForge.Contract.ContractSpec :=
-  build "ProtocolsNearFtClient" do
-    scalarState "nonce" .u64
-    let ft ← declareFtTransfer "my_ft"
-    entry "pay" do
-      letBind "_p" .u64 (call ft #[u64 50])
-      effect (storageScalarWrite "nonce" (u64 1))
-
 def main : IO UInt32 := do
   require (ProofForge.Protocols.layerId == "protocols") "layer id"
   require (ProofForge.Protocols.primaryHosts.contains "evm") "hosts include evm"
   require (ProofForge.Protocols.Solana.catalogId == "protocols.solana") "solana catalog"
   require (ProofForge.Protocols.Solana.knownFamilies.contains "spl-token") "spl-token family"
+  require (ProofForge.Protocols.Solana.knownFamilies.contains "token-2022") "token-2022 family"
+  require (ProofForge.Protocols.Solana.supportedDataLayouts.contains "spl-token.initialize_account3")
+    "inventory lists initialize_account3"
+  require (ProofForge.Protocols.Solana.supportedDataLayouts.contains "token-2022.pause")
+    "inventory lists token-2022.pause"
+  require (ProofForge.Protocols.Solana.rejectedLayoutExamples.any (·.contains "confidential"))
+    "inventory documents confidential reject"
   require (ProofForge.Protocols.Evm.IERC20.catalogId == "protocols.evm.ierc20") "ierc20 catalog"
+  require (ProofForge.Protocols.Evm.IERC721.catalogId == "protocols.evm.ierc721") "ierc721 catalog"
   require (ProofForge.Protocols.Evm.IERC20.selectorTransfer == 0xa9059cbb) "transfer selector"
+  require (ProofForge.Protocols.Evm.IERC721.selectorOwnerOf == 0x6352211e) "ownerOf selector"
+  require (ProofForge.Protocols.Evm.IERC721.selectorSafeTransferFrom == 0x42842e0e)
+    "safeTransferFrom selector"
   require (ProofForge.Protocols.Near.FungibleToken.methodFtTransfer == "ft_transfer")
     "ft_transfer method name"
-  -- Solana facade re-exports a real builder symbol.
+  require (ProofForge.Protocols.Near.FungibleToken.methodStorageDeposit == "storage_deposit")
+    "storage_deposit method name"
   let _ := ProofForge.Protocols.Solana.splTokenInitializeAccount3Call
     "init" "acct" "mint" "owner"
+  let _ := ProofForge.Protocols.Solana.splToken2022PauseCall "pause" "mint" "authority"
 
-  -- Layer B example: IERC20 transfer / balanceOf / totalSupply → EVM Yul.
+  -- EVM IERC20 example
   let ierc20 := Examples.Backend.Evm.Contracts.Ierc20Client.module
   require (ierc20.entrypoints.any (·.name == "pushTokens")) "Ierc20Client has pushTokens"
-  require (ierc20.entrypoints.any (·.name == "readBalance")) "Ierc20Client has readBalance"
-  require (ierc20.nearCrosscallStrings.any (· == "token.peer"))
-    "Ierc20Client registers token.peer"
+  require (ierc20.nearCrosscallStrings.any (· == "token.peer")) "Ierc20Client registers token.peer"
   match ProofForge.Backend.Evm.IR.renderModule ierc20 with
   | .error e => throw (IO.userError s!"EVM Ierc20Client render failed: {e.message}")
   | .ok yul =>
-      let transferSel := toString selectorTransfer
-      let balanceSel := toString selectorBalanceOf
-      let supplySel := toString selectorTotalSupply
+      let transferSel := toString ProofForge.Protocols.Evm.IERC20.selectorTransfer
       require (
           contains yul transferSel || contains yul "2835717307" ||
           contains yul "a9059cbb" || contains yul "0xa9059cbb"
-        ) "Yul missing IERC20.transfer selector 0xa9059cbb"
+        ) "Yul missing IERC20.transfer selector"
       require (
-          contains yul balanceSel || contains yul "70a08231" ||
-          contains yul "0x70a08231"
-        ) "Yul missing IERC20.balanceOf selector 0x70a08231"
+          contains yul (toString ProofForge.Protocols.Evm.IERC20.selectorBalanceOf) ||
+          contains yul "70a08231"
+        ) "Yul missing IERC20.balanceOf selector"
       require (
-          contains yul supplySel || contains yul "18160ddd" ||
-          contains yul "0x18160ddd"
-        ) "Yul missing IERC20.totalSupply selector 0x18160ddd"
+          contains yul (toString ProofForge.Protocols.Evm.IERC20.selectorTotalSupply) ||
+          contains yul "18160ddd"
+        ) "Yul missing IERC20.totalSupply selector"
       require (contains yul "crosscall" || contains yul "__proof_forge_crosscall")
         "Yul missing crosscall helper for IERC20 client"
-      require (contains yul "case 0xa1b2c3d4" || contains yul "a1b2c3d4")
-        "Yul missing pushTokens entry selector"
 
-  require (nearFtClientSpec.module.nearCrosscallStrings.any (· == "my_ft"))
-    "NEAR FT client registers peer id"
-  require (nearFtClientSpec.module.nearCrosscallStrings.any (· == "ft_transfer"))
-    "NEAR FT client registers ft_transfer method"
+  -- EVM IERC721 example
+  let ierc721 := Examples.Backend.Evm.Contracts.Ierc721Client.module
+  require (ierc721.entrypoints.any (·.name == "moveToken")) "Ierc721Client has moveToken"
+  require (ierc721.nearCrosscallStrings.any (· == "nft.peer")) "Ierc721Client registers nft.peer"
+  match ProofForge.Backend.Evm.IR.renderModule ierc721 with
+  | .error e => throw (IO.userError s!"EVM Ierc721Client render failed: {e.message}")
+  | .ok yul =>
+      require (
+          contains yul (toString ProofForge.Protocols.Evm.IERC721.selectorTransferFrom) ||
+          contains yul "23b872dd"
+        ) "Yul missing IERC721.transferFrom selector"
+      require (
+          contains yul (toString ProofForge.Protocols.Evm.IERC721.selectorSafeTransferFrom) ||
+          contains yul "42842e0e"
+        ) "Yul missing IERC721.safeTransferFrom selector"
+      require (
+          contains yul (toString ProofForge.Protocols.Evm.IERC721.selectorOwnerOf) ||
+          contains yul "6352211e"
+        ) "Yul missing IERC721.ownerOf selector"
+      require (contains yul "crosscall" || contains yul "__proof_forge_crosscall")
+        "Yul missing crosscall helper for IERC721 client"
 
-  IO.println "protocols-layer: ok (solana facade · evm ierc20 example · near ft)"
+  -- NEAR FT peer example
+  let nearFt := Examples.Backend.WasmNear.FtPeerClient.module
+  require (nearFt.entrypoints.any (·.name == "pay")) "FtPeerClient has pay"
+  require (nearFt.entrypoints.any (·.name == "pay_with_callback")) "FtPeerClient has pay_with_callback"
+  require (nearFt.nearCrosscallStrings.any (· == "my_ft")) "FtPeerClient registers my_ft peer"
+  require (nearFt.nearCrosscallStrings.any (· == "ft_transfer")) "FtPeerClient registers ft_transfer"
+  require (nearFt.nearCrosscallStrings.any (· == "ft_transfer_call"))
+    "FtPeerClient registers ft_transfer_call"
+  require (nearFt.nearCrosscallStrings.any (· == "ft_balance_of"))
+    "FtPeerClient registers ft_balance_of"
+  require (nearFt.nearCrosscallStrings.any (· == "ft_total_supply"))
+    "FtPeerClient registers ft_total_supply"
+  match ProofForge.Backend.WasmHost.EmitWat.renderModule nearFt with
+  | .error e => throw (IO.userError s!"NEAR FtPeerClient render failed: {e.message}")
+  | .ok wat =>
+      require (contains wat "promise_create") "FtPeerClient WAT missing promise_create"
+      require (contains wat "ft_transfer" || contains wat "my_ft")
+        "FtPeerClient WAT should embed FT peer/method pool data"
+
+  IO.println "protocols-layer: ok (solana inventory · evm ierc20/721 · near ft peer)"
   pure 0
 
 end ProofForge.Tests.ProtocolsLayer

@@ -79,22 +79,25 @@ Facade: `ProofForge.Protocols.Solana`
 | Vault-owned token account path | `system.create_account` → `initialize_account3` | ✅ example `Solana/Examples/VaultTokenAccountCpi` |
 | Associated Token create | `associated-token.*` | ✅ packed |
 | Memo | `memo.memo` | ✅ packed |
-| Token-2022 fee / hook / pause / … | `token-2022.*` | ✅ packed (subset) |
-| Confidential / crypto-hard layouts | — | ❌ compile-reject (honest) |
+| Token-2022 fee / hook / pause / … | `token-2022.*` | ✅ packed (subset; see `Protocols.Solana.supportedDataLayouts`) |
+| Confidential / crypto-hard layouts | — | ❌ compile-reject (honest; listed in `rejectedLayoutExamples`) |
 
 #### EVM — external interface clients (not OpenZeppelin deploy)
 
-Facade: `ProofForge.Protocols.Evm.IERC20`
+Facades: `ProofForge.Protocols.Evm.IERC20` · `IERC721`
 
 | Client | Meaning | Status |
 |--------|---------|--------|
-| IERC20 transfer / approve / transferFrom / balanceOf | CALL + 4-byte selector + ABI words | ✅ thin client |
+| IERC20 transfer / approve / transferFrom / balanceOf / totalSupply | CALL + 4-byte selector + ABI words | ✅ thin client |
 | IERC20 client fixture | `pushTokens` / `readBalance` / `readSupply` | ✅ `Examples/Backend/Evm/Contracts/Ierc20Client` |
-| IERC721 / Multicall / Permit2 | — | ⬜ next |
-| OpenZeppelin **as deployable mixin** | — | → **Layer C** (`Stdlib.ERC20`, Ownable, …) |
+| IERC721 ownerOf / transferFrom / safeTransferFrom / balanceOf / … | CALL + selectors | ✅ thin client |
+| IERC721 client fixture | `moveToken` / `safeMoveToken` / `readOwner` | ✅ `Examples/Backend/Evm/Contracts/Ierc721Client` |
+| Multicall / Permit2 | — | ⬜ later |
+| OpenZeppelin **as deployable mixin** | — | → **Layer C** (`Stdlib.ERC20` / `ERC721`, …) |
 
-EVM has no single “official ERC-20 program”. B-layer is **interface client**;
-C-layer is **your token implementation**.
+EVM has no single “official ERC-20/721 program”. B-layer is **interface client**;
+C-layer is **your token implementation**. `safeTransferFrom` client does not
+synthesize `onERC721Received` (same honesty as stdlib).
 
 #### NEAR — NEP clients
 
@@ -102,16 +105,19 @@ Facade: `ProofForge.Protocols.Near.FungibleToken`
 
 | Client | Meaning | Status |
 |--------|---------|--------|
-| `ft_transfer` / `ft_transfer_call` / `ft_balance_of` | promise remote with NEP-141 method names | ✅ thin client |
+| `ft_transfer` / `ft_transfer_call` / `ft_balance_of` / `ft_total_supply` | promise remote with NEP-141 method names | ✅ thin client |
+| `ft_metadata` / `storage_deposit` | NEP-148 / NEP-145 method names | ✅ declare helpers |
+| FT peer fixture | `pay` / `pay_with_callback` / `query_*` | ✅ `Examples/Backend/WasmNear/FtPeerClient` |
 | NEP-141 **as your FT contract** | — | → **Layer C** (`Stdlib.NearFungibleToken`) |
 
 ### 3.2 Module map
 
 ```text
-ProofForge/Protocols.lean              -- root re-export
-ProofForge/Protocols/Solana.lean       -- B Solana facade → Solana.Programs/Builders
-ProofForge/Protocols/Evm/IERC20.lean   -- B IERC20 external CALL client
-ProofForge/Protocols/Near/FungibleToken.lean  -- B NEP-141 peer client
+ProofForge/Protocols.lean                    -- root re-export
+ProofForge/Protocols/Solana.lean             -- B Solana facade + layout inventory
+ProofForge/Protocols/Evm/IERC20.lean         -- B IERC20 external CALL client
+ProofForge/Protocols/Evm/IERC721.lean        -- B IERC721 external CALL client
+ProofForge/Protocols/Near/FungibleToken.lean -- B NEP-141 peer client
 ```
 
 **No big-bang move** of Solana packing out of `Backend/Solana` or
@@ -132,7 +138,8 @@ helpers**. Packing stays where lowering already lives.
 |------|-----|
 | Portable business only, target picks chain shape | `contract_source` / TokenSpec / policies (product default) |
 | Call SPL / ATA / System from a Solana program | **B** Solana protocol CPI |
-| Call an existing ERC-20 at an address | **B** IERC20 client |
+| Call an existing ERC-20 / ERC-721 at an address | **B** IERC20 / IERC721 client |
+| Call an existing NEAR FT | **B** Near.FungibleToken peer client |
 | Deploy *your* ERC-20 / Ownable / NEP-141 | **C** Stdlib mixin |
 | Log, store, general peer remote | **A** Host |
 
@@ -142,8 +149,8 @@ helpers**. Packing stays where lowering already lives.
 2. ✅ Protocols module surface + Solana facade
 3. ✅ Minimal EVM IERC20 + NEAR FT **clients** (B)
 4. ✅ Solana vault token-account e2e + EVM IERC20 client example
-5. ⬜ NEAR FT peer example symmetry; EVM IERC721; more Solana layouts
-6. ⬜ Keep A gaps honest (e.g. real CosmWasm WasmMsg depth) without mixing into B catalogs
+5. ✅ NEAR FT peer example · EVM IERC721 client/example · Solana layout inventory export
+6. ⬜ Multicall / Permit2; deeper NEAR JSON arg packing; CosmWasm WasmMsg depth (A)
 
 ## 7. Honesty rules
 

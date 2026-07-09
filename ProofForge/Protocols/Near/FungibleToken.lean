@@ -48,6 +48,14 @@ def declareFtBalanceOf (peerId : String) : ModuleM FtMethod :=
 def declareFtTotalSupply (peerId : String) : ModuleM FtMethod :=
   declareRemote peerId methodFtTotalSupply
 
+/-- Register `ft_metadata` against a logical FT peer. -/
+def declareFtMetadata (peerId : String) : ModuleM FtMethod :=
+  declareRemote peerId methodFtMetadata
+
+/-- Register `storage_deposit` (NEP-145) against a logical FT peer. -/
+def declareStorageDeposit (peerId : String) : ModuleM FtMethod :=
+  declareRemote peerId methodStorageDeposit
+
 /-- Invoke a bound FT method with portable scalar args (amount, receiver idx, …).
 Encoding of NEAR JSON args remains host materialize; this only names the method. -/
 def call (m : FtMethod) (args : Array ProofForge.IR.Expr) : ProofForge.IR.Expr :=

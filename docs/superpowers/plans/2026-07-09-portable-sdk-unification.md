@@ -60,6 +60,9 @@ are **L4 adapter outputs**, not author-facing languages.
 | NEAR NEP-141 peer client (B) | ✅ | `Protocols.Near.FungibleToken` (`declareRemote` + method names) |
 | Solana vault token-account path (B e2e) | ✅ | `VaultTokenAccountCpi`: create_account → initialize_account3 (owner=vault PDA) |
 | EVM IERC20 client example (B e2e) | ✅ | `Examples/Backend/Evm/Contracts/Ierc20Client` + Yul selector smoke |
+| EVM IERC721 client + example (B) | ✅ | `Protocols.Evm.IERC721` + `Ierc721Client` fixture |
+| NEAR FT peer example (B e2e) | ✅ | `Examples/Backend/WasmNear/FtPeerClient` + promise_create smoke |
+| Solana B layout inventory | ✅ | `Protocols.Solana.supportedDataLayouts` / `rejectedLayoutExamples` |
 
 Phase C rows in [product-authoring-architecture](../../product-authoring-architecture.md)
 (C.1–C.9, P0–P1e) are the baseline; this plan is the **next product backlog**.
