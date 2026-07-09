@@ -175,10 +175,10 @@ Pick from sdk-ecosystem-gaps **only** where Product path needs them (e.g. one of
 | ε.5 | ERC20Permit Layer C body (`setPermitSig` + `permit`) | **done** |
 | ε.6 | ERC-4626 underlying pull/push via IERC20 remote | **done** |
 | ε.7 | TokenSpec EVM `permit` plan → ERC20Permit stdlib notes | **done** |
+| ε.8 | TokenSpec `moduleFor` merges ERC20Permit body when `permit` | **done** |
 
 **Honesty still open:** ERC-4626 non-1:1 rates / fee-on-transfer assets; dynamic
-IR Call[] auto-lower; TokenSpec auto-compose of ERC20Permit bytecode (plan +
-stdlib path documented; legacy Token/Evm.lean path still non-permit).
+IR Call[] auto-lower.
 
 ---
 

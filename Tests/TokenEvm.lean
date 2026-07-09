@@ -52,6 +52,26 @@ def main : IO UInt32 := do
   require (feeYul.contains "case 0x40c10f19") "mintable fee token should include mint selector"
   require (!feeYul.contains "case 0x42966c68") "non-burnable fee token should not include burn selector"
 
+  -- TokenSpec + permit → ERC20Permit addon (ecrecover helpers)
+  let permitSpec : TokenSpec := {
+    name := "PermitToken"
+    symbol := "PT"
+    decimals := 18
+    features := #[.mintable, .permit]
+  }
+  let permitMod := ProofForge.Contract.Token.EvmSpec.moduleFor permitSpec
+  require (permitMod.entrypoints.any (·.name == "permit")) "permit entry present"
+  require (permitMod.entrypoints.any (·.name == "nonces")) "nonces entry present"
+  require (permitMod.state.any (fun s => s.id == "nonces")) "nonces state"
+  require (permitMod.capabilities.any (· == .cryptoEcrecover)) "crypto.ecrecover cap"
+  match ProofForge.Backend.Evm.IR.renderModule permitMod with
+  | .error e => throw <| IO.userError s!"permit token Yul: {e.message}"
+  | .ok permitYul =>
+      require (permitYul.contains "case 0xd505accf") "permit selector"
+      require (permitYul.contains "case 0x7ecebe00") "nonces selector"
+      require (permitYul.contains "__proof_forge_ecrecover") "ecrecover helper"
+      require (permitYul.contains "__proof_forge_eip712_permit_digest") "eip712 digest helper"
+
   IO.println "token-evm: ok"
   return 0
 

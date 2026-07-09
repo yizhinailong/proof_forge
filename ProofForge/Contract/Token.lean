@@ -275,7 +275,7 @@ def evmErc20Plan (target : TargetProfile) (spec : TokenSpec) : TokenPlan := {
       "Deployment creates contract bytecode plus ABI/deploy metadata."
     ] ++
     (if spec.hasFeature .permit then
-      #["permit: use ProofForge.Contract.Stdlib.ERC20Permit (just product-erc20-permit) for EIP-2612 body with ecrecover."]
+      #["permit: Token.EvmSpec merges Stdlib.ERC20Permit (ecrecover + EIP-712); just product-erc20-permit for standalone body."]
     else #[])
 }
 
