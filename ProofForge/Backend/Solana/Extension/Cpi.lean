@@ -375,15 +375,18 @@ def lowerCpiPubkeyOptionField (accountBindings : Array CpiAccountBinding)
             storeImm .stb .r8 fieldOff 1
           ] ++ lowerAccountKeyToDataField fieldName source binding.layout (fieldOff + 1)
       | none =>
+          -- Named account must be in schema — never Option::Some(zero_pubkey).
           #[
-            .comment s!"solana.cpi.value {fieldName} source={source} placeholder=some-zero",
-            storeImm .stb .r8 fieldOff 1
-          ] ++ lowerZero32At .r8 (fieldOff + 1)
+            .comment s!"solana.cpi.value {fieldName} source={source} missing (reject)",
+            .instruction { opcode := .ja, off := some (.sym "error_cpi") }
+          ]
   | none =>
+      -- Optional field not declared: Option::None as zero discriminant only when
+      -- metadata omitted; prefer explicit sources for required pubkeys.
       #[
-        .comment s!"solana.cpi.value {fieldName} missing placeholder=some-zero",
-        storeImm .stb .r8 fieldOff 1
-      ] ++ lowerZero32At .r8 (fieldOff + 1)
+        .comment s!"solana.cpi.value {fieldName} metadata absent (option none)",
+        storeImm .stb .r8 fieldOff 0
+      ]
 
 def lowerCpiOwnerField (accountBindings : Array CpiAccountBinding) (cpi : CpiInvoke)
     (fieldOff : Nat) : Array AstNode :=
@@ -394,12 +397,14 @@ def lowerCpiOwnerField (accountBindings : Array CpiAccountBinding) (cpi : CpiInv
       | some binding => lowerAccountKeyToData source binding.layout fieldOff
       | none =>
           #[
-            .comment s!"solana.cpi.value owner source={source} placeholder=zero",
-          ] ++ lowerZero32At .r8 fieldOff
+            .comment s!"solana.cpi.value owner source={source} missing (reject)",
+            .instruction { opcode := .ja, off := some (.sym "error_cpi") }
+          ]
   | none =>
       #[
-        .comment "solana.cpi.value owner missing placeholder=zero",
-      ] ++ lowerZero32At .r8 fieldOff
+        .comment "solana.cpi.value owner metadata absent (reject)",
+        .instruction { opcode := .ja, off := some (.sym "error_cpi") }
+      ]
 
 def lowerCpiPubkeyField (accountBindings : Array CpiAccountBinding)
     (cpi : CpiInvoke) (metadataKey fieldName : String) (fieldOff : Nat) : Array AstNode :=
@@ -410,12 +415,14 @@ def lowerCpiPubkeyField (accountBindings : Array CpiAccountBinding)
       | some binding => lowerAccountKeyToDataField fieldName source binding.layout fieldOff
       | none =>
           #[
-            .comment s!"solana.cpi.value {fieldName} source={source} placeholder=zero",
-          ] ++ lowerZero32At .r8 fieldOff
+            .comment s!"solana.cpi.value {fieldName} source={source} missing (reject)",
+            .instruction { opcode := .ja, off := some (.sym "error_cpi") }
+          ]
   | none =>
       #[
-        .comment s!"solana.cpi.value {fieldName} missing placeholder=zero",
-      ] ++ lowerZero32At .r8 fieldOff
+        .comment s!"solana.cpi.value {fieldName} metadata absent (reject)",
+        .instruction { opcode := .ja, off := some (.sym "error_cpi") }
+      ]
 
 def lowerCpiSignerStackSeedPtr (idx : Nat) : Array AstNode :=
   stackPtr .r8 (cpiSignerSeedDataOffset + idx * cpiMaxSeedLen)
@@ -654,12 +661,14 @@ def lowerSplTokenSetAuthorityNewAuthority
       | some binding => lowerAccountKeyToDataField "new_authority" source binding.layout 3
       | none =>
           #[
-            .comment s!"solana.cpi.value new_authority source={source} placeholder=zero",
-          ] ++ lowerZero32At .r8 3
+            .comment s!"solana.cpi.value new_authority source={source} missing (reject)",
+            .instruction { opcode := .ja, off := some (.sym "error_cpi") }
+          ]
   | none =>
       #[
-        .comment "solana.cpi.value new_authority missing placeholder=zero",
-      ] ++ lowerZero32At .r8 3
+        .comment "solana.cpi.value new_authority metadata absent (reject)",
+        .instruction { opcode := .ja, off := some (.sym "error_cpi") }
+      ]
 
 def lowerSplTokenSetAuthorityData
     (accountBindings : Array CpiAccountBinding) (cpi : CpiInvoke) : Array AstNode :=

@@ -57,36 +57,6 @@ def renderCargoToml (projectName : String) : String :=
     ""
   ]
 
-/-- Render the sbpf project file set for a module. -/
-def renderPackage (projectName : String) (module : Module) : Except SbpfAsm.LowerError RenderedPackage := do
-  let plan ← match Plan.buildSolanaModulePlan module none with
-    | .error err => .error { message := err.message }
-    | .ok plan => .ok plan
-  let nodes ← Plan.lowerModuleFromPlan module plan
-  let asm := ProofForge.Backend.Solana.Asm.renderNodes nodes
-  let manifest := Manifest.renderManifest module ++ "\n"
-  let idl := Idl.render module ++ "\n"
-  let client := Client.render module ++ "\n"
-  let asmFile := asmPath projectName
-  let files := #[
-    { path := asmFile, contents := asm },
-    { path := manifestPath, contents := manifest },
-    { path := idlPath, contents := idl },
-    { path := clientPath, contents := client },
-    { path := cargoTomlPath, contents := renderCargoToml projectName },
-    { path := libRsPath, contents := "" }
-  ]
-  .ok {
-    projectName,
-    asmPath := asmFile,
-    manifestPath,
-    idlPath,
-    clientPath,
-    cargoTomlPath,
-    libRsPath,
-    files
-  }
-
 def renderPackageWithPlan (projectName : String) (module : Module) (plan : ProofForge.Target.CapabilityPlan) :
     Except SbpfAsm.LowerError RenderedPackage := do
   let nodes ← SbpfAsm.lowerModuleWithPlan module plan
@@ -113,6 +83,15 @@ def renderPackageWithPlan (projectName : String) (module : Module) (plan : Proof
     libRsPath,
     files
   }
+
+/-- Render package for a module: always resolve capability plan so PDA/CPI
+extensions are not dropped (unlike an empty `capPlan?` Counter-only lower). -/
+def renderPackage (projectName : String) (module : Module) : Except SbpfAsm.LowerError RenderedPackage := do
+  let plan ←
+    match ProofForge.Target.resolveModule ProofForge.Target.solanaSbpfAsm module with
+    | .ok plan => pure plan
+    | .error err => .error (SbpfAsm.diagnosticError err)
+  renderPackageWithPlan projectName module plan
 
 def renderPackageForSpec (projectName : String) (spec : ProofForge.Contract.ContractSpec) :
     Except SbpfAsm.LowerError RenderedPackage := do

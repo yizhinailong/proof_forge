@@ -386,8 +386,23 @@ def lowerModuleFromPlan (module : IR.Module) (plan : SolanaModulePlan) :
   SbpfAsm.validateCapabilities module
   let seed := plan.lowerCtxSeed
   let ctx := LowerCtx.fromSeed seed
-  SbpfAsm.lowerModuleCoreWithSeed module seed.manifestAccounts seed.inputLayout
+  let core ← SbpfAsm.lowerModuleCoreWithSeed module seed.manifestAccounts seed.inputLayout
     seed.extensions ctx
+  -- Append PDA/CPI helpers with preflight (same honesty as lowerModuleWithPlan).
+  let accountBindings :=
+    SbpfAsm.buildCpiAccountBindings seed.manifestAccounts seed.inputLayout.accounts
+  let stateDataOff ←
+    match SbpfAsm.stateDataStartFromSchema module
+        { accounts := seed.manifestAccounts, inputLayout := seed.inputLayout } with
+    | .ok off => pure off
+    | .error e => throw e
+  let valueBindings := SbpfAsm.buildCpiValueBindings module stateDataOff
+  let extNodes ←
+    match Extension.lowerProgramExtensionsWithBindingsChecked
+        accountBindings valueBindings seed.extensions with
+    | .ok n => pure n
+    | .error msg => throw { message := msg }
+  pure (core ++ extNodes)
 
 /-- Render a module to sBPF assembly text via the plan-driven path. Step C
 made the plan-driven path the only lowering path, so this and

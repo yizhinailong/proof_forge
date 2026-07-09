@@ -555,10 +555,9 @@ def lowerPubkeyLogAccountPtr (bindings : Array CpiAccountBinding)
       ]
   | none =>
       #[
-        .comment s!"solana.log.pubkey.ptr {action.name} account={action.account} missing placeholder=zero"
-      ] ++
-      stackPtr .r1 memoryResultOffset ++
-      lowerZero32 .r1
+        .comment s!"solana.log.pubkey.ptr {action.name} account={action.account} missing (reject)",
+        .instruction { opcode := .ja, off := some (.sym "error_cpi") }
+      ]
 
 def lowerPubkeyLogHelper (accountBindings : Array CpiAccountBinding)
     (action : PubkeyLogAction) : Array AstNode :=
@@ -592,10 +591,9 @@ def lowerDataLogStatePtr (bindings : Array CpiValueBinding)
       ]
   | none =>
       #[
-        .comment s!"solana.log.data.ptr {action.name} state={action.sourceState} missing placeholder=zero"
-      ] ++
-      stackPtr dst memoryResultOffset ++
-      lowerZero32 dst
+        .comment s!"solana.log.data.ptr {action.name} state={action.sourceState} missing (reject)",
+        .instruction { opcode := .ja, off := some (.sym "error_cpi") }
+      ]
 
 def lowerDataLogSlice (valueBindings : Array CpiValueBinding)
     (action : DataLogAction) : Array AstNode :=
