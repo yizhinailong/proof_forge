@@ -68,6 +68,8 @@ DOC_MAP: dict[str, str] = {
     "docs/portable-ir.md": "docs/zh/portable-ir.zh.md",
     "docs/shared-scenario.md": "docs/zh/shared-scenario.zh.md",
     "docs/tutorials/portable-contract-three-targets.md": "docs/zh/tutorials/portable-contract-three-targets.zh.md",
+    "docs/tutorials/portable-shared-path.md": "docs/zh/tutorials/portable-shared-path.zh.md",
+    "docs/examples-and-tests-taxonomy.md": "docs/zh/examples-and-tests-taxonomy.zh.md",
     "docs/implementation-backlog.md": "docs/zh/implementation-backlog.zh.md",
     "docs/review-checklist.md": "docs/zh/review-checklist.zh.md",
     "docs/development-standards.md": "docs/zh/development-standards.zh.md",
@@ -92,6 +94,7 @@ DOC_MAP: dict[str, str] = {
 NATIVE_ZH_DOCS = [
     "docs/zh/feasibility-analysis.md",
     "docs/zh/technical-implementation-plan.md",
+    "docs/zh/product-north-star.md",
 ]
 
 

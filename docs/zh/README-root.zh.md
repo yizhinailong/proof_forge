@@ -54,11 +54,14 @@ SPL Token / Token-2022 部署计划。
 ```sh
 just --list        # 所有 recipe
 just build         # lake build
-just check         # 快速静态门禁（Lean + EVM plan + Solana-light + NEAR + Psy static + testkit + Quint）
+just product       # 产品主门禁：Examples/Product 多目标矩阵（CI required）
+just check         # product + 后端静态门禁（Lean + Solana-light + NEAR + Psy + testkit + …）
 just evm-all       # 完整 EVM 门禁：示例编译、Foundry 冒烟、Anvil 部署
 just portable-counter-four-target-sdk  # EVM、Solana、NEAR、Sui 的 Counter SDK layout
 just sui-counter-smoke                 # 本地 Sui Move Counter build/test
 ```
+
+**产品路径：** 业务逻辑写在 `Examples/Product/`，只改 `--target` 物化各链；链探针在 `Examples/Backend/`。
 
 直接用 Lake 构建：
 
@@ -66,11 +69,11 @@ just sui-counter-smoke                 # 本地 Sui Move Counter build/test
 lake build
 ```
 
-把 EVM Counter 示例编译为运行时 bytecode：
+把可移植 Counter 编译为 EVM 运行时 bytecode：
 
 ```sh
 lake env proof-forge build --target evm --root . --module contract \
-  -o build/evm/Counter.bin Examples/Backend/Evm/Contracts/Counter.lean
+  -o build/evm/Counter.bin Examples/Product/Counter.lean
 ```
 
 从内置的 portable IR fixture 产出其他目标的制品：

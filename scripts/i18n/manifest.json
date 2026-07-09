@@ -1,8 +1,9 @@
 {
   "README.md": {
-    "sha256": "16e2ff5d90a8f7952c690f9b3611e1cf689518bb068ae11418eab1907564f1af",
-    "translated": false,
-    "model": "manual"
+    "sha256": "2549894e110c44ad3a18c89b5c4659c9cb073c62059999a39f9c2eb8757dde8b",
+    "zh": "docs/zh/README-root.zh.md",
+    "model": "gemini-3-flash-preview",
+    "note": "synced after Product/Backend reorg path renames"
   },
   "CONTRIBUTING.md": {
     "sha256": "b47c1fcaf0d003718e5487575f74486b403ed4bbfb88dc7fc1891cbe23cc7b64",
@@ -10,9 +11,9 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/INDEX.md": {
-    "sha256": "7477056d842678213f98c22d3638adacb540339cca8a1326ec62e447e65fd4c7",
+    "sha256": "13f267038259ca6afcd5e89e024bf1905a50cc7a0ccf50ee90ecac59a682ff19",
     "zh": "docs/zh/INDEX.zh.md",
-    "model": "manual"
+    "model": "gemini-3-flash-preview"
   },
   "docs/onboarding.md": {
     "sha256": "84fe6b63515b634c383822479e1e8c89ed25aa1365b4d5deabf4850697b7fb39",
@@ -25,34 +26,39 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/decisions.md": {
-    "sha256": "f315a859b78ec30f82b002b99e902cdf22493ff5fd2f42130caf5926dae99825",
+    "sha256": "d13125ee7414a338eca0b7d799711585ff0ab43224853487795d30f065d83c14",
     "zh": "docs/zh/decisions.zh.md",
-    "model": "gemini-3-flash-preview"
+    "model": "gemini-3-flash-preview",
+    "note": "synced after Product/Backend reorg path renames"
   },
   "docs/capability-registry.md": {
-    "sha256": "72b7d3c8ffee219c0a0ba35f776c89d78bf1601175e956a21219a4658a776a12",
+    "sha256": "0cea0f876c859487a3d463222da1e06eba99cdc6f70e443a40adcbec015acb49",
     "zh": "docs/zh/capability-registry.zh.md",
-    "model": "manual"
+    "model": "gemini-3-flash-preview",
+    "note": "synced after Product/Backend reorg path renames"
   },
   "docs/portable-ir.md": {
-    "sha256": "df2375f131d624d62ec1acd66f0c1deb15130ce5a0778370d3b809beb9cf78e8",
+    "sha256": "68925cdf6b7ed814764c8e871d5cb5a1298b8f95d4c9be4cb6082bfab80d11df",
     "zh": "docs/zh/portable-ir.zh.md",
     "model": "gemini-3-flash-preview"
   },
   "docs/shared-scenario.md": {
-    "sha256": "bd380548d6495b7ee7410022cfc988ae256569a2dc7ff4091767c8f65acafdb4",
+    "sha256": "0b81393e19813124fccbec1300a9279ece2c5280a2c46dbb24841d6320736856",
     "zh": "docs/zh/shared-scenario.zh.md",
-    "model": "manual"
+    "model": "gemini-3-flash-preview",
+    "note": "synced after Product/Backend reorg path renames"
   },
   "docs/tutorials/portable-contract-three-targets.md": {
-    "sha256": "9cce3148f86d0d7d06f39bb3f1ddb23a896c32346c02de29f46b1823e77104d0",
+    "sha256": "1fbb1088db1662e5c0783463938d40ce54b209d794e25bc8b1f58d20f4c979d6",
     "zh": "docs/zh/tutorials/portable-contract-three-targets.zh.md",
-    "model": "manual"
+    "model": "gemini-3-flash-preview",
+    "note": "synced after Product/Backend reorg path renames"
   },
   "docs/implementation-backlog.md": {
-    "sha256": "976276e1a42fc2ccddf92d35eb489dd9d131aedd63456c268a4863851c2e1a16",
+    "sha256": "a81fa79e848c115762a8866c679de39bdd0ba8920939617fd24bda811a807b4f",
     "zh": "docs/zh/implementation-backlog.zh.md",
-    "model": "manual"
+    "model": "gemini-3-flash-preview",
+    "note": "synced after Product/Backend reorg path renames"
   },
   "docs/review-checklist.md": {
     "sha256": "c2a11658b0c9f51316f973e88195de3bc26f9863a1b81016b8f364a22856c979",
@@ -60,15 +66,16 @@
     "model": "manual"
   },
   "docs/development-standards.md": {
-    "sha256": "8c54183965a9bdb7bc163c93570cdfb3b059c302588e44b98568183f961c162f",
+    "sha256": "1d1381a5869f812814ec80492cf30e3c49fae42aba785f0138466699eae0e034",
     "zh": "docs/zh/development-standards.zh.md",
-    "model": "manual"
+    "model": "gemini-3-flash-preview",
+    "note": "synced after Product/Backend reorg path renames"
   },
   "docs/validation-gates.md": {
-    "sha256": "af12cd60191ad9c7702713476c0019bc62ae12921698b8e5816359c22ea5cd97",
+    "sha256": "6394a975afad3df6888ca148911662f74e6864f1add87583dc63f4e14b461f7d",
     "zh": "docs/zh/validation-gates.zh.md",
-    "model": "manual",
-    "en_sha256": "af12cd60191ad9c7702713476c0019bc62ae12921698b8e5816359c22ea5cd97"
+    "model": "gemini-3-flash-preview",
+    "note": "synced after Product/Backend reorg path renames"
   },
   "docs/rfcs/README.md": {
     "sha256": "7d82abd698f149faae7f7a8f9785917eff046618573bb3cf76572c32a4280940",
@@ -81,9 +88,10 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/rfcs/0002-target-implementation-design.md": {
-    "sha256": "5258e5b468f1c4bdea952e79d52c161a268cd4904c408295c2d418725b1aa38e",
+    "sha256": "8249e3b950d6c11ced56917fa88cd05f1fd75d7492ad01ff37e115e3b831d7d1",
     "zh": "docs/zh/rfcs/0002-target-implementation-design.zh.md",
-    "model": "manual"
+    "model": "gemini-3-flash-preview",
+    "note": "synced after Product/Backend reorg path renames"
   },
   "docs/rfcs/0003-portable-ir-and-runtime.md": {
     "sha256": "3aefc1c866b49eba2d6a8c2f6a80d969c9b61615f421263b03aa06adc169fee0",
@@ -96,24 +104,28 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/rfcs/0014-unified-semantic-lowering-contract.md": {
-    "sha256": "1cd5aa616a8e20319b6afa07b9c8e1556f390dc7ee8c25c913583a4317ddf65a",
+    "sha256": "82d1879ad130211d3e29bdaed3593034704e2ed99d3cbb644637f1b251c0fb14",
     "zh": "docs/zh/rfcs/0014-unified-semantic-lowering-contract.zh.md",
-    "model": "manual"
+    "model": "gemini-3-flash-preview",
+    "note": "synced after Product/Backend reorg path renames"
   },
   "docs/targets/README.md": {
-    "sha256": "c868eace5ce86443309e6a710243cf114f3077a9499b4797af7d7a2b6b88a30a",
+    "sha256": "c01464c14febd41ea88f30ece437a90a2f998c7e8bc02e21364c9312028ca70c",
     "zh": "docs/zh/targets-README.zh.md",
-    "model": "manual"
+    "model": "gemini-3-flash-preview",
+    "note": "synced after Product/Backend reorg path renames"
   },
   "docs/targets/evm.md": {
-    "sha256": "021759d13db528667a27577d472ea035270438c05e4125acb40764ab7f1146d9",
+    "sha256": "9adf704803a8e81df5ed3cad3ef9e13fa4590b2a20e2abaebbb904b4d27d1be2",
     "zh": "docs/zh/targets/evm.zh.md",
-    "model": "gemini-3-flash-preview"
+    "model": "gemini-3-flash-preview",
+    "note": "synced after Product/Backend reorg path renames"
   },
   "docs/targets/wasm-family.md": {
-    "sha256": "42ab198dd8abac23b05c239f1faff7cbf70ca10664dcf9e5b8b391e060a4cae2",
+    "sha256": "bd39869758cfdbe4a75f07b497a727390729f644de3e3af2a93a7b2827af03f7",
     "zh": "docs/zh/targets/wasm-family.zh.md",
-    "model": "gemini-3-flash-preview"
+    "model": "gemini-3-flash-preview",
+    "note": "synced after Product/Backend reorg path renames"
   },
   "docs/targets/solana-sbf.md": {
     "sha256": "98fa9fcada4a214df7291553e65891c7a2c3b66a1d163d96a2eb280db3fffbfa",
@@ -126,14 +138,16 @@
     "model": "gemini-3-flash-preview"
   },
   "Examples/Backend/Evm/README.md": {
-    "sha256": "31a43cd22da79d7889ab3442fd5687288238fc818eda390205d87d0ccd30c21b",
+    "sha256": "d4981d9aa3440a75fb9901a47a29ecfdaaeb16c9b1b7c6cc4043588dec3c8599",
     "zh": "docs/zh/examples-evm-README.zh.md",
-    "model": "gemini-3-flash-preview"
+    "model": "gemini-3-flash-preview",
+    "note": "synced after Product/Backend reorg path renames"
   },
   "docs/targets/wasm-near.md": {
-    "sha256": "f01a061094fc4b2126a7c20d5e11921b5ac0cd4fb901ca8cfdda5c1d235d6b56",
+    "sha256": "889b3f14e49649ac586dd75334574136999dfeb1fb2db95d8f975dc695b3754e",
     "zh": "docs/zh/targets/wasm-near.zh.md",
-    "model": "gemini-3-flash-preview"
+    "model": "gemini-3-flash-preview",
+    "note": "synced after Product/Backend reorg path renames"
   },
   "docs/gate-status.md": {
     "sha256": "4dc4946dd7f8d2dcb3efb6a25618c1292182c7a8ecea319720a0432bb5b06205",
@@ -141,5 +155,15 @@
     "model": "gemini-3-flash-preview",
     "en_sha256": "4dc4946dd7f8d2dcb3efb6a25618c1292182c7a8ecea319720a0432bb5b06205"
   },
-  "docs/sdk-ecosystem-gaps-2026-07.md": "b0c7b3f3c81606ecb03d8e29c40856dce56434a06e2bb8c4bd19c4888bf9d078"
+  "docs/sdk-ecosystem-gaps-2026-07.md": "b0c7b3f3c81606ecb03d8e29c40856dce56434a06e2bb8c4bd19c4888bf9d078",
+  "docs/tutorials/portable-shared-path.md": {
+    "sha256": "01bc8f804f62c56a171796721b7adbba2fd36955bdedbc48187f7020236ace08",
+    "zh": "docs/zh/tutorials/portable-shared-path.zh.md",
+    "model": "manual-zh"
+  },
+  "docs/examples-and-tests-taxonomy.md": {
+    "sha256": "fb36d60c71c095f1ea75c4ff3229eac5a6668244eb014242fa4bba7019255da0",
+    "zh": "docs/zh/examples-and-tests-taxonomy.zh.md",
+    "model": "manual-zh"
+  }
 }

@@ -338,7 +338,7 @@ Golden plan 快照（Phase 7 stretch）会将 plan 序列化为 JSON 供人工 r
   （plan golden diff + `--render` 确认 plan-driven lowering 仍能发出 sBPF 汇编，
   字符数出现在 CI 日志中）。`scripts/solana/plan-smoke.sh` 切换为 `--render`。
   所有 `SbpfAsm.lowerModule`/`renderModule`/`lowerModuleWithPlan` 调用点
-  （Cli.lean、九个 `Tests/Solana*.lean` 发射测试、`Package.renderPackageWithPlan`）
+  （Cli.lean、九个 `Tests/Backend/Solana/Solana*.lean` 发射测试、`Package.renderPackageWithPlan`）
   现在自动经由 plan 派生的 `LowerCtx` 进行 lowering。验证：`lake build` green；
   `just solana-plan-smoke` 通过（4/4）；`just solana-build-examples` 通过
   （`Counter.s` 匹配冻结 golden）；`just solana-lean` 与 `just solana-emit-control`
