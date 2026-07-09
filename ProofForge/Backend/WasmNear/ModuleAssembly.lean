@@ -79,7 +79,8 @@ def dataSegmentsForModulePlan (modulePlan : ModulePlan) (ctx : Ctx) : Array Data
 
 def helperFuncsForModulePlan (modulePlan : ModulePlan) (mod : ProofForge.IR.Module)
     (ctx : Ctx) (entryFuncs : Array Func) : Array Func :=
-  scalarStorageHelperFuncsForModulePlan modulePlan ++ returnHelperFuncsForModulePlan modulePlan ++
+  scalarStorageHelperFuncsForModulePlan modulePlan ctx.bridge ++
+    returnHelperFuncsForModulePlan modulePlan ++
     powHelperFuncsForModulePlan modulePlan ++ hashExprHelperFuncsForModulePlan modulePlan ++
     hashStorageHelperFuncsForModulePlan modulePlan ++ ctxHelperFuncsForModulePlan modulePlan ++
     evtHelperFuncsForModulePlan modulePlan ++ crosscallArgsHelperFuncsForModulePlan modulePlan ++

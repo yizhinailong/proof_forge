@@ -4,17 +4,17 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Portable cross-contract intent shared across primary targets.
 
-Authors write **business** remote intent only:
-  - `declareRemoteUnit peer method`  (deployment peer id + method name)
+Authors write **logical** peer + method ids only (business / product names):
+  - `declareRemoteUnit "peer.callee" "remote_call"`
   - `remoteCall (peerHandle …) (peerHandle …) args`
 
-Never CPI metas, Promise chains, STATICCALL, or host string-pool APIs.
-Backends materialize:
+Host account strings (e.g. NEAR `*.near`) are **deploy-time** via
+`ProofForge.Target.PeerMap` — not chain DSL in Shared.
 
   --target evm              → CALL
   --target solana-sbpf-asm  → sol_invoke_signed_c CPI packing
-  --target wasm-near        → promise_create (string pool auto-filled)
-  --target host .soroban    → invoke_contract (string pool auto-filled)
+  --target wasm-near        → promise_create (+ optional PeerMap.nearDemo)
+  --target host .soroban    → invoke_contract (+ optional PeerMap)
 
   lake env proof-forge build --target evm --root . \
     -o build/portable-remote-call/RemoteCall.bin \
@@ -37,16 +37,16 @@ namespace Examples.Shared.RemoteCall
 open ProofForge.Contract.Source
 
 contract_source RemoteCall do
-  -- Portable peer + method (deployment identity strings). Host string pool
-  -- for Wasm-NEAR / Soroban is filled automatically — no registerNear*.
-  do ProofForge.Contract.Surface.declareRemoteUnit "callee.example.near" "remote_call";
+  -- Logical peer + method (no chain account id in business source).
+  -- Deploy: PeerMap.nearDemo rewrites peer.callee → callee.example.near.
+  do ProofForge.Contract.Surface.declareRemoteUnit "peer.callee" "remote_call";
 
   state marker : .u64
 
   entry «initialize» do
     marker := u64 0;
 
-  -- Handles 0/1 = peer/method from the declareRemoteUnit above.
+  -- Handles 0/1 = peer/method from declareRemoteUnit above.
   entry call_remote returns(.u64) do
     return ProofForge.Contract.Surface.remoteCall
       (ProofForge.Contract.Surface.peerHandle 0)

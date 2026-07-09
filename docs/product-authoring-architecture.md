@@ -451,18 +451,19 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 | C.3 | **Auth policy materialize** (owner/signer) | ✅ Solana `ensurePortableAuthAccounts`: leading `authority` signer when `callerSender`; state data offset by name |
 | C.4 | **Source.Solana fixture-only demotion** | ✅ module header + `Examples/Solana/README`; Shared already gated |
 | C.5 | **Soroban in portable multi-target scripts** | ✅ `remote-call-multi-target` + `crosscall-materialize` run portable-auth (Soroban invoke) |
-| C.6 | **Deploy-time peer map** (logical peer → account id) | 🔲 replace hard-coded deployment strings in source |
-| C.7 | Promote `wasm-stellar-soroban` to `Registry.all` | 🔲 needs Stellar CLI + contract-spec |
-| C.8 | EmitWat storage remap off NEAR `storage_*` | 🔲 Env-shaped `_put`/`_get` only |
-| C.9 | Soroban `require_auth` vs business Ownable | 🔲 host auth beyond assert/`unreachable` |
+| C.6 | **Deploy-time peer map** (logical peer → account id) | ✅ `Target.PeerMap`; Shared uses `peer.callee`; CLI wasm-near applies `nearDemo` |
+| C.7 | Promote `wasm-stellar-soroban` to `Registry.all` | 🔲 profile constant ready; wait Stellar CLI + contract-spec |
+| C.8 | EmitWat storage remap off NEAR `storage_*` | ✅ Soroban bridge: scalar read/write → `_get`/`_put` |
+| C.9 | Soroban `require_auth` for caller entrypoints | ✅ prologue `require_auth_for_args` when entry uses `callerSender` |
 
-**Business-check + auth materialization (C.2–C.3):**
+**Business-check + auth materialization (C.2–C.9):**
 
 | Author surface | EVM | Solana | NEAR | Soroban |
 |---|---|---|---|---|
-| `require*` / `assert` / `guard_owner` | revert | assert trap + **authority signer @0** | `unreachable`/`panic` | same EmitWat fail |
-| `caller` / `userId` | `CALLER` | account[0] pubkey (`authority` when synthesized) | predecessor | shared host path |
-| `remoteCall` + `declareRemoteUnit` | CALL | CPI | `promise_create` | `invoke_contract` |
+| `require*` / `assert` / `guard_owner` | revert | assert trap + **authority signer @0** | `unreachable`/`panic` | same + **require_auth** prologue |
+| `caller` / `userId` | `CALLER` | account[0] pubkey (`authority`) | predecessor | host auth stub + assert |
+| `remoteCall` + logical peer | CALL | CPI | `promise_create` + **PeerMap** | `invoke_contract` + PeerMap |
+| storage scalar | slots | account data | `storage_read/write` | **`_get`/`_put`** |
 
 **Deferred (new chains):**
 

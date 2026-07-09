@@ -1,0 +1,78 @@
+/-
+Copyright (c) 2026 DaviRain. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+
+# Deploy-time peer map (Phase C.6)
+
+Authors declare **logical** peer / method ids in portable source
+(`declareRemoteUnit "peer.callee" "remote_call"`). Host account names
+(NEAR account id, Soroban contract address string, …) are **deployment
+parameters**, applied here before Wasm host emit — never hand-written as
+chain-specific APIs in Shared business logic.
+
+```text
+  Shared IR:   nearCrosscallStrings = #["peer.callee", "remote_call"]
+  PeerMap:     peer.callee → callee.example.near
+  After apply: nearCrosscallStrings = #["callee.example.near", "remote_call"]
+```
+
+EVM / Solana ignore the string pool (handles are numeric); only Wasm-NEAR /
+Soroban materialize the pool into host call arguments.
+-/
+import Init.Data.Array.Basic
+import Init.Data.String.Basic
+import ProofForge.IR.Contract
+
+namespace ProofForge.Target.PeerMap
+
+open ProofForge.IR
+
+/-- Logical id → host identity string (account id, contract address, …). -/
+structure Binding where
+  logical : String
+  host : String
+  deriving BEq, Repr
+
+structure Map where
+  bindings : Array Binding := #[]
+  deriving Repr
+
+def empty : Map := {}
+
+def ofList (pairs : List (String × String)) : Map :=
+  { bindings := pairs.toArray.map fun (l, h) => { logical := l, host := h } }
+
+def lookup (m : Map) (logical : String) : Option String :=
+  m.bindings.find? (fun b => b.logical == logical) |>.map (·.host)
+
+/-- Rewrite one pool entry: bound logicals become host ids; others unchanged. -/
+def rewriteId (m : Map) (id : String) : String :=
+  match lookup m id with
+  | some host => host
+  | none => id
+
+/-- Apply deploy map to `module.nearCrosscallStrings` (host string pool). -/
+def applyToModule (module : Module) (m : Map) : Module :=
+  if m.bindings.isEmpty then
+    module
+  else
+    { module with
+      nearCrosscallStrings := module.nearCrosscallStrings.map (rewriteId m) }
+
+/-- NEAR demo map used by multi-target smokes / local deploy docs.
+Logical peers in Shared.RemoteCall resolve to classic testnet-shaped names. -/
+def nearDemo : Map :=
+  ofList [
+    ("peer.callee", "callee.example.near")
+  ]
+
+/-- Identity map: no rewrites (default for unit tests that assert logical ids). -/
+def identity : Map := empty
+
+def Map.json (m : Map) : String :=
+  let pairs :=
+    m.bindings.map fun b =>
+      "{\"logical\":\"" ++ b.logical ++ "\",\"host\":\"" ++ b.host ++ "\"}"
+  "[" ++ String.intercalate "," pairs.toList ++ "]"
+
+end ProofForge.Target.PeerMap

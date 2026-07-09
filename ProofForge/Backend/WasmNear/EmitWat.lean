@@ -44,6 +44,7 @@ import ProofForge.Backend.WasmNear.Scalar
 import ProofForge.Backend.WasmNear.Statement
 import ProofForge.Backend.WasmNear.Struct
 import ProofForge.Backend.WasmNear.Types
+import ProofForge.Target.PeerMap
 import ProofForge.Target.Plan
 import ProofForge.Target.Registry
 
@@ -986,6 +987,16 @@ partial def lowerStmt (ctx : Ctx) (env : LocalTypes) (returns : ValueType)
     .ok (boundedForInsns indexName start stop bodyInsns)
   | _ => err "EmitWat: this statement form is not yet supported"
 
+/-- C.9: Soroban host auth hook when the entrypoint reads caller/userId.
+Stub `require_auth_for_args` (always authorised in interpreter); real Env
+auth lands later. Authors still write only `guard_owner` / `caller`. -/
+def sorobanAuthPrologue (ctx : Ctx) (ep : Entrypoint) : Array Insn :=
+  if ctx.bridge == ProofForge.Target.HostBridge.soroban &&
+      ep.capabilities.any (fun c => c == ProofForge.Target.Capability.callerSender) then
+    #[.i32Const 0, .i32Const 0, .call "require_auth_for_args", .drop]
+  else
+    #[]
+
 def lowerEntrypoint (ctx : Ctx) (ep : Entrypoint) : Except EmitError Func := do
   let bodyLocals ← collectLocals ep.body
   let (paramPrologue, paramLocals) ← loadParams ctx.structs ep.params
@@ -997,7 +1008,13 @@ def lowerEntrypoint (ctx : Ctx) (ep : Entrypoint) : Except EmitError Func := do
     if ctx.allocator.usesEntryReset then
       #[.i32Const ctx.allocator.heapBase, .globalSet arrPtrGlobal]
     else #[]
-  .ok { name := ep.name, locals := locals, body := { insns := resetPrefix ++ paramPrologue ++ bodyInsns }, exportName := ep.name }
+  let authPrefix := sorobanAuthPrologue ctx ep
+  .ok {
+    name := ep.name
+    locals := locals
+    body := { insns := resetPrefix ++ authPrefix ++ paramPrologue ++ bodyInsns }
+    exportName := ep.name
+  }
 
 /- Core lowering body once the surface `ModulePlan` and the data-layout `Ctx`
 have been derived. Exposed so the plan-driven path
@@ -1016,7 +1033,12 @@ def lowerModuleCoreWithCtx (mod : ProofForge.IR.Module) (modulePlan : ModulePlan
         memory := some { min := 1 },
         dataSegments := dataSegmentsForModulePlan modulePlan ctx }
 
-def lowerModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBridge := ProofForge.Target.HostBridge.near) : Except EmitError ProofForge.Compiler.Wasm.Module := do
+def lowerModule (mod : ProofForge.IR.Module)
+    (bridge : ProofForge.Target.HostBridge := ProofForge.Target.HostBridge.near)
+    (peerMap : ProofForge.Target.PeerMap.Map := ProofForge.Target.PeerMap.identity) :
+    Except EmitError ProofForge.Compiler.Wasm.Module := do
+  -- C.6: deploy-time logical peer → host identity (before layout / string pool).
+  let mod := ProofForge.Target.PeerMap.applyToModule mod peerMap
   if bridge == ProofForge.Target.HostBridge.cosmWasm then
     err "EmitWat: CosmWasm bridge lowering is implemented in Backend.CosmWasm.EmitWat; use that module for wasm-cosmwasm"
   if mod.allocator.isCosmWasmRegion then
@@ -1034,25 +1056,31 @@ def lowerModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBri
   validateScratchCapacities mod ctx.strings ctx.panics ctx.crosscallStrings
   lowerModuleCoreWithCtx mod modulePlan ctx
 
-def renderCheckedModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBridge := .near) :
+def renderCheckedModule (mod : ProofForge.IR.Module)
+    (bridge : ProofForge.Target.HostBridge := .near)
+    (peerMap : ProofForge.Target.PeerMap.Map := ProofForge.Target.PeerMap.identity) :
     Except EmitError String := do
   match ProofForge.IR.Ownership.checkModule mod with
   | .ok _ => pure ()
   | .error error => err s!"EmitWat: {error.render}"
-  let m ← lowerModule mod bridge
+  let m ← lowerModule mod bridge peerMap
   .ok (Printer.render m)
 
-def renderModule (mod : ProofForge.IR.Module) (bridge : ProofForge.Target.HostBridge := .near) :
+def renderModule (mod : ProofForge.IR.Module)
+    (bridge : ProofForge.Target.HostBridge := .near)
+    (peerMap : ProofForge.Target.PeerMap.Map := ProofForge.Target.PeerMap.identity) :
     Except EmitError String := do
   checkCapabilities mod
-  renderCheckedModule mod bridge
+  renderCheckedModule mod bridge peerMap
 
 def renderModuleWithPlan
     (mod : ProofForge.IR.Module)
     (plan : ProofForge.Target.CapabilityPlan)
-    (bridge : ProofForge.Target.HostBridge := .near) : Except EmitError String := do
+    (bridge : ProofForge.Target.HostBridge := .near)
+    (peerMap : ProofForge.Target.PeerMap.Map := ProofForge.Target.PeerMap.identity) :
+    Except EmitError String := do
   checkTargetPlan plan
-  renderCheckedModule mod bridge
+  renderCheckedModule mod bridge peerMap
 
 
 end ProofForge.Backend.WasmNear.EmitWat

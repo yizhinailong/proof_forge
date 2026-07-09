@@ -11,6 +11,7 @@ import ProofForge.Backend.WasmNear.Memory
 import ProofForge.Backend.WasmNear.Plan
 import ProofForge.Backend.WasmNear.Struct
 import ProofForge.Backend.WasmNear.Types
+import ProofForge.Target.HostBridge
 
 namespace ProofForge.Backend.WasmNear.Scalar
 
@@ -67,7 +68,8 @@ def storageScalarAssignOpInsns (stateInfo : StateInfo) (id : String) (op : Assig
           ++ #[.plain (widthOf stateInfo.type ++ "." ++ assignOpName op),
              .call (writeName stateInfo.type)])
 
-def readFunc (vt : ValueType) : Func :=
+/-- NEAR register ABI: storage_read → read_register into KEY_BUF. -/
+def readFuncNear (vt : ValueType) : Func :=
   { name := readName vt,
     params := #[{ name := "kp", type := .i32 }, { name := "kl", type := .i32 }],
     results := #[wasmTypeOf vt],
@@ -81,7 +83,24 @@ def readFunc (vt : ValueType) : Func :=
                         .i32Const KEY_BUF, .load (loadOpFor vt) 0, .localSet "r" ] } { insns := #[] },
       .localGet "r" ] } }
 
-def writeFunc (vt : ValueType) : Func :=
+/-- Soroban host ABI (C.8): `_get(key_ptr, key_len) → i32` le-scalar; extend to value width. -/
+def readFuncSoroban (vt : ValueType) : Func :=
+  let extend : Array Insn :=
+    match vt with
+    | .u64 => #[.plain "i64.extend_i32_u"]
+    | .u32 | .bool => #[]
+    | _ => #[]
+  { name := readName vt,
+    params := #[{ name := "kp", type := .i32 }, { name := "kl", type := .i32 }],
+    results := #[wasmTypeOf vt],
+    body := { insns := #[.localGet "kp", .localGet "kl", .call "_get"] ++ extend } }
+
+def readFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := .near) : Func :=
+  match bridge with
+  | .soroban => readFuncSoroban vt
+  | _ => readFuncNear vt
+
+def writeFuncNear (vt : ValueType) : Func :=
   { name := writeName vt,
     params := #[{ name := "kp", type := .i32 }, { name := "kl", type := .i32 }, { name := "v", type := wasmTypeOf vt }],
     results := #[],
@@ -89,6 +108,21 @@ def writeFunc (vt : ValueType) : Func :=
       .i32Const KEY_BUF, .localGet "v", .store (storeOpFor vt) 0,
       .localGet "kl", .plain "i64.extend_i32_u", .localGet "kp", .plain "i64.extend_i32_u",
       .i64Const (scalarWidth vt), .i64Const KEY_BUF, .i64Const 0, .call "storage_write", .drop ] } }
+
+/-- Soroban host ABI (C.8): stage value at KEY_BUF, `_put(key_ptr, key_len, val_ptr, val_len)`. -/
+def writeFuncSoroban (vt : ValueType) : Func :=
+  { name := writeName vt,
+    params := #[{ name := "kp", type := .i32 }, { name := "kl", type := .i32 }, { name := "v", type := wasmTypeOf vt }],
+    results := #[],
+    body := { insns := #[
+      .i32Const KEY_BUF, .localGet "v", .store (storeOpFor vt) 0,
+      .localGet "kp", .localGet "kl", .i32Const KEY_BUF, .i32Const (scalarWidth vt),
+      .call "_put" ] } }
+
+def writeFunc (vt : ValueType) (bridge : ProofForge.Target.HostBridge := .near) : Func :=
+  match bridge with
+  | .soroban => writeFuncSoroban vt
+  | _ => writeFuncNear vt
 
 def returnU64Func : Func :=
   { name := returnU64Name, params := #[{ name := "v", type := .i64 }],
@@ -128,16 +162,17 @@ def powFunc (vt : ValueType) : Func :=
         .br 0 ] } ] },
       .localGet "r" ] } }
 
-def scalarStorageHelperFuncsForModulePlan (plan : ModulePlan) : Array Func :=
+def scalarStorageHelperFuncsForModulePlan (plan : ModulePlan)
+    (bridge : ProofForge.Target.HostBridge := .near) : Array Func :=
   let scalarTypes : Array ValueType := #[.u32, .u64, .bool]
   let funcs := scalarTypes.foldl (init := #[]) fun acc type =>
     let acc :=
       if plan.scalarReadTypes.contains type then
-        acc.push (readFunc type)
+        acc.push (readFunc type bridge)
       else
         acc
     if plan.scalarWriteTypes.contains type then
-      acc.push (writeFunc type)
+      acc.push (writeFunc type bridge)
     else
       acc
   funcs

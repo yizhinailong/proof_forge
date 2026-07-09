@@ -201,7 +201,9 @@ Landed:
   `invoke_contract` is a spike stub (reads packed slices, returns handle `0`).
 - EmitWat with `bridge = .soroban`: portable `crosscall.invoke` → host
   `invoke_contract` (shared string pool + JSON args); NEAR `promise_*` never
-  imported; Promise host-extension constructors rejected.
+  imported; Promise host-extension constructors rejected. Scalar storage uses
+  `_get`/`_put` (not NEAR `storage_*`). Entrypoints that read `caller` emit
+  `require_auth_for_args` prologue. Logical peers rewrite via `PeerMap`.
 - `ProofForge.Backend.WasmNear.SorobanHost.lean` — thin host-call lemmas
   (`_get` hit/miss, `_put`, `set_return_data`, `log`, `require_auth`,
   `invoke_contract`) + `soroban_host_smoke_ok`.

@@ -12,6 +12,7 @@ import ProofForge.Backend.Solana.Manifest
 import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Backend.WasmNear.EmitWat
 import ProofForge.Target.HostBridge
+import ProofForge.Target.PeerMap
 import ProofForge.Target.Preflight
 import ProofForge.Target.Registry
 
@@ -26,13 +27,18 @@ def main : IO Unit := do
   let ownable := Examples.Shared.Ownable.module
   let remote := Examples.Shared.RemoteCall.module
 
-  -- Source must stay free of host string-pool / Promise APIs (product path).
+  -- C.6: Shared holds logical peers; deploy PeerMap rewrites host ids.
   require (!remote.nearCrosscallStrings.isEmpty)
     "declareRemoteUnit must populate host string pool for Wasm materialize"
-  require (remote.nearCrosscallStrings[0]? == some "callee.example.near")
-    "peer deployment id registered"
+  require (remote.nearCrosscallStrings[0]? == some "peer.callee")
+    "logical peer id in Shared (not chain account)"
   require (remote.nearCrosscallStrings[1]? == some "remote_call")
     "method id registered"
+  let deployed := PeerMap.applyToModule remote PeerMap.nearDemo
+  require (deployed.nearCrosscallStrings[0]? == some "callee.example.near")
+    "PeerMap.nearDemo rewrites peer.callee → callee.example.near"
+  require (deployed.nearCrosscallStrings[1]? == some "remote_call")
+    "unmapped method id stays as declared"
 
   -- Ownable: business guard_owner / require* → each backend's native fail.
   match ProofForge.Backend.Evm.Plan.buildModulePlan ownable with
@@ -82,6 +88,14 @@ def main : IO Unit := do
         "Soroban Ownable must not import NEAR promise_create"
       require (!wat.contains "invoke_contract")
         "Ownable has no portable crosscall"
+      -- C.8: scalar storage on Soroban host names, not NEAR storage_*.
+      require (wat.contains "_get" || wat.contains "_put")
+        "Soroban Ownable storage should import/call _get/_put"
+      require (!wat.contains "storage_read" && !wat.contains "storage_write")
+        "Soroban Ownable must not import NEAR storage_read/write"
+      -- C.9: caller-using entrypoints emit require_auth_for_args prologue.
+      require (wat.contains "require_auth_for_args")
+        "Soroban Ownable with caller should emit require_auth_for_args"
 
   -- RemoteCall on Soroban host bridge: invoke_contract, not promise.
   match ProofForge.Backend.WasmNear.EmitWat.renderModule remote .soroban with
@@ -91,6 +105,17 @@ def main : IO Unit := do
         "Soroban RemoteCall → invoke_contract"
       require (!wat.contains "promise_create")
         "Soroban RemoteCall must not use promise_create"
+      require (wat.contains "peer.callee")
+        "Soroban WAT keeps logical peer without PeerMap"
+  -- Deploy map applied at emit: host account appears in pool data.
+  match ProofForge.Backend.WasmNear.EmitWat.renderModule remote .near PeerMap.nearDemo with
+  | .error e => throw (IO.userError s!"NEAR RemoteCall with PeerMap: {e.message}")
+  | .ok wat =>
+      require (wat.contains "promise_create") "NEAR still promise_create"
+      require (wat.contains "callee.example.near")
+        "PeerMap.nearDemo embeds host account in WAT"
+      require (!wat.contains "peer.callee")
+        "logical peer should be rewritten after PeerMap"
 
   -- Preflight primary + Soroban ready for Ownable and RemoteCall.
   for mod in #[ownable, remote] do

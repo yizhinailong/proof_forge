@@ -134,6 +134,22 @@ def stripNearPromiseImports (imports : Array Import) : Array Import :=
     | "promise_result" | "promise_return" => false
     | _ => true
 
+/-- C.8: drop NEAR storage register ABI; Soroban scalars use `_get`/`_put`. -/
+def stripNearStorageImports (imports : Array Import) : Array Import :=
+  imports.filter fun import_ =>
+    match import_.name with
+    | "storage_read" | "storage_write" | "storage_has_key" | "read_register" => false
+    | _ => true
+
+def sorobanGetImport : Import :=
+  hostImport "_get" #[.i32, .i32] #[.i32]
+
+def sorobanPutImport : Import :=
+  hostImport "_put" #[.i32, .i32, .i32, .i32] #[]
+
+def sorobanRequireAuthImport : Import :=
+  hostImport "require_auth_for_args" #[.i32, .i32] #[.i32]
+
 def importsForModulePlan
     (plan : ModulePlan) (cfg : ProofForge.IR.AllocatorConfig) (hasPanic : Bool)
     (bridge : ProofForge.Target.HostBridge := .near) : Array Import :=
@@ -156,13 +172,23 @@ def importsForModulePlan
       hostAllocatorImportsForModulePlan plan cfg
   match bridge with
   | .soroban =>
-      -- Storage helpers still emit NEAR storage_* names (shared EmitWat core /
-      -- Counter spike). Promise_* is never imported; portable crosscall uses
-      -- invoke_contract. Full Env storage remap is a later spike.
+      -- C.8: scalar storage → _get/_put. Promise_* never. Crosscall → invoke_contract.
+      -- C.9: require_auth_for_args when caller/userId is used.
       let withoutPromise := stripNearPromiseImports nearFamily
+      let withoutNearStorage := stripNearStorageImports withoutPromise
+      let withStorage :=
+        let acc := withoutNearStorage
+        let acc := if plan.usesStorageRead then acc.push sorobanGetImport else acc
+        if plan.usesStorageWrite then acc.push sorobanPutImport else acc
+      let withAuth :=
+        if plan.contextOps.contains .userId || plan.contextOps.contains .userIdHash ||
+            plan.contextOps.contains .origin then
+          withStorage.push sorobanRequireAuthImport
+        else
+          withStorage
       let withInvoke :=
-        if plan.usesPromiseCreate then withoutPromise.push sorobanInvokeContractImport
-        else withoutPromise
+        if plan.usesPromiseCreate then withAuth.push sorobanInvokeContractImport
+        else withAuth
       dedupeImports withInvoke
   | _ => dedupeImports nearFamily
 

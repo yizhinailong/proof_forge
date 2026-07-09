@@ -17,6 +17,7 @@ import ProofForge.IR.Examples.ErrorRefProbe
 import ProofForge.IR.Examples.HashProbe
 import ProofForge.IR.Examples.MapProbe
 import ProofForge.Target
+import ProofForge.Target.PeerMap
 import ProofForge.Target.Preflight
 
 open System
@@ -285,17 +286,30 @@ def writeWatPackage (outputDir : FilePath) (name : String) (wat : String) : IO (
     IO.println s!"wrote EmitWat {name}.wat to {watPath} (wat2wasm unavailable; install wabt to build wasm)"
     return (watPath, none)
 
+/-- C.6: wasm-near / default EmitWat apply `PeerMap.nearDemo` so Shared logical
+peers (`peer.callee`) resolve to host account ids for local multi-target demos.
+CosmWasm leaves the module unchanged (empty map). Override later via CLI flag. -/
+def emitWatPeerMap (opts : CliOptions) : ProofForge.Target.PeerMap.Map :=
+  if opts.targetId? == some ProofForge.Target.wasmCosmWasm.id then
+    ProofForge.Target.PeerMap.identity
+  else
+    ProofForge.Target.PeerMap.nearDemo
+
 def compileEmitWat (opts : CliOptions) (name : String) (mod : ProofForge.IR.Module) : IO UInt32 := do
   let some output := opts.output?
     | throw <| IO.userError "emitwat mode requires -o output directory"
   let isCosmWasm := opts.targetId? == some ProofForge.Target.wasmCosmWasm.id
+  let peerMap := emitWatPeerMap opts
+  let mod := ProofForge.Target.PeerMap.applyToModule mod peerMap
   let renderResult : Except String String :=
     if isCosmWasm then
       match ProofForge.Backend.CosmWasm.EmitWat.renderModule mod with
       | .ok wat => .ok wat
       | .error e => .error e.message
     else
-      match ProofForge.Backend.WasmNear.EmitWat.renderModule mod with
+      -- Module already rewritten by peerMap above; pass identity into EmitWat.
+      match ProofForge.Backend.WasmNear.EmitWat.renderModule mod .near
+          ProofForge.Target.PeerMap.identity with
       | .ok wat => .ok wat
       | .error e => .error e.message
   match renderResult with
@@ -313,7 +327,10 @@ def compileEmitWatWithPlan
     (plan : ProofForge.Target.CapabilityPlan) : IO UInt32 := do
   let some output := opts.output?
     | throw <| IO.userError "emitwat mode requires -o output directory"
-  match ProofForge.Backend.WasmNear.EmitWat.renderModuleWithPlan mod plan with
+  let peerMap := emitWatPeerMap opts
+  let mod := ProofForge.Target.PeerMap.applyToModule mod peerMap
+  match ProofForge.Backend.WasmNear.EmitWat.renderModuleWithPlan mod plan .near
+      ProofForge.Target.PeerMap.identity with
   | .ok wat =>
       let (watPath, wasmPath?) ← writeWatPackage output name wat
       writeEmitWatArtifactMetadata opts (emitWatTargetId opts) name "contract-sdk" mod output watPath wasmPath?
