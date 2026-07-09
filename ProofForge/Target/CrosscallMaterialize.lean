@@ -14,8 +14,9 @@ materializes that intent into its native call model:
 | EVM | CALL (typed variants may map to STATICCALL/DELEGATECALL only via extension) — **no account metas** |
 | Solana | CPI frame (`sol_invoke_signed_c` + account metas/infos + entrypoint account validation prologue) |
 | Wasm-NEAR | host `promise_create` (async; string pool for account/method names) |
-| Wasm-CosmWasm | WasmMsg / submessage |
-| Wasm-Cloudflare | HTTP/service binding call (off-chain reinterpretation) |
+| Wasm-Soroban | host `invoke_contract` (sync host adapter; same string pool; **not** NEAR Promise) |
+| Wasm-CosmWasm | WasmMsg / submessage (deferred spike) |
+| Wasm-Cloudflare | HTTP/service binding call (off-chain; deferred) |
 | Move Aptos/Sui | entry function call / object call (spike-level) |
 | Psy / Aleo | circuit / transition call (restricted; often reject full async) |
 
@@ -66,7 +67,7 @@ def NativeForm.describe : NativeForm → String
   | .nearPromise => "NEAR Promise / host cross-contract call"
   | .cosmWasmMsg => "CosmWasm WasmMsg / submessage"
   | .workersBinding => "Cloudflare Workers service binding / fetch"
-  | .sorobanInvoke => "Soroban host contract invoke (Wasm host adapter; spike)"
+  | .sorobanInvoke => "Soroban host invoke_contract (portable crosscall.invoke)"
   | .moveCall => "Move entry/object call (sourcegen)"
   | .zkCircuitCall => "ZK circuit/transition call (restricted subset)"
   | .unsupported => "target does not materialize portable crosscall yet"
@@ -128,7 +129,7 @@ def forProfile (profile : TargetProfile) : Report :=
     | .solanaCpi => "sync-cpi"
     | .evmCall => "sync-call"
     | .workersBinding => "async-fetch"
-    | .sorobanInvoke => "host-auth-context"
+    | .sorobanInvoke => "sync-host-invoke"
     | .moveCall => "sync-entry-call"
     | .zkCircuitCall => "circuit-static"
     | .unsupported => "none"

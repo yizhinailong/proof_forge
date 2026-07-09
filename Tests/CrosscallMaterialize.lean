@@ -192,6 +192,17 @@ def main : IO Unit := do
   require ((run solanaSbpfAsm shared).crosscallNativeForm == "solana-cpi") "preflight solana form"
   require ((run evm shared).crosscallNativeForm == "evm-call") "preflight evm form"
   require ((run wasmNear shared).crosscallNativeForm == "near-promise") "preflight near form"
+  -- Unified map: primary triad + Soroban host-adapter profile.
+  let withSoroban := runPrimaryWithSoroban nearPortable
+  require (withSoroban.size == 4) "primary+soroban preflight size"
+  require ((run wasmStellarSoroban nearPortable).crosscallNativeForm == "soroban-invoke")
+    "preflight soroban form"
+  require ((run wasmStellarSoroban nearPortable).readyToMaterialize)
+    "portable crosscall ready on Soroban host profile"
+  require ((forProfile wasmStellarSoroban).nativeForm == NativeForm.sorobanInvoke)
+    "forProfile wasmStellarSoroban → soroban-invoke"
+  require ((forProfile wasmStellarSoroban).note.contains "invoke_contract")
+    "Soroban note names invoke_contract"
   -- Family-only Promise module must fail Solana/EVM preflight portability.
   let nearExt := ProofForge.IR.Examples.NearCrosscallProbe.promiseExtensionModule
   require (!(run solanaSbpfAsm nearExt).portabilityOk)

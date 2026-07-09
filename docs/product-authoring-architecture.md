@@ -430,20 +430,31 @@ They write `feature transfer_fee`; Solana adapter chooses Token-2022.
 | `wasm-near` | `promise_create` | yes | `Shared.RemoteCall` |
 | `wasm-stellar-soroban` (host bridge) | `invoke_contract` | form map | portable probe via EmitWat `.soroban` |
 
-**Next (Wasm host family, after triad + Soroban invoke spike):**
+**Unified portable crosscall map (authors write one intent):**
 
-- **`wasm-stellar-soroban`**: storage/auth + portable `invoke_contract` landed on
-  shared EmitWat/WasmExec. Remaining: real Env API (TTL storage, true
-  `require_auth`, `Address`/`Symbol`/`Vec<Val>`), storage name remap off NEAR
-  `storage_*`, contract-spec, optional separate registry id.
+| Native form id | Host call / packing |
+|---|---|
+| `evm-call` | EVM CALL |
+| `solana-cpi` | `sol_invoke_signed_c` ≤64 accounts |
+| `near-promise` | `promise_create` + string pool |
+| `soroban-invoke` | `invoke_contract` + string pool (host bridge; not in `--list-targets` yet) |
 
-**Deferred (do not open until Soroban spike is real or triad needs change):**
+**Next (after unify):**
+
+- Promote `wasm-stellar-soroban` into `Registry.all` when Stellar CLI + contract-spec land
+- Real Env API (TTL storage, true `require_auth`, `Address`/`Symbol`/`Vec<Val>`)
+- EmitWat storage name remap off NEAR `storage_*`
+
+**Deferred:**
 
 - CosmWasm WasmMsg full lower  
 - Cloudflare Workers binding/fetch product path  
 
 Gates: `just crosscall-materialize`, `just portable-remote-call-multi-target`,
 `just primary-materialize`, `just ir-portability-smoke`.
+
+| Order | Slice | Status / why |
+|---|---|---|
 | 6 | Mark `Source.Solana` fixture-only; demote from product docs | After auto-materialize works for Counter/Vault |
 | 7 | Stdlib portable policies → multi-target lowering | One Ownable/Token intent |
 | 8 | Spec/Builder de-EVM naming | Product surface cleanup |

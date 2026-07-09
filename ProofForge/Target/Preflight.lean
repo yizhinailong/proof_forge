@@ -6,14 +6,15 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Answers the product question: **do we validate on the IR before chain
 materialization?** Yes — in **layers**. Preflight is the shared orchestrator
-that runs *before* target-native packing (CPI / CALL / Promise):
+that runs *before* target-native packing (CPI / CALL / Promise /
+`invoke_contract`):
 
 ```text
 IR.Module
   ├─ L0  Portability (family-only constructors)     IR.Portability
   ├─ L1  Capability resolve                         Target.Adapter.resolveModule
   ├─ L2  Protocol-shaped IR checks (per backend)    Evm.Validate / Solana / EmitWat
-  └─ L3  Materialize + native emit                  Materialize / CPI pack / Yul / WAT
+  └─ L3  Materialize + native emit                  Materialize / CPI / CALL / Promise / Soroban invoke
 ```
 
 | Layer | Question | Maps to materialize? |
@@ -126,6 +127,10 @@ def run (profile : TargetProfile) (module : Module) : Report :=
 /-- Preflight primary three targets used by portable multi-target demos. -/
 def runPrimary (module : Module) : Array Report :=
   #[run evm module, run solanaSbpfAsm module, run wasmNear module]
+
+/-- Primary triad + Soroban host-adapter profile (not in `Registry.all`). -/
+def runPrimaryWithSoroban (module : Module) : Array Report :=
+  runPrimary module |>.push (run wasmStellarSoroban module)
 
 def allReady (reports : Array Report) : Bool :=
   reports.all (fun r => r.readyToMaterialize)

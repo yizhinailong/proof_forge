@@ -88,12 +88,19 @@ def main : IO Unit := do
   require (cfX.nativeForm == .workersBinding) "CF crosscall form (deferred)"
   require (psyX.nativeForm == .zkCircuitCall) "Psy crosscall form"
   require (aleoX.nativeForm == .zkCircuitCall) "Aleo crosscall form"
-  -- Soroban is host-bridge only (not yet a registry profile); family mapping
-  -- must not pretend NEAR promise_create.
-  require (NativeForm.sorobanInvoke.id == "soroban-invoke") "Soroban form id"
-  require (NativeForm.sorobanInvoke != NativeForm.nearPromise)
+  -- Soroban host-adapter profile (constant, not in Registry.all / list-targets).
+  let sorobanR := forWasmStellarSoroban counter
+  require (sorobanR.targetId == "wasm-stellar-soroban") "Soroban materialize id"
+  require (sorobanR.hostBridge? == some "soroban") "Soroban host bridge"
+  require (sorobanR.layoutKind == "soroban-storage") "Soroban layout"
+  require (sorobanR.mode == .autoPortable) "Soroban Counter auto-portable"
+  let sorobanX := forProfile wasmStellarSoroban
+  require (sorobanX.nativeForm == .sorobanInvoke) "Soroban crosscall form"
+  require (sorobanX.nativeForm.id == "soroban-invoke") "Soroban form id"
+  require (sorobanX.asyncSupport == "sync-host-invoke") "Soroban async model"
+  require (sorobanX.nativeForm != NativeForm.nearPromise)
     "Soroban must not alias NEAR promise"
   require (!(moduleUsesPortableCrosscall counter))
     "Counter fixture should not use portable crosscall nodes"
 
-  IO.println s!"implemented-materialize: ok ({reports.size} targets + crosscall map)"
+  IO.println s!"implemented-materialize: ok ({reports.size} targets + crosscall map + soroban adapter)"

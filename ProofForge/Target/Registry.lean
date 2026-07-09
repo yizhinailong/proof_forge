@@ -172,6 +172,35 @@ def wasmCloudflareWorkers : TargetProfile := {
   requiredTools := #["zig", "wrangler"]
 }
 
+/-- Stellar Soroban host-family adapter (Phase 4). **Not** in `all` /
+`--list-targets` / `knownIds` until full registry promotion (Stellar CLI +
+contract-spec). Import this constant for materialize / preflight / EmitWat
+`HostBridge.soroban` tests. Portable crosscall → `invoke_contract`
+(soroban-invoke), never NEAR `promise_create`. -/
+def wasmStellarSoroban : TargetProfile := {
+  id := "wasm-stellar-soroban"
+  family := .wasmHost
+  artifactKind := .wasm
+  deploymentAllocator? := some (ProofForge.IR.AllocatorConfig.hostBump)
+  offlineAllocators := #[ProofForge.IR.AllocatorConfig.hostBump]
+  capabilities := #[
+    .storageScalar,
+    .storageMap,
+    .callerSender,
+    .eventsEmit,
+    .crosscallInvoke,
+    .envBlock,
+    .cryptoHash,
+    .controlConditional,
+    .controlBoundedLoop,
+    .dataFixedArray,
+    .dataStruct,
+    .assertions
+  ]
+  hostBridge? := some .soroban
+  requiredTools := #["wat2wasm"]
+}
+
 def solanaSbpfLinker : TargetProfile := {
   -- Superseded by solanaSbpfAsm (D-026). Kept as historical reference.
   -- Excluded from `all`/`find?`/`knownIds` via deprecated := true.

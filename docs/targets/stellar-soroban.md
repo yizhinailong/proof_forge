@@ -212,9 +212,14 @@ Landed:
 - `just wasm-soroban-host-smoke` (in `just check`) — machine-checked witness.
 - `just crosscall-materialize` — asserts Soroban WAT contains `invoke_contract`
   and never `promise_create`.
+- `ProofForge.Target.Registry.wasmStellarSoroban` — host-adapter profile
+  constant (`hostBridge? = .soroban`) for materialize / preflight /
+  `forProfile` → `soroban-invoke`. **Not** in `Registry.all` / `--list-targets`
+  until Stellar CLI + contract-spec promotion.
+- `Target.Preflight.runPrimaryWithSoroban` — primary triad + Soroban form.
 
 Not yet done (future Soroban spikes): real Soroban `Env` API (instance /
 persistent / temporary storage with TTL, real `require_auth`, ledger reads,
 `Address`/`Symbol`/`Vec<Val>` invoke), EmitWat storage name remap off NEAR
 `storage_*`, `wasm32v1-none` artifact emit, Stellar CLI build/deploy/invoke
-validation, separate `wasm-stellar-soroban` registry id.
+validation, promote profile into `Registry.all` / `--list-targets`.

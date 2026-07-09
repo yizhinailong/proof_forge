@@ -169,6 +169,10 @@ def forWasmCosmWasm (module : Module) : Report :=
 def forWasmCloudflareWorkers (module : Module) : Report :=
   forWasmHost module wasmCloudflareWorkers
 
+/-- Soroban host adapter (profile constant; not yet in `Registry.all`). -/
+def forWasmStellarSoroban (module : Module) : Report :=
+  forWasmHost module wasmStellarSoroban
+
 /-- Move family: Aptos resource vs Sui object — target picks binding. -/
 def forMove (module : Module) (profile : TargetProfile) : Report :=
   let (stateUnits, entrypointCount) := baseCounts module
@@ -240,6 +244,7 @@ def forImplementedProfile (profile : TargetProfile) (module : Module)
     | "wasm-near" => some (forWasmNear module)
     | "wasm-cosmwasm" => some (forWasmCosmWasm module)
     | "wasm-cloudflare-workers" => some (forWasmCloudflareWorkers module)
+    | "wasm-stellar-soroban" => some (forWasmStellarSoroban module)
     | "move-aptos" => some (forMoveAptos module)
     | "move-sui" => some (forMoveSui module)
     | "psy-dpn" => some (forPsyDpn module)
