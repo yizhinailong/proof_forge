@@ -95,7 +95,12 @@ TCB. Both discharge a `Bool` proposition, but they trust different evaluators:
 
 1. **EVM bytecode lane** trusts **powdr `stepF`** + `native_decide` (the pinned
    `evm-semantics` tree and Lean's native evaluator are in the EVM TCB). The
-   Yul→bytecode `solc` hop is **not** proven.
+   Yul→bytecode `solc` hop is **not** proven. The Counter IR↔powdr delivery
+   boundary is now pinned by
+   `counterCompiledPowdr_ir_and_target_trace_match` (same `TraceObligation`
+   passes IR reference trace and powdr bytecode trace) plus the existing CLI
+   runtime-bytecode witness check. Gate:
+   `just evm-powdr-counter-refinement-smoke`.
 2. **EVM Yul-subset host lane (default, mathlib-free)** trusts the in-tree
    `YulSemantics` interpreter + `native_decide` paired-step checks in
    `YulHostRefinement` (Counter storage rel + ValueVault multi-field storage rel

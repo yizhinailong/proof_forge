@@ -1,5 +1,6 @@
 import EvmRefinement.PowdrExec
 import ProofForge.Backend.Evm.Plan.Storage
+import ProofForge.Backend.Evm.Refinement
 import ProofForge.Backend.Refinement.CounterUniversal
 import ProofForge.IR.SemanticsFuel
 import ProofForge.Backend.Refinement.ConstructorCoverage
@@ -12533,6 +12534,16 @@ def counterCompiledPowdrTraceObligation : TraceObligation := {
 theorem counterCompiledPowdr_executable_trace_ok :
     counterCompiledPowdrTargetSemantics.executableTraceOk
       counterCompiledPowdrTraceObligation = true := by
+  native_decide
+
+/-- Delivery-boundary pin: the same Counter `TraceObligation` passes both the
+IR reference trace (`irTraceOk`) and the compiled powdr bytecode trace
+(`counterCompiledPowdrExecutableTraceOk`). This is the opt-in EVM bytecode
+lane's end-to-end delivery check against the Portable-IR reference. -/
+theorem counterCompiledPowdr_ir_and_target_trace_match :
+    ProofForge.Backend.Evm.Refinement.irTraceOk
+      counterCompiledPowdrTraceObligation = true ∧
+    counterCompiledPowdrExecutableTraceOk counterCompiledPowdrTraceObligation = true := by
   native_decide
 
 structure CounterPowdrEntrypointObligations (cfg : PowdrCounterConfig) where

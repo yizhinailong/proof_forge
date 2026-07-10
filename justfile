@@ -305,6 +305,11 @@ evm-yul-host-refinement-smoke:
 evm-powdr-adapter:
     lake build EvmRefinement
 
+# Pin the Counter IR↔powdr bytecode delivery boundary (opt-in, mathlib).
+evm-powdr-counter-refinement-smoke:
+    lake build EvmRefinement.CounterRefinement
+    lake env lean --run Tests/Backend/Evm/EvmPowdrCounterRefinement.lean
+
 # Check that the generated Counter runtime matches the embedded powdr witness.
 evm-powdr-counter-runtime: build
     scripts/evm/powdr-counter-runtime-smoke.sh
