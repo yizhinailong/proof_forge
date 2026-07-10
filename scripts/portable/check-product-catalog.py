@@ -46,8 +46,32 @@ def main() -> int:
             print(f"{entry['file']}: bad authoring {entry['authoring']}", file=sys.stderr)
             return 1
     runtime = [e["file"] for e in data["sources"] if e.get("runtimeTriad")]
+    # PF-P2-01: capability families with shared triad runtime evidence must keep
+    # at least one runtimeTriad source. Remaining families (auth-policy, remote,
+    # pure events/errors product sources) advance in later slices.
+    required_runtime_kinds = {
+        "scalar-state": "Counter / ValueVault scalar + events",
+        "aggregate": "ArrayExample fixed-array map/array family",
+    }
+    runtime_kinds = {
+        e["kind"] for e in data["sources"] if e.get("runtimeTriad") and e.get("kind")
+    }
+    missing_kinds = sorted(required_runtime_kinds.keys() - runtime_kinds)
+    if missing_kinds:
+        for kind in missing_kinds:
+            print(
+                f"runtimeTriad missing for capability kind `{kind}` "
+                f"({required_runtime_kinds[kind]})",
+                file=sys.stderr,
+            )
+        print(
+            "mark at least one Product source runtimeTriad=true for each required kind",
+            file=sys.stderr,
+        )
+        return 1
     print(
-        f"product-catalog: ok ({len(listed)} sources; runtimeTriad={', '.join(runtime) or 'none'})"
+        f"product-catalog: ok ({len(listed)} sources; runtimeTriad={', '.join(runtime) or 'none'}; "
+        f"runtimeKinds={', '.join(sorted(runtime_kinds))})"
     )
     return 0
 

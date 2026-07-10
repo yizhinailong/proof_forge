@@ -157,6 +157,22 @@ fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<NearFixtureArt
                 )
             }
         }
+        "array-example" => {
+            let source_path = scenario_source(case, repo_root)?.ok_or_else(|| {
+                anyhow::anyhow!(
+                    "array-example requires scenario.source (Examples/Product/ArrayExample.lean)"
+                )
+            })?;
+            build_contract_source_wat(
+                case,
+                repo_root,
+                &source_path,
+                "ArrayExample",
+                "build/testkit/near/array-example",
+                "arrayexample.wat",
+                "ArrayExample.near-artifact.json",
+            )
+        }
         "alloc-release" => emit_wat_fixture(
             repo_root,
             "Tests/Backend/Wasm/EmitWatAlloc.lean",

@@ -17,7 +17,9 @@
       "kind": "aggregate",
       "targets": ["evm", "solana-sbpf-asm", "wasm-near", "wasm-stellar-soroban"],
       "outputStage": "intermediate",
-      "gates": ["product-matrix"]
+      "gates": ["product-matrix", "portable-array-example-multi-target", "testkit:array-example"],
+      "runtimeTriad": true,
+      "note": "PF-P2-01 map/array capability family; testkit array-example triad runtime"
     },
     {
       "file": "AuthRemoteCall.lean",
