@@ -64,11 +64,11 @@ def scalarStoragePackedReadExpr
       Lean.Compiler.Yul.Expr.num mask
     ]
 
-def scalarStorageCheckedWriteStatements
-    (overflowChecked : Bool)
+def scalarStorageWriteSemanticsStatements
+    (writeSemantics : ScalarStorageWriteSemantics)
     (storageSlot valueExpr : Lean.Compiler.Yul.Expr)
     (byteOffset byteWidth : Nat) : Array Lean.Compiler.Yul.Statement :=
-  if overflowChecked && byteWidth < 32 then
+  if writeSemantics == .checked && byteWidth < 32 then
     let mask := (2^(byteWidth * 8 : Nat)) - 1
     let valueName := "__pf_packed_value"
     let valueRef := Lean.Compiler.Yul.Expr.id valueName
@@ -84,6 +84,14 @@ def scalarStorageCheckedWriteStatements
   else
     scalarStorageWriteStatements storageSlot valueExpr byteOffset byteWidth
 
+def scalarStorageCheckedWriteStatements
+    (overflowChecked : Bool)
+    (storageSlot valueExpr : Lean.Compiler.Yul.Expr)
+    (byteOffset byteWidth : Nat) : Array Lean.Compiler.Yul.Statement :=
+  scalarStorageWriteSemanticsStatements
+    (ScalarStorageWriteSemantics.fromOverflowChecked overflowChecked)
+    storageSlot valueExpr byteOffset byteWidth
+
 def scalarStorageTargetReadExpr
     {ε : Type}
     (mkError : String → ε)
@@ -94,15 +102,25 @@ def scalarStorageTargetReadExpr
     target.byteOffset
     target.byteWidth
 
+def scalarStorageAssignOpSemanticsStatements
+    (writeSemantics : ScalarStorageWriteSemantics)
+    (op : AssignOp)
+    (storageSlot valueExpr : Lean.Compiler.Yul.Expr)
+    (byteOffset byteWidth : Nat) : Array Lean.Compiler.Yul.Statement :=
+  let overflowChecked := writeSemantics.overflowChecked
+  let packedRead := scalarStoragePackedReadExpr storageSlot byteOffset byteWidth
+  let computedValue := arithExpr overflowChecked op packedRead valueExpr
+  scalarStorageWriteSemanticsStatements
+    writeSemantics storageSlot computedValue byteOffset byteWidth
+
 def scalarStorageAssignOpStatements
     (overflowChecked : Bool)
     (op : AssignOp)
     (storageSlot valueExpr : Lean.Compiler.Yul.Expr)
     (byteOffset byteWidth : Nat) : Array Lean.Compiler.Yul.Statement :=
-  let packedRead := scalarStoragePackedReadExpr storageSlot byteOffset byteWidth
-  let computedValue := arithExpr overflowChecked op packedRead valueExpr
-  scalarStorageCheckedWriteStatements
-    overflowChecked storageSlot computedValue byteOffset byteWidth
+  scalarStorageAssignOpSemanticsStatements
+    (ScalarStorageWriteSemantics.fromOverflowChecked overflowChecked)
+    op storageSlot valueExpr byteOffset byteWidth
 
 def scalarStorageEffectPlanStatements
     {ε : Type}
@@ -143,7 +161,6 @@ def scalarStorageEffectStmtPlanStatements
 
 def scalarStorageTargetEffectPlanStatements
     {ε : Type}
-    (overflowChecked : Bool)
     (mkError : String → ε)
     (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
     (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr) :
@@ -151,24 +168,24 @@ def scalarStorageTargetEffectPlanStatements
   | .storageScalarWriteTarget target value => do
       let targetSlot ← storageSlotExpr mkError lowerExpr target.slot
       let valueExpr ← exprPlanExpr mkError lowerExpr lowerEffect value
-      .ok <| scalarStorageCheckedWriteStatements
-        overflowChecked targetSlot valueExpr target.byteOffset target.byteWidth
+      .ok <| scalarStorageWriteSemanticsStatements
+        target.writeSemantics targetSlot valueExpr target.byteOffset target.byteWidth
   | .storageScalarAssignOpTarget target op value => do
       let targetSlot ← storageSlotExpr mkError lowerExpr target.slot
       let valueExpr ← exprPlanExpr mkError lowerExpr lowerEffect value
-      .ok <| scalarStorageAssignOpStatements overflowChecked op targetSlot valueExpr target.byteOffset target.byteWidth
+      .ok <| scalarStorageAssignOpSemanticsStatements
+        target.writeSemantics op targetSlot valueExpr target.byteOffset target.byteWidth
   | _ =>
       .error (mkError "EVM EffectPlan-to-Yul planned scalar storage lowering expected storageScalarWriteTarget/storageScalarAssignOpTarget")
 
 def scalarStorageTargetEffectStmtPlanStatements
     {ε : Type}
-    (overflowChecked : Bool)
     (mkError : String → ε)
     (lowerExpr : Expr → Except ε Lean.Compiler.Yul.Expr)
     (lowerEffect : EffectPlan → Except ε Lean.Compiler.Yul.Expr) :
     StmtPlan → Except ε (Array Lean.Compiler.Yul.Statement)
   | .effect effect =>
-      scalarStorageTargetEffectPlanStatements overflowChecked mkError lowerExpr lowerEffect effect
+      scalarStorageTargetEffectPlanStatements mkError lowerExpr lowerEffect effect
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul planned scalar storage lowering expected effect")
 

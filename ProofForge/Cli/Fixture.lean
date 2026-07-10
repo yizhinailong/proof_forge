@@ -97,6 +97,8 @@ inductive Format where
   | elf
   | qnt
   | scenario
+  | dpnJson
+  | aleo
   deriving BEq, Inhabited, Repr
 
 def Format.id : Format → String
@@ -113,6 +115,8 @@ def Format.id : Format → String
   | .elf => "elf"
   | .qnt => "qnt"
   | .scenario => "scenario"
+  | .dpnJson => "dpn-json"
+  | .aleo => "aleo"
 
 def parseFormat? (s : String) : Option Format :=
   match s with
@@ -128,6 +132,8 @@ def parseFormat? (s : String) : Option Format :=
   | "sui" | "move" => some .sui
   | "elf" | "so" => some .elf
   | "qnt" => some .qnt
+  | "dpn-json" | "dpn" | "json" => some .dpnJson
+  | "aleo" | "instructions" => some .aleo
   | "scenario" | "toml" => some .scenario
   | _ => none
 
@@ -213,7 +219,9 @@ def supportsFormat (targetId fixtureId : String) (format : Format) : Bool :=
   | "wasm-cloudflare-workers", "counter", .ts => true
   | "wasm-stellar-soroban", f, .wat => isWasmNearFixture f
   | "psy-dpn", f, .psy => isPsyFixture f
+  | "psy-dpn", "counter", .dpnJson => true
   | "aleo-leo", "counter", .leo => true
+  | "aleo-leo", "counter", .aleo => true
   | "aleo-leo", "pure-math", .leo => true
   | "move-aptos", "counter", .aptos => true
   | "move-sui", "counter", .sui => true

@@ -5,11 +5,29 @@ object "Ierc721Client" {
       if lt(calldatasize(), 100) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_Ierc721Client_moveToken(calldataload(4), calldataload(36), calldataload(68))
       return(0, 0)
     }
     case 0x60218c1e {
       if lt(calldatasize(), 100) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
         revert(0, 0)
       }
       f_Ierc721Client_safeMoveToken(calldataload(4), calldataload(36), calldataload(68))
@@ -19,12 +37,18 @@ object "Ierc721Client" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_Ierc721Client_readOwner(calldataload(4))
       mstore(0, _r)
       return(0, 32)
     }
     case 0x9f700267 {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_Ierc721Client_readBalance(calldataload(4))

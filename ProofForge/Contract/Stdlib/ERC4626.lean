@@ -29,10 +29,13 @@ parity; performance fees / full OZ rounding matrix.
 | Exit fee | Same **`feeBps`** on withdraw/redeem: skim fee assets to
   `feeRecipient`; user receives net underlying. |
 | Fee-on-transfer assets | **deposit/mint**: vault `balanceOf` **up-delta** after pull.
+  `mint` treats that delta as a coverage check and always mints exactly the
+  requested net/gross shares; insufficient FOT receipt reverts the pull.
   **withdraw/redeem**: vault **down-delta** for `totalAssets`; user push
   measures recipient `balanceOf` **up-delta** (event/return use actual
   received). Fee push to `feeRecipient` not re-measured on recipient. |
 | `preview*` | assume non-FOT (requested ≈ actual); fees still applied in Spec |
+| `max*` | conservative executable u64 limits; 100% fee disables all four paths |
 
 Spec math lives in `Spec` (Nat formulas + fee/empty-vault theorems).
 -/
@@ -110,6 +113,35 @@ def previewMintAssets? (s : State) (netShares feeBps : Nat := 0) : Option Nat :=
     push in the current frozen subset, not the requested gross asset amount. -/
 def previewWithdrawShares (s : State) (assets : Nat) : Nat :=
   convertToSharesUp s assets
+
+/-- Mint exactly `netShares` when the actual pull covers the requested gross
+    shares. Surplus conversion capacity is retained as vault backing. -/
+def mintActual? (s : State) (netShares actualReceived : Nat) (feeBps : Nat := 0) :
+    Option (State × Nat) := do
+  if netShares == 0 || actualReceived == 0 then none else pure ()
+  let gross ← grossSharesForNet netShares feeBps
+  if gross == 0 || netAfterEntryFee gross feeBps != netShares then none
+  else if convertToShares s actualReceived < gross then none
+  else some ({
+    totalAssets := s.totalAssets + actualReceived
+    totalSupply := s.totalSupply + gross
+  }, netShares)
+
+/-- Gross asset limit accepted by `withdraw`; fee is applied inside withdraw. -/
+def maxWithdrawAssets (s : State) (holderShares feeBps : Nat) : Nat :=
+  if feeBps ≥ 10000 then 0
+  else
+    let shares := min holderShares s.totalSupply
+    let grossAssets := convertToAssets s shares
+    if netAfterExitFee grossAssets feeBps == 0 then 0 else grossAssets
+
+/-- Executable share limit accepted by `redeem`. -/
+def maxRedeemShares (s : State) (holderShares feeBps : Nat) : Nat :=
+  if feeBps ≥ 10000 then 0
+  else
+    let shares := min holderShares s.totalSupply
+    let grossAssets := convertToAssets s shares
+    if netAfterExitFee grossAssets feeBps == 0 then 0 else shares
 
 /-- Deposit; optional entry fee. Returns `(next, userShares)` where
 `totalSupply` grows by **gross** shares (user + fee). -/
@@ -393,7 +425,7 @@ def applyExitFee : EntryM Unit := do
         (ProofForge.Contract.Surface.read feeScratch))
 
 /-- `convertScratch` holds **net** shares desired. Overwrite with **gross** mint
-    so that after entry fee the user receives approximately net
+    so the explicit mint allocation can issue exactly that net amount
     (`gross = net * 10000 / (10000 - feeBps)`). Fee 0 → identity. -/
 def applyGrossFromNetShares : EntryM Unit := do
   let net := ProofForge.Contract.Surface.read convertScratch
@@ -420,6 +452,7 @@ def localConvertToShares (name : String) (amount : ProofForge.IR.Expr) :
     ProofForge.Contract.Builder.assign (.local name)
       (ProofForge.Contract.Surface.div
         (ProofForge.Contract.Surface.mul amount ts) ta)
+  requireU64Result (.local name) "share conversion overflow"
   pure (.local name)
 
 /-- Read-only inverse conversion; see `localConvertToShares`. -/
@@ -433,6 +466,7 @@ def localConvertToAssets (name : String) (amount : ProofForge.IR.Expr) :
     ProofForge.Contract.Builder.assign (.local name)
       (ProofForge.Contract.Surface.div
         (ProofForge.Contract.Surface.mul amount ta) ts)
+  requireU64Result (.local name) "asset conversion overflow"
   pure (.local name)
 
 /-- Read-only inverse share conversion with ceiling division. -/
@@ -518,6 +552,137 @@ def localNetAfterFee (name : String) (gross : ProofForge.IR.Expr) :
         (ProofForge.Contract.Surface.div
           (ProofForge.Contract.Surface.mul gross bps)
           (ProofForge.Contract.Surface.u64 10000)))
+  requireU64Result (.local name) "fee-adjusted result overflow"
+  pure (.local name)
+
+def whenCondition (condition : ProofForge.IR.Expr) (body : EntryM Unit) : EntryM Unit := do
+  let (_, entryBuilder) := body.run {}
+  ProofForge.Contract.Builder.ifElse condition entryBuilder.body #[]
+
+def capLocalU64 (name : String) (cap : ProofForge.IR.Expr) : EntryM Unit :=
+  ProofForge.Contract.Builder.ifElse
+    (ProofForge.Contract.Builder.lt cap (.local name))
+    #[.assign (.local name) cap]
+    #[]
+
+def assignLocalU64 (name : String) (value : ProofForge.IR.Expr) : EntryM Unit :=
+  ProofForge.Contract.Builder.assign (.local name) value
+
+def feeLimitsUsable : ProofForge.IR.Expr :=
+  let bps := ProofForge.Contract.Surface.read feeBps
+  let recipient := ProofForge.Contract.Surface.read feeRecipient
+  ProofForge.Contract.Builder.boolAnd
+    (ProofForge.Contract.Builder.lt bps (ProofForge.Contract.Surface.u64 10000))
+    (ProofForge.Contract.Builder.boolOr
+      (ProofForge.Contract.Builder.eq bps (ProofForge.Contract.Surface.u64 0))
+      (ProofForge.Contract.Builder.gt recipient (ProofForge.Contract.Surface.u64 0)))
+
+/-- Conservative executable deposit limit under u64 state/map capacities. -/
+def localMaxDeposit (name : String) (receiver : ProofForge.IR.Expr) :
+    EntryM ProofForge.IR.Expr := do
+  let max := ProofForge.Contract.Surface.u64 0xffffffffffffffff
+  let zero := ProofForge.Contract.Surface.u64 0
+  ProofForge.Contract.Builder.letMutBind name .u64 zero
+  whenCondition feeLimitsUsable do
+    let ta := ProofForge.Contract.Surface.read totalAssetsSlot
+    let ts := ProofForge.Contract.Surface.read totalSupply
+    ProofForge.Contract.Builder.letBind (name ++ "_asset_cap") .u64
+      (ProofForge.Contract.Surface.sub max ta)
+    let assetCap := ProofForge.Contract.Builder.localVar (name ++ "_asset_cap")
+    ProofForge.Contract.Builder.letMutBind (name ++ "_gross_cap") .u64
+      (ProofForge.Contract.Surface.sub max ts)
+    let grossCapName := name ++ "_gross_cap"
+    capLocalU64 grossCapName
+      (ProofForge.Contract.Surface.sub max
+        (ProofForge.Contract.Surface.mapGet shareBalances receiver))
+    let bps := ProofForge.Contract.Surface.read feeBps
+    ProofForge.Contract.Surface.whenPositive bps do
+      capLocalU64 grossCapName
+        (ProofForge.Contract.Surface.sub max
+          (ProofForge.Contract.Surface.mapGet shareBalances
+            (ProofForge.Contract.Surface.read feeRecipient)))
+    assignLocalU64 name assetCap
+    let grossCap := ProofForge.Contract.Builder.localVar grossCapName
+    ProofForge.Contract.Surface.whenZero ts do
+      capLocalU64 name grossCap
+    ProofForge.Contract.Surface.whenPositive ts do
+      ProofForge.Contract.Surface.whenZero ta do
+        assignLocalU64 name zero
+      ProofForge.Contract.Surface.whenPositive ta do
+        ProofForge.Contract.Builder.letBind (name ++ "_gross_at_asset_cap") .u64
+          (ProofForge.Contract.Surface.div
+            (ProofForge.Contract.Surface.mul assetCap ts) ta)
+        let grossAtAssetCap :=
+          ProofForge.Contract.Builder.localVar (name ++ "_gross_at_asset_cap")
+        whenCondition (ProofForge.Contract.Builder.gt grossAtAssetCap grossCap) do
+          assignLocalU64 name
+            (ProofForge.Contract.Surface.div
+              (ProofForge.Contract.Surface.mul grossCap ta) ts)
+        ProofForge.Contract.Builder.letBind (name ++ "_gross_final") .u64
+          (ProofForge.Contract.Surface.div
+            (ProofForge.Contract.Surface.mul (.local name) ts) ta)
+        ProofForge.Contract.Surface.whenZero (.local (name ++ "_gross_final")) do
+          assignLocalU64 name zero
+  pure (.local name)
+
+/-- Conservative executable net-share mint limit under u64 capacities. -/
+def localMaxMint (name : String) (receiver : ProofForge.IR.Expr) :
+    EntryM ProofForge.IR.Expr := do
+  let max := ProofForge.Contract.Surface.u64 0xffffffffffffffff
+  let zero := ProofForge.Contract.Surface.u64 0
+  ProofForge.Contract.Builder.letMutBind name .u64 zero
+  whenCondition feeLimitsUsable do
+    let ta := ProofForge.Contract.Surface.read totalAssetsSlot
+    let ts := ProofForge.Contract.Surface.read totalSupply
+    ProofForge.Contract.Builder.letMutBind (name ++ "_gross_cap") .u64
+      (ProofForge.Contract.Surface.sub max ts)
+    let grossCapName := name ++ "_gross_cap"
+    let bps := ProofForge.Contract.Surface.read feeBps
+    ProofForge.Contract.Surface.whenPositive bps do
+      capLocalU64 grossCapName
+        (ProofForge.Contract.Surface.sub max
+          (ProofForge.Contract.Surface.mapGet shareBalances
+            (ProofForge.Contract.Surface.read feeRecipient)))
+    ProofForge.Contract.Builder.letMutBind (name ++ "_asset_gross_cap") .u64
+      (ProofForge.Contract.Surface.sub max ta)
+    let assetGrossCapName := name ++ "_asset_gross_cap"
+    ProofForge.Contract.Surface.whenPositive ts do
+      ProofForge.Contract.Surface.whenZero ta do
+        assignLocalU64 assetGrossCapName zero
+      ProofForge.Contract.Surface.whenPositive ta do
+        assignLocalU64 assetGrossCapName
+          (ProofForge.Contract.Surface.div
+            (ProofForge.Contract.Surface.mul (.local assetGrossCapName) ts) ta)
+    capLocalU64 grossCapName (.local assetGrossCapName)
+    localNetAfterFee (name ++ "_net_cap") (.local grossCapName) >>= fun netCap => do
+      localGrossFromNetShares (name ++ "_gross_needed") netCap >>= fun grossNeeded => do
+        assignLocalU64 name netCap
+        whenCondition (ProofForge.Contract.Builder.gt grossNeeded (.local grossCapName)) do
+          assignLocalU64 name
+            (ProofForge.Contract.Surface.sub netCap (ProofForge.Contract.Surface.u64 1))
+    capLocalU64 name
+      (ProofForge.Contract.Surface.sub max
+        (ProofForge.Contract.Surface.mapGet shareBalances receiver))
+  pure (.local name)
+
+def localMaxExit (name : String) (holder : ProofForge.IR.Expr) (redeem : Bool) :
+    EntryM ProofForge.IR.Expr := do
+  let zero := ProofForge.Contract.Surface.u64 0
+  ProofForge.Contract.Builder.letMutBind name .u64 zero
+  whenCondition feeLimitsUsable do
+    ProofForge.Contract.Builder.letMutBind (name ++ "_shares") .u64
+      (ProofForge.Contract.Surface.mapGet shareBalances holder)
+    capLocalU64 (name ++ "_shares") (ProofForge.Contract.Surface.read totalSupply)
+    let shares := ProofForge.Contract.Builder.localVar (name ++ "_shares")
+    let ts := ProofForge.Contract.Surface.read totalSupply
+    let ta := ProofForge.Contract.Surface.read totalAssetsSlot
+    ProofForge.Contract.Surface.whenPositive ts do
+      ProofForge.Contract.Surface.whenPositive ta do
+        localConvertToAssets (name ++ "_gross_assets") shares >>= fun grossAssets =>
+          localNetAfterFee (name ++ "_net_assets") grossAssets >>= fun netAssets =>
+            ProofForge.Contract.Surface.whenPositive netAssets do
+              if redeem then assignLocalU64 name shares
+              else assignLocalU64 name grossAssets
   pure (.local name)
 
 /-- Mint fee shares to `feeRecipient` when fee > 0. -/
@@ -671,20 +836,20 @@ contract_mixin ERC4626Mixin do
       ProofForge.Contract.Builder.ret;
 
   query maxDeposit (who : .address) returns(.u64) do
-    return u64 0xffffffffffffffff;
+    do localMaxDeposit "_pf_max_deposit" (ProofForge.Contract.Surface.ref who) >>=
+      ProofForge.Contract.Builder.ret;
 
   query maxMint (who : .address) returns(.u64) do
-    return u64 0xffffffffffffffff;
+    do localMaxMint "_pf_max_mint" (ProofForge.Contract.Surface.ref who) >>=
+      ProofForge.Contract.Builder.ret;
 
   query maxWithdraw (holder : .address) returns(.u64) do
-    -- max **net** assets redeemable after exit fee
-    do localConvertToAssets "_pf_max_withdraw"
-      (ProofForge.Contract.Surface.mapGet shareBalances
-        (ProofForge.Contract.Surface.ref holder)) >>= fun gross =>
-      localNetAfterFee "_pf_max_withdraw_net" gross >>= ProofForge.Contract.Builder.ret;
+    do localMaxExit "_pf_max_withdraw" (ProofForge.Contract.Surface.ref holder) false >>=
+      ProofForge.Contract.Builder.ret;
 
   query maxRedeem (holder : .address) returns(.u64) do
-    return mapRead shareBalances holder;
+    do localMaxExit "_pf_max_redeem" (ProofForge.Contract.Surface.ref holder) true >>=
+      ProofForge.Contract.Builder.ret;
 
   query feeBps returns(.u64) do
     return feeBps;
@@ -760,8 +925,8 @@ contract_mixin ERC4626Mixin do
       "zero receiver";
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref shares)
       "zero shares";
-    -- Preview path: requested assets for net `shares` (non-FOT). Pull that amount,
-    -- then recompute shares from **actual** delta (FOT may under-deliver net shares).
+    -- Pull the previewed amount, then use the actual delta only as a coverage
+    -- check. Mint always issues exactly the requested net/gross share amounts.
     convertScratch := shares;
     do applyGrossFromNetShares;
     let grossWanted : .u64 := convertScratch;
@@ -776,17 +941,15 @@ contract_mixin ERC4626Mixin do
     let actual : .u64 := actualAssetsScratch;
     convertScratch := actual;
     do applyConvertToShares (ProofForge.Contract.Surface.ref actual);
-    let gross : .u64 := convertScratch;
-    do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref gross)
-      "zero gross from actual";
-    do applyEntryFee;
-    let userShares : .u64 := convertScratch;
-    do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref userShares)
-      "zero net shares";
+    let grossAvailable : .u64 := convertScratch;
+    do ProofForge.Contract.Surface.requireGe (ProofForge.Contract.Surface.ref grossAvailable)
+      (ProofForge.Contract.Surface.ref grossWanted) "insufficient actual assets";
+    feeScratch := grossWanted -! shares;
+    let userShares : .u64 := shares;
     let ta : .u64 := totalAssetsSlot;
     totalAssetsSlot := ta +! actual;
     let ts : .u64 := totalSupply;
-    totalSupply := ts +! gross;
+    totalSupply := ts +! grossWanted;
     let bal : .u64 := mapRead shareBalances receiver;
     do mapWrite shareBalances receiver (bal +! userShares);
     do mintFeeSharesIfAny;

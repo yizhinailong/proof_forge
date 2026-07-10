@@ -1,5 +1,6 @@
 import Lean.Util.Path
 import ProofForge.Backend.Aleo.IR
+import ProofForge.Backend.Aleo.Instructions
 import ProofForge.Backend.WasmHost.EmitWat
 import ProofForge.Target.HostBridge
 import ProofForge.Backend.Move.Aptos
@@ -18,6 +19,15 @@ open System
 open ProofForge.Cli.JsonUtil
 
 namespace ProofForge.Cli
+
+/-- Z2.3: emit Counter Aleo Instructions (`.aleo`) via direct lower bootstrap. -/
+def compileCounterIrAleo (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (System.FilePath.mk "build/aleo/Counter.aleo")
+  let prog := ProofForge.Backend.Aleo.Instructions.Lower.lowerCounterFixture
+  let text := ProofForge.Backend.Aleo.Instructions.Printer.renderProgram prog
+  writeTextFile output text
+  IO.println s!"wrote {output} (Aleo Instructions via Z2.3 Counter lower)"
+  return 0
 
 def compileCounterIrLeo (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/aleo/Counter.leo")

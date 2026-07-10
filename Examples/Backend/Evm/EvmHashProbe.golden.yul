@@ -15,6 +15,18 @@ object "EvmHashProbe" {
       if lt(calldatasize(), 132) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_EvmHashProbe_pack_hash(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
       mstore(0, _r)
       return(0, 32)

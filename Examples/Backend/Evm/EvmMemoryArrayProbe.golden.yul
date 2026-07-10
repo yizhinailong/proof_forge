@@ -15,6 +15,15 @@ object "EvmMemoryArrayProbe" {
       if lt(calldatasize(), 100) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_EvmMemoryArrayProbe_get_and_sum(calldataload(4), calldataload(36), calldataload(68))
       mstore(0, _r)
       return(0, 32)

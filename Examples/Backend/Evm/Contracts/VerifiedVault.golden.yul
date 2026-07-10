@@ -26,6 +26,9 @@ object "VerifiedVault" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_VerifiedVault_withdraw(calldataload(4))
       return(0, 0)
     }
@@ -41,6 +44,9 @@ object "VerifiedVault" {
     }
     case 0x9cc7f708 {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_VerifiedVault_balanceOf(calldataload(4))

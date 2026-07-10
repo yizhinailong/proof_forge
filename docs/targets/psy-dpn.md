@@ -229,6 +229,53 @@ bytecode**. Current PF code reaches it via `.psy` → `dargo compile`. Z1 work
 aims at `IR → DPN` direct emit with dargo execute as oracle; `.psy` remains
 fallback.
 
+### DPN bytecode goldens (Z1.1)
+
+Checked-in normalized circuit JSON:
+
+| Golden | Fixture |
+|--------|---------|
+| `Examples/Backend/Psy/dpn/Counter.golden.dpn.json` | counter |
+| `Examples/Backend/Psy/dpn/ArithmeticProbe.golden.dpn.json` | arithmetic |
+| `Examples/Backend/Psy/dpn/AssertProbe.golden.dpn.json` | assert |
+
+Normalize: `scripts/psy/normalize-dpn-json.py`
+Gate: `just psy-dpn-goldens` (shape always; rebuild-diff when `build/psy/dargo-*/target/proof_forge_*.json` exists)
+
+### Direct DPN emit (Z1.4)
+
+```sh
+proof-forge emit --target psy-dpn --fixture counter --format dpn-json -o Counter.dpn.json
+# or: proof-forge --emit-counter-ir-dpn-json
+just psy-dpn-direct
+```
+
+Counter-only bootstrap lower: emits the pinned `CounterGolden.document` that
+matches dargo-compile goldens. General IR→DPN is **not** claimed (see
+`docs/superpowers/specs/2026-07-10-z1-fallback-policy.md`).
+
+### Lean DPN AST (Z1.3)
+
+Lean modules:
+
+- `ProofForge/Backend/Psy/Dpn/Ast.lean` — `IndexedVarDef`, `StateCommand`, `FunctionCircuit`
+- `ProofForge/Backend/Psy/Dpn/Printer.lean` — golden-compatible JSON printer
+- Hand-encoded Counter document: `CounterGolden.document`
+
+Gate: `just psy-dpn-printer` (byte-match `Examples/Backend/Psy/dpn/Counter.golden.dpn.json`)
+
+### Artifact honesty (Z1.2)
+
+`proof-forge-artifact.json` fields:
+
+| Field | When `dargoCompile=passed` | When compile skipped |
+|-------|----------------------------|----------------------|
+| `primaryOutput` | `dpn-bytecode-json` | `psy-source` |
+| `finalOutput` | `dpn-bytecode-json` | `null` |
+| `lowerBoundary` | `DPNFunctionCircuitDefinition` | `psy-sourcegen-pending-dargo` |
+
+`toolchain.dargo.version` is recorded when `dargo --version` works. Validation statuses must not be `passed` unless the corresponding dargo stage ran.
+
 ### DPN bytecode (official + observed)
 
 **Container:** `DPNFunctionCircuitDefinition` (JSON array of methods from

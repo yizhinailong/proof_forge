@@ -5,12 +5,18 @@ object "ERC165" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if and(calldataload(4), 26959946667150639794667015087019630673637144422540572481103610249215) {
+        revert(0, 0)
+      }
       let _r := f_ERC165_supportsInterface(calldataload(4))
       mstore(0, _r)
       return(0, 32)
     }
     case 0x214cdb80 {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if and(calldataload(4), 26959946667150639794667015087019630673637144422540572481103610249215) {
         revert(0, 0)
       }
       f_ERC165_registerInterface(calldataload(4))

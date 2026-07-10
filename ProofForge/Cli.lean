@@ -116,7 +116,8 @@ export ProofForge.Cli.ConstructorAbi
    encodeUint256ArrayConstructorTail encodeDynamicConstructorTail encodeStaticConstructorValue
    constructorParamExists constructorValueCount findConstructorValue?
    validateConstructorValues validateConstructorValuesAgainstParams
-   encodeConstructorValues constructorSchemaHasDynamic validateConstructorSchemaAndArgs)
+   encodeConstructorValues constructorSchemaHasDynamic validateCanonicalAddressWords
+   validateConstructorSchemaAndArgs)
 export ProofForge.Cli.EmitMode (EmitMode)
 
 def emitWatFixtureModule? (fixtureId : String) : Option ProofForge.IR.Module :=
@@ -214,6 +215,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .evmFallbackIrYul => compileEvmFallbackIrYul opts
   | .evmFallbackIrBytecode => compileEvmFallbackIrBytecode opts
   | .counterIrPsy => compileCounterIrPsy opts
+  | .counterIrDpnJson => compileCounterIrDpnJson opts
   | .eventIrPsy => compileEventIrPsy opts
   | .crosscallIrPsy => compileCrosscallIrPsy opts
   | .expressionPredicateIrPsy => compileExpressionPredicateIrPsy opts
@@ -251,6 +253,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .solanaSplTokenCloseAccountCpiSbpf => compileSolanaSplTokenCloseAccountCpiSbpf opts
   | .solanaSplTokenAuthorityCpiSbpf => compileSolanaSplTokenAuthorityCpiSbpf opts
   | .solanaAssociatedTokenCpiSbpf => compileSolanaAssociatedTokenCpiSbpf opts
+  | .solanaMemoCpiSbpf => compileSolanaMemoCpiSbpf opts
   | .solanaSplToken2022CpiSbpf => compileSolanaSplToken2022CpiSbpf opts
   | .solanaSplToken2022PausableCpiSbpf => compileSolanaSplToken2022PausableCpiSbpf opts
   | .solanaSplToken2022TransferHookSbpf => compileSolanaSplToken2022TransferHookSbpf opts
@@ -263,6 +266,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .solanaSplTokenCloseAccountCpiElf => compileSolanaSplTokenCloseAccountCpiElf opts
   | .solanaSplTokenAuthorityCpiElf => compileSolanaSplTokenAuthorityCpiElf opts
   | .solanaAssociatedTokenCpiElf => compileSolanaAssociatedTokenCpiElf opts
+  | .solanaMemoCpiElf => compileSolanaMemoCpiElf opts
   | .solanaSplToken2022CpiElf => compileSolanaSplToken2022CpiElf opts
   | .solanaSplToken2022PausableCpiElf => compileSolanaSplToken2022PausableCpiElf opts
   | .solanaSplToken2022TransferHookElf => compileSolanaSplToken2022TransferHookElf opts
@@ -285,6 +289,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .hashEmitWat => compileHashEmitWat opts
   | .mapEmitWat => compileMapEmitWat opts
   | .counterIrLeo => compileCounterIrLeo opts
+  | .counterIrAleo => compileCounterIrAleo opts
   | .pureMathIrLeo => compilePureMathIrLeo opts
   | .counterIrCosmWasm => compileCounterIrCosmWasm opts
   | .counterIrAptos => compileCounterIrAptos opts

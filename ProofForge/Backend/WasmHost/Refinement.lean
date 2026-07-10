@@ -1386,7 +1386,7 @@ theorem wasm_near_fragment_subset_lowerable_counter
 instance: if the NEAR target profile resolves the Counter module's capability
 spec, then the Counter module is in the Wasm/NEAR lowerable fragment. -/
 theorem wasm_near_capability_accept_implies_lowerable_counter
-    (h : (ProofForge.Target.resolveModule ProofForge.Target.wasmNear
+    (_h : (ProofForge.Target.resolveModule ProofForge.Target.wasmNear
         ProofForge.IR.Examples.Counter.module).isOk = true) :
     wasmNearTargetSemantics.lowerableAccepts
       ProofForge.IR.Examples.Counter.module = true := by

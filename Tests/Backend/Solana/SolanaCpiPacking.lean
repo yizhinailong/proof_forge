@@ -285,6 +285,15 @@ def main : IO UInt32 := do
         "memo manifest missing memoArg instruction-data length"
       require (contains manifest "{ name = \"memoArg\", type = \"U64\", offset = 1, byte_size = 8, encoding = \"le-u64\" }")
         "memo manifest missing memoArg parameter schema"
+      -- L1.3 multi-byte memo entry
+      require (contains manifest "name = \"log_memo_bytes\"")
+        "memo manifest missing log_memo_bytes instruction"
+      require (contains manifest "min_data_len = 17")
+        "memo manifest missing 16-byte memo instruction-data length"
+      require (contains manifest "encoding = \"raw-bytes\"")
+        "memo manifest missing raw-bytes encoding for fixedArray memo"
+      require (contains manifest "memo_source = \"memoBytes\"")
+        "memo manifest missing memoBytes source metadata"
       require (contains manifest "{ name = \"last_memo_word\", index = 0, signer = false, writable = true, owner = \"program\" },")
         "memo manifest missing state account schema"
       require (contains manifest "{ name = \"memo\", index = 1, signer = false, writable = false, owner = \"executable\" }")
@@ -303,15 +312,18 @@ def main : IO UInt32 := do
         "memo assembly missing Memo CPI helper label"
       require (contains asm "solana.cpi.data memo.memo: raw bytes (len=8) from instruction param memoArg")
         "memo assembly missing raw memo data packing marker"
+      require (contains asm "solana.cpi.data memo.memo: raw bytes (len=16) from instruction param memoBytes")
+        "memo assembly missing multi-byte memo data packing marker"
       require (contains asm "solana.cpi.program_id memo")
         "memo assembly missing Memo program id packing marker"
       require (contains asm "mov64 r3, 8")
-        "memo assembly missing memo data length"
+        "memo assembly missing 8-byte memo data length"
+      require (contains asm "mov64 r3, 16")
+        "memo assembly missing 16-byte memo data length"
       require (contains asm "call sol_invoke_signed_c")
         "memo assembly missing sol_invoke_signed_c syscall"
   | .error err =>
       throw <| IO.userError s!"Solana Memo CPI packing render failed: {err.render}"
-
   match ProofForge.Backend.Solana.Package.renderPackageForSpec "system-create-cpi" systemCreateAccountSpec with
   | .ok pkg =>
       let some asmFile := pkg.files.find? (fun file => file.path == pkg.asmPath)

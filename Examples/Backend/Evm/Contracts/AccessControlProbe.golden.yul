@@ -5,6 +5,12 @@ object "AccessControlProbe" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
       let _r := f_AccessControlProbe_hasRole(calldataload(4), calldataload(36))
       mstore(0, _r)
       return(0, 32)
@@ -13,11 +19,23 @@ object "AccessControlProbe" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
       f_AccessControlProbe_grantRole(calldataload(4), calldataload(36))
       return(0, 0)
     }
     case 0x1d0b19e7 {
       if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 1461501637330902918203684832716283019655932542975) {
         revert(0, 0)
       }
       f_AccessControlProbe_revokeRole(calldataload(4), calldataload(36))
@@ -29,6 +47,9 @@ object "AccessControlProbe" {
     }
     case 0x261707fa {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
         revert(0, 0)
       }
       f_AccessControlProbe_grantMinter(calldataload(4))

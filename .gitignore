@@ -7,6 +7,7 @@ testkit/target/
 tools/cosmwasm-vm-runner/target/
 references/**/target/
 testkit/compare/**/target/
+benchmarks/**/target/
 *.bin
 *.yul
 # Golden Yul fixtures (product path under Examples/Backend/Evm after reorg).

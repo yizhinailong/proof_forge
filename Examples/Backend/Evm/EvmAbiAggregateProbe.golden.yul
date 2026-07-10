@@ -5,12 +5,27 @@ object "EvmAbiAggregateProbe" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_EvmAbiAggregateProbe_sum_pair(calldataload(4), calldataload(36))
       mstore(0, _r)
       return(0, 32)
     }
     case 0xeb353b80 {
       if lt(calldatasize(), 100) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_EvmAbiAggregateProbe_sum_array(calldataload(4), calldataload(36), calldataload(68))
@@ -21,12 +36,36 @@ object "EvmAbiAggregateProbe" {
       if lt(calldatasize(), 132) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_EvmAbiAggregateProbe_sum_matrix(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
       mstore(0, _r)
       return(0, 32)
     }
     case 0x10e4c1da {
       if lt(calldatasize(), 132) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_EvmAbiAggregateProbe_sum_pair_array(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
@@ -37,6 +76,12 @@ object "EvmAbiAggregateProbe" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r0, _r1 := f_EvmAbiAggregateProbe_make_pair(calldataload(4), calldataload(36))
       mstore(0, _r0)
       mstore(32, _r1)
@@ -44,6 +89,18 @@ object "EvmAbiAggregateProbe" {
     }
     case 0x617df171 {
       if lt(calldatasize(), 132) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 18446744073709551615) {
         revert(0, 0)
       }
       let _r0, _r1, _r2, _r3 := f_EvmAbiAggregateProbe_make_pair_array(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
@@ -57,6 +114,18 @@ object "EvmAbiAggregateProbe" {
       if lt(calldatasize(), 132) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r0, _r1, _r2, _r3 := f_EvmAbiAggregateProbe_make_matrix(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
       mstore(0, _r0)
       mstore(32, _r1)
@@ -66,6 +135,15 @@ object "EvmAbiAggregateProbe" {
     }
     case 0xffac5c16 {
       if lt(calldatasize(), 100) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
         revert(0, 0)
       }
       let _r0, _r1, _r2 := f_EvmAbiAggregateProbe_make_array(calldataload(4), calldataload(36), calldataload(68))

@@ -15,12 +15,21 @@ object "ERC20" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
       let _r := f_ERC20_balanceOf(calldataload(4))
       mstore(0, _r)
       return(0, 32)
     }
     case 0xdd62ed3e {
       if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 1461501637330902918203684832716283019655932542975) {
         revert(0, 0)
       }
       let _r := f_ERC20_allowance(calldataload(4), calldataload(36))
@@ -31,12 +40,24 @@ object "ERC20" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_ERC20_transfer(calldataload(4), calldataload(36))
       mstore(0, _r)
       return(0, 32)
     }
     case 0x095ea7b3 {
       if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_ERC20_approve(calldataload(4), calldataload(36))
@@ -47,6 +68,15 @@ object "ERC20" {
       if lt(calldatasize(), 100) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_ERC20_transferFrom(calldataload(4), calldataload(36), calldataload(68))
       mstore(0, _r)
       return(0, 32)
@@ -55,12 +85,21 @@ object "ERC20" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_ERC20_mint(calldataload(4), calldataload(36))
       mstore(0, _r)
       return(0, 32)
     }
     case 0x42966c68 {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_ERC20_burn(calldataload(4))

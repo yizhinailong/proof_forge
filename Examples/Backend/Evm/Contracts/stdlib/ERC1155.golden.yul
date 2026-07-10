@@ -5,6 +5,12 @@ object "ERC1155" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_ERC1155_balanceOf(calldataload(4), calldataload(36))
       mstore(0, _r)
       return(0, 32)
@@ -13,12 +19,21 @@ object "ERC1155" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
       let _r := f_ERC1155_isApprovedForAll(calldataload(4), calldataload(36))
       mstore(0, _r)
       return(0, 32)
     }
     case 0xa22cb465 {
       if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
         revert(0, 0)
       }
       if gt(calldataload(36), 1) {
@@ -31,11 +46,41 @@ object "ERC1155" {
       if lt(calldatasize(), 132) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_ERC1155_safeTransferFrom(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
       return(0, 0)
     }
     case 0xdacd30d8 {
       if lt(calldatasize(), 196) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(132), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(164), 18446744073709551615) {
         revert(0, 0)
       }
       f_ERC1155_safeBatchTransferFrom2(calldataload(4), calldataload(36), calldataload(68), calldataload(100), calldataload(132), calldataload(164))
@@ -45,11 +90,26 @@ object "ERC1155" {
       if lt(calldatasize(), 100) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_ERC1155_mint(calldataload(4), calldataload(36), calldataload(68))
       return(0, 0)
     }
     case 0xb390c0ab {
       if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
         revert(0, 0)
       }
       f_ERC1155_burn(calldataload(4), calldataload(36))
@@ -127,24 +187,31 @@ object "ERC1155" {
         log4(0, 64, _topic0, _indexed_topic0, _indexed_topic1, _indexed_topic2)
       }
       {
-        if iszero(iszero(extcodesize(dst))) {
-          mstore(0, shl(224, 4063915617))
-          mstore(4, operator)
-          mstore(36, src)
-          mstore(68, id)
-          mstore(100, amount)
-          mstore(132, 160)
-          mstore(164, 0)
-          let __pf_erc1155_ok := call(gas(), dst, 0, 0, 196, 0, 32)
-          if iszero(__pf_erc1155_ok) {
-            revert(0, 0)
-          }
-          if lt(returndatasize(), 32) {
-            revert(0, 0)
-          }
-          let __pf_erc1155_magic := mload(0)
-          if iszero(eq(__pf_erc1155_magic, shl(224, 4063915617))) {
-            revert(0, 0)
+        {
+          let __pf_erc1155_operator := operator
+          let __pf_erc1155_from := src
+          let __pf_erc1155_to := dst
+          let __pf_erc1155_id := id
+          let __pf_erc1155_amount := amount
+          if iszero(iszero(extcodesize(__pf_erc1155_to))) {
+            mstore(0, shl(224, 4063915617))
+            mstore(4, __pf_erc1155_operator)
+            mstore(36, __pf_erc1155_from)
+            mstore(68, __pf_erc1155_id)
+            mstore(100, __pf_erc1155_amount)
+            mstore(132, 160)
+            mstore(164, 0)
+            let __pf_erc1155_ok := call(gas(), __pf_erc1155_to, 0, 0, 196, 0, 32)
+            if iszero(__pf_erc1155_ok) {
+              revert(0, 0)
+            }
+            if lt(returndatasize(), 32) {
+              revert(0, 0)
+            }
+            let __pf_erc1155_magic := mload(0)
+            if iszero(eq(__pf_erc1155_magic, shl(224, 4063915617))) {
+              revert(0, 0)
+            }
           }
         }
       }
@@ -214,30 +281,39 @@ object "ERC1155" {
         mstore(32, amount1)
         log4(0, 64, _topic0, _indexed_topic0, _indexed_topic1, _indexed_topic2)
       }
-      if iszero(iszero(extcodesize(dst))) {
-        mstore(0, shl(224, 3155786881))
-        mstore(4, operator)
-        mstore(36, src)
-        mstore(68, 160)
-        mstore(100, 256)
-        mstore(132, 352)
-        mstore(164, 2)
-        mstore(196, id0)
-        mstore(228, id1)
-        mstore(260, 2)
-        mstore(292, amount0)
-        mstore(324, amount1)
-        mstore(356, 0)
-        let __pf_erc1155_batch_ok := call(gas(), dst, 0, 0, 388, 0, 32)
-        if iszero(__pf_erc1155_batch_ok) {
-          revert(0, 0)
-        }
-        if lt(returndatasize(), 32) {
-          revert(0, 0)
-        }
-        let __pf_erc1155_batch_magic := mload(0)
-        if iszero(eq(__pf_erc1155_batch_magic, shl(224, 3155786881))) {
-          revert(0, 0)
+      {
+        let __pf_erc1155_batch_operator := operator
+        let __pf_erc1155_batch_from := src
+        let __pf_erc1155_batch_to := dst
+        let __pf_erc1155_batch_id0 := id0
+        let __pf_erc1155_batch_amount0 := amount0
+        let __pf_erc1155_batch_id1 := id1
+        let __pf_erc1155_batch_amount1 := amount1
+        if iszero(iszero(extcodesize(__pf_erc1155_batch_to))) {
+          mstore(0, shl(224, 3155786881))
+          mstore(4, __pf_erc1155_batch_operator)
+          mstore(36, __pf_erc1155_batch_from)
+          mstore(68, 160)
+          mstore(100, 256)
+          mstore(132, 352)
+          mstore(164, 2)
+          mstore(196, __pf_erc1155_batch_id0)
+          mstore(228, __pf_erc1155_batch_id1)
+          mstore(260, 2)
+          mstore(292, __pf_erc1155_batch_amount0)
+          mstore(324, __pf_erc1155_batch_amount1)
+          mstore(356, 0)
+          let __pf_erc1155_batch_ok := call(gas(), __pf_erc1155_batch_to, 0, 0, 388, 0, 32)
+          if iszero(__pf_erc1155_batch_ok) {
+            revert(0, 0)
+          }
+          if lt(returndatasize(), 32) {
+            revert(0, 0)
+          }
+          let __pf_erc1155_batch_magic := mload(0)
+          if iszero(eq(__pf_erc1155_batch_magic, shl(224, 3155786881))) {
+            revert(0, 0)
+          }
         }
       }
     }

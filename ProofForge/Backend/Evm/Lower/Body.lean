@@ -81,20 +81,28 @@ def abiParamPlan
     (context : String)
     (name : String)
     (type : ValueType)
-    (headWordIndex : Nat) : Except LowerError AbiParamPlan := do
+    (headWordIndex : Nat)
+    (abiWord? : Option String := none) : Except LowerError AbiParamPlan := do
   let wordTypes ← abiValueWordTypes module s!"{context} parameter `{name}`" type
   let localNames ←
     if abiTypeIsDynamic type then
       .ok #[dynamicParamLengthName name, dynamicParamDataPtrName name]
     else
       abiValueParamNames module s!"{context} parameter `{name}`" name type
-  .ok { name, type, wordTypes, headWordIndex, localNames }
+  .ok { name, type, abiWord?, wordTypes, headWordIndex, localNames }
 
 def entrypointParamPlans (module : Module) (entrypoint : Entrypoint) :
     Except LowerError (Array AbiParamPlan) := do
   let (_, params) ← entrypoint.params.foldlM (init := (0, #[])) fun acc param => do
     let (headWordIndex, params) := acc
-    let paramPlan ← abiParamPlan module s!"entrypoint `{entrypoint.name}`" param.fst param.snd headWordIndex
+    let paramIndex := params.size
+    let abiWord? :=
+      if h : paramIndex < entrypoint.paramAbiWords.size then
+        entrypoint.paramAbiWords[paramIndex]
+      else
+        none
+    let paramPlan ← abiParamPlan module s!"entrypoint `{entrypoint.name}`" param.fst param.snd
+      headWordIndex abiWord?
     .ok (headWordIndex + paramPlan.headWordCount, params.push paramPlan)
   .ok params
 
@@ -1269,7 +1277,12 @@ mutual
     | .storageScalarWrite stateId value => do
         let valuePlan ← buildExprPlan module env value
         match scalarStorageTargetPlan? module stateId with
-        | some target => .ok (.storageScalarWriteTarget target valuePlan)
+        | some target =>
+            let target := {
+              target with
+                writeSemantics := scalarStorageWriteSemantics module valuePlan
+            }
+            .ok (.storageScalarWriteTarget target valuePlan)
         | none => .ok (.storageScalarWrite stateId valuePlan)
     | .storageScalarAssignOp stateId op value => do
         let valuePlan ← buildExprPlan module env value

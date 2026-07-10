@@ -1,20 +1,12 @@
-# Aleo Examples
+# Aleo backend fixtures
 
-This directory contains golden fixtures for the Aleo Leo sourcegen backend.
+| File | Role |
+|------|------|
+| `Counter.golden.leo` | Road 1 Leo sourcegen golden |
+| `Counter.golden.aleo` | Z2 Aleo Instructions golden (`leo build` of Counter.leo) |
+| `PureMath.golden.leo` | Pure-math Leo fixture |
 
-## Files
-
-- `PureMath.golden.leo` — executable pure-fragment output for
-  `proof-forge emit --target aleo-leo --fixture pure-math --format leo`.
-
-The full portable Counter intentionally has no Leo golden: Leo 4.0.2 cannot
-surface its mapping-backed `get() -> U64` result from `final`, so the backend
-fails closed instead of emitting an ABI-incompatible `get() -> Final`.
-
-## Updating the golden fixture
-
-After changing the Aleo backend, regenerate the fixture through the target-first
-CLI:
+Regenerate the pure-math Leo fixture through the target-first CLI:
 
 ```bash
 lake build
@@ -22,4 +14,15 @@ lake build
 cp build/aleo/PureMath.leo Examples/Backend/Aleo/PureMath.golden.leo
 ```
 
-Then review the diff before committing.
+Regenerate the Counter Aleo Instructions golden through Leo:
+
+```sh
+mkdir -p build/aleo/z2-counter-golden/src
+cp Examples/Backend/Aleo/Counter.golden.leo build/aleo/z2-counter-golden/src/main.leo
+printf '{"program":"counter.aleo","version":"0.1.0","description":"","license":"Apache-2.0"}\n' \
+  > build/aleo/z2-counter-golden/program.json
+(cd build/aleo/z2-counter-golden && leo build)
+cp build/aleo/z2-counter-golden/build/main.aleo Examples/Backend/Aleo/Counter.golden.aleo
+```
+
+Gate: `just aleo-aleo-goldens` / `just aleo-instructions-direct`

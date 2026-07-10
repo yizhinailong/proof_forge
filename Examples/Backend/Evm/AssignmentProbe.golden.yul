@@ -5,6 +5,9 @@ object "AssignmentProbe" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_AssignmentProbe_reassignment(calldataload(4))
       mstore(0, _r)
       return(0, 32)

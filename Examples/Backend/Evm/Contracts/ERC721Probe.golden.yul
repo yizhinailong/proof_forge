@@ -5,12 +5,24 @@ object "ERC721Probe" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_ERC721Probe_ownerOf(calldataload(4))
       mstore(0, _r)
       return(0, 32)
     }
     case 0x23b872dd {
       if lt(calldatasize(), 100) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
         revert(0, 0)
       }
       f_ERC721Probe_transferFrom(calldataload(4), calldataload(36), calldataload(68))
@@ -20,6 +32,15 @@ object "ERC721Probe" {
       if lt(calldatasize(), 100) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_ERC721Probe_safeTransferFrom(calldataload(4), calldataload(36), calldataload(68))
       return(0, 0)
     }
@@ -27,11 +48,20 @@ object "ERC721Probe" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_ERC721Probe_mint(calldataload(4), calldataload(36))
       return(0, 0)
     }
     case 0x42966c68 {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
         revert(0, 0)
       }
       f_ERC721Probe_burn(calldataload(4))
@@ -97,23 +127,29 @@ object "ERC721Probe" {
         log4(0, 0, _topic0, _indexed_topic0, _indexed_topic1, _indexed_topic2)
       }
       {
-        if iszero(iszero(extcodesize(recipient))) {
-          mstore(0, shl(224, 353073666))
-          mstore(4, operator)
-          mstore(36, holder)
-          mstore(68, tokenId)
-          mstore(100, 128)
-          mstore(132, 0)
-          let __pf_erc721_ok := call(gas(), recipient, 0, 0, 164, 0, 32)
-          if iszero(__pf_erc721_ok) {
-            revert(0, 0)
-          }
-          if lt(returndatasize(), 32) {
-            revert(0, 0)
-          }
-          let __pf_erc721_magic := mload(0)
-          if iszero(eq(__pf_erc721_magic, shl(224, 353073666))) {
-            revert(0, 0)
+        {
+          let __pf_erc721_operator := operator
+          let __pf_erc721_from := holder
+          let __pf_erc721_to := recipient
+          let __pf_erc721_token_id := tokenId
+          if iszero(iszero(extcodesize(__pf_erc721_to))) {
+            mstore(0, shl(224, 353073666))
+            mstore(4, __pf_erc721_operator)
+            mstore(36, __pf_erc721_from)
+            mstore(68, __pf_erc721_token_id)
+            mstore(100, 128)
+            mstore(132, 0)
+            let __pf_erc721_ok := call(gas(), __pf_erc721_to, 0, 0, 164, 0, 32)
+            if iszero(__pf_erc721_ok) {
+              revert(0, 0)
+            }
+            if lt(returndatasize(), 32) {
+              revert(0, 0)
+            }
+            let __pf_erc721_magic := mload(0)
+            if iszero(eq(__pf_erc721_magic, shl(224, 353073666))) {
+              revert(0, 0)
+            }
           }
         }
       }

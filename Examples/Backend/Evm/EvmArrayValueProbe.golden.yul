@@ -40,12 +40,18 @@ object "EvmArrayValueProbe" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_EvmArrayValueProbe_dynamic_pick(calldataload(4))
       mstore(0, _r)
       return(0, 32)
     }
     case 0xf45e18ed {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_EvmArrayValueProbe_dynamic_update(calldataload(4))
@@ -76,12 +82,21 @@ object "EvmArrayValueProbe" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_EvmArrayValueProbe_nested_dynamic_pick(calldataload(4), calldataload(36))
       mstore(0, _r)
       return(0, 32)
     }
     case 0x731f5daf {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_EvmArrayValueProbe_nested_dynamic_row_pick(calldataload(4))
@@ -92,12 +107,21 @@ object "EvmArrayValueProbe" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_EvmArrayValueProbe_nested_dynamic_update(calldataload(4), calldataload(36))
       mstore(0, _r)
       return(0, 32)
     }
     case 0x69437a57 {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_EvmArrayValueProbe_nested_dynamic_row_update(calldataload(4))

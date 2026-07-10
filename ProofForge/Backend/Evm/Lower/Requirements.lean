@@ -257,6 +257,83 @@ mutual
         body.any stmtPlanUsesCheckedArithmetic
 end
 
+/-- Detect an explicitly wrapping arithmetic node in a value plan.
+
+This complements `exprPlanUsesCheckedArithmetic`: a direct scalar write with no
+arithmetic inherits `Module.overflowChecked`, while an explicit wrapping
+add/sub/mul keeps wrapping semantics through casts and other expression nodes. -/
+partial def exprPlanUsesWrappingArithmetic : ExprPlan → Bool
+  | .literalWord _ | .local _ | .calldataWord _ | .nativeValue
+  | .storageLoad _ | .effect _ =>
+      false
+  | .builtin _ args | .helperCall _ args | .arrayLit _ args =>
+      args.any exprPlanUsesWrappingArithmetic
+  | .checkedArith op lhs rhs overflowChecked =>
+      (!overflowChecked && needsCheckedArithmetic op) ||
+        exprPlanUsesWrappingArithmetic lhs ||
+        exprPlanUsesWrappingArithmetic rhs
+  | .arrayGet lhs rhs
+  | .hashTwoToOne lhs rhs =>
+      exprPlanUsesWrappingArithmetic lhs || exprPlanUsesWrappingArithmetic rhs
+  | .ecrecover a b c d
+  | .hashPack a b c d
+  | .hashValue a b c d =>
+      exprPlanUsesWrappingArithmetic a ||
+        exprPlanUsesWrappingArithmetic b ||
+        exprPlanUsesWrappingArithmetic c ||
+        exprPlanUsesWrappingArithmetic d
+  | .eip712PermitDigest a b c d e f =>
+      exprPlanUsesWrappingArithmetic a ||
+        exprPlanUsesWrappingArithmetic b ||
+        exprPlanUsesWrappingArithmetic c ||
+        exprPlanUsesWrappingArithmetic d ||
+        exprPlanUsesWrappingArithmetic e ||
+        exprPlanUsesWrappingArithmetic f
+  | .crosscallAbiPacked target _ _ _ _ _ _ _ _ =>
+      exprPlanUsesWrappingArithmetic target
+  | .context field =>
+      match field with
+      | .blockHash blockNumber => exprPlanUsesWrappingArithmetic blockNumber
+      | _ => false
+  | .crosscall _ target methodId callValue? args _ =>
+      exprPlanUsesWrappingArithmetic target ||
+        exprPlanUsesWrappingArithmetic methodId ||
+        (match callValue? with
+        | some callValue => exprPlanUsesWrappingArithmetic callValue
+        | none => false) ||
+        args.any fun arg =>
+          match arg with
+          | .expr value => exprPlanUsesWrappingArithmetic value
+          | .local .. | .storage .. => false
+  | .create _ callValue salt? _ =>
+      exprPlanUsesWrappingArithmetic callValue ||
+        (match salt? with
+        | some salt => exprPlanUsesWrappingArithmetic salt
+        | none => false)
+  | .cast source _
+  | .structField source _
+  | .memoryArrayLength source
+  | .hash source =>
+      exprPlanUsesWrappingArithmetic source
+  | .localArrayGet _ path _ =>
+      path.any exprPlanUsesWrappingArithmetic
+  | .memoryArrayNew _ length =>
+      exprPlanUsesWrappingArithmetic length
+  | .memoryArrayGet array index =>
+      exprPlanUsesWrappingArithmetic array ||
+        exprPlanUsesWrappingArithmetic index
+  | .structLit _ fields =>
+      fields.any (fun field => exprPlanUsesWrappingArithmetic field.snd)
+
+def scalarStorageWriteSemantics
+    (module : Module) (value : ExprPlan) : ScalarStorageWriteSemantics :=
+  if exprPlanUsesCheckedArithmetic value then
+    .checked
+  else if exprPlanUsesWrappingArithmetic value then
+    .wrapping
+  else
+    ScalarStorageWriteSemantics.fromOverflowChecked module.overflowChecked
+
 def entrypointsUseCheckedArithmetic (entrypoints : Array EntrypointPlan) : Bool :=
   entrypoints.any fun entrypoint => entrypoint.body.any stmtPlanUsesCheckedArithmetic
 

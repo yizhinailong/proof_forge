@@ -957,35 +957,61 @@ def lowerToken2022PausableTagData (layoutName : String) (subTag : Nat) : Array A
     s!"{layoutName}: u8 instruction=44, u8 pausable_instruction={subTag}"
     (token2022PausableTag subTag)).1
 
+/-- Max memo payload packed into the CPI instruction-data stack window
+    (`cpiInstructionDataOffset`..`cpiProgramIdOffset` = 128 bytes). -/
+def memoMaxPayloadBytes : Nat := 128
+
 /-- Memo CPI data: raw bytes from the input binding. No discriminator — the
-    Memo program accepts arbitrary bytes as instruction data. This initial
-    lowering copies up to 8 bytes (one u64 word) from the binding's offset;
-    longer memos require a memcpy loop (future work). The binding's `byteSize`
-    records the memo length for metadata. -/
-def lowerMemoData (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) : Array AstNode :=
+    Memo program accepts arbitrary bytes as instruction data.
+    L1.3: copy `min(binding.byteSize, 128)` bytes (supports u64 and
+    `fixedArray .u8 N` instruction params). -/
+def lowerMemoData (valueBindings : Array CpiValueBinding) (cpi : CpiInvoke) :
+    Array AstNode × Nat :=
   match cpiMetadataValue? cpi "solana.cpi.memo_source" with
   | some source =>
       match cpiValueBinding? valueBindings source with
       | some binding =>
-          let len := binding.byteSize
-          let loadValue :=
-            if binding.relativeToInstructionData then
-              loadSavedInstructionDataPtr .r7 ++ #[
-                .instruction { opcode := .ldxdw, dst := some .r3, src := some .r7, off := some (.num binding.absOff) }
-              ]
-            else
-              #[
-                .instruction { opcode := .ldxdw, dst := some .r3, src := some .r1, off := some (.num binding.absOff) }
-              ]
-          #[
-            .comment s!"solana.cpi.data memo.memo: raw bytes (len={len}) from {binding.sourceKind} {source}"
-          ] ++ stackPtr .r8 cpiInstructionDataOffset ++ loadValue ++ #[
-            storeReg .stxdw .r8 0 .r3
-          ]
+          let len := min binding.byteSize memoMaxPayloadBytes
+          if len == 0 then
+            (#[.comment s!"memo.memo: empty binding for `{source}`"], 0)
+          else
+            let base :=
+              if binding.relativeToInstructionData then
+                loadSavedInstructionDataPtr .r7
+              else
+                #[.instruction { opcode := .mov64, dst := some .r7, src := some .r1 }]
+            -- Fast path: single ldxdw/stxdw for classic 8-byte (u64) memos.
+            let copy :=
+              if len == 8 then
+                #[
+                  .instruction {
+                    opcode := .ldxdw, dst := some .r3, src := some .r7,
+                    off := some (.num binding.absOff)
+                  },
+                  storeReg .stxdw .r8 0 .r3
+                ]
+              else
+                -- Byte-by-byte copy (same pattern as signer-seed input bytes).
+                (List.range len).foldl
+                  (fun acc idx =>
+                    acc ++ #[
+                      .instruction {
+                        opcode := .ldxb, dst := some .r3, src := some .r7,
+                        off := some (.num (binding.absOff + idx))
+                      },
+                      .instruction {
+                        opcode := .stxb, dst := some .r8, off := some (.num idx),
+                        src := some .r3
+                      }
+                    ])
+                  #[]
+            (#[
+              .comment s!"solana.cpi.data memo.memo: raw bytes (len={len}) from {binding.sourceKind} {source}"
+            ] ++ stackPtr .r8 cpiInstructionDataOffset ++ base ++ copy, len)
       | none =>
-          #[.comment s!"memo.memo: source `{source}` not found in bindings — empty data"]
+          (#[.comment s!"memo.memo: source `{source}` not found in bindings — empty data"], 0)
   | none =>
-      #[.comment "memo.memo: no memo_source metadata — empty data"]
+      (#[.comment "memo.memo: no memo_source metadata — empty data"], 0)
 
 def lowerAssociatedTokenCreateData (layout : String) (tag : Nat) : Array AstNode :=
   let fields := if tag == 1 then associatedTokenCreateIdempotent else associatedTokenCreate
@@ -1092,7 +1118,7 @@ def lowerCpiInstructionData (accountBindings : Array CpiAccountBinding)
   | some "token-2022.resume" =>
       (lowerToken2022PausableTagData "token-2022.resume" 2, token2022PausableTagDataLen)
   | some "memo.memo" =>
-      (lowerMemoData valueBindings cpi, 8)
+      lowerMemoData valueBindings cpi
   | some dl =>
       -- Defense in depth: preflight should reject first; never pack empty ix data.
       (#[

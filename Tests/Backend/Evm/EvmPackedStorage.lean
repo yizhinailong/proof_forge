@@ -73,6 +73,149 @@ def testWrappingAssignOpTruncatesToFieldWidth : IO Unit := do
     "add(and(shr(8, sload(7)), 255), 1)"
     "wrapping packed assign_op"
 
+def requirePackedWidthGuard
+    (statements : Array Statement)
+    (expectedValue expectedMask message : String) : IO Unit := do
+  require (statements.size == 1) s!"{message}: expected one scoped statement"
+  let rendered := renderStatement statements[0]!
+  require
+    (rendered.contains s!"let __pf_packed_value := {expectedValue}")
+    s!"{message}: write value must be evaluated once, got: {rendered}"
+  require
+    (rendered.contains s!"if gt(__pf_packed_value, {expectedMask})")
+    s!"{message}: checked write must guard destination width, got: {rendered}"
+
+def testDirectWriteSemanticsAreExplicit : IO Unit := do
+  let checkedTarget : ScalarStorageTargetPlan := {
+    slot := .scalarSlot 7
+    byteOffset := 1
+    byteWidth := 1
+    writeSemantics := .checked
+  }
+  let wrappingTarget : ScalarStorageTargetPlan := {
+    checkedTarget with writeSemantics := .wrapping
+  }
+  let lowerExpr : ProofForge.IR.Expr → Except String Expr :=
+    fun _ => .error "raw expression lowering is not expected"
+  let lowerEffect : EffectPlan → Except String Expr :=
+    fun _ => .error "nested effect lowering is not expected"
+  let checkedLiteral ←
+    match scalarStorageTargetEffectPlanStatements
+        id lowerExpr lowerEffect
+        (.storageScalarWriteTarget checkedTarget (.literalWord 256)) with
+    | .ok statements => pure statements
+    | .error err => throw <| IO.userError err
+  requirePackedWidthGuard checkedLiteral "256" "255" "checked packed literal write"
+  let checkedLocal ←
+    match scalarStorageTargetEffectPlanStatements
+        id lowerExpr lowerEffect
+        (.storageScalarWriteTarget checkedTarget (.local "value")) with
+    | .ok statements => pure statements
+    | .error err => throw <| IO.userError err
+  requirePackedWidthGuard checkedLocal "value" "255" "checked packed local write"
+  let wrappingLiteral ←
+    match scalarStorageTargetEffectPlanStatements
+        id lowerExpr lowerEffect
+        (.storageScalarWriteTarget wrappingTarget (.literalWord 256)) with
+    | .ok statements => pure statements
+    | .error err => throw <| IO.userError err
+  let wrappingRendered := renderStatement wrappingLiteral[0]!
+  require
+    (!wrappingRendered.contains "if gt(")
+    s!"wrapping packed write must not inject a checked guard, got: {wrappingRendered}"
+  require
+    (wrappingRendered.contains "shl(8, and(256, 255))")
+    s!"wrapping packed write must deliberately truncate, got: {wrappingRendered}"
+
+def testLowerCarriesDirectWriteSemantics : IO Unit := do
+  let module := ProofForge.IR.Examples.EvmPackedStorageProbe.module
+  let requireMode
+      (effect : ProofForge.IR.Effect)
+      (env : ProofForge.Backend.Evm.Validate.TypeEnv)
+      (expected : ScalarStorageWriteSemantics)
+      (label : String) : IO Unit := do
+    match ProofForge.Backend.Evm.Lower.buildEffectPlan module env effect with
+    | .ok (.storageScalarWriteTarget target _) =>
+        require (target.writeSemantics == expected)
+          s!"{label}: wrong planned write semantics"
+    | .ok _ => throw <| IO.userError s!"{label}: expected planned scalar target"
+    | .error err => throw <| IO.userError s!"{label}: {err.message}"
+  requireMode
+    (.storageScalarWrite "counter" (.literal (.u8 1)))
+    #[]
+    .checked
+    "checked literal"
+  requireMode
+    (.storageScalarWrite "counter" (.local "candidate"))
+    #[{ name := "candidate", type := .u8, isMutable := false }]
+    .checked
+    "checked local"
+  requireMode
+    (.storageScalarWrite "counter"
+      (.add (.literal (.u8 255)) (.literal (.u8 1)) false))
+    #[]
+    .wrapping
+    "explicit wrapping expression"
+
+def requireAbiUpperBoundGuard
+    (type : ProofForge.IR.ValueType)
+    (expectedLimit label : String) : IO Unit := do
+  let some statement := abiWordValidationStatement? (.id "value") type
+    | throw <| IO.userError s!"{label}: missing ABI upper-bound guard"
+  let rendered := renderStatement statement
+  require
+    (rendered.contains s!"gt(value, {expectedLimit})")
+    s!"{label}: wrong ABI upper-bound guard, got: {rendered}"
+
+def testNarrowAbiWordGuards : IO Unit := do
+  requireAbiUpperBoundGuard .u8 "255" "u8"
+  requireAbiUpperBoundGuard .u32 "4294967295" "u32"
+  requireAbiUpperBoundGuard .u64 "18446744073709551615" "u64"
+  requireAbiUpperBoundGuard .u128 "340282366920938463463374607431768211455" "u128"
+  requireAbiUpperBoundGuard .address
+    "1461501637330902918203684832716283019655932542975"
+    "address"
+  requireAbiUpperBoundGuard .bool "1" "bool"
+
+def testAbiWordOverridesDriveCanonicalGuards : IO Unit := do
+  let entrypoint : ProofForge.IR.Entrypoint := {
+    name := "abi_overrides"
+    params := #[
+      ("recipient", .u64),
+      ("interface_id", .u64),
+      ("plain", .u64)
+    ]
+    paramAbiWords := #[some "address", some "bytes4", none]
+    body := #[]
+  }
+  let module : ProofForge.IR.Module := {
+    name := "AbiOverrideProbe"
+    state := #[]
+    entrypoints := #[entrypoint]
+  }
+  let plans ← match ProofForge.Backend.Evm.Lower.entrypointParamPlans module entrypoint with
+    | .ok plans => pure plans
+    | .error err => throw <| IO.userError err.message
+  require (plans.size == 3) "ABI override probe must lower all parameters"
+  require (plans[0]!.abiWord? == some "address")
+    "address ABI override must survive the EVM plan boundary"
+  require (plans[1]!.abiWord? == some "bytes4")
+    "bytes4 ABI override must survive the EVM plan boundary"
+  require (plans[2]!.abiWord?.isNone)
+    "plain U64 parameter must remain override-free"
+  let rendered := String.intercalate "\n"
+    ((abiParamHeadValidationStatements plans).toList.map renderStatement)
+  require
+    (rendered.contains "gt(calldataload(4), 1461501637330902918203684832716283019655932542975)")
+    s!"address override must use the 160-bit canonical guard, got: {rendered}"
+  require
+    (rendered.contains
+      "and(calldataload(36), 26959946667150639794667015087019630673637144422540572481103610249215)")
+    s!"bytes4 override must reject non-zero right padding, got: {rendered}"
+  require
+    (rendered.contains "gt(calldataload(68), 18446744073709551615)")
+    s!"plain U64 parameters must retain their 64-bit guard, got: {rendered}"
+
 def testConstructorUsesLowOrderPacking : IO Unit := do
   let state : StorageStatePlan := {
     id := "counter"
@@ -110,6 +253,15 @@ def testWrappingFixtureMasksBeforeNeighborBits : IO Unit := do
     (yul.contains "f_EvmPackedStorageProbe_packed_checked_write_overflow_reverts")
     "packed storage fixture must expose the checked direct-write overflow regression entrypoint"
   require
+    (yul.contains "f_EvmPackedStorageProbe_packed_checked_literal_write_overflow_reverts")
+    "packed storage fixture must expose the checked literal-write regression entrypoint"
+  require
+    (yul.contains "f_EvmPackedStorageProbe_packed_checked_local_write_overflow_reverts")
+    "packed storage fixture must expose the checked local-write regression entrypoint"
+  require
+    (yul.contains "f_EvmPackedStorageProbe_packed_checked_write_param")
+    "packed storage fixture must expose the narrow calldata regression entrypoint"
+  require
     (yul.contains "if gt(__pf_packed_value, 255)")
     "checked packed assign_op fixture must reject values above the field mask"
   require
@@ -118,11 +270,24 @@ def testWrappingFixtureMasksBeforeNeighborBits : IO Unit := do
   require
     (yul.contains "let __pf_packed_value := __pf_checked_add(255, 1)")
     "checked packed direct writes must evaluate the checked expression once before the width guard"
+  require
+    (yul.contains "let __pf_packed_value := 256")
+    "checked packed literal writes must guard values without arithmetic"
+  require
+    (yul.contains "let __pf_packed_value := candidate")
+    "checked packed local writes must guard values without arithmetic"
+  require
+    (yul.contains "if gt(calldataload(4), 255)")
+    "u8 entrypoint calldata must reject non-canonical words"
 
 def main : IO UInt32 := do
   testLowOrderReadAndMaskedWrite
   testCheckedAssignOpRejectsNarrowOverflow
   testWrappingAssignOpTruncatesToFieldWidth
+  testDirectWriteSemanticsAreExplicit
+  testLowerCarriesDirectWriteSemantics
+  testNarrowAbiWordGuards
+  testAbiWordOverridesDriveCanonicalGuards
   testConstructorUsesLowOrderPacking
   testWrappingFixtureMasksBeforeNeighborBits
   IO.println "evm-packed-storage: ok"

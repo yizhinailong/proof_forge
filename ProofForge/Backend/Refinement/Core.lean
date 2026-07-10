@@ -1276,7 +1276,7 @@ discharging the premise over its lowerable fragment (currently via a
 theorem lowerable_implies_lowering_total
     (semantics : TargetSemantics) (lowerModule : Module → Except String α)
     (module : Module)
-    (h : semantics.lowerableAccepts module = true)
+    (_h : semantics.lowerableAccepts module = true)
     (hbridge : (lowerModule module).isOk = true) :
     (lowerModule module).isOk = true :=
   hbridge

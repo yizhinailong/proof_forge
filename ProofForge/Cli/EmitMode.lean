@@ -89,6 +89,7 @@ inductive EmitMode where
   | evmFallbackIrYul
   | evmFallbackIrBytecode
   | counterIrPsy
+  | counterIrDpnJson
   | eventIrPsy
   | crosscallIrPsy
   | expressionPredicateIrPsy
@@ -126,6 +127,7 @@ inductive EmitMode where
   | solanaSplTokenCloseAccountCpiSbpf
   | solanaSplTokenAuthorityCpiSbpf
   | solanaAssociatedTokenCpiSbpf
+  | solanaMemoCpiSbpf
   | solanaSplToken2022CpiSbpf
   | solanaSplToken2022PausableCpiSbpf
   | solanaSplToken2022TransferHookSbpf
@@ -138,6 +140,7 @@ inductive EmitMode where
   | solanaSplTokenCloseAccountCpiElf
   | solanaSplTokenAuthorityCpiElf
   | solanaAssociatedTokenCpiElf
+  | solanaMemoCpiElf
   | solanaSplToken2022CpiElf
   | solanaSplToken2022PausableCpiElf
   | solanaSplToken2022TransferHookElf
@@ -160,6 +163,7 @@ inductive EmitMode where
   | hashEmitWat
   | mapEmitWat
   | counterIrLeo
+  | counterIrAleo
   | pureMathIrLeo
   | counterIrCosmWasm
   | counterIrAptos
@@ -269,6 +273,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .evmFallbackIrYul
   | .evmFallbackIrBytecode
   | .counterIrPsy
+  | .counterIrDpnJson
   | .eventIrPsy
   | .crosscallIrPsy
   | .expressionPredicateIrPsy
@@ -306,6 +311,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .solanaSplTokenCloseAccountCpiSbpf
   | .solanaSplTokenAuthorityCpiSbpf
   | .solanaAssociatedTokenCpiSbpf
+  | .solanaMemoCpiSbpf
   | .solanaSplToken2022CpiSbpf
   | .solanaSplToken2022PausableCpiSbpf
   | .solanaSplToken2022TransferHookSbpf
@@ -318,6 +324,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .solanaSplTokenCloseAccountCpiElf
   | .solanaSplTokenAuthorityCpiElf
   | .solanaAssociatedTokenCpiElf
+  | .solanaMemoCpiElf
   | .solanaSplToken2022CpiElf
   | .solanaSplToken2022PausableCpiElf
   | .solanaSplToken2022TransferHookElf
@@ -340,6 +347,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .hashEmitWat
   | .mapEmitWat
   | .counterIrLeo
+  | .counterIrAleo
   | .pureMathIrLeo
   | .counterIrTs
   | .counterIrCosmWasm

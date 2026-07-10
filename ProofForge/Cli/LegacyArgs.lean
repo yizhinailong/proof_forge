@@ -239,6 +239,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .evmFallbackIrBytecode }
   | "--emit-counter-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrPsy }
+  | "--emit-counter-ir-dpn-json" :: rest, opts =>
+      parseArgs rest { opts with mode := .counterIrDpnJson }
   | "--emit-event-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .eventIrPsy }
   | "--emit-crosscall-ir-psy" :: rest, opts =>
@@ -315,6 +317,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .solanaSplTokenAuthorityCpiSbpf }
   | "--emit-solana-associated-token-cpi-sbpf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaAssociatedTokenCpiSbpf }
+  | "--emit-solana-memo-cpi-sbpf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaMemoCpiSbpf }
   | "--emit-solana-spl-token-2022-cpi-sbpf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaSplToken2022CpiSbpf }
   | "--emit-solana-spl-token-2022-pausable-cpi-sbpf" :: rest, opts =>
@@ -341,6 +345,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .solanaSplTokenAuthorityCpiElf }
   | "--solana-associated-token-cpi-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaAssociatedTokenCpiElf }
+  | "--solana-memo-cpi-elf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaMemoCpiElf }
   | "--solana-spl-token-2022-cpi-elf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaSplToken2022CpiElf }
   | "--solana-spl-token-2022-pausable-cpi-elf" :: rest, opts =>
@@ -387,6 +393,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .mapEmitWat }
   | "--emit-counter-ir-leo" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrLeo }
+  | "--emit-counter-ir-aleo" :: rest, opts =>
+      parseArgs rest { opts with mode := .counterIrAleo }
   | "--emit-pure-math-ir-leo" :: rest, opts =>
       parseArgs rest { opts with mode := .pureMathIrLeo }
   | "--emit-counter-ir-cosmwasm" :: rest, opts =>

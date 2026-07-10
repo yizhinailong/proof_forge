@@ -36,6 +36,10 @@ def renderContractSpecEvmYul (opts : CliOptions) (spec : ProofForge.Contract.Con
   match ProofForge.Target.resolveSpec ProofForge.Target.evm spec with
   | .ok _ => pure ()
   | .error err => throw <| IO.userError err.render
+  match ProofForge.Backend.Evm.ConstructorInit.validateAtomicUupsConstructor
+      spec.module spec.constructorParams spec.constructorInitBindings opts.evmConstructorArgsHex with
+  | .ok () => pure ()
+  | .error err => throw <| IO.userError err.render
   -- PF-P2-03: apply deploy-time peer map so logical peer ids become `0x…`
   -- host addresses (and method pool strings stay for selector resolve).
   let module0 := ProofForge.Target.PeerMap.applyToModule spec.module opts.peerMap
@@ -184,11 +188,11 @@ def writeEvmInitCode
   let initCode ←
     match module? with
     | some module =>
-        if module.proxyPattern? == some "uups" &&
-            !constructorInitBindings.isEmpty && argsTrimmed.isEmpty then
-          throw <| IO.userError
-            "UUPS proxy deployment requires constructor arguments for atomic implementation and admin initialization"
-        else if ProofForge.Backend.Evm.ConstructorInit.shouldUseDeployObject constructorInitBindings constructorArgsHex then
+        match ProofForge.Backend.Evm.ConstructorInit.validateAtomicUupsConstructor
+            module specParams constructorInitBindings constructorArgsHex with
+        | .error err => throw <| IO.userError err.render
+        | .ok () => pure ()
+        if ProofForge.Backend.Evm.ConstructorInit.shouldUseDeployObject constructorInitBindings constructorArgsHex then
           match ProofForge.Backend.Evm.ConstructorInit.renderDeployObject
               module.name module specParams constructorInitBindings runtimeTrimmed argsByteLen with
           | .error err => throw <| IO.userError err.render

@@ -5,11 +5,20 @@ object "Ierc20Client" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_Ierc20Client_pushTokens(calldataload(4), calldataload(36))
       return(0, 0)
     }
     case 0x9f700267 {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_Ierc20Client_readBalance(calldataload(4))

@@ -466,6 +466,10 @@ inductive StmtPlan where
 structure AbiParamPlan where
   name : String
   type : ValueType
+  /-- Host ABI scalar override carried from `Entrypoint.paramAbiWords`.
+  This must survive planning because fixed bytes and addresses have canonical
+  calldata encodings that differ from their portable IR carrier type. -/
+  abiWord? : Option String := none
   wordTypes : Array ValueType
   headWordIndex : Nat
   localNames : Array String
@@ -474,6 +478,7 @@ structure AbiParamPlan where
 instance : Inhabited AbiParamPlan := ⟨{
   name := "",
   type := .unit,
+  abiWord? := none,
   wordTypes := #[],
   headWordIndex := 0,
   localNames := #[]

@@ -5,6 +5,9 @@ object "EventProbe" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_EventProbe_emit_value_event(calldataload(4))
       return(0, 0)
     }
@@ -25,6 +28,12 @@ object "EventProbe" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_EventProbe_emit_indexed_event(calldataload(4), calldataload(36))
       return(0, 0)
     }
@@ -38,11 +47,23 @@ object "EventProbe" {
       if gt(calldataload(36), 4294967295) {
         revert(0, 0)
       }
+      if gt(calldataload(100), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_EventProbe_emit_indexed_typed_scalar_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
       return(0, 0)
     }
     case 0x2d00700c {
       if lt(calldatasize(), 100) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
         revert(0, 0)
       }
       f_EventProbe_emit_two_indexed_event(calldataload(4), calldataload(36), calldataload(68))
@@ -52,11 +73,29 @@ object "EventProbe" {
       if lt(calldatasize(), 132) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_EventProbe_emit_three_indexed_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
       return(0, 0)
     }
     case 0x35361bda {
       if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
         revert(0, 0)
       }
       f_EventProbe_emit_pair_event(calldataload(4), calldataload(36))
@@ -66,11 +105,23 @@ object "EventProbe" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_EventProbe_emit_storage_pair_event(calldataload(4), calldataload(36))
       return(0, 0)
     }
     case 0x99eb21de {
       if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
         revert(0, 0)
       }
       f_EventProbe_emit_storage_array_event(calldataload(4), calldataload(36))
@@ -80,11 +131,29 @@ object "EventProbe" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_EventProbe_emit_array_event(calldataload(4), calldataload(36))
       return(0, 0)
     }
     case 0x85611e74 {
       if lt(calldatasize(), 132) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 18446744073709551615) {
         revert(0, 0)
       }
       f_EventProbe_emit_pair_array_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
@@ -94,11 +163,47 @@ object "EventProbe" {
       if lt(calldatasize(), 132) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_EventProbe_emit_matrix_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
       return(0, 0)
     }
     case 0x315aac0a {
       if lt(calldatasize(), 260) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(132), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(164), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(196), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(228), 18446744073709551615) {
         revert(0, 0)
       }
       f_EventProbe_emit_pair_matrix_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100), calldataload(132), calldataload(164), calldataload(196), calldataload(228))
@@ -108,11 +213,32 @@ object "EventProbe" {
       if lt(calldatasize(), 132) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_EventProbe_emit_storage_pair_array_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
       return(0, 0)
     }
     case 0xe027f054 {
       if lt(calldatasize(), 100) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
         revert(0, 0)
       }
       f_EventProbe_emit_indexed_pair_event(calldataload(4), calldataload(36), calldataload(68))
@@ -122,11 +248,29 @@ object "EventProbe" {
       if lt(calldatasize(), 100) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_EventProbe_emit_indexed_storage_pair_event(calldataload(4), calldataload(36), calldataload(68))
       return(0, 0)
     }
     case 0x42a8056e {
       if lt(calldatasize(), 100) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
         revert(0, 0)
       }
       f_EventProbe_emit_indexed_storage_array_event(calldataload(4), calldataload(36), calldataload(68))
@@ -136,11 +280,35 @@ object "EventProbe" {
       if lt(calldatasize(), 100) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_EventProbe_emit_indexed_array_event(calldataload(4), calldataload(36), calldataload(68))
       return(0, 0)
     }
     case 0x45440e6c {
       if lt(calldatasize(), 164) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(132), 18446744073709551615) {
         revert(0, 0)
       }
       f_EventProbe_emit_indexed_storage_pair_array_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100), calldataload(132))
@@ -150,6 +318,21 @@ object "EventProbe" {
       if lt(calldatasize(), 164) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(132), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_EventProbe_emit_indexed_pair_array_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100), calldataload(132))
       return(0, 0)
     }
@@ -157,11 +340,53 @@ object "EventProbe" {
       if lt(calldatasize(), 164) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(132), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_EventProbe_emit_indexed_matrix_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100), calldataload(132))
       return(0, 0)
     }
     case 0xd1b4d456 {
       if lt(calldatasize(), 292) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(132), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(164), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(196), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(228), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(260), 18446744073709551615) {
         revert(0, 0)
       }
       f_EventProbe_emit_indexed_pair_matrix_event(calldataload(4), calldataload(36), calldataload(68), calldataload(100), calldataload(132), calldataload(164), calldataload(196), calldataload(228), calldataload(260))

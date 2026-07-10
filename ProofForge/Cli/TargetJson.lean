@@ -128,6 +128,10 @@ def solanaCpiJson (cpi : ProofForge.Backend.Solana.Extension.CpiInvoke) : String
       match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.num_token_accounts" with
       | some value => jsonString value
       | none => "null"),
+    ("memoSource",
+      match ProofForge.Backend.Solana.Extension.metadataValue? cpi.metadata "solana.cpi.memo_source" with
+      | some value => jsonString value
+      | none => "null"),
     ("signed", jsonBool cpi.signed)
   ]
 

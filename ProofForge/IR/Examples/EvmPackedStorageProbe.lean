@@ -245,6 +245,48 @@ def packedCheckedWriteOverflowReverts : Entrypoint := {
   ]
 }
 
+/-- Checked modules reject an out-of-range packed literal even when the value
+    expression contains no arithmetic node. -/
+def packedCheckedLiteralWriteOverflowReverts : Entrypoint := {
+  name := "packed_checked_literal_write_overflow_reverts"
+  selector? := some "d1614879"
+  returns := .bool
+  body := #[
+    .effect (.storageScalarWrite "flag" (boolLit false)),
+    .effect (.storageScalarWrite "tag" (u32Lit 305419896)),
+    .effect (.storageScalarWrite "counter" (u8Lit 256)),
+    .return (.effect (.storageScalarRead "flag"))
+  ]
+}
+
+/-- Checked modules also retain the destination-width guard after a value has
+    passed through a local binding. -/
+def packedCheckedLocalWriteOverflowReverts : Entrypoint := {
+  name := "packed_checked_local_write_overflow_reverts"
+  selector? := some "463dd423"
+  returns := .bool
+  body := #[
+    .effect (.storageScalarWrite "flag" (boolLit false)),
+    .effect (.storageScalarWrite "tag" (u32Lit 305419896)),
+    .letBind "candidate" .u8 (u8Lit 256),
+    .effect (.storageScalarWrite "counter" (.local "candidate")),
+    .return (.effect (.storageScalarRead "flag"))
+  ]
+}
+
+/-- ABI validation rejects non-canonical `u8` calldata before it reaches the
+    function-local packed write. -/
+def packedCheckedWriteParam : Entrypoint := {
+  name := "packed_checked_write_param"
+  selector? := some "c1244eee"
+  params := #[("candidate", .u8)]
+  returns := .u64
+  body := #[
+    .effect (.storageScalarWrite "counter" (.local "candidate")),
+    .return (.cast (.effect (.storageScalarRead "counter")) .u64)
+  ]
+}
+
 def module : Module := {
   name := "EvmPackedStorageProbe"
   state := #[
@@ -261,7 +303,10 @@ def module : Module := {
     packedAssignOp,
     packedAssignOpWraps,
     packedAssignOpOverflowReverts,
-    packedCheckedWriteOverflowReverts
+    packedCheckedWriteOverflowReverts,
+    packedCheckedLiteralWriteOverflowReverts,
+    packedCheckedLocalWriteOverflowReverts,
+    packedCheckedWriteParam
   ]
   overflowChecked := true
 }

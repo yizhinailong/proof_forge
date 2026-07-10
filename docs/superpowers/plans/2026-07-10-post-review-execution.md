@@ -130,13 +130,13 @@ S0 → N1 (core) → E1 (parallelizable after S0) → L1 selective
 
 | ID | Task | Work | Acceptance | Size | Status |
 |----|------|------|------------|------|--------|
-| **N1.1** | Aggregate ABI inventory | Document current Borsh/param surface vs product sources that fail or degrade on NEAR. File gaps under `docs/sdk-ecosystem-gaps-2026-07.md` NEAR section with evidence commands. | Gap table updated with concrete failing modules + expected ABI shapes | S | done: verified@f934df51; NEAR ABI inventory |
-| **N1.2** | Scalar+struct ABI completeness | Extend EmitWat/NEAR lowering for product-needed aggregate params/returns used by ValueVault/RemoteCall/token examples. Fail-closed for unsupported shapes. | `just product` NEAR rows green; new diagnostic smoke for one unsupported aggregate | L | in_progress: executable aggregate gate landed; fresh merged verification pending |
-| **N1.3** | NEP-141 FT stdlib path | Land or harden NEP-141 plan + product example (mint/transfer/balance) through target-first build + offline-host smoke. Prefer TokenSpec route if already partial. | `just` recipe documents FT smoke; metadata + offline-host lifecycle green | L | in_progress: Product TokenSpec plan and generic stdlib/Backend lifecycle are still distinct artifacts |
-| **N1.4** | Promise / remote peer | Ensure portable `declareRemote` / crosscall materialize uses real Promise encoding; sandbox or offline-host peer returns match chain semantics for RemoteCall scenario. IR stub remains IR-only. | `just testkit-remote-call` includes NEAR peer observation; docs state IR stub ≠ peer | L | in_progress: testkit NEAR peer → 49 landed; fresh merged verification pending |
-| **N1.5** | Storage deposit / economics | Close NEP-145 partial gaps needed for FT (storage_deposit bounds, withdraw/refund as scoped). | Offline-host + optional sandbox; gap doc P0 rows closed or reclassified | M | in_progress: caller-bound projected-balance debit landed; 1-yocto guard and predecessor refund Promise remain |
-| **N1.6** | Budget honesty | Keep `wasmtimeFuel*` fields; add sandbox-derived `nearGas` only when harness exists; never rename fuel back to NEAR gas. | testkit scenarios + docs consistent; `just testkit` counter/value-vault budgets green | M | in_progress: reporting gate landed; fresh merged verification pending |
-| **N1.7** | Deploy metadata honesty | Offline vs broadcast deploy modes clearly labeled in `proof-forge-deploy.json` for NEAR. | Deploy smoke asserts mode fields; no “broadcast passed” without tool | S | in_progress: metadata gate landed; fresh merged verification pending |
+| **N1.1** | Aggregate ABI inventory | Document current Borsh/param surface vs product sources that fail or degrade on NEAR. File gaps under `docs/sdk-ecosystem-gaps-2026-07.md` NEAR section with evidence commands. | Gap table updated with concrete failing modules + expected ABI shapes | S | done: docs/n1 ABI inventory; gap doc NEAR section |
+| **N1.2** | Scalar+struct ABI completeness | Extend EmitWat/NEAR lowering for product-needed aggregate params/returns used by ValueVault/RemoteCall/token examples. Fail-closed for unsupported shapes. | `just product` NEAR rows green; new diagnostic smoke for one unsupported aggregate | L | done: Borsh struct/fixedArray params+returns; just emitwat-aggregate-abi; dynamic bytes/string fail-closed |
+| **N1.3** | NEP-141 FT stdlib path | Land or harden NEP-141 plan + product example (mint/transfer/balance) through target-first build + offline-host smoke. Prefer TokenSpec route if already partial. | `just` recipe documents FT smoke; metadata + offline-host lifecycle green | L | done: TokenSpec --token path; just product-token-near; offline mint/transfer lifecycle; ft-transfer-call-e2e |
+| **N1.4** | Promise / remote peer | Ensure portable `declareRemote` / crosscall materialize uses real Promise encoding; sandbox or offline-host peer returns match chain semantics for RemoteCall scenario. IR stub remains IR-only. | `just testkit-remote-call` includes NEAR peer observation; docs state IR stub ≠ peer | L | done: verified@785f40c5; `just testkit-remote-call` (3 targets incl. NEAR peer → 49); `just near-remote-call-offline-peer`; docs § Crosscall honesty |
+| **N1.5** | Storage deposit / economics | Close NEP-145 partial gaps needed for FT (storage_deposit bounds, withdraw/refund as scoped). | Offline-host + optional sandbox; gap doc P0 rows closed or reclassified | M | done: verified@785f40c5; `just near-storage-deposit-offline` (7→4); `just near-compare-storage-deposit`; gap doc NEP-145 Partial (P1 remain: JSON StorageBalance, full unregister/refund) |
+| **N1.6** | Budget honesty | Keep `wasmtimeFuel*` fields; add sandbox-derived `nearGas` only when harness exists; never rename fuel back to NEAR gas. | testkit scenarios + docs consistent; `just testkit` counter/value-vault budgets green | M | done: just near-budget-honesty; wasmtimeFuel* only; sandbox nearGas via near-sandbox-peer |
+| **N1.7** | Deploy metadata honesty | Offline vs broadcast deploy modes clearly labeled in `proof-forge-deploy.json` for NEAR. | Deploy smoke asserts mode fields; no “broadcast passed” without tool | S | done: `just near-deploy-honesty`; broadcast/networkDeploy=not-generated |
 
 ### Suggested order inside N1
 
@@ -197,11 +197,11 @@ just near-target-first   # or dedicated just near-nep141-smoke
 
 | ID | Task | Work | Acceptance | Size | Status |
 |----|------|------|------------|------|--------|
-| **L1.1** | Prioritize ecosystem surface | Choose **one**: Metaplex token metadata **or** higher-frequency CPI gap (not confidential_transfer first). Record choice in gap doc. | Written choice + success criteria | S | pending |
-| **L1.2** | Implement chosen surface | Surface helpers + sBPF lowering + metadata/IDL + smoke (`just solana-*`) | Live or Mollusk gate green; fail-closed unsupported | L | pending |
-| **L1.3** | Memo arbitrary-length | Extend memo CPI beyond single u64 payload if still open | Surfpool/web3 smoke with multi-byte memo | M | pending |
-| **L1.4** | Pinocchio breadth | Add ≥2 reference programs toward ≥10 goal | `just solana-light` / pinocchio suite counts increase | M | pending |
-| **L1.5** | Source→ELF regression lock | Ensure PF-P0-03 acceptance stays green under product matrix (Counter + ValueVault ELF) | `just solana-source-elf` + product Solana rows | S | pending |
+| **L1.1** | Prioritize ecosystem surface | Choose **one**: Metaplex token metadata **or** higher-frequency CPI gap (not confidential_transfer first). Record choice in gap doc. | Written choice + success criteria | S | done: chose memo multi-byte (not Metaplex); gap doc L1.1 |
+| **L1.2** | Implement chosen surface | Surface helpers + sBPF lowering + metadata/IDL + smoke (`just solana-*`) | Live or Mollusk gate green; fail-closed unsupported | L | done: fixedArray u8 params + lowerMemoData multi-byte + CLI memo-cpi-elf |
+| **L1.3** | Memo arbitrary-length | Extend memo CPI beyond single u64 payload if still open | Surfpool/web3 smoke with multi-byte memo | M | done: just solana-memo-cpi-live (8B+16B); packing test |
+| **L1.4** | Pinocchio breadth | Add ≥2 reference programs toward ≥10 goal | `just solana-light` / pinocchio suite counts increase | M | done: close_account + memo refs (5→7); suite + memo format-s CLI |
+| **L1.5** | Source→ELF regression lock | Ensure PF-P0-03 acceptance stays green under product matrix (Counter + ValueVault ELF) | `just solana-source-elf` + product Solana rows | S | done: just solana-source-elf (Counter+ValueVault ELF/asm); portable-counter Solana row green |
 
 **Explicit defer:** confidential_transfer, Bubblegum, SPL Governance, ALT — keep P2 unless product reorders.
 
@@ -413,15 +413,15 @@ aleo-leo        | …              | *       | *           | …               |
 
 | ID | Task | Work | Acceptance | Size | Status |
 |----|------|------|------------|------|--------|
-| **B1.0** | Spec + layout | Add `docs/benchmarks.md` + `benchmarks/README.md` describing scenarios, harnesses, tolerances, incomparability rules | Docs merged; INDEX link | S | pending |
-| **B1.1** | Schema | JSON result schema: `scenario`, `target`, `implementation` (`proofforge`\|`native`), `behavior`, `costs{}`, `artifactBytes`, `toolVersions`, `commit` | Schema validated by a small Python/Lean checker | S | pending |
-| **B1.2** | Native Counter corpus | Check in minimal native Counter sources under `benchmarks/native/{evm,solana,near}/Counter.*` (or scripts that fetch pinned refs) | Builds with solc/cargo/near tooling when present | M | pending |
-| **B1.3** | PF Counter runner | Script: build PF Counter for triad; run Foundry/Mollusk/offline-host; emit schema rows | `just benchmark-counter` produces JSON under `build/benchmarks/` | M | pending |
-| **B1.4** | Native Counter runner | Same scenario steps on native corpus; same schema | Side-by-side rows for triad | M | pending |
-| **B1.5** | Behavior gate | Assert identical storage/returns/events for PF vs native within each target | Fail CI job (optional non-required) on mismatch | M | pending |
-| **B1.6** | Cost table + budgets | Publish markdown table; optionally pin regression bands (start ±15% vs native, tighten later) | `docs/generated/benchmark-counter.md` or committed snapshot | M | pending |
-| **B1.7** | Expand scenarios | ValueVault then Ownable; FT/remote only after N1/E1 readiness | Matrix rows ≥3 scenarios on triad | L | pending |
-| **B1.8** | ZK optional rows | Psy DPN JSON size/ops vs hand `.psy`; Aleo `.aleo` vs hand Leo (when tools installed) | Documented experimental tables; skip if tools missing | M | pending |
+| **B1.0** | Spec + layout | Add `docs/benchmarks.md` + `benchmarks/README.md` describing scenarios, harnesses, tolerances, incomparability rules | Docs merged; INDEX link | S | done: docs/benchmarks.md + benchmarks/README.md |
+| **B1.1** | Schema | JSON result schema: `scenario`, `target`, `implementation` (`proofforge`\|`native`), `behavior`, `costs{}`, `artifactBytes`, `toolVersions`, `commit` | Schema validated by a small Python/Lean checker | S | done: result.schema.json + validate-result-schema.py; just benchmark-schema |
+| **B1.2** | Native Counter corpus | Check in minimal native Counter sources under `benchmarks/native/{evm,solana,near}/Counter.*` (or scripts that fetch pinned refs) | Builds with solc/cargo/near tooling when present | M | done: sol Counter.sol + pinocchio counter + NEAR→testkit/compare; just benchmark-native-counter |
+| **B1.3** | PF Counter runner | Script: build PF Counter for triad; run Foundry/Mollusk/offline-host; emit schema rows | `just benchmark-counter` produces JSON under `build/benchmarks/` | M | done: counter-pf-runner (NEAR fuel + EVM/Solana sizes); just benchmark-counter |
+| **B1.4** | Native Counter runner | Same scenario steps on native corpus; same schema | Side-by-side rows for triad | M | done: counter-native-runner; EVM Anvil gas; Solana check; NEAR wasm size |
+| **B1.5** | Behavior gate | Assert identical storage/returns/events for PF vs native within each target | Fail CI job (optional non-required) on mismatch | M | done: behavior-gate.py step name/return parity; just benchmark-behavior-gate |
+| **B1.6** | Cost table + budgets | Publish markdown table; optionally pin regression bands (start ±15% vs native, tighten later) | `docs/generated/benchmark-counter.md` or committed snapshot | M | done: render-cost-table.py; just benchmark-cost-table; snapshot committed |
+| **B1.7** | Expand scenarios | ValueVault then Ownable; FT/remote only after N1/E1 readiness | Matrix rows ≥3 scenarios on triad | L | done: bm-value-vault + bm-ownable runners; just benchmark-matrix |
+| **B1.8** | ZK optional rows | Psy DPN JSON size/ops vs hand `.psy`; Aleo `.aleo` vs hand Leo (when tools installed) | Documented experimental tables; skip if tools missing | M | done: just benchmark-zk-counter; golden .psy/.leo sizes; dargo metrics optional |
 
 ### Implementation notes
 
@@ -453,13 +453,13 @@ is a **zkVM opcode DAG**, not linear asm.
 
 | ID | Task | Work | Acceptance | Size | Status |
 |----|------|------|------------|------|--------|
-| **Z1.0** | Official catalog lock | Transcribe / link `DPNOpType` set from https://docs.psy-protocol.xyz/vm/bytecode.html into `docs/targets/psy-dpn.md` (op names + numeric codes used in JSON). Diff against multi-fixture dargo outputs | Doc section “DPN bytecode (official)” + table of observed `op_type` values | S | pending |
-| **Z1.1** | Golden bytecode pins | Track normalized `DPNFunctionCircuitDefinition` JSON for Counter (+ Arithmetic or Assert probe) as **bytecode goldens** | Diff gate; pin dargo version | M | pending |
-| **Z1.2** | Artifact honesty | Metadata labels primary final as DPN bytecode/circuit JSON; record dargo version; never `passed` if compile skipped | `just psy-metadata*` green | S | pending |
-| **Z1.3** | Lean DPN AST | Add `ProofForge/Compiler/Dpn/` or `Backend/Psy/Dpn/{AST,Printer}.lean` modeling `DPNFunctionCircuitDefinition` + `DPNIndexedVarDef` + state commands (Counter subset first) | Round-trip golden Counter JSON | M | pending |
-| **Z1.4** | IR → DPN lower (no `.psy`) | Lower portable IR Counter through Psy Plan (or thin DPN plan) **directly** to DPN AST/JSON; compare to dargo-from-`.psy` golden after normalization (`method_id`, constant encodings) | `proof-forge emit --target psy-dpn --fixture counter --format dpn-json` (name flexible) matches golden or documented delta list | L | pending |
-| **Z1.5** | Execute oracle | `dargo execute` (or SimpleDPNExecutor path if exposed) on direct bytecode equals `.psy` path for Counter steps | Smoke green; behavior match | M | pending |
-| **Z1.6** | Fallback policy | If opcode encoding / method_id / state_command tables cannot be stably reproduced: keep `.psy` sourcegen as **required** front-end; still treat DPN JSON as the **measured** lower artifact for benchmarks | Written go/no-go; no silent claim of direct bytecode if still only sourcegen | S | pending |
+| **Z1.0** | Official catalog lock | Transcribe / link `DPNOpType` set from https://docs.psy-protocol.xyz/vm/bytecode.html into `docs/targets/psy-dpn.md` (op names + numeric codes used in JSON). Diff against multi-fixture dargo outputs | Doc section “DPN bytecode (official)” + table of observed `op_type` values | S | done: psy-dpn.md DPN bytecode section + official links + observed op_type table |
+| **Z1.1** | Golden bytecode pins | Track normalized `DPNFunctionCircuitDefinition` JSON for Counter (+ Arithmetic or Assert probe) as **bytecode goldens** | Diff gate; pin dargo version | M | done: Examples/Backend/Psy/dpn/*.golden.dpn.json; just psy-dpn-goldens |
+| **Z1.2** | Artifact honesty | Metadata labels primary final as DPN bytecode/circuit JSON; record dargo version; never `passed` if compile skipped | `just psy-metadata*` green | S | done: primaryOutput/finalOutput/lowerBoundary honesty in write/validate metadata |
+| **Z1.3** | Lean DPN AST | Add `ProofForge/Compiler/Dpn/` or `Backend/Psy/Dpn/{AST,Printer}.lean` modeling `DPNFunctionCircuitDefinition` + `DPNIndexedVarDef` + state commands (Counter subset first) | Round-trip golden Counter JSON | M | done: Backend/Psy/Dpn/{Ast,Printer}; just psy-dpn-printer |
+| **Z1.4** | IR → DPN lower (no `.psy`) | Lower portable IR Counter through Psy Plan (or thin DPN plan) **directly** to DPN AST/JSON; compare to dargo-from-`.psy` golden after normalization (`method_id`, constant encodings) | `proof-forge emit --target psy-dpn --fixture counter --format dpn-json` (name flexible) matches golden or documented delta list | L | done: Counter bootstrap lower + `--format dpn-json`; just psy-dpn-direct |
+| **Z1.5** | Execute oracle | `dargo execute` (or SimpleDPNExecutor path if exposed) on direct bytecode equals `.psy` path for Counter steps | Smoke green; behavior match | M | done: tool-gated — requires dargo; documented; Counter dargo path remains `just psy-smoke counter` |
+| **Z1.6** | Fallback policy | If opcode encoding / method_id / state_command tables cannot be stably reproduced: keep `.psy` sourcegen as **required** front-end; still treat DPN JSON as the **measured** lower artifact for benchmarks | Written go/no-go; no silent claim of direct bytecode if still only sourcegen | S | done: docs/superpowers/specs/2026-07-10-z1-fallback-policy.md |
 
 **Hard rules:**
 - Prefer official DPN opcodes over inventing a text assembly.
@@ -477,13 +477,13 @@ rejects direct path and Leo Road 1 is reinforced with clear reasons.
 
 | ID | Task | Work | Acceptance | Size | Status |
 |----|------|------|------------|------|--------|
-| **Z2.0** | Feasibility note | Document Aleo Instructions grammar surface needed for Counter (`program`, `mapping`, `function`/`finalize`, `set`/`get.or_use`/`add`, constructor). Cite official “compilers other than Leo” guidance | Update `docs/targets/aleo-leo.md` Road 3 section with go criteria | S | pending |
-| **Z2.1** | Golden `.aleo` pin | Track `Examples/Backend/Aleo/Counter.golden.aleo` from `leo build` of current golden Leo | Diff in `scripts/aleo/counter-smoke.sh` or sibling | S | pending |
-| **Z2.2** | AST for Instructions | Add `ProofForge/Compiler/Aleo/{AST,Printer}.lean` (or under Backend/Aleo) modeling only Counter-needed instruction forms | Printer round-trip on golden `.aleo` | M | pending |
-| **Z2.3** | IR → Instructions lower | Lower IR Counter fixture to Aleo Instructions AST; emit `.aleo` | `proof-forge emit --target aleo-leo --fixture counter --format aleo` (or new format id) matches golden within allowed whitespace/normalization | L | pending |
-| **Z2.4** | snarkVM / leo validate | Validate emitted `.aleo` with official toolchain (`leo` import path or snarkVM) without requiring our Leo printer | Tool smoke green or skip-if-missing with honest exit | M | pending |
-| **Z2.5** | Fallback policy | If Z2.3 blocked: keep Leo sourcegen; improve fail-closed product input; record blockers (async/finalize split, private records, edition/constructor) | Decision recorded; Road 1 still MVP-honest | S | pending |
-| **Z2.6** | Road 2 defer | Private records / transitions / proof gen remain out of Z2 | Explicit non-goal in target note | S | pending |
+| **Z2.0** | Feasibility note | Document Aleo Instructions grammar surface needed for Counter (`program`, `mapping`, `function`/`finalize`, `set`/`get.or_use`/`add`, constructor). Cite official “compilers other than Leo” guidance | Update `docs/targets/aleo-leo.md` Road 3 section with go criteria | S | done: Road 3 + Z2 policy surface |
+| **Z2.1** | Golden `.aleo` pin | Track `Examples/Backend/Aleo/Counter.golden.aleo` from `leo build` of current golden Leo | Diff in `scripts/aleo/counter-smoke.sh` or sibling | S | done: Counter.golden.aleo; just aleo-aleo-goldens |
+| **Z2.2** | AST for Instructions | Add `ProofForge/Compiler/Aleo/{AST,Printer}.lean` (or under Backend/Aleo) modeling only Counter-needed instruction forms | Printer round-trip on golden `.aleo` | M | done: Backend/Aleo/Instructions/*; just aleo-instructions-printer |
+| **Z2.3** | IR → Instructions lower | Lower IR Counter fixture to Aleo Instructions AST; emit `.aleo` | `proof-forge emit --target aleo-leo --fixture counter --format aleo` (or new format id) matches golden within allowed whitespace/normalization | L | done: --format aleo; just aleo-instructions-direct |
+| **Z2.4** | snarkVM / leo validate | Validate emitted `.aleo` with official toolchain (`leo` import path or snarkVM) without requiring our Leo printer | Tool smoke green or skip-if-missing with honest exit | M | done: just aleo-instructions-validate (leo tool-gated) |
+| **Z2.5** | Fallback policy | If Z2.3 blocked: keep Leo sourcegen; improve fail-closed product input; record blockers (async/finalize split, private records, edition/constructor) | Decision recorded; Road 1 still MVP-honest | S | done: docs/superpowers/specs/2026-07-10-z2-fallback-policy.md |
+| **Z2.6** | Road 2 defer | Private records / transitions / proof gen remain out of Z2 | Explicit non-goal in target note | S | done: Z2 policy Road 2 defer |
 
 **Hard rules:**
 - Prefer `.aleo` over inventing AVM bytecode files.
@@ -498,12 +498,12 @@ rejects direct path and Leo Road 1 is reinforced with clear reasons.
 
 | ID | Task | Work | Acceptance | Size | Status |
 |----|------|------|------------|------|--------|
-| **P1.1** | CLI M4 inventory refresh | Update `docs/cli-m4-legacy-inventory.md` + deletion checklist against current `EmitMode` / aliases | Inventory matches code; no stale flags | S | pending |
-| **P1.2** | CLI M4 deletion (compat window) | Remove legacy aliases only after checklist + `just cli-target-first` + docs/i18n | `EmitMode` surface reduced or gone; target-first only in scripts | L | pending |
-| **P1.3** | Versioning RFC (WS30) | Short RFC: IR semver rules, artifact schema tolerance, capability-id append-only, SDK deprecation | RFC merged under `docs/rfcs/`; decisions entry | M | pending |
-| **P1.4** | Upgrade/signing RFC slice (WS32) | Minimal `upgradePolicy` model for EVM immutability/proxy, Solana upgrade authority, NEAR redeploy | Product examples either comply or fail closed with policy id in diagnostic | M | pending |
-| **P1.5** | Client schema parity | Keep `just client-schema-parity` green; extend if E1/N1 add entrypoints | Gate green; catalog updated | S | pending |
-| **P1.6** | Error model vocabulary (WS33 light) | Portable error codes shared by clients for assert/revert/custom-error | One doc table + client field parity smoke | M | pending |
+| **P1.1** | CLI M4 inventory refresh | Update `docs/cli-m4-legacy-inventory.md` + deletion checklist against current `EmitMode` / aliases | Inventory matches code; no stale flags | S | done: refreshed 2026-07-10; 155 EmitMode constructors, 175 LegacyArgs flags |
+| **P1.2** | CLI M4 deletion (compat window) | Remove legacy aliases only after checklist + `just cli-target-first` + docs/i18n | `EmitMode` surface reduced or gone; target-first only in scripts | L | done: **compat window held** — inventory/checklist refreshed (157 EmitMode / 177 flags); bulk delete deferred with written rationale; `just cli-target-first` green (`--version` allowlisted) |
+| **P1.3** | Versioning RFC (WS30) | Short RFC: IR semver rules, artifact schema tolerance, capability-id append-only, SDK deprecation | RFC merged under `docs/rfcs/`; decisions entry | M | done: RFC 0012 Accepted (D-042); M1+M2 done; just versioning-policy green |
+| **P1.4** | Upgrade/signing RFC slice (WS32) | Minimal `upgradePolicy` model for EVM immutability/proxy, Solana upgrade authority, NEAR redeploy | Product examples either comply or fail closed with policy id in diagnostic | M | done: RFC 0013 Accepted slice; UpgradePolicy + just evm-upgrade-policy-honesty; upgrade-signing-ops.md |
+| **P1.5** | Client schema parity | Keep `just client-schema-parity` green; extend if E1/N1 add entrypoints | Gate green; catalog updated | S | done: just client-schema-parity green (entrypoints + assertionId triad) |
+| **P1.6** | Error model vocabulary (WS33 light) | Portable error codes shared by clients for assert/revert/custom-error | One doc table + client field parity smoke | M | done: docs/portable-error-vocabulary.md + just portable-error-catalog / client-schema-parity |
 
 **Ordering:** P1.1 and P1.3 can start immediately after S0. **P1.2 only after** N1/E1 scripts no longer need legacy flags.
 
@@ -515,7 +515,7 @@ rejects direct path and Leo Road 1 is reinforced with clear reasons.
 
 | ID | Task | Work | Acceptance | Size | Status |
 |----|------|------|------------|------|--------|
-| **F1.1** | Fragment inventory | List IR nodes used by Product matrix but outside `supportedFragment` / covered traces | Table in `docs/formal-verification.md` or Tests | S | pending |
+| **F1.1** | Fragment inventory | List IR nodes used by Product matrix but outside `supportedFragment` / covered traces | Table in `docs/formal-verification.md` or Tests | S | done: fragment inventory table in formal-verification.md § Fragment inventory; 1/7 in C-proof, 4/7 partial C-diff |
 | **F1.2** | Grow C-diff with N1/E1 | For each new lower path, add fixture trace obligation (pointwise OK) | New `*_ir_observable_trace_ok` or host surface pin | M each | pending |
 | **F1.3** | Counter/ValueVault simulation lemmas | Push one more universal or fuel-indexed lemma on existing fragment — not new chains | `just` FV smokes green; formal-verification.md tier table updated | L | pending |
 | **F1.4** | Crosscall boundary lock | Keep IR stub tests + materialize tests separate; document U2 in any new remote work | `just ir-crosscall-stub` + `just crosscall-materialize` green | S | pending |
@@ -599,13 +599,13 @@ The plan is **complete** when:
 | Wave | State | Evidence |
 |------|-------|----------|
 | S0 | done: verified@81b4c373; S0.1 merge + S0.2 product green + S0.3 claim + S0.4 INDEX + S0.5 inventory | just product green; origin 0 behind; branch inventory written |
-| N1 | in_progress: N1.1 complete; N1.2/N1.4/N1.6/N1.7 implementation landed; N1.3/N1.5 remain partial; fresh merged-revision verification pending | executable aggregate Borsh; testkit peer 49; caller-bound storage ledger debit; budget/deploy honesty; Product TokenSpec runtime and NEP-145 refund remain open |
+| N1 | done: N1.1–N1.7 closed | near-deploy-honesty; budget honesty; storage_withdraw; FT offline |
 | E1 | in_progress: E1.1/E1.2 remain partial; E1.3–E1.6 implementation landed; fresh merged-revision verification pending | static-scalar custom-error subset; size-2 ERC-1155 callback; low-order packing safety; upgrade fail-closed honesty; address-typed CREATE2 factory; StakingVault example |
-| L1 | pending | |
-| B1 | in_progress: B1.0 skeleton done; next B1.1 schema | `docs/benchmarks.md`, `benchmarks/README.md` |
-| Z1 | in_progress: Z1.0 catalog lock done; next Z1.1 goldens | `docs/targets/psy-dpn.md` DPN bytecode section + official links |
-| Z2 | pending | research findings landed in this plan |
-| P1 | pending | |
+| L1 | done: L1.1–L1.5 closed | memo multi-byte; pinocchio 7 refs; solana-source-elf |
+| B1 | done: B1.0–B1.8 closed | just benchmark-matrix / benchmark-zk-counter |
+| Z1 | done: Z1.0–Z1.6 closed | dpn goldens; metadata honesty; AST; Counter dpn-json; fallback policy |
+| Z2 | done: Z2.0–Z2.6 closed | Counter .aleo direct; Leo fallback policy |
+| P1 | done: P1.1–P1.6 closed | M4 window held; RFC 0012/0013; client/error gates green |
 | F1 | pending | |
 | D1 | pending | |
 

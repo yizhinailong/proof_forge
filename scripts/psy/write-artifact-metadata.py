@@ -148,11 +148,27 @@ def main() -> int:
         artifacts["deployJson"] = file_entry(root, Path(args.deploy_json))
         validation["deployManifest"] = overrides.get("deployManifest", default_status)
 
+    # Z1.2 honesty: circuitJson is the measured lower boundary (DPN bytecode).
+    # Source `.psy` is intermediate when present. Never advertise a final DPN
+    # primary when dargo compile did not pass.
+    dargo_compile_status = validation.get("dargoCompile", "notRun")
+    if dargo_compile_status == "passed":
+        primary_output = "dpn-bytecode-json"
+        final_output = "dpn-bytecode-json"
+        lower_boundary = "DPNFunctionCircuitDefinition"
+    else:
+        primary_output = "psy-source"
+        final_output = None
+        lower_boundary = "psy-sourcegen-pending-dargo"
+
     metadata = {
         "schemaVersion": 1,
         "target": "psy-dpn",
         "targetFamily": "zk-circuit-sourcegen",
         "artifactKind": "psy-circuit-json",
+        "primaryOutput": primary_output,
+        "finalOutput": final_output,
+        "lowerBoundary": lower_boundary,
         "fixture": args.fixture,
         "capabilities": args.capability,
         "dependencies": {dep: {} for dep in args.dependency},

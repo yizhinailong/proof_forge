@@ -11,7 +11,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/INDEX.md": {
-    "sha256": "90a44f935e9aaed7eaa7fb19373cbbb3798d3dbd48be9a7fb56a3388f77ec764",
+    "sha256": "8d839ba1717905ec11b7b8bd86b6a5b8a5856d7749cea116d364142055fa46d6",
     "zh": "docs/zh/INDEX.zh.md",
     "model": "manual-zh",
     "note": "synced for active PF remediation and post-review plan links"
@@ -78,7 +78,7 @@
     "note": "manually synced through the 2026-07-10 audit integration"
   },
   "docs/validation-gates.md": {
-    "sha256": "90d7c92e32d06746624f2d21620aba22c68a448f2562608a9995c1e18e81770f",
+    "sha256": "ab447797e4b211379c9cf73a29cc57ef1bb217c663c089dccfe20849dc8fbb3a",
     "zh": "docs/zh/validation-gates.zh.md",
     "model": "manual-zh",
     "note": "synced after Product/Backend reorg path renames"
@@ -111,7 +111,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/rfcs/0014-unified-semantic-lowering-contract.md": {
-    "sha256": "82d1879ad130211d3e29bdaed3593034704e2ed99d3cbb644637f1b251c0fb14",
+    "sha256": "9d0ee2684a65b5c49dea4d83cd431f9f48d8a222330183ccf0bfc87480f49d72",
     "zh": "docs/zh/rfcs/0014-unified-semantic-lowering-contract.zh.md",
     "model": "gemini-3-flash-preview",
     "note": "synced after Product/Backend reorg path renames"

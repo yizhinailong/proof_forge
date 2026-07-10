@@ -339,7 +339,7 @@ mutual
           ProofForge.Backend.Evm.IR.addLocal env indexName .u32 false
         let (events, _) ← eventAbisInStatements cast module loopEnv body
         return (events, env)
-    | .whileLoop cond body => do
+    | .whileLoop _cond body => do
         let (events, _) ← eventAbisInStatements cast module env body
         return (events, env)
 end

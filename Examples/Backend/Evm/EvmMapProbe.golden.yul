@@ -15,6 +15,9 @@ object "EvmMapProbe" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_EvmMapProbe_read_balance(calldataload(4))
       mstore(0, _r)
       return(0, 32)
@@ -23,12 +26,24 @@ object "EvmMapProbe" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_EvmMapProbe_upsert_balance(calldataload(4), calldataload(36))
       mstore(0, _r)
       return(0, 32)
     }
     case 0xb41d1f5c {
       if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
         revert(0, 0)
       }
       f_EvmMapProbe_set_balance(calldataload(4), calldataload(36))
@@ -41,6 +56,9 @@ object "EvmMapProbe" {
     }
     case 0x4c136189 {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_EvmMapProbe_contains_balance(calldataload(4))
@@ -64,6 +82,15 @@ object "EvmMapProbe" {
     }
     case 0xce6fd7c0 {
       if lt(calldatasize(), 100) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_EvmMapProbe_nested_path_dynamic(calldataload(4), calldataload(36), calldataload(68))

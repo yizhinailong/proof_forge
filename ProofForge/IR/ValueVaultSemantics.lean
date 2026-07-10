@@ -439,11 +439,33 @@ the shared fueled interpreter's covered fragment. This is the bridge — it
 guarantees `runEntrypointWithArgsFuel` executes the real `getNetValue` body
 without hitting an `unsupported*` fallthrough, so the shallow
 `valueVaultIrStep` and the fueled interpreter are evaluating the same
-language fragment. The remaining entrypoints (`initialize`/`deposit`/etc.)
-use the same covered constructor set and are FV-9.2's ∀-body generalization. -/
+language fragment. -/
 theorem valueVault_getNetValue_in_fuel_coverage :
     entrypointInFuelCoverage
       ProofForge.IR.Examples.ValueVault.getNetValueEntrypoint = true := by
   native_decide
+
+/-- F1.3: every ValueVault product entrypoint body stays inside the shared
+fueled interpreter's covered constructor set (not only `getNetValue`).
+This is still a **pointwise fuel-coverage** witness on the fixed module —
+not a universal IR↔target refinement — but it closes the M5 "remaining
+entrypoints are FV-9.2" gap for the ValueVault fragment surface. -/
+def valueVaultAllEntrypointsInFuelCoverage : Bool :=
+  ProofForge.IR.Examples.ValueVault.module.entrypoints.all entrypointInFuelCoverage
+
+theorem valueVault_all_entrypoints_in_fuel_coverage :
+    valueVaultAllEntrypointsInFuelCoverage = true := by
+  native_decide
+
+/-- F1.3 companion: the inductive `valueVault_step_simulates` lemma already
+gives a universal (all `ValueVaultCall`) existence result over related
+states; re-export the shape here so the FV smoke can pin both the
+fuel-coverage surface and the shallow universal step. -/
+theorem valueVault_step_simulates_all_calls (call : ValueVaultCall)
+    {state : State} {balance released fees lastValue lastCheckpoint operations : Nat}
+    (h : ValueVaultStateRel state balance released fees lastValue lastCheckpoint operations) :
+    ∃ nextState observable,
+      valueVaultIrStep state call = Except.ok (nextState, observable) :=
+  valueVault_step_simulates call h
 
 end ProofForge.IR.ValueVaultSemantics

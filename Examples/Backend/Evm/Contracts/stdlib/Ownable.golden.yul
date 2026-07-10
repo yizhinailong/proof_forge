@@ -10,6 +10,9 @@ object "Ownable" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_Ownable_transferOwnership(calldataload(4))
       return(0, 0)
     }

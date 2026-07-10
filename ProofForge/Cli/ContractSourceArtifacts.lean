@@ -54,6 +54,9 @@ unsafe def compileContractSourceYul (opts : CliOptions) : IO UInt32 := do
     | IO.eprintln usage
       return 1
   let spec ← ProofForge.Cli.ContractLoader.loadSpec input opts.root? opts.moduleName?
+  let opts ← match finalizeConstructorOptionsForSpec opts spec with
+    | .ok opts => pure opts
+    | .error msg => throw <| IO.userError msg
   let output := opts.output?.getD (defaultYulOutput input)
   let (yul, _module) ← renderContractSpecEvmYul opts spec
   writeTextFile output yul

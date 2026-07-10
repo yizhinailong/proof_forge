@@ -20,12 +20,18 @@ object "ERC4626" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
       let _r := f_ERC4626_balanceOf(calldataload(4))
       mstore(0, _r)
       return(0, 32)
     }
     case 0xc6e6f592 {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_ERC4626_convertToShares(calldataload(4))
@@ -36,12 +42,18 @@ object "ERC4626" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_ERC4626_convertToAssets(calldataload(4))
       mstore(0, _r)
       return(0, 32)
     }
     case 0x402d267d {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
         revert(0, 0)
       }
       let _r := f_ERC4626_maxDeposit(calldataload(4))
@@ -52,6 +64,9 @@ object "ERC4626" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
       let _r := f_ERC4626_maxMint(calldataload(4))
       mstore(0, _r)
       return(0, 32)
@@ -60,12 +75,18 @@ object "ERC4626" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
       let _r := f_ERC4626_maxWithdraw(calldataload(4))
       mstore(0, _r)
       return(0, 32)
     }
     case 0xd905777e {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
         revert(0, 0)
       }
       let _r := f_ERC4626_maxRedeem(calldataload(4))
@@ -86,12 +107,18 @@ object "ERC4626" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_ERC4626_previewDeposit(calldataload(4))
       mstore(0, _r)
       return(0, 32)
     }
     case 0xb3d7f6b9 {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_ERC4626_previewMint(calldataload(4))
@@ -102,12 +129,18 @@ object "ERC4626" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_ERC4626_previewWithdraw(calldataload(4))
       mstore(0, _r)
       return(0, 32)
     }
     case 0x4cdad506 {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_ERC4626_previewRedeem(calldataload(4))
@@ -118,12 +151,24 @@ object "ERC4626" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
       let _r := f_ERC4626_deposit(calldataload(4), calldataload(36))
       mstore(0, _r)
       return(0, 32)
     }
     case 0x94bf804d {
       if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 1461501637330902918203684832716283019655932542975) {
         revert(0, 0)
       }
       let _r := f_ERC4626_mint(calldataload(4), calldataload(36))
@@ -134,12 +179,30 @@ object "ERC4626" {
       if lt(calldatasize(), 100) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
       let _r := f_ERC4626_withdraw(calldataload(4), calldataload(36), calldataload(68))
       mstore(0, _r)
       return(0, 32)
     }
     case 0xba087652 {
       if lt(calldatasize(), 100) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 1461501637330902918203684832716283019655932542975) {
         revert(0, 0)
       }
       let _r := f_ERC4626_redeem(calldataload(4), calldataload(36), calldataload(68))
@@ -150,6 +213,12 @@ object "ERC4626" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_ERC4626_transfer(calldataload(4), calldataload(36))
       mstore(0, _r)
       return(0, 32)
@@ -158,12 +227,30 @@ object "ERC4626" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_ERC4626_approve(calldataload(4), calldataload(36))
       mstore(0, _r)
       return(0, 32)
     }
     case 0x7662850d {
       if lt(calldatasize(), 132) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 18446744073709551615) {
         revert(0, 0)
       }
       f_ERC4626_init(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
@@ -194,6 +281,9 @@ object "ERC4626" {
         }
         _pf_convert_shares := div(__pf_checked_mul(assets, and(shr(192, sload(0)), 18446744073709551615)), and(shr(128, sload(0)), 18446744073709551615))
       }
+      if iszero(iszero(lt(18446744073709551615, _pf_convert_shares))) {
+        revert(0, 0)
+      }
       result := _pf_convert_shares
     }
     function f_ERC4626_convertToAssets(shares) -> result {
@@ -206,34 +296,235 @@ object "ERC4626" {
         }
         _pf_convert_assets := div(__pf_checked_mul(shares, and(shr(128, sload(0)), 18446744073709551615)), and(shr(192, sload(0)), 18446744073709551615))
       }
+      if iszero(iszero(lt(18446744073709551615, _pf_convert_assets))) {
+        revert(0, 0)
+      }
       result := _pf_convert_assets
     }
     function f_ERC4626_maxDeposit(who) -> result {
-      result := 18446744073709551615
+      let _pf_max_deposit := 0
+      switch and(lt(and(shr(128, sload(2)), 18446744073709551615), 10000), or(eq(and(shr(128, sload(2)), 18446744073709551615), 0), gt(and(shr(192, sload(2)), 18446744073709551615), 0)))
+      case 0 { }
+      default {
+        let _pf_max_deposit_asset_cap := __pf_checked_sub(18446744073709551615, and(shr(128, sload(0)), 18446744073709551615))
+        let _pf_max_deposit_gross_cap := __pf_checked_sub(18446744073709551615, and(shr(192, sload(0)), 18446744073709551615))
+        switch lt(__pf_checked_sub(18446744073709551615, sload(__proof_forge_map_slot(3, who))), _pf_max_deposit_gross_cap)
+        case 0 { }
+        default {
+          _pf_max_deposit_gross_cap := __pf_checked_sub(18446744073709551615, sload(__proof_forge_map_slot(3, who)))
+        }
+        switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
+        case 0 { }
+        default {
+          switch lt(__pf_checked_sub(18446744073709551615, sload(__proof_forge_map_slot(3, and(shr(192, sload(2)), 18446744073709551615)))), _pf_max_deposit_gross_cap)
+          case 0 { }
+          default {
+            _pf_max_deposit_gross_cap := __pf_checked_sub(18446744073709551615, sload(__proof_forge_map_slot(3, and(shr(192, sload(2)), 18446744073709551615))))
+          }
+        }
+        _pf_max_deposit := _pf_max_deposit_asset_cap
+        switch eq(and(shr(192, sload(0)), 18446744073709551615), 0)
+        case 0 { }
+        default {
+          switch lt(_pf_max_deposit_gross_cap, _pf_max_deposit)
+          case 0 { }
+          default {
+            _pf_max_deposit := _pf_max_deposit_gross_cap
+          }
+        }
+        switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
+        case 0 { }
+        default {
+          switch eq(and(shr(128, sload(0)), 18446744073709551615), 0)
+          case 0 { }
+          default {
+            _pf_max_deposit := 0
+          }
+          switch gt(and(shr(128, sload(0)), 18446744073709551615), 0)
+          case 0 { }
+          default {
+            let _pf_max_deposit_gross_at_asset_cap := div(__pf_checked_mul(_pf_max_deposit_asset_cap, and(shr(192, sload(0)), 18446744073709551615)), and(shr(128, sload(0)), 18446744073709551615))
+            switch gt(_pf_max_deposit_gross_at_asset_cap, _pf_max_deposit_gross_cap)
+            case 0 { }
+            default {
+              _pf_max_deposit := div(__pf_checked_mul(_pf_max_deposit_gross_cap, and(shr(128, sload(0)), 18446744073709551615)), and(shr(192, sload(0)), 18446744073709551615))
+            }
+            let _pf_max_deposit_gross_final := div(__pf_checked_mul(_pf_max_deposit, and(shr(192, sload(0)), 18446744073709551615)), and(shr(128, sload(0)), 18446744073709551615))
+            switch eq(_pf_max_deposit_gross_final, 0)
+            case 0 { }
+            default {
+              _pf_max_deposit := 0
+            }
+          }
+        }
+      }
+      result := _pf_max_deposit
     }
     function f_ERC4626_maxMint(who) -> result {
-      result := 18446744073709551615
-    }
-    function f_ERC4626_maxWithdraw(holder) -> result {
-      let _pf_max_withdraw := sload(__proof_forge_map_slot(3, holder))
-      switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
+      let _pf_max_mint := 0
+      switch and(lt(and(shr(128, sload(2)), 18446744073709551615), 10000), or(eq(and(shr(128, sload(2)), 18446744073709551615), 0), gt(and(shr(192, sload(2)), 18446744073709551615), 0)))
       case 0 { }
       default {
-        if iszero(iszero(eq(and(shr(128, sload(0)), 18446744073709551615), 0))) {
+        let _pf_max_mint_gross_cap := __pf_checked_sub(18446744073709551615, and(shr(192, sload(0)), 18446744073709551615))
+        switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
+        case 0 { }
+        default {
+          switch lt(__pf_checked_sub(18446744073709551615, sload(__proof_forge_map_slot(3, and(shr(192, sload(2)), 18446744073709551615)))), _pf_max_mint_gross_cap)
+          case 0 { }
+          default {
+            _pf_max_mint_gross_cap := __pf_checked_sub(18446744073709551615, sload(__proof_forge_map_slot(3, and(shr(192, sload(2)), 18446744073709551615))))
+          }
+        }
+        let _pf_max_mint_asset_gross_cap := __pf_checked_sub(18446744073709551615, and(shr(128, sload(0)), 18446744073709551615))
+        switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
+        case 0 { }
+        default {
+          switch eq(and(shr(128, sload(0)), 18446744073709551615), 0)
+          case 0 { }
+          default {
+            _pf_max_mint_asset_gross_cap := 0
+          }
+          switch gt(and(shr(128, sload(0)), 18446744073709551615), 0)
+          case 0 { }
+          default {
+            _pf_max_mint_asset_gross_cap := div(__pf_checked_mul(_pf_max_mint_asset_gross_cap, and(shr(192, sload(0)), 18446744073709551615)), and(shr(128, sload(0)), 18446744073709551615))
+          }
+        }
+        switch lt(_pf_max_mint_asset_gross_cap, _pf_max_mint_gross_cap)
+        case 0 { }
+        default {
+          _pf_max_mint_gross_cap := _pf_max_mint_asset_gross_cap
+        }
+        let _pf_max_mint_net_cap := _pf_max_mint_gross_cap
+        switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
+        case 0 { }
+        default {
+          _pf_max_mint_net_cap := __pf_checked_sub(_pf_max_mint_gross_cap, div(__pf_checked_mul(_pf_max_mint_gross_cap, and(shr(128, sload(2)), 18446744073709551615)), 10000))
+        }
+        if iszero(iszero(lt(18446744073709551615, _pf_max_mint_net_cap))) {
           revert(0, 0)
         }
-        _pf_max_withdraw := div(__pf_checked_mul(sload(__proof_forge_map_slot(3, holder)), and(shr(128, sload(0)), 18446744073709551615)), and(shr(192, sload(0)), 18446744073709551615))
+        let _pf_max_mint_gross_needed := _pf_max_mint_net_cap
+        switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
+        case 0 { }
+        default {
+          if iszero(iszero(eq(and(shr(128, sload(2)), 18446744073709551615), 10000))) {
+            revert(0, 0)
+          }
+          _pf_max_mint_gross_needed := div(__pf_checked_mul(_pf_max_mint_net_cap, 10000), __pf_checked_sub(10000, and(shr(128, sload(2)), 18446744073709551615)))
+        }
+        if iszero(iszero(lt(18446744073709551615, _pf_max_mint_gross_needed))) {
+          revert(0, 0)
+        }
+        _pf_max_mint := _pf_max_mint_net_cap
+        switch gt(_pf_max_mint_gross_needed, _pf_max_mint_gross_cap)
+        case 0 { }
+        default {
+          _pf_max_mint := __pf_checked_sub(_pf_max_mint_net_cap, 1)
+        }
+        switch lt(__pf_checked_sub(18446744073709551615, sload(__proof_forge_map_slot(3, who))), _pf_max_mint)
+        case 0 { }
+        default {
+          _pf_max_mint := __pf_checked_sub(18446744073709551615, sload(__proof_forge_map_slot(3, who)))
+        }
       }
-      let _pf_max_withdraw_net := _pf_max_withdraw
-      switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
+      result := _pf_max_mint
+    }
+    function f_ERC4626_maxWithdraw(holder) -> result {
+      let _pf_max_withdraw := 0
+      switch and(lt(and(shr(128, sload(2)), 18446744073709551615), 10000), or(eq(and(shr(128, sload(2)), 18446744073709551615), 0), gt(and(shr(192, sload(2)), 18446744073709551615), 0)))
       case 0 { }
       default {
-        _pf_max_withdraw_net := __pf_checked_sub(_pf_max_withdraw, div(__pf_checked_mul(_pf_max_withdraw, and(shr(128, sload(2)), 18446744073709551615)), 10000))
+        let _pf_max_withdraw_shares := sload(__proof_forge_map_slot(3, holder))
+        switch lt(and(shr(192, sload(0)), 18446744073709551615), _pf_max_withdraw_shares)
+        case 0 { }
+        default {
+          _pf_max_withdraw_shares := and(shr(192, sload(0)), 18446744073709551615)
+        }
+        switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
+        case 0 { }
+        default {
+          switch gt(and(shr(128, sload(0)), 18446744073709551615), 0)
+          case 0 { }
+          default {
+            let _pf_max_withdraw_gross_assets := _pf_max_withdraw_shares
+            switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
+            case 0 { }
+            default {
+              if iszero(iszero(eq(and(shr(128, sload(0)), 18446744073709551615), 0))) {
+                revert(0, 0)
+              }
+              _pf_max_withdraw_gross_assets := div(__pf_checked_mul(_pf_max_withdraw_shares, and(shr(128, sload(0)), 18446744073709551615)), and(shr(192, sload(0)), 18446744073709551615))
+            }
+            if iszero(iszero(lt(18446744073709551615, _pf_max_withdraw_gross_assets))) {
+              revert(0, 0)
+            }
+            let _pf_max_withdraw_net_assets := _pf_max_withdraw_gross_assets
+            switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
+            case 0 { }
+            default {
+              _pf_max_withdraw_net_assets := __pf_checked_sub(_pf_max_withdraw_gross_assets, div(__pf_checked_mul(_pf_max_withdraw_gross_assets, and(shr(128, sload(2)), 18446744073709551615)), 10000))
+            }
+            if iszero(iszero(lt(18446744073709551615, _pf_max_withdraw_net_assets))) {
+              revert(0, 0)
+            }
+            switch gt(_pf_max_withdraw_net_assets, 0)
+            case 0 { }
+            default {
+              _pf_max_withdraw := _pf_max_withdraw_gross_assets
+            }
+          }
+        }
       }
-      result := _pf_max_withdraw_net
+      result := _pf_max_withdraw
     }
     function f_ERC4626_maxRedeem(holder) -> result {
-      result := sload(__proof_forge_map_slot(3, holder))
+      let _pf_max_redeem := 0
+      switch and(lt(and(shr(128, sload(2)), 18446744073709551615), 10000), or(eq(and(shr(128, sload(2)), 18446744073709551615), 0), gt(and(shr(192, sload(2)), 18446744073709551615), 0)))
+      case 0 { }
+      default {
+        let _pf_max_redeem_shares := sload(__proof_forge_map_slot(3, holder))
+        switch lt(and(shr(192, sload(0)), 18446744073709551615), _pf_max_redeem_shares)
+        case 0 { }
+        default {
+          _pf_max_redeem_shares := and(shr(192, sload(0)), 18446744073709551615)
+        }
+        switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
+        case 0 { }
+        default {
+          switch gt(and(shr(128, sload(0)), 18446744073709551615), 0)
+          case 0 { }
+          default {
+            let _pf_max_redeem_gross_assets := _pf_max_redeem_shares
+            switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
+            case 0 { }
+            default {
+              if iszero(iszero(eq(and(shr(128, sload(0)), 18446744073709551615), 0))) {
+                revert(0, 0)
+              }
+              _pf_max_redeem_gross_assets := div(__pf_checked_mul(_pf_max_redeem_shares, and(shr(128, sload(0)), 18446744073709551615)), and(shr(192, sload(0)), 18446744073709551615))
+            }
+            if iszero(iszero(lt(18446744073709551615, _pf_max_redeem_gross_assets))) {
+              revert(0, 0)
+            }
+            let _pf_max_redeem_net_assets := _pf_max_redeem_gross_assets
+            switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
+            case 0 { }
+            default {
+              _pf_max_redeem_net_assets := __pf_checked_sub(_pf_max_redeem_gross_assets, div(__pf_checked_mul(_pf_max_redeem_gross_assets, and(shr(128, sload(2)), 18446744073709551615)), 10000))
+            }
+            if iszero(iszero(lt(18446744073709551615, _pf_max_redeem_net_assets))) {
+              revert(0, 0)
+            }
+            switch gt(_pf_max_redeem_net_assets, 0)
+            case 0 { }
+            default {
+              _pf_max_redeem := _pf_max_redeem_shares
+            }
+          }
+        }
+      }
+      result := _pf_max_redeem
     }
     function f_ERC4626_feeBps() -> result {
       result := and(shr(128, sload(2)), 18446744073709551615)
@@ -251,11 +542,17 @@ object "ERC4626" {
         }
         _pf_preview_deposit := div(__pf_checked_mul(assets, and(shr(192, sload(0)), 18446744073709551615)), and(shr(128, sload(0)), 18446744073709551615))
       }
+      if iszero(iszero(lt(18446744073709551615, _pf_preview_deposit))) {
+        revert(0, 0)
+      }
       let _pf_preview_deposit_net := _pf_preview_deposit
       switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
       case 0 { }
       default {
         _pf_preview_deposit_net := __pf_checked_sub(_pf_preview_deposit, div(__pf_checked_mul(_pf_preview_deposit, and(shr(128, sload(2)), 18446744073709551615)), 10000))
+      }
+      if iszero(iszero(lt(18446744073709551615, _pf_preview_deposit_net))) {
+        revert(0, 0)
       }
       result := _pf_preview_deposit_net
     }
@@ -331,11 +628,17 @@ object "ERC4626" {
         }
         _pf_preview_redeem := div(__pf_checked_mul(shares, and(shr(128, sload(0)), 18446744073709551615)), and(shr(192, sload(0)), 18446744073709551615))
       }
+      if iszero(iszero(lt(18446744073709551615, _pf_preview_redeem))) {
+        revert(0, 0)
+      }
       let _pf_preview_redeem_net := _pf_preview_redeem
       switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
       case 0 { }
       default {
         _pf_preview_redeem_net := __pf_checked_sub(_pf_preview_redeem, div(__pf_checked_mul(_pf_preview_redeem, and(shr(128, sload(2)), 18446744073709551615)), 10000))
+      }
+      if iszero(iszero(lt(18446744073709551615, _pf_preview_redeem_net))) {
+        revert(0, 0)
       }
       result := _pf_preview_redeem_net
     }
@@ -545,33 +848,18 @@ object "ERC4626" {
           sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(__pf_packed_value, 18446744073709551615))))
         }
       }
-      let gross := and(shr(0, sload(1)), 18446744073709551615)
-      if iszero(iszero(eq(gross, 0))) {
+      let grossAvailable := and(shr(0, sload(1)), 18446744073709551615)
+      if iszero(iszero(lt(grossAvailable, grossWanted))) {
         revert(0, 0)
       }
-      sstore(1, or(and(sload(1), not(shl(64, 18446744073709551615))), shl(64, and(0, 18446744073709551615))))
-      switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
-      case 0 { }
-      default {
-        {
-          let __pf_packed_value := div(__pf_checked_mul(and(shr(0, sload(1)), 18446744073709551615), and(shr(128, sload(2)), 18446744073709551615)), 10000)
-          if gt(__pf_packed_value, 18446744073709551615) {
-            revert(0, 0)
-          }
-          sstore(1, or(and(sload(1), not(shl(64, 18446744073709551615))), shl(64, and(__pf_packed_value, 18446744073709551615))))
+      {
+        let __pf_packed_value := __pf_checked_sub(grossWanted, shares)
+        if gt(__pf_packed_value, 18446744073709551615) {
+          revert(0, 0)
         }
-        {
-          let __pf_packed_value := __pf_checked_sub(and(shr(0, sload(1)), 18446744073709551615), and(shr(64, sload(1)), 18446744073709551615))
-          if gt(__pf_packed_value, 18446744073709551615) {
-            revert(0, 0)
-          }
-          sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(__pf_packed_value, 18446744073709551615))))
-        }
+        sstore(1, or(and(sload(1), not(shl(64, 18446744073709551615))), shl(64, and(__pf_packed_value, 18446744073709551615))))
       }
-      let userShares := and(shr(0, sload(1)), 18446744073709551615)
-      if iszero(iszero(eq(userShares, 0))) {
-        revert(0, 0)
-      }
+      let userShares := shares
       let ta := and(shr(128, sload(0)), 18446744073709551615)
       {
         let __pf_packed_value := __pf_checked_add(ta, actual)
@@ -582,7 +870,7 @@ object "ERC4626" {
       }
       let ts := and(shr(192, sload(0)), 18446744073709551615)
       {
-        let __pf_packed_value := __pf_checked_add(ts, gross)
+        let __pf_packed_value := __pf_checked_add(ts, grossWanted)
         if gt(__pf_packed_value, 18446744073709551615) {
           revert(0, 0)
         }

@@ -5,12 +5,21 @@ object "Ierc4626Client" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_Ierc4626Client_readShares(calldataload(4))
       mstore(0, _r)
       return(0, 32)
     }
     case 0x90f87f7c {
       if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_Ierc4626Client_doDeposit(calldataload(4), calldataload(36))

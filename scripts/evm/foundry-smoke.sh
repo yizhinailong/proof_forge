@@ -212,6 +212,12 @@ contract PeerOracle {
 /// Minimal ERC-20 used to exercise ERC-4626 pull/push accounting.
 contract ERC4626AssetMock {
     mapping(address => uint256) public balanceOf;
+    uint256 public transferFeeBps;
+
+    function setTransferFeeBps(uint256 value) external {
+        require(value <= 10_000, "fee too high");
+        transferFeeBps = value;
+    }
 
     function mint(address recipient, uint256 amount) external {
         balanceOf[recipient] += amount;
@@ -220,20 +226,21 @@ contract ERC4626AssetMock {
     function transferFrom(address from, address to, uint256 amount) external returns (bool) {
         require(balanceOf[from] >= amount, "insufficient mock balance");
         balanceOf[from] -= amount;
-        balanceOf[to] += amount;
+        balanceOf[to] += amount - (amount * transferFeeBps / 10_000);
         return true;
     }
 
     function transfer(address to, uint256 amount) external returns (bool) {
         require(balanceOf[msg.sender] >= amount, "insufficient mock balance");
         balanceOf[msg.sender] -= amount;
-        balanceOf[to] += amount;
+        balanceOf[to] += amount - (amount * transferFeeBps / 10_000);
         return true;
     }
 }
 
 contract ProofForgeSmokeTest {
     Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+    address constant ERC4626_ACTOR = address(0xA11CE4626);
 
     event Deployed(address indexed addr, bytes32 indexed salt);
 
@@ -317,9 +324,9 @@ contract ProofForgeSmokeTest {
         ERC4626AssetMock template = new ERC4626AssetMock();
         vm.etch(asset, address(template).code);
         setERC4626State(vault, asset, totalAssets_, totalSupply_, feeBps_, feeRecipient_);
-        setERC4626ShareBalance(vault, address(this), holderShares);
+        setERC4626ShareBalance(vault, ERC4626_ACTOR, holderShares);
         ERC4626AssetMock(asset).mint(vault, vaultAssets);
-        ERC4626AssetMock(asset).mint(address(this), callerAssets);
+        ERC4626AssetMock(asset).mint(ERC4626_ACTOR, callerAssets);
     }
 
     function assertCounterLifecycle(address counter) internal {
@@ -467,6 +474,27 @@ contract ProofForgeSmokeTest {
             abi.encodeWithSignature("previewWithdraw(uint256)", maxU64)
         );
         assertFalse(withdrawWidthOverflow);
+
+        setERC4626State(vault, address(0), 1, maxU64, 0, address(0));
+        (bool depositWidthOverflow,) = vault.staticcall(
+            abi.encodeWithSignature("previewDeposit(uint256)", maxU64)
+        );
+        assertFalse(depositWidthOverflow);
+        setERC4626State(vault, address(0), maxU64, 1, 0, address(0));
+        (bool redeemWidthOverflow,) = vault.staticcall(
+            abi.encodeWithSignature("previewRedeem(uint256)", maxU64)
+        );
+        assertFalse(redeemWidthOverflow);
+
+        setERC4626State(vault, address(0), 0, 0, 0, address(0));
+        (bool depositInputWidthOverflow,) = vault.staticcall(
+            abi.encodeWithSignature("previewDeposit(uint256)", type(uint256).max)
+        );
+        assertFalse(depositInputWidthOverflow);
+        (bool redeemInputWidthOverflow,) = vault.staticcall(
+            abi.encodeWithSignature("previewRedeem(uint256)", type(uint256).max)
+        );
+        assertFalse(redeemInputWidthOverflow);
     }
 
     function testERC4626MintAndWithdrawMatchRoundedPreviews() public {
@@ -476,12 +504,13 @@ contract ProofForgeSmokeTest {
         uint256 mintPreview = callUint(
             mintVault, abi.encodeWithSignature("previewMint(uint256)", 1)
         );
+        vm.prank(ERC4626_ACTOR);
         (bool mintOk, bytes memory mintResult) =
-            mintVault.call(abi.encodeWithSignature("mint(uint256,address)", 1, address(this)));
+            mintVault.call(abi.encodeWithSignature("mint(uint256,address)", 1, ERC4626_ACTOR));
         assertTrue(mintOk);
         assertEq(mintPreview, 1);
         assertEq(abi.decode(mintResult, (uint256)), mintPreview);
-        assertEq(callUint(mintVault, abi.encodeWithSignature("balanceOf(address)", address(this))), 1);
+        assertEq(callUint(mintVault, abi.encodeWithSignature("balanceOf(address)", ERC4626_ACTOR)), 1);
         assertEq(callUint(mintVault, abi.encodeWithSignature("totalAssets()")), 3);
         assertEq(callUint(mintVault, abi.encodeWithSignature("totalSupply()")), 4);
 
@@ -491,15 +520,16 @@ contract ProofForgeSmokeTest {
         uint256 withdrawPreview = callUint(
             withdrawVault, abi.encodeWithSignature("previewWithdraw(uint256)", 1)
         );
+        vm.prank(ERC4626_ACTOR);
         (bool withdrawOk, bytes memory withdrawResult) = withdrawVault.call(
             abi.encodeWithSignature(
-                "withdraw(uint256,address,address)", 1, address(this), address(this)
+                "withdraw(uint256,address,address)", 1, ERC4626_ACTOR, ERC4626_ACTOR
             )
         );
         assertTrue(withdrawOk);
         assertEq(withdrawPreview, 2);
         assertEq(abi.decode(withdrawResult, (uint256)), withdrawPreview);
-        assertEq(callUint(withdrawVault, abi.encodeWithSignature("balanceOf(address)", address(this))), 1);
+        assertEq(callUint(withdrawVault, abi.encodeWithSignature("balanceOf(address)", ERC4626_ACTOR)), 1);
         assertEq(callUint(withdrawVault, abi.encodeWithSignature("totalAssets()")), 1);
         assertEq(callUint(withdrawVault, abi.encodeWithSignature("totalSupply()")), 1);
     }
@@ -512,12 +542,13 @@ contract ProofForgeSmokeTest {
         uint256 mintPreview = callUint(
             mintVault, abi.encodeWithSignature("previewMint(uint256)", 990)
         );
+        vm.prank(ERC4626_ACTOR);
         (bool mintOk, bytes memory mintResult) =
-            mintVault.call(abi.encodeWithSignature("mint(uint256,address)", 990, address(this)));
+            mintVault.call(abi.encodeWithSignature("mint(uint256,address)", 990, ERC4626_ACTOR));
         assertTrue(mintOk);
         assertEq(mintPreview, 667);
         assertEq(abi.decode(mintResult, (uint256)), mintPreview);
-        assertEq(callUint(mintVault, abi.encodeWithSignature("balanceOf(address)", address(this))), 990);
+        assertEq(callUint(mintVault, abi.encodeWithSignature("balanceOf(address)", ERC4626_ACTOR)), 990);
         assertEq(callUint(mintVault, abi.encodeWithSignature("balanceOf(address)", feeRecipient)), 10);
 
         address withdrawVault = address(0x4630);
@@ -526,16 +557,155 @@ contract ProofForgeSmokeTest {
         uint256 withdrawPreview = callUint(
             withdrawVault, abi.encodeWithSignature("previewWithdraw(uint256)", 100)
         );
+        vm.prank(ERC4626_ACTOR);
         (bool withdrawOk, bytes memory withdrawResult) = withdrawVault.call(
             abi.encodeWithSignature(
-                "withdraw(uint256,address,address)", 100, address(this), address(this)
+                "withdraw(uint256,address,address)", 100, ERC4626_ACTOR, ERC4626_ACTOR
             )
         );
         assertTrue(withdrawOk);
         assertEq(withdrawPreview, 150);
         assertEq(abi.decode(withdrawResult, (uint256)), withdrawPreview);
-        assertEq(ERC4626AssetMock(withdrawAsset).balanceOf(address(this)), 99);
+        assertEq(ERC4626AssetMock(withdrawAsset).balanceOf(ERC4626_ACTOR), 99);
         assertEq(ERC4626AssetMock(withdrawAsset).balanceOf(feeRecipient), 1);
+    }
+
+    function testERC4626MintUsesActualOnlyAsCoverage() public {
+        address surplusVault = address(0x4631);
+        address surplusAsset = address(0xA5505);
+        installERC4626(surplusVault, surplusAsset, 2, 100, 0, address(0xFEE), 0, 2, 1);
+        assertEq(callUint(surplusVault, abi.encodeWithSignature("previewMint(uint256)", 1)), 1);
+        vm.prank(ERC4626_ACTOR);
+        (bool surplusOk,) =
+            surplusVault.call(abi.encodeWithSignature("mint(uint256,address)", 1, ERC4626_ACTOR));
+        assertTrue(surplusOk);
+        assertEq(callUint(surplusVault, abi.encodeWithSignature("balanceOf(address)", ERC4626_ACTOR)), 1);
+        assertEq(callUint(surplusVault, abi.encodeWithSignature("totalSupply()")), 101);
+
+        address fotVault = address(0x4632);
+        address fotAsset = address(0xA5506);
+        installERC4626(fotVault, fotAsset, 200, 300, 0, address(0xFEE), 0, 200, 100);
+        ERC4626AssetMock(fotAsset).setTransferFeeBps(100);
+        assertEq(callUint(fotVault, abi.encodeWithSignature("previewMint(uint256)", 150)), 100);
+        vm.prank(ERC4626_ACTOR);
+        (bool fotOk,) =
+            fotVault.call(abi.encodeWithSignature("mint(uint256,address)", 150, ERC4626_ACTOR));
+        assertFalse(fotOk);
+        assertEq(callUint(fotVault, abi.encodeWithSignature("totalAssets()")), 200);
+        assertEq(callUint(fotVault, abi.encodeWithSignature("totalSupply()")), 300);
+    }
+
+    function testERC4626MaxLimitsAreExecutable() public {
+        uint256 maxU64 = type(uint64).max;
+
+        address depositVault = address(0x4633);
+        address depositAsset = address(0xA5507);
+        installERC4626(
+            depositVault,
+            depositAsset,
+            maxU64 - 2,
+            maxU64 - 3,
+            0,
+            address(0xFEE),
+            0,
+            maxU64 - 2,
+            2
+        );
+        uint256 depositLimit = callUint(
+            depositVault, abi.encodeWithSignature("maxDeposit(address)", ERC4626_ACTOR)
+        );
+        assertEq(depositLimit, 2);
+        vm.prank(ERC4626_ACTOR);
+        (bool depositOk,) = depositVault.call(
+            abi.encodeWithSignature("deposit(uint256,address)", depositLimit, ERC4626_ACTOR)
+        );
+        assertTrue(depositOk);
+
+        address mintVault = address(0x4634);
+        address mintAsset = address(0xA5508);
+        installERC4626(
+            mintVault,
+            mintAsset,
+            maxU64 - 2,
+            maxU64 - 3,
+            0,
+            address(0xFEE),
+            0,
+            maxU64 - 2,
+            2
+        );
+        uint256 mintLimit = callUint(
+            mintVault, abi.encodeWithSignature("maxMint(address)", ERC4626_ACTOR)
+        );
+        assertEq(mintLimit, 1);
+        vm.prank(ERC4626_ACTOR);
+        (bool mintOk,) =
+            mintVault.call(abi.encodeWithSignature("mint(uint256,address)", mintLimit, ERC4626_ACTOR));
+        assertTrue(mintOk);
+
+        address feeMintVault = address(0x4638);
+        address feeMintAsset = address(0xA5512);
+        installERC4626(
+            feeMintVault,
+            feeMintAsset,
+            maxU64 - 200,
+            maxU64 - 300,
+            100,
+            address(0xFEE),
+            0,
+            maxU64 - 200,
+            200
+        );
+        uint256 feeMintLimit = callUint(
+            feeMintVault, abi.encodeWithSignature("maxMint(address)", ERC4626_ACTOR)
+        );
+        assertEq(feeMintLimit, 197);
+        vm.prank(ERC4626_ACTOR);
+        (bool feeMintOk,) = feeMintVault.call(
+            abi.encodeWithSignature("mint(uint256,address)", feeMintLimit, ERC4626_ACTOR)
+        );
+        assertTrue(feeMintOk);
+
+        address withdrawVault = address(0x4635);
+        address withdrawAsset = address(0xA5509);
+        installERC4626(withdrawVault, withdrawAsset, 200, 300, 100, address(0xFEE), 300, 200, 0);
+        uint256 withdrawLimit = callUint(
+            withdrawVault, abi.encodeWithSignature("maxWithdraw(address)", ERC4626_ACTOR)
+        );
+        assertEq(withdrawLimit, 200);
+        vm.prank(ERC4626_ACTOR);
+        (bool withdrawOk, bytes memory withdrawResult) = withdrawVault.call(
+            abi.encodeWithSignature(
+                "withdraw(uint256,address,address)", withdrawLimit, ERC4626_ACTOR, ERC4626_ACTOR
+            )
+        );
+        assertTrue(withdrawOk);
+        assertEq(abi.decode(withdrawResult, (uint256)), 300);
+
+        address redeemVault = address(0x4636);
+        address redeemAsset = address(0xA5510);
+        installERC4626(redeemVault, redeemAsset, 200, 300, 100, address(0xFEE), 300, 200, 0);
+        uint256 redeemLimit = callUint(
+            redeemVault, abi.encodeWithSignature("maxRedeem(address)", ERC4626_ACTOR)
+        );
+        assertEq(redeemLimit, 300);
+        vm.prank(ERC4626_ACTOR);
+        (bool redeemOk,) = redeemVault.call(
+            abi.encodeWithSignature(
+                "redeem(uint256,address,address)", redeemLimit, ERC4626_ACTOR, ERC4626_ACTOR
+            )
+        );
+        assertTrue(redeemOk);
+    }
+
+    function testERC4626HundredPercentFeeDisablesMaxLimits() public {
+        address vault = address(0x4637);
+        address asset = address(0xA5511);
+        installERC4626(vault, asset, 200, 300, 10_000, address(0xFEE), 300, 200, 100);
+        assertEq(callUint(vault, abi.encodeWithSignature("maxDeposit(address)", ERC4626_ACTOR)), 0);
+        assertEq(callUint(vault, abi.encodeWithSignature("maxMint(address)", ERC4626_ACTOR)), 0);
+        assertEq(callUint(vault, abi.encodeWithSignature("maxWithdraw(address)", ERC4626_ACTOR)), 0);
+        assertEq(callUint(vault, abi.encodeWithSignature("maxRedeem(address)", ERC4626_ACTOR)), 0);
     }
 
     function testOwnableLifecycle() public {
@@ -665,6 +835,14 @@ contract ProofForgeSmokeTest {
             probe.call(abi.encodeWithSignature("supportsInterface(bytes4)", bytes4(0xdeadbeef)));
         assertTrue(unknownOk);
         assertFalse(abi.decode(unknownResult, (bool)));
+
+        (bool nonCanonicalBytes4Ok,) = probe.call(
+            abi.encodePacked(
+                bytes4(keccak256("supportsInterface(bytes4)")),
+                bytes32((uint256(0x01ffc9a7) << 224) | 1)
+            )
+        );
+        assertFalse(nonCanonicalBytes4Ok);
     }
 
     function testAccessControlProbeLifecycle() public {
@@ -801,6 +979,15 @@ contract ProofForgeSmokeTest {
             token.call(abi.encodeWithSignature("balanceOf(address,uint256)", alice, uint256(7)));
         assertTrue(aliceBalOk);
         assertEq(abi.decode(aliceBal, (uint256)), 100);
+
+        (bool nonCanonicalAddressOk,) = token.call(
+            abi.encodePacked(
+                bytes4(keccak256("balanceOf(address,uint256)")),
+                bytes32(uint256(1) << 160),
+                bytes32(uint256(7))
+            )
+        );
+        assertFalse(nonCanonicalAddressOk);
 
         vm.prank(bob);
         (bool unauthorizedOk,) =

@@ -547,16 +547,14 @@ def lowerPlannedBodyEffectPlan
     (effect : ProofForge.Backend.Evm.Plan.EffectPlan) :
     Except LowerError (Array Lean.Compiler.Yul.Statement) := do
   match effect with
-  | .storageScalarWriteTarget _ value =>
+  | .storageScalarWriteTarget _ _ =>
       ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
-        (ProofForge.Backend.Evm.Lower.exprPlanUsesCheckedArithmetic value)
         toYulError
         (fun expr => lowerExpr module env expr)
         (lowerPlanEffectExpr module env)
         (.effect effect)
   | .storageScalarAssignOpTarget .. =>
       ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
-        module.overflowChecked
         toYulError
         (fun expr => lowerExpr module env expr)
         (lowerPlanEffectExpr module env)
@@ -580,15 +578,19 @@ def lowerPlannedBodyEffectPlan
       | _ =>
           match ProofForge.Backend.Evm.Lower.scalarStorageTargetPlan? module stateId with
           | some target =>
+              let target := {
+                target with
+                  writeSemantics :=
+                    ProofForge.Backend.Evm.Lower.scalarStorageWriteSemantics module value
+              }
               ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
-                (ProofForge.Backend.Evm.Lower.exprPlanUsesCheckedArithmetic value)
                 toYulError
                 (fun expr => lowerExpr module env expr)
                 (lowerPlanEffectExpr module env)
                 (.effect (.storageScalarWriteTarget target value))
           | none =>
               ProofForge.Backend.Evm.ToYul.scalarStorageEffectStmtPlanStatements
-                (ProofForge.Backend.Evm.Lower.exprPlanUsesCheckedArithmetic value)
+                (ProofForge.Backend.Evm.Lower.scalarStorageWriteSemantics module value).overflowChecked
                 toYulError
                 (fun expr => lowerExpr module env expr)
                 (lowerPlanEffectExpr module env)
@@ -603,7 +605,6 @@ def lowerPlannedBodyEffectPlan
           match ProofForge.Backend.Evm.Lower.scalarStorageTargetPlan? module stateId with
           | some target =>
               ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
-                module.overflowChecked
                 toYulError
                 (fun expr => lowerExpr module env expr)
                 (lowerPlanEffectExpr module env)

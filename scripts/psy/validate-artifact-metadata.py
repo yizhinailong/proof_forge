@@ -53,6 +53,40 @@ def main() -> int:
     expect(metadata.get("artifactKind") == "psy-circuit-json", "artifactKind mismatch")
     expect_string(metadata.get("fixture"), "fixture")
 
+    # Z1.2: primary/final output honesty relative to dargoCompile.
+    validation_preview = metadata.get("validation") if isinstance(metadata.get("validation"), dict) else {}
+    dargo_compile = validation_preview.get("dargoCompile")
+    primary = metadata.get("primaryOutput")
+    final = metadata.get("finalOutput")
+    lower = metadata.get("lowerBoundary")
+    if dargo_compile == "passed":
+        expect(
+            primary == "dpn-bytecode-json",
+            "primaryOutput must be dpn-bytecode-json when dargoCompile=passed",
+        )
+        expect(
+            final == "dpn-bytecode-json",
+            "finalOutput must be dpn-bytecode-json when dargoCompile=passed",
+        )
+        expect(
+            lower == "DPNFunctionCircuitDefinition",
+            "lowerBoundary must name DPNFunctionCircuitDefinition when compile passed",
+        )
+    elif dargo_compile in ("notRun", "unavailable", "failed"):
+        expect(
+            final in (None, "null") or final is None,
+            "finalOutput must be null/absent when dargoCompile is not passed",
+        )
+        expect(
+            primary in ("psy-source", "dpn-bytecode-json", None)
+            or isinstance(primary, str),
+            "primaryOutput must be present as a string when set",
+        )
+        if final not in (None, "null") and final is not None:
+            raise SystemExit(
+                "psy-metadata-validate: finalOutput must not claim DPN when compile skipped"
+            )
+
     capabilities = metadata.get("capabilities")
     expect(isinstance(capabilities, list) and capabilities, "capabilities must be a non-empty array")
     for idx, capability in enumerate(capabilities):

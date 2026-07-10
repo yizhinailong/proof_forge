@@ -5,6 +5,12 @@ object "ContextProbe" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_ContextProbe_sum_context(calldataload(4), calldataload(36))
       mstore(0, _r)
       return(0, 32)

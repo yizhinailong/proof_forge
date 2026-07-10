@@ -5,6 +5,9 @@ object "CounterUUPSImpl" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
       f_CounterUUPSImpl_upgradeTo(calldataload(4))
       return(0, 0)
     }

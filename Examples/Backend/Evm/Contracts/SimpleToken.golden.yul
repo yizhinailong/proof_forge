@@ -10,6 +10,9 @@ object "SimpleToken" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_SimpleToken_transferOwnership(calldataload(4))
       return(0, 0)
     }
@@ -31,12 +34,21 @@ object "SimpleToken" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
       let _r := f_SimpleToken_balanceOf(calldataload(4))
       mstore(0, _r)
       return(0, 32)
     }
     case 0xdd62ed3e {
       if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 1461501637330902918203684832716283019655932542975) {
         revert(0, 0)
       }
       let _r := f_SimpleToken_allowance(calldataload(4), calldataload(36))
@@ -47,12 +59,24 @@ object "SimpleToken" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_SimpleToken_transfer(calldataload(4), calldataload(36))
       mstore(0, _r)
       return(0, 32)
     }
     case 0x095ea7b3 {
       if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_SimpleToken_approve(calldataload(4), calldataload(36))
@@ -63,12 +87,27 @@ object "SimpleToken" {
       if lt(calldatasize(), 100) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_SimpleToken_transferFrom(calldataload(4), calldataload(36), calldataload(68))
       mstore(0, _r)
       return(0, 32)
     }
     case 0x40c10f19 {
       if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 1461501637330902918203684832716283019655932542975) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_SimpleToken_mint(calldataload(4), calldataload(36))
@@ -79,12 +118,18 @@ object "SimpleToken" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_SimpleToken_burn(calldataload(4))
       mstore(0, _r)
       return(0, 32)
     }
     case 0xb7b0422d {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
         revert(0, 0)
       }
       f_SimpleToken_init(calldataload(4))

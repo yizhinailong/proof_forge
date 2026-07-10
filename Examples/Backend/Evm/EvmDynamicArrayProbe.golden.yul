@@ -10,12 +10,21 @@ object "EvmDynamicArrayProbe" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_EvmDynamicArrayProbe_read_value(calldataload(4))
       mstore(0, _r)
       return(0, 32)
     }
     case 0x5a6fd3b0 {
       if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
         revert(0, 0)
       }
       f_EvmDynamicArrayProbe_write_value(calldataload(4), calldataload(36))
@@ -28,6 +37,9 @@ object "EvmDynamicArrayProbe" {
     }
     case 0xb408dd47 {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
         revert(0, 0)
       }
       f_EvmDynamicArrayProbe_push_value(calldataload(4))

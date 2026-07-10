@@ -33,6 +33,72 @@ grep -Fq "UUPS proxy deployment requires constructor arguments" <<<"$no_args_out
   echo "uups-atomic-init: missing constructor diagnostic: $no_args_output" >&2
   exit 1
 }
+if [[ -e "$OUT_DIR/UUPSProxyMissingArgs.yul" || -e "$OUT_DIR/UUPSProxyMissingArgs.bin" ]]; then
+  echo "uups-atomic-init: missing-args failure left a deployable artifact" >&2
+  exit 1
+fi
+
+expect_atomic_config_failure() {
+  local fixture="$1"
+  local source="$2"
+  local output
+  local status
+  set +e
+  output=$(lake env proof-forge build --target evm --root . \
+    --evm-constructor-arg \
+      "implementation=0x0000000000000000000000000000000000001001" \
+    --evm-constructor-arg \
+      "admin=0x1234567890123456789012345678901234567890" \
+    --yul-output "$OUT_DIR/$fixture.yul" \
+    -o "$OUT_DIR/$fixture.bin" \
+    "$source" 2>&1)
+  status=$?
+  set -e
+  if [[ "$status" -eq 0 ]]; then
+    echo "uups-atomic-init: $fixture unexpectedly built with unsafe constructor bindings" >&2
+    exit 1
+  fi
+  grep -Fq "UUPS proxy requires exact atomic constructor bindings" <<<"$output" || {
+    echo "uups-atomic-init: $fixture missing atomic-binding diagnostic: $output" >&2
+    exit 1
+  }
+  if [[ -e "$OUT_DIR/$fixture.yul" || -e "$OUT_DIR/$fixture.bin" ]]; then
+    echo "uups-atomic-init: $fixture failure left a deployable artifact" >&2
+    exit 1
+  fi
+}
+
+expect_atomic_config_failure BadUUPSNoBindings \
+  Tests/Backend/Evm/BadUUPSNoBindings.lean
+expect_atomic_config_failure BadUUPSMissingBinding \
+  Tests/Backend/Evm/BadUUPSMissingBinding.lean
+expect_atomic_config_failure BadUUPSWrongBinding \
+  Tests/Backend/Evm/BadUUPSWrongBinding.lean
+
+NONCANONICAL_IMPLEMENTATION_WORD="0000000000000000000000010000000000000000000000000000000000001001"
+CANONICAL_ADMIN_WORD="0000000000000000000000001234567890123456789012345678901234567890"
+set +e
+noncanonical_output=$(lake env proof-forge build --target evm --root . \
+  --evm-constructor-args-hex \
+    "${NONCANONICAL_IMPLEMENTATION_WORD}${CANONICAL_ADMIN_WORD}" \
+  --yul-output "$OUT_DIR/UUPSProxyNoncanonicalAddress.yul" \
+  -o "$OUT_DIR/UUPSProxyNoncanonicalAddress.bin" \
+  Examples/Backend/Evm/Contracts/stdlib/UUPSProxy.lean 2>&1)
+noncanonical_status=$?
+set -e
+if [[ "$noncanonical_status" -eq 0 ]]; then
+  echo "uups-atomic-init: noncanonical raw address word unexpectedly built" >&2
+  exit 1
+fi
+grep -Fq "non-zero high 96 bits" <<<"$noncanonical_output" || {
+  echo "uups-atomic-init: missing noncanonical-address diagnostic: $noncanonical_output" >&2
+  exit 1
+}
+if [[ -e "$OUT_DIR/UUPSProxyNoncanonicalAddress.yul" ||
+      -e "$OUT_DIR/UUPSProxyNoncanonicalAddress.bin" ]]; then
+  echo "uups-atomic-init: noncanonical address failure left a deployable artifact" >&2
+  exit 1
+fi
 
 build_proxy_initcode() {
   local name="$1"
@@ -54,6 +120,14 @@ build_proxy_initcode UUPSProxyZeroImplementation \
 build_proxy_initcode UUPSProxyZeroAdmin \
   "0x0000000000000000000000000000000000001001" \
   "0x0000000000000000000000000000000000000000"
+
+ADDRESS_MASK="1461501637330902918203684832716283019655932542975"
+guard_count=$(grep -Fc "if gt(__pf_address, $ADDRESS_MASK) { revert(0, 0) }" \
+  "$OUT_DIR/UUPSProxyAtomic.deploy.yul")
+if [[ "$guard_count" -ne 2 ]]; then
+  echo "uups-atomic-init: expected canonical address guards for implementation and admin" >&2
+  exit 1
+fi
 
 lake env proof-forge build --target evm --root . \
   --yul-output "$OUT_DIR/CounterUUPSImpl.yul" \

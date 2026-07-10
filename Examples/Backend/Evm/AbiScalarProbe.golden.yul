@@ -5,6 +5,9 @@ object "AbiScalarProbe" {
       if lt(calldatasize(), 100) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
       if gt(calldataload(36), 4294967295) {
         revert(0, 0)
       }
@@ -17,6 +20,12 @@ object "AbiScalarProbe" {
     }
     case 0xc32c70b1 {
       if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_AbiScalarProbe_same(calldataload(4), calldataload(36))

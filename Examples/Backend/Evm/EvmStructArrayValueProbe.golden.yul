@@ -10,12 +10,18 @@ object "EvmStructArrayValueProbe" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_EvmStructArrayValueProbe_dynamic_struct_array_pick(calldataload(4))
       mstore(0, _r)
       return(0, 32)
     }
     case 0xbfa2eef8 {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_EvmStructArrayValueProbe_mutable_struct_array_update(calldataload(4))
@@ -51,12 +57,24 @@ object "EvmStructArrayValueProbe" {
       if lt(calldatasize(), 68) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_EvmStructArrayValueProbe_nested_struct_array_dynamic_pick(calldataload(4), calldataload(36))
       mstore(0, _r)
       return(0, 32)
     }
     case 0xd29b2aa1 {
       if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_EvmStructArrayValueProbe_nested_struct_array_update(calldataload(4), calldataload(36))

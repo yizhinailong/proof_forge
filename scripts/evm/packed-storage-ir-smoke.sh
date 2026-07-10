@@ -230,6 +230,55 @@ contract ProofForgeIRPackedStorageSmokeTest {
         assertEq(readStorage(probe, 0), 0);
     }
 
+    function testIRPackedCheckedLiteralWriteRejectsFieldOverflow() public {
+        address probe = address(uint160(0xB109));
+        deployRuntime(hex"$probe_hex", probe);
+
+        (bool ok,) = probe.call(
+            abi.encodeWithSignature("packed_checked_literal_write_overflow_reverts()")
+        );
+        assertFalse(ok);
+        assertEq(readStorage(probe, 0), 0);
+    }
+
+    function testIRPackedCheckedLocalWriteRejectsFieldOverflow() public {
+        address probe = address(uint160(0xB10A));
+        deployRuntime(hex"$probe_hex", probe);
+
+        (bool ok,) = probe.call(
+            abi.encodeWithSignature("packed_checked_local_write_overflow_reverts()")
+        );
+        assertFalse(ok);
+        assertEq(readStorage(probe, 0), 0);
+    }
+
+    function testIRPackedCanonicalU8CalldataWrites() public {
+        address probe = address(uint160(0xB10B));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertEq(
+            callU256(
+                probe,
+                abi.encodeWithSignature("packed_checked_write_param(uint8)", uint8(255))
+            ),
+            255
+        );
+        assertEq((readStorage(probe, 0) >> 8) & 0xFF, 255);
+    }
+
+    function testIRPackedRejectsNonCanonicalU8Calldata() public {
+        address probe = address(uint160(0xB10C));
+        deployRuntime(hex"$probe_hex", probe);
+
+        bytes memory payload = abi.encodePacked(
+            bytes4(0xc1244eee),
+            bytes32(uint256(256))
+        );
+        (bool ok,) = probe.call(payload);
+        assertFalse(ok);
+        assertEq(readStorage(probe, 0), 0);
+    }
+
     function testIRPackedStorageRejectsUnknownSelector() public {
         address probe = address(uint160(0xB108));
         deployRuntime(hex"$probe_hex", probe);

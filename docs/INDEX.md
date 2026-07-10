@@ -96,6 +96,9 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - [Validation gates](validation-gates.md): runnable gates and tool prerequisites.
 - [Formal verification roadmap](formal-verification.md): existing formal anchors and staged proof targets.
 - [Solana sBPF executable trace](solana-sbpf-executable-trace.md): in-Lean Counter + ValueVault scalar/event plus fixed-array/u64-map storage target semantics for direct sBPF assembly.
+- [Portable IR semantics anchor](portable-ir-semantics-anchor.md): multi-chain rule — IR.Semantics is the only formal source; no IR bypass.
+- [Solana sBPF ↔ solanalib bridge](solana-sbpf-solanalib-bridge.md): Scheme 1 encode + Scheme 2 labeled/lift + Counter core-tail host bridge + opt-in CompileCorrect.
+- [EVM Yul-subset ↔ IR host bridge](evm-yul-host-bridge.md): mathlib-free IR↔YulSemantics paired simulation (Counter + ValueVault).
 - [WASM executable trace](wasm-executable-trace.md): in-Lean Counter + ValueVault scalar/event plus fixed-array/u64-map storage target semantics for EmitWat/NEAR.
 - [Target portfolio roadmap](target-roadmap.md): tiered sequencing for the remaining research targets and the Bitcoin policy family (D-034).
 - [Platform gap analysis 2026-07](platform-gaps-2026-07.md): unplanned dimensions (CLI surface, versioning, budgets, upgrades/signing, error model, clients) and their sequencing hooks.
@@ -105,12 +108,13 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - [Portable SDK unification plan (2026-07-09)](superpowers/plans/2026-07-09-portable-sdk-unification.md): **complete** (policy · Token · remote · author polish).
 - [Unified support roadmap (2026-07-09)](superpowers/plans/2026-07-09-unified-support-roadmap.md): prior unification waves (historical context; unfinished U4/U6 absorbed by post-review plan).
 - [Post-review execution plan (2026-07-10)](superpowers/plans/2026-07-10-post-review-execution.md): **active** — S0 trunk · N1 NEAR · E1 EVM · L1 Solana · **B1 benchmarks** · **Z1 Psy DPN** · **Z2 Aleo Instructions** · P1 platform · F1 FV · D1 DX.
-- [Benchmarks (PF vs native)](benchmarks.md): B1 matrix skeleton — behavior + native cost dimensions (no fake cross-chain score).
+- [Benchmarks (PF vs native)](benchmarks.md): B1 Counter matrix (PF+native runners, behavior gate, cost table) — no fake cross-chain score. Snapshot: [generated/benchmark-counter.md](generated/benchmark-counter.md).
 - [CLI M4 legacy inventory](cli-m4-legacy-inventory.md): EmitMode/flag zoo inventory before alias deletion.
 - [CLI M4 deletion checklist](cli-m4-deletion-checklist.md): ordered delete steps (compat window).
 - [RFC 0012 versioning](rfcs/0012-versioning-and-compatibility-policy.md) + `just versioning-policy`.
 - [Upgrade/signing ops (RFC 0013)](upgrade-signing-ops.md): unsigned emit + live-gate key conventions.
 - [Client schema parity (U6.4)](client-schema-parity.md): entrypoint names + assertionId catalogue.
+- [Portable error vocabulary (P1.6)](portable-error-vocabulary.md): shared assertionId / errorByAssertionId contract.
 - [Review checklist (English)](review-checklist.md)
 - [Target notes](targets/README.md): per-family research and spike plans.
   - [EVM](targets/evm.md)

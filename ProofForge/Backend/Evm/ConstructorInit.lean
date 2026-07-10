@@ -22,17 +22,78 @@ def paramIsDynamic (abiType : String) : Bool :=
   abiType == "string" || abiType == "bytes" || abiType == "uint256[]"
 
 def paramWithIndex? (params : Array EvmConstructorParam) (name : String) : Option (Nat × EvmConstructorParam) :=
-  params.zipIdx.toList.find? (fun (param, idx) => param.name == name) |>.map (fun (param, idx) => (idx, param))
+  params.zipIdx.toList.find? (fun (param, _idx) => param.name == name) |>.map (fun (param, idx) => (idx, param))
 
 def findStorageState (layout : StorageLayout) (stateId : String) : Option StorageStatePlan :=
   layout.states.find? (fun state => state.id == stateId)
 
 def u64Mask : String := "18446744073709551615"
 
+def addressMask : String :=
+  "1461501637330902918203684832716283019655932542975"
+
 def eip1967ImplementationStateId : String := "$eip1967.implementation"
 
 def eip1967ImplementationSlot : String :=
   "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+
+def atomicUupsConstructorParams : Array EvmConstructorParam := #[
+  { name := "implementation", abiType := "address" },
+  { name := "admin", abiType := "address" }
+]
+
+def atomicUupsConstructorBindings : Array EvmConstructorInitBinding := #[
+  {
+    stateId := eip1967ImplementationStateId
+    paramName := "implementation"
+    kind := .addressWord
+  },
+  {
+    stateId := "owner"
+    paramName := "admin"
+    kind := .addressKeccak
+  }
+]
+
+/-- A UUPS dispatcher is deployable only through the single audited atomic
+constructor shape. This gate is shared by source rendering and artifact paths
+so custom UUPS modules cannot silently fall back to ordinary slot-zero initcode. -/
+def validateAtomicUupsConstructor
+    (module : Module)
+    (params : Array EvmConstructorParam)
+    (bindings : Array EvmConstructorInitBinding)
+    (constructorArgsHex : String) : Except InitError Unit := do
+  if module.proxyPattern? != some "uups" then
+    return
+  if !(params == atomicUupsConstructorParams) then
+    .error {
+      message :=
+        "UUPS proxy requires exact atomic constructor params `implementation:address, admin:address`"
+    }
+  if !(bindings == atomicUupsConstructorBindings) then
+    .error {
+      message :=
+        "UUPS proxy requires exact atomic constructor bindings for ERC-1967 implementation and hashed owner"
+    }
+  let some ownerState := module.state.find? (fun state => state.id == "owner")
+    | .error { message := "UUPS proxy requires exact atomic constructor bindings and a scalar Hash `owner` state" }
+  if ownerState.kind != .scalar || ownerState.type != .hash then
+    .error { message := "UUPS proxy requires exact atomic constructor bindings and a scalar Hash `owner` state" }
+  let some implementationState :=
+      module.state.find? (fun state => state.id == eip1967ImplementationStateId)
+    | .error { message := "UUPS proxy requires exact atomic constructor bindings and the ERC-1967 implementation state" }
+  if implementationState.kind != .scalar then
+    .error { message := "UUPS proxy requires exact atomic constructor bindings and the ERC-1967 implementation state" }
+  if module.entrypoints.any (fun entrypoint => entrypoint.name == "init") then
+    .error { message := "UUPS proxy runtime must not expose a post-deploy `init` entrypoint" }
+  let args := stripHexPrefix (trimAscii constructorArgsHex)
+  if args.isEmpty then
+    .error {
+      message :=
+        "UUPS proxy deployment requires constructor arguments for atomic implementation and admin initialization"
+    }
+  if args.length != 128 then
+    .error { message := "UUPS proxy deployment requires exactly two 32-byte constructor arguments" }
 
 def headWordOffsetExpr (paramIdx : Nat) : String :=
   s!"add(__pf_args_off, {32 * paramIdx})"
@@ -89,7 +150,8 @@ def genBindingInit
     else
       let value := codeLoadExpr dataPtr
       .ok ("{\n      let __pf_address := " ++ value ++
-        "\n      if iszero(__pf_address) { revert(0, 0) }\n      " ++
+        "\n      if iszero(__pf_address) { revert(0, 0) }" ++
+        "\n      if gt(__pf_address, " ++ addressMask ++ ") { revert(0, 0) }\n      " ++
         storeFullWordForState binding.stateId state "__pf_address" ++ "\n    }")
   | .addressKeccak =>
     if param.abiType != "address" then
@@ -99,7 +161,9 @@ def genBindingInit
     else
       let value := codeLoadExpr dataPtr
       .ok ("{\n      let __pf_address := " ++ value ++
-        "\n      if iszero(__pf_address) { revert(0, 0) }\n      mstore(0, __pf_address)\n      " ++
+        "\n      if iszero(__pf_address) { revert(0, 0) }" ++
+        "\n      if gt(__pf_address, " ++ addressMask ++ ") { revert(0, 0) }" ++
+        "\n      mstore(0, __pf_address)\n      " ++
         storeFullWord state "keccak256(0, 32)" ++ "\n    }")
   | .stringLength | .bytesLength =>
     if param.abiType != "string" && param.abiType != "bytes" then

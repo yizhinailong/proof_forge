@@ -5,6 +5,18 @@ object "Permit2Client" {
       if lt(calldatasize(), 132) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(36), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(68), 18446744073709551615) {
+        revert(0, 0)
+      }
+      if gt(calldataload(100), 18446744073709551615) {
+        revert(0, 0)
+      }
       f_Permit2Client_pull(calldataload(4), calldataload(36), calldataload(68), calldataload(100))
       return(0, 0)
     }

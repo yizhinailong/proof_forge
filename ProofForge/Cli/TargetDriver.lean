@@ -139,6 +139,11 @@ def solanaResolveEmit (req : EmitRequest) : Except String String :=
     Except.ok "--emit-solana-sdk-sbpf"
   else if f == "canned-entrypoint" then
     Except.ok "--emit-sbpf-asm"
+  else if f == "solana-memo-cpi" then
+    if fmt == "s" || fmt == "" then
+      Except.ok "--emit-solana-memo-cpi-sbpf"
+    else
+      Except.ok "--solana-memo-cpi-elf"
   else if f.startsWith "solana-" then
     if fmt == "s" then
       Except.error s!"emit --target solana-sbpf-asm --fixture {f} --format s is not yet mapped to a legacy flag; use --format elf"
@@ -268,7 +273,10 @@ def psyResolveBuild (req : BuildRequest) : Except String String :=
     fixtureOnlyBuild "psy-dpn" "--emit-counter-ir-psy" req
 
 def psyResolveEmit (req : EmitRequest) : Except String String :=
-  if ProofForge.Cli.Fixture.supportsFormat "psy-dpn" req.fixture .psy then
+  let fmt := req.format?.getD ""
+  if (fmt == "dpn-json" || fmt == "dpn" || fmt == "json") && req.fixture == "counter" then
+    Except.ok "--emit-counter-ir-dpn-json"
+  else if ProofForge.Cli.Fixture.supportsFormat "psy-dpn" req.fixture .psy then
     Except.ok s!"--emit-{req.fixture}-ir-psy"
   else
     Except.error s!"emit --target psy-dpn --fixture {req.fixture} is not yet mapped to a legacy flag"
@@ -280,10 +288,14 @@ def aleoResolveBuild (req : BuildRequest) : Except String String :=
     fixtureOnlyBuild "aleo-leo" "--emit-counter-ir-leo" req
 
 def aleoResolveEmit (req : EmitRequest) : Except String String :=
-  match req.fixture with
-  | "counter" => Except.ok "--emit-counter-ir-leo"
-  | "pure-math" => Except.ok "--emit-pure-math-ir-leo"
-  | f => Except.error s!"emit --target aleo-leo --fixture {f} --format {req.format?.getD ""} is not yet mapped to a legacy flag"
+  let fmt := req.format?.getD ""
+  if (fmt == "aleo" || fmt == "instructions") && req.fixture == "counter" then
+    Except.ok "--emit-counter-ir-aleo"
+  else
+    match req.fixture with
+    | "counter" => Except.ok "--emit-counter-ir-leo"
+    | "pure-math" => Except.ok "--emit-pure-math-ir-leo"
+    | f => Except.error s!"emit --target aleo-leo --fixture {f} --format {req.format?.getD ""} is not yet mapped to a legacy flag"
 
 def aptosResolveBuild (req : BuildRequest) : Except String String :=
   if isLearnInput req.input? then

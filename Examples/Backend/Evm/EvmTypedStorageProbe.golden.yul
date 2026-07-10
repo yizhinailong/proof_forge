@@ -20,12 +20,18 @@ object "EvmTypedStorageProbe" {
       if lt(calldatasize(), 36) {
         revert(0, 0)
       }
+      if gt(calldataload(4), 18446744073709551615) {
+        revert(0, 0)
+      }
       let _r := f_EvmTypedStorageProbe_read_flag(calldataload(4))
       mstore(0, _r)
       return(0, 32)
     }
     case 0x6a088e19 {
       if lt(calldatasize(), 68) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
         revert(0, 0)
       }
       if gt(calldataload(36), 4294967295) {
@@ -36,6 +42,9 @@ object "EvmTypedStorageProbe" {
     }
     case 0x4994f441 {
       if lt(calldatasize(), 36) {
+        revert(0, 0)
+      }
+      if gt(calldataload(4), 18446744073709551615) {
         revert(0, 0)
       }
       let _r := f_EvmTypedStorageProbe_read_root(calldataload(4))

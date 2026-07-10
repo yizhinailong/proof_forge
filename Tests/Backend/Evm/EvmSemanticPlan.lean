@@ -7683,6 +7683,8 @@ def testScalarStorageEffectPlanToYul : IO Unit := do
   match loweredScalarWriteEffect with
   | .storageScalarWriteTarget target (.checkedArith .add (.local name) (.literalWord value)) => do
       requireScalarStorageTarget target 0 0 8 "Lower scalar storage write target"
+      require (target.writeSemantics == .checked)
+        "Lower scalar storage write target must carry checked destination-width semantics"
       require (name == "n") "Lower scalar storage write target value lhs"
       require (value == 1) "Lower scalar storage write target value rhs"
   | _ => throw <| IO.userError "Lower scalar storage write must produce storageScalarWriteTarget"
@@ -7705,6 +7707,8 @@ def testScalarStorageEffectPlanToYul : IO Unit := do
   match loweredScalarAssignOpEffect with
   | .storageScalarAssignOpTarget target op (.effect (.storageScalarReadTarget valueTarget)) => do
       requireScalarStorageTarget target 0 0 8 "Lower scalar storage assign_op target"
+      require (target.writeSemantics == .wrapping)
+        "Lower scalar storage assign_op target must carry module wrapping semantics"
       require (op == .add) "Lower scalar storage assign_op target op"
       requireScalarStorageTarget valueTarget 0 0 8 "Lower scalar storage assign_op value target"
   | _ => throw <| IO.userError "Lower scalar storage assign_op must produce storageScalarAssignOpTarget"
@@ -7758,7 +7762,6 @@ def testScalarStorageEffectPlanToYul : IO Unit := do
   | _ => throw <| IO.userError "scalar storage read effect must lower through packed target plan"
   let directPlannedWriteStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
-      true
       toYulError
       (fun expr => lowerExpr ProofForge.IR.Examples.Counter.module env expr)
       (lowerPlanEffectExpr ProofForge.IR.Examples.Counter.module env)
@@ -7781,13 +7784,13 @@ def testScalarStorageEffectPlanToYul : IO Unit := do
     "planned scalar storage write target helper must lower to packed sstore"
   let directPlannedAssignOpStmts ← requireOk
     (ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
-      ProofForge.IR.Examples.Counter.module.overflowChecked
       toYulError
       (fun expr => lowerExpr ProofForge.IR.Examples.Counter.module env expr)
       (lowerPlanEffectExpr ProofForge.IR.Examples.Counter.module env)
       (ProofForge.Backend.Evm.Plan.StmtPlan.effect
         (.storageScalarAssignOpTarget
-          { slot := .scalarSlot 0, byteOffset := 0, byteWidth := 8 }
+          { slot := .scalarSlot 0, byteOffset := 0, byteWidth := 8,
+            writeSemantics := .wrapping }
           .add
           (.effect (.storageScalarRead "count")))))
     "planned scalar storage assign_op target StmtPlan-to-Yul helper"
@@ -10228,6 +10231,78 @@ def testErc1155BatchTraversalAndPlanLowering : IO Unit := do
   require (rendered.contains "gas()")
     "ERC-1155 batch EffectPlan-to-Yul must lower the amount1 context expression"
 
+def requireReceiverArgumentBindings
+    (label : String)
+    (statements : Array Lean.Compiler.Yul.Statement)
+    (bindingNames effectNames : Array String) : IO Unit := do
+  let body ← match statements with
+    | #[.block body] => pure body
+    | _ => throw <| IO.userError s!"{label}: receiver check must use one lexical block"
+  require (body.statements.size == effectNames.size + 1)
+    s!"{label}: every argument must bind before the receiver branch"
+  for idx in [:effectNames.size] do
+    match body.statements[idx]?, bindingNames[idx]?, effectNames[idx]? with
+    | some (.varDecl vars (some (.builtin effectName args))), some bindingName,
+        some expectedEffectName =>
+        let bindingMatches := match vars[0]? with
+          | some var => var.name == bindingName
+          | none => false
+        require (vars.size == 1 && bindingMatches)
+          s!"{label}: argument {idx} binding name/order"
+        require (effectName == expectedEffectName && args.isEmpty)
+          s!"{label}: argument {idx} source expression must be evaluated once"
+    | _, _, _ =>
+        throw <| IO.userError s!"{label}: argument {idx} must be an eager Yul binding"
+  match body.statements[effectNames.size]? with
+  | some (.ifStmt _ _) => pure ()
+  | _ => throw <| IO.userError s!"{label}: receiver branch must follow all argument bindings"
+  let rendered := String.intercalate "\n"
+    (statements.toList.map (Lean.Compiler.Yul.Printer.printStatement 0))
+  for effectName in effectNames do
+    require ((rendered.splitOn effectName).length == 2)
+      s!"{label}: source expression `{effectName}` must occur exactly once"
+
+def testReceiverArgumentsEvaluateOnceInIrOrder : IO Unit := do
+  let effectExprs (names : Array String) : Array Lean.Compiler.Yul.Expr :=
+    names.map fun name => Lean.Compiler.Yul.builtin name #[]
+  let erc721Effects := #["__test_721_operator_eval", "__test_721_sender_eval",
+    "__test_721_destination_eval", "__test_721_identifier_eval"]
+  let erc721Args := effectExprs erc721Effects
+  requireReceiverArgumentBindings
+    "ERC-721 receiver"
+    (ProofForge.Backend.Evm.ToYul.checkErc721ReceivedStatements
+      erc721Args[0]! erc721Args[1]! erc721Args[2]! erc721Args[3]!)
+    #["__pf_erc721_operator", "__pf_erc721_from", "__pf_erc721_to",
+      "__pf_erc721_token_id"]
+    erc721Effects
+  let erc1155Effects := #["__test_1155_operator_eval", "__test_1155_sender_eval",
+    "__test_1155_destination_eval", "__test_1155_identifier_eval",
+    "__test_1155_quantity_eval"]
+  let erc1155Args := effectExprs erc1155Effects
+  requireReceiverArgumentBindings
+    "ERC-1155 receiver"
+    (ProofForge.Backend.Evm.ToYul.checkErc1155ReceivedStatements
+      erc1155Args[0]! erc1155Args[1]! erc1155Args[2]! erc1155Args[3]!
+      erc1155Args[4]!)
+    #["__pf_erc1155_operator", "__pf_erc1155_from", "__pf_erc1155_to",
+      "__pf_erc1155_id", "__pf_erc1155_amount"]
+    erc1155Effects
+  let batchEffects := #["__test_batch_operator_eval", "__test_batch_sender_eval",
+    "__test_batch_destination_eval", "__test_batch_first_id_eval",
+    "__test_batch_first_amount_eval", "__test_batch_second_id_eval",
+    "__test_batch_second_amount_eval"]
+  let batchArgs := effectExprs batchEffects
+  requireReceiverArgumentBindings
+    "ERC-1155 batch receiver"
+    (ProofForge.Backend.Evm.ToYul.checkErc1155BatchReceivedStatements
+      batchArgs[0]! batchArgs[1]! batchArgs[2]! batchArgs[3]! batchArgs[4]!
+      batchArgs[5]! batchArgs[6]!)
+    #["__pf_erc1155_batch_operator", "__pf_erc1155_batch_from",
+      "__pf_erc1155_batch_to", "__pf_erc1155_batch_id0",
+      "__pf_erc1155_batch_amount0", "__pf_erc1155_batch_id1",
+      "__pf_erc1155_batch_amount1"]
+    batchEffects
+
 def testContextPlanToYul : IO Unit := do
   let env : TypeEnv := #[
     { name := "block_number", type := .u64, isMutable := false }
@@ -10356,6 +10431,7 @@ def main : IO UInt32 := do
   testStoragePathWritePlanToYul
   testLegacyWriteEffectFacadePlanToYul
   testErc1155BatchTraversalAndPlanLowering
+  testReceiverArgumentsEvaluateOnceInIrOrder
   testContextPlanToYul
   testStrictRenderRejectsUnsupportedCapabilities
   IO.println "evm-semantic-plan: ok"

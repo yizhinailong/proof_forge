@@ -1375,9 +1375,8 @@ partial def lowerScalarStorageEffectStmtPlan
             | .error err => .error { message := err.message }
           let statements ←
             match effectPlan with
-            | .storageScalarWriteTarget _ valuePlan =>
+            | .storageScalarWriteTarget _ _ =>
                 ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
-                  (ProofForge.Backend.Evm.Lower.exprPlanUsesCheckedArithmetic valuePlan)
                   toYulError
                   (fun expr => lowerExpr module env expr)
                   (lowerPlanEffectExpr module env)
@@ -1406,7 +1405,6 @@ partial def lowerScalarStorageEffectStmtPlan
         match effectPlan with
         | .storageScalarAssignOpTarget .. =>
             ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
-              module.overflowChecked
               toYulError
               (fun expr => lowerExpr module env expr)
               (lowerPlanEffectExpr module env)

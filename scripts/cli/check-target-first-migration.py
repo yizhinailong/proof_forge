@@ -35,7 +35,14 @@ TEXT_SUFFIXES = {
     ".toml",
 }
 COMMENT_PREFIXES = ("#", "//", "--")
-ALLOWED_FLAGS = {"--help", "--list-targets", "--list-fixtures"}
+# Flags that are not legacy EmitMode aliases. `--version` is a global CLI
+# meta flag (not an emit/build mode) and must stay allowed in scripts.
+ALLOWED_FLAGS = {
+    "--help",
+    "--list-targets",
+    "--list-fixtures",
+    "--version",
+}
 
 LEGACY_COMMAND = re.compile(
     r"(?:^|[\s\"'])"

@@ -58,7 +58,7 @@ gaps.
 |---|---|---|---|
 | AMM / swap | Missing | No pool/swap example | P1 |
 | Flash loan | Missing | No flash/loan callback pattern | P2 |
-| Staking | Missing | No staking example | P2 |
+| Staking | Covered (E1.6) | Product `Examples/Product/StakingVault.lean` (1:1 shares, `nativeValue` deposit); triad multi-target `just portable-staking-vault-multi-target`; EVM testkit `staking-vault` scenario; NEAR compare `just near-compare-staking-vault`. Yield/rebase/reward rates deferred | — |
 | Vault primitive | Covered (v1) | VerifiedVault + ValueVault + **ERC-4626 stdlib** (pro-rata, fees, FOT); see product v1 freeze | — |
 | Oracle integration | Missing | No Chainlink/oracle example | P2 |
 
@@ -103,7 +103,7 @@ missing.
 | SPL Token mint_to/burn/approve/revoke | Covered | Live Surfpool + Pinocchio reference | — |
 | SPL Token set_authority | Covered | Live Surfpool/Rust + Pinocchio reference | — |
 | Associated Token create_idempotent | Covered | `associatedTokenCreate` builder/surface helper and `contract_source` `associated_token_create_idempotent` syntax emit the Associated Token Program CPI account order, `associated-token.create_idempotent` data layout, token-program metadata, and separated 6-account CPI frame; `solana-associated-token-cpi-web3` deploys the generated program on Surfpool, uses the Rust live RPC harness to create the canonical ATA, and invokes the idempotent path twice | — |
-| Memo | Covered (one-word payload) | `memo`/`invokeMemo` builder and `contract_source` syntax lower to `memo.memo` CPI metadata, `solana-memo-cpi` target-first fixture, static CPI packing coverage, and `solana-memo-cpi-web3` Surfpool/Rust behavior gate. **Limitation:** current sBPF lowering copies one `u64`/eight-byte raw payload; arbitrary-length memo buffers remain future work | — |
+| Memo | Covered (L1.1–L1.3) | `memo`/`invokeMemo` + `memo.memo` CPI; **L1.3** multi-byte via `fixedArray .u8 N` (`raw-bytes` encoding, up to 128 B stack window). Fixture `SolanaMemoCpi`: `log_memo` (u64) + `log_memo_bytes` (16 B). Static: `Tests/Backend/Solana/SolanaCpiPacking.lean`. Live: `just solana-memo-cpi-live` (Surfpool; 8-byte + 16-byte memo program logs). **L1.1 choice:** memo multi-byte over Metaplex (higher-frequency CPI gap; Metaplex deferred P1) | — |
 | Stake / Vote / Config | Missing | Extension lowering covers System, Memo, Associated Token, SPL Token, and the Token-2022 transfer-fee/non-transferable/metadata-pointer/default-account-state/immutable-owner/permanent-delegate/interest-bearing/memo-transfer direct CPI subset | P1 |
 | ComputeBudgetInstruction | Covered | Solana manifest/IDL/client/package metadata exposes per-entrypoint compute-unit limit and priority-fee advice; generated TS clients emit `ComputeBudgetProgram` pre-instructions | — |
 
@@ -127,11 +127,11 @@ missing.
 
 | Feature | Status | Evidence | Priority |
 |---|---|---|---|
-| Metaplex NFT / token metadata | Missing | No Metaplex helpers in Surface or Extension | P1 |
+| Metaplex NFT / token metadata | Missing (deferred L1.1) | No Metaplex helpers yet. **L1.1 priority (2026-07-10):** chose **memo arbitrary-length** over Metaplex as the Solana P1 ecosystem surface (smaller CPI delta, live Surfpool gate already present). Metaplex remains next high-value follow-up | P1 |
 | Compressed NFTs (Bubblegum) | Missing | No Bubblegum support | P2 |
 | SPL Governance | Missing | No governance program support | P2 |
 | Anchor-style derive constraints | Partial | Manual `accountConstraint` / `pdaAccount` primitives; no derive macro | P1 |
-| Pinocchio reference breadth | Partial | 5 reference programs; target ≥10 | P1 |
+| Pinocchio reference breadth | Partial (7/10) | L1.4 added `spl-token-close-account` + `memo` (7 total with system-transfer, system-create-account, spl-token-transfer, spl-token-ops, spl-token-authority). Suite: `just solana-pinocchio-reference-equivalence` (7 CI-safe smokes). Remaining toward ≥10: ATA, Token-2022, sysvar, or further SPL helpers | P1 |
 
 ---
 

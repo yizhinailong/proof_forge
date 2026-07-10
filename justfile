@@ -306,9 +306,19 @@ evm-bytecode-semantics-smoke:
     lake build ProofForge.Backend.Evm.EvmBytecodeSemantics
     lake env lean --run Tests/Backend/Evm/EvmBytecodeSemantics.lean
 
+# Mathlib-free IR ↔ EVM Yul-subset paired simulation (Portable-IR host lane).
+evm-yul-host-refinement-smoke:
+    lake build ProofForge.Backend.Evm.YulHostRefinement
+    lake env lean --run Tests/Backend/Evm/EvmYulHostRefinement.lean
+
 # Check the opt-in powdr/mathlib EVM refinement adapter target.
 evm-powdr-adapter:
     lake build EvmRefinement
+
+# Pin the Counter IR↔powdr bytecode delivery boundary (opt-in, mathlib).
+evm-powdr-counter-refinement-smoke:
+    lake build EvmRefinement.CounterRefinement
+    lake env lean --run Tests/Backend/Evm/EvmPowdrCounterRefinement.lean
 
 # Check that the generated Counter runtime matches the embedded powdr witness.
 evm-powdr-counter-runtime: build
@@ -420,6 +430,17 @@ solana-counter-sbpf-regression:
 solana-refinement-smoke:
     lake build ProofForge.Backend.Solana.Refinement
     lake env lean --run Tests/Backend/Solana/SolanaRefinement.lean
+
+# Mathlib-free sBPF binary encoder + labeled view (Scheme 1/2A encode half).
+solana-bpf-encode-smoke:
+    lake build ProofForge.Backend.Solana.BpfEncode
+    lake build ProofForge.Backend.Solana.LabeledSbpf
+    lake env lean --run Tests/Backend/Solana/SolanaBpfEncode.lean
+
+# Opt-in solanalib adapter + CompileCorrect pipeline (pulls solanalib/mathlib).
+solana-solanalib-adapter:
+    lake build SolanaRefinement
+    lake env lean --run SolanaRefinement/CompileCorrectSmoke.lean
 
 # Check contract_source target capability diagnostics through the CLI.
 contract-source-diagnostics:
@@ -915,6 +936,14 @@ solana-pinocchio-spl-token-ops-equivalence:
 solana-pinocchio-spl-token-authority-equivalence:
     scripts/solana/pinocchio-spl-token-authority-equivalence.sh
 
+# Compare the generated SPL Token close_account CPI artifact with the Pinocchio reference contract.
+solana-pinocchio-spl-token-close-account-equivalence:
+    scripts/solana/pinocchio-spl-token-close-account-equivalence.sh
+
+# Compare the generated Memo CPI artifact with the Pinocchio reference contract.
+solana-pinocchio-memo-equivalence:
+    scripts/solana/pinocchio-memo-equivalence.sh
+
 # Run all CI-safe Solana Pinocchio reference-equivalence gates.
 solana-pinocchio-reference-equivalence:
     scripts/solana/pinocchio-reference-equivalence.sh
@@ -1086,7 +1115,7 @@ solana-web3-compat:
     python3 scripts/solana/check-web3-compat-wrappers.py
 
 # Run all Solana gates that are safe for default CI.
-solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke portable-value-vault solana-emit-asm solana-plan-smoke solana-auto-materialize primary-materialize crosscall-materialize solana-web3-compat solana-pinocchio-reference-equivalence solana-sbpf-exec-smoke solana-sbpf-genericity-smoke solana-counter-sbpf-regression solana-refinement-smoke
+solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke portable-value-vault solana-emit-asm solana-plan-smoke solana-auto-materialize primary-materialize crosscall-materialize solana-web3-compat solana-pinocchio-reference-equivalence solana-sbpf-exec-smoke solana-sbpf-genericity-smoke solana-counter-sbpf-regression solana-refinement-smoke solana-bpf-encode-smoke
 
 # Check shared-vs-target example topology.
 examples-topology:
@@ -1245,6 +1274,65 @@ quint-solana-replay-smoke:
 quint-ir-model-gate:
     scripts/quint/ir-model-gate.sh
 
+# B1.1: validate benchmark result JSON schema fixtures.
+benchmark-schema:
+    scripts/benchmarks/schema-smoke.sh
+
+# B1.2: compile/typecheck native Counter corpus (solc/cargo when present).
+benchmark-native-counter:
+    scripts/benchmarks/native-counter-smoke.sh
+
+# B1.3: ProofForge Counter triad runner → build/benchmarks/bm-counter_*_proofforge.json
+benchmark-counter-pf:
+    scripts/benchmarks/counter-pf-runner.sh
+
+# B1.4: native Counter triad runner → build/benchmarks/bm-counter_*_native.json
+benchmark-counter-native:
+    scripts/benchmarks/counter-native-runner.sh
+
+# Counter matrix entrypoint: PF rows (B1.3) + native rows (B1.4).
+benchmark-counter: benchmark-counter-pf benchmark-counter-native
+
+# B1.5: PF vs native behavior parity on bm-counter rows under build/benchmarks/.
+benchmark-behavior-gate:
+    scripts/benchmarks/behavior-gate-smoke.sh
+
+# B1.6: render markdown cost/artifact table → docs/generated/benchmark-counter.md
+benchmark-cost-table:
+    scripts/benchmarks/cost-table-smoke.sh
+
+# B1.7: ValueVault matrix (PF + native where available).
+benchmark-value-vault-pf:
+    scripts/benchmarks/value-vault-pf-runner.sh
+
+benchmark-value-vault-native:
+    scripts/benchmarks/value-vault-native-runner.sh
+
+benchmark-value-vault: benchmark-value-vault-pf benchmark-value-vault-native
+
+# B1.7: Ownable matrix (EVM lifecycle primary; NEAR host tests; Solana size/skip).
+benchmark-ownable-pf:
+    scripts/benchmarks/ownable-pf-runner.sh
+
+benchmark-ownable-native:
+    scripts/benchmarks/ownable-native-runner.sh
+
+benchmark-ownable: benchmark-ownable-pf benchmark-ownable-native
+
+# B1.7 aggregate: Counter + ValueVault + Ownable rows, then behavior + cost table.
+benchmark-matrix: benchmark-counter benchmark-value-vault benchmark-ownable
+    just benchmark-behavior-gate
+    just benchmark-cost-table
+
+# B1.8: optional Psy/Aleo Counter experimental rows (dargo/leo tool-gated).
+benchmark-zk-counter:
+    scripts/benchmarks/zk-counter-runner.sh
+
+# Full matrix including experimental ZK rows (still no cross-chain score).
+benchmark-matrix-all: benchmark-matrix benchmark-zk-counter
+    just benchmark-behavior-gate
+    just benchmark-cost-table
+
 # Run the unified RFC 0007 testkit scenario suite.
 testkit:
     CAST="${CAST:-$HOME/.foundry/bin/cast}" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run
@@ -1280,7 +1368,41 @@ testkit-remote-call:
 
 # Run the fast local baseline used before broader target smokes.
 # Product gate runs early so business multi-target failures surface first.
-check: build build-test-deps product target-registry target-backend target-support artifact-bundle preflight-l2 source-dsl-arity leo-printer-fail-closed contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke diagnostic-smoke ir-step-semantics-smoke ir-counter-semantics-smoke ir-portability-smoke semantics-fuel-smoke constructor-coverage-smoke counter-universal-refinement-smoke supported-fragment-smoke track14-fragment-theorems-smoke evm-counter-shape-name-totality lean-invariants-smoke target-semantics-instances-smoke wasm-exec-smoke wasm-near-host-smoke emitwat-aggregate-abi wasm-cosmwasm-host-smoke wasm-soroban-host-smoke zk-portability-smoke aleo-leo-codegen-smoke wasm-cosmwasm-refinement-smoke value-vault-wasm-refinement-smoke evm-bytecode-semantics-smoke ir-exec-result-smoke fv5-overflow-smoke solana-light portable-counter-multi-target cli-target-first source-identity registry-command solana-source-elf soroban-profile wat2wasm-fail-closed check-l2-parity hosted-isolation rebuild-hash worker-limits worker-cgroup contract-source-diagnostics near-target-first wasm-near-plan near-plan-smoke wasm-near-scalar-safety near-promise-amount-pointer near-offline-host-transaction near-offline-host-fuel near-budget-honesty near-deploy-honesty near-compare-matrix-test wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-upgrade-policy-honesty evm-coverage psy-diagnostics psy-test-naming psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli quint-mbt-gate quint-ir-model-gate aleo-leo-codegen-smoke
+check: build build-test-deps product target-registry target-backend target-support artifact-bundle preflight-l2 source-dsl-arity leo-printer-fail-closed contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke diagnostic-smoke ir-step-semantics-smoke ir-counter-semantics-smoke ir-portability-smoke semantics-fuel-smoke constructor-coverage-smoke counter-universal-refinement-smoke supported-fragment-smoke track14-fragment-theorems-smoke evm-counter-shape-name-totality lean-invariants-smoke target-semantics-instances-smoke wasm-exec-smoke wasm-near-host-smoke emitwat-aggregate-abi wasm-cosmwasm-host-smoke wasm-soroban-host-smoke zk-portability-smoke aleo-leo-codegen-smoke wasm-cosmwasm-refinement-smoke value-vault-wasm-refinement-smoke evm-bytecode-semantics-smoke evm-yul-host-refinement-smoke ir-exec-result-smoke fv5-overflow-smoke solana-light portable-counter-multi-target cli-target-first source-identity registry-command solana-source-elf soroban-profile wat2wasm-fail-closed check-l2-parity hosted-isolation rebuild-hash worker-limits worker-cgroup contract-source-diagnostics near-target-first wasm-near-plan near-plan-smoke wasm-near-scalar-safety near-promise-amount-pointer near-offline-host-transaction near-offline-host-fuel near-budget-honesty near-deploy-honesty near-compare-matrix-test wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-upgrade-policy-honesty evm-coverage psy-diagnostics psy-test-naming psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli quint-mbt-gate quint-ir-model-gate
+
+# Z1.1: normalized DPN bytecode goldens (shape always; rebuild-diff when dargo artifacts present).
+psy-dpn-goldens:
+    scripts/psy/dpn-golden-gate.sh
+
+# Z1.3: Lean DPN AST printer round-trip against Counter golden JSON.
+psy-dpn-printer:
+    lake build ProofForge.Backend.Psy.Dpn
+    lake env lean --run Tests/PsyDpnPrinter.lean
+
+# Z1.4: Counter IR → DPN JSON direct emit matches golden (bootstrap lower).
+psy-dpn-direct:
+    scripts/psy/dpn-direct-counter-smoke.sh
+
+# Z1.5: dargo execute oracle (skips cleanly when dargo absent).
+psy-dpn-execute-oracle:
+    scripts/psy/dpn-execute-oracle-smoke.sh
+
+# Z2.1: Counter Aleo Instructions golden pin (leo rebuild-diff when present).
+aleo-aleo-goldens:
+    scripts/aleo/aleo-goldens-gate.sh
+
+# Z2.2: Lean Aleo Instructions printer round-trip.
+aleo-instructions-printer:
+    lake build ProofForge.Backend.Aleo.Instructions
+    lake env lean --run Tests/AleoInstructionsPrinter.lean
+
+# Z2.3: Counter IR → .aleo direct emit matches golden.
+aleo-instructions-direct:
+    scripts/aleo/aleo-instructions-direct-smoke.sh
+
+# Z2.4: leo validate direct .aleo (skip if no leo).
+aleo-instructions-validate:
+    scripts/aleo/aleo-instructions-validate-smoke.sh
 
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:
