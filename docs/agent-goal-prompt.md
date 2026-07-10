@@ -3,7 +3,7 @@
 Copy this entire document into one long-running goal or agent session. It is a
 continuous execution charter, not a request for another audit or plan.
 
-Status: **Active** — closing skeptic clean-tree / Status-SHA / remote-call comment gaps before terminal Complete.
+Status: **Complete: verified@35a07384**
 
 Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
