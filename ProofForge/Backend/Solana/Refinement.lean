@@ -673,4 +673,15 @@ theorem solana_renamed_counter_lowering_total :
       solanaRenamedCounterWitness).isOk = true := by
   native_decide
 
+/-- PF-P3-01: name pin turns lowerable renamed shape into proved Counter. -/
+theorem solana_renamed_witness_canonicalizes_to_proved :
+    isCounterModule (withCanonicalCounterName solanaRenamedCounterWitness) = true :=
+  isCounterShapeLowerable_implies_isCounterModule_with_canonical_name
+    solanaRenamedCounterWitness (by native_decide)
+
+theorem solana_renamed_witness_canonical_lowering_total :
+    (ProofForge.Backend.Solana.SbpfAsm.lowerModule
+      (withCanonicalCounterName solanaRenamedCounterWitness)).isOk = true := by
+  native_decide
+
 end ProofForge.Backend.Solana.Refinement

@@ -1350,4 +1350,15 @@ theorem wasm_near_renamed_counter_lowering_total :
       wasmNearRenamedCounterWitness).isOk = true := by
   native_decide
 
+/-- PF-P3-01: name pin turns lowerable renamed shape into proved Counter. -/
+theorem wasm_near_renamed_witness_canonicalizes_to_proved :
+    isCounterModule (withCanonicalCounterName wasmNearRenamedCounterWitness) = true :=
+  isCounterShapeLowerable_implies_isCounterModule_with_canonical_name
+    wasmNearRenamedCounterWitness (by native_decide)
+
+theorem wasm_near_renamed_witness_canonical_lowering_total :
+    (ProofForge.Backend.WasmHost.EmitWat.lowerModule
+      (withCanonicalCounterName wasmNearRenamedCounterWitness)).isOk = true := by
+  native_decide
+
 end ProofForge.Backend.WasmHost.Refinement
