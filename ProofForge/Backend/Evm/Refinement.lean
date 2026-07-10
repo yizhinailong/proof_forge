@@ -1333,4 +1333,35 @@ theorem evm_counter_shape_name_family_lowerable_total :
     evm_shape_name_shape_lowerable_total,
     evm_shape_name_VaultCounter_lowerable_total⟩
 
+/-- PF-P3-01 progressive structural bridge: every EVM-lowerable module carries
+the Counter IR skeleton (fixed state/entrypoints/bodies). This is the
+structural half of `∀ m, lowerable m → …`; the remaining half
+(`lowerModule m = .ok`) still needs lowerer totality over unconstrained
+metadata (`paramAbiWords`, `allocator`) or a strengthened lowerable
+predicate. -/
+theorem evm_lowerable_implies_counter_skeleton
+    (m : ProofForge.IR.Module)
+    (h : evmYulTargetSemantics.lowerableAccepts m = true) :
+    m.structs = #[] ∧
+      m.proxyPattern? = none ∧
+      m.nearCrosscallStrings = #[] ∧
+      m.overflowChecked = false ∧
+      (∃ sd, m.state.toList = [sd] ∧
+        sd = { id := "count", kind := .scalar, type := .u64 }) ∧
+      (∃ e0 e1 e2,
+        m.entrypoints.toList = [e0, e1, e2] ∧
+          e0.name = "initialize" ∧ e0.selector? = some "8129fc1c" ∧
+            e0.returns = .unit ∧ e0.params = #[] ∧ e0.kind = .function ∧
+            e0.body = #[.effect (.storageScalarWrite "count" (.literal (.u64 0)))] ∧
+          e1.name = "increment" ∧ e1.selector? = some "d09de08a" ∧
+            e1.returns = .unit ∧ e1.params = #[] ∧ e1.kind = .function ∧
+            e1.body = #[
+              .letBind "n" .u64 (.effect (.storageScalarRead "count")),
+              .effect (.storageScalarWrite "count"
+                (.add (.local "n") (.literal (.u64 1)) true))] ∧
+          e2.name = "get" ∧ e2.selector? = some "6d4ce63c" ∧
+            e2.returns = .u64 ∧ e2.params = #[] ∧ e2.kind = .function ∧
+            e2.body = #[.return (.effect (.storageScalarRead "count"))]) :=
+  isCounterShapeLowerable_skeleton m h
+
 end ProofForge.Backend.Evm.Refinement

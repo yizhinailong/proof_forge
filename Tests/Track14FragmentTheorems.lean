@@ -79,8 +79,16 @@ open ProofForge.Backend.Refinement
 #check evmCounterShapeNameFamily
 #check evm_shape_name_VaultCounter_lowerable_total
 
+-- PF-P3-01 progressive structural skeleton (constrained IR unique under lowerable).
+#check isCounterShapeLowerable_skeleton
+#check isCounterShapeLowerable_flags
+#check isCounterStateDecl_eq
+#check isCounterInitializeEntrypoint_fields
+#check isCounterInitializeEntrypoint_body_array
+#check evm_lowerable_implies_counter_skeleton
+
 end ProofForge.Tests.Track14FragmentTheorems
 
 def main : IO UInt32 := do
-  IO.println "track14-fragment-theorems-smoke: triad proven⊂lowerable + renamed/canonical + finite name-family lowering-total"
+  IO.println "track14-fragment-theorems-smoke: triad proven⊂lowerable + renamed/canonical + finite name-family + structural skeleton"
   return 0

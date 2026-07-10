@@ -9,9 +9,10 @@ Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
 
 Baseline: Waves 0–4 done (PF-P3-02 @8d4dd0c4 / fdbdf1ff). Wave 5: PF-P3-01 formal
-fragment (proved⊂lowerable + triad renamed/canonical-name witnesses; structural
-∀-lowerable⇒ok still open) + PF-P3-03 (HOSTED_ISOLATION + lean pin + rebuild-hash
-+ wall-clock worker-limits; cgroup CPU/mem remain).
+fragment (proved⊂lowerable + triad renamed/canonical + finite name-family +
+structural Counter skeleton under lowerable; ∀-lowerable⇒`lowerModule=.ok` still
+open) + PF-P3-03 (HOSTED_ISOLATION + lean pin + rebuild-hash + wall-clock
+worker-limits; cgroup CPU/mem remain).
 
 ---
 
@@ -120,7 +121,7 @@ implementation SHA is only known after the implementation commit exists.
 | 3 | PF-P2-01 | done: verified@72c5789e; just product-catalog; just product; just testkit; just testkit-array-example; just testkit-ownable; just testkit-remote-call; just check | Waves 1 and 2 done |
 | 3 | PF-P2-02 | done: verified@7c4def9c; Foundry ERC721/1155/custom-error; Solana ELF; `just near-sandbox-peer` (storage_usage + promise peer); `just product`; `just check` | Waves 1 and 2 done; complete one backend slice at a time |
 | 3 | PF-P2-03 | done: verified@7c4def9c; `just testkit-remote-call` (evm+solana); Foundry peer; Mollusk CPI; `just near-sandbox-peer` (call_with_args→49); `just product` | Waves 1 and 2 done |
-| 5 | PF-P3-01 | in_progress: shape lowerable ⊃ proved + triad renamed/canonical + EVM finite name-family lowering-total; next: structural ∀ m, lowerable m → lowerModule m = .ok | Wave 3 done; after PF-P3-02 |
+| 5 | PF-P3-01 | in_progress: proved⊂lowerable + renamed/canonical + finite name-family + structural skeleton (`isCounterShapeLowerable_skeleton` / `evm_lowerable_implies_counter_skeleton`); next: ∀ m lowerable→`lowerModule=.ok` (pin metadata or lowerer-total) | Wave 3 done; after PF-P3-02 |
 | 5 | PF-P3-03 | in_progress: HOSTED_ISOLATION + lean pin + rebuild-hash + `just worker-limits` (wall-clock); next: cgroup CPU/mem isolation | Wave 3 done |
 | 4 | PF-P3-02 | done: verified@8d4dd0c4; `just soroban-promotion` `cosmwasm-promotion` `aptos-promotion` `sui-promotion` `cloudflare-promotion` `psy-promotion` `aleo-promotion` | Wave 3 done; promote only one target at a time, and do not block Wave 5 |
 

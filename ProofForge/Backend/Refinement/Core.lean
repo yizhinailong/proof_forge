@@ -400,6 +400,119 @@ theorem isCounterShapeLowerable_implies_isCounterModule_with_canonical_name
   simp only [withCanonicalCounterName, isCounterModule, Bool.and_eq_true]
   exact ⟨rfl, h⟩
 
+/-- PF-P3-01: Counter state decl is unique under `isCounterStateDecl`. -/
+theorem isCounterStateDecl_eq
+    (decl : StateDecl) (h : isCounterStateDecl decl = true) :
+    decl = { id := "count", kind := .scalar, type := .u64 } := by
+  simp only [isCounterStateDecl, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] at h
+  obtain ⟨⟨hid, hkind⟩, htype⟩ := h
+  cases decl
+  simp only at hid hkind htype
+  subst hid; subst hkind; subst htype
+  rfl
+
+/-- `ValueType` derives `BEq` without an automatic `LawfulBEq` instance; recover
+equality for the Counter predicates that use `== .unit` / `== .u64`. -/
+theorem valueType_eq_of_beq_unit {v : ValueType}
+    (h : (v == ValueType.unit) = true) : v = .unit := by
+  cases v <;> simp [BEq.beq] at h <;> try rfl
+  all_goals exact (nomatch h)
+
+theorem valueType_eq_of_beq_u64 {v : ValueType}
+    (h : (v == ValueType.u64) = true) : v = .u64 := by
+  cases v <;> simp [BEq.beq] at h <;> try rfl
+  all_goals exact (nomatch h)
+
+/-- PF-P3-01: initialize entrypoint fields forced by the predicate. -/
+theorem isCounterInitializeEntrypoint_fields
+    (ep : Entrypoint) (h : isCounterInitializeEntrypoint ep = true) :
+    ep.name = "initialize" ∧
+      ep.selector? = some "8129fc1c" ∧
+      ep.returns = ValueType.unit ∧
+      ep.params.size = 0 := by
+  simp only [isCounterInitializeEntrypoint, noArgFunctionReturning, Bool.and_eq_true] at h
+  refine ⟨?name, ?sel, ?ret, ?params⟩
+  · exact beq_iff_eq.mp h.1.1.1.1.1
+  · exact beq_iff_eq.mp h.1.2
+  · exact valueType_eq_of_beq_unit h.1.1.2
+  · exact beq_iff_eq.mp h.1.1.1.2
+
+/-- PF-P3-01: increment entrypoint fields forced by the predicate. -/
+theorem isCounterIncrementEntrypoint_fields
+    (ep : Entrypoint) (h : isCounterIncrementEntrypoint ep = true) :
+    ep.name = "increment" ∧
+      ep.selector? = some "d09de08a" ∧
+      ep.returns = ValueType.unit ∧
+      ep.params.size = 0 := by
+  simp only [isCounterIncrementEntrypoint, noArgFunctionReturning, Bool.and_eq_true] at h
+  refine ⟨?name, ?sel, ?ret, ?params⟩
+  · exact beq_iff_eq.mp h.1.1.1.1.1
+  · exact beq_iff_eq.mp h.1.2
+  · exact valueType_eq_of_beq_unit h.1.1.2
+  · exact beq_iff_eq.mp h.1.1.1.2
+
+/-- PF-P3-01: get entrypoint fields forced by the predicate. -/
+theorem isCounterGetEntrypoint_fields
+    (ep : Entrypoint) (h : isCounterGetEntrypoint ep = true) :
+    ep.name = "get" ∧
+      ep.selector? = some "6d4ce63c" ∧
+      ep.returns = ValueType.u64 ∧
+      ep.params.size = 0 := by
+  simp only [isCounterGetEntrypoint, noArgFunctionReturning, Bool.and_eq_true] at h
+  refine ⟨?name, ?sel, ?ret, ?params⟩
+  · exact beq_iff_eq.mp h.1.1.1.1.1
+  · exact beq_iff_eq.mp h.1.2
+  · exact valueType_eq_of_beq_u64 h.1.1.2
+  · exact beq_iff_eq.mp h.1.1.1.2
+
+/-- `EntrypointKind` derives `BEq` without automatic `LawfulBEq`. -/
+theorem entrypointKind_eq_of_beq_function {k : EntrypointKind}
+    (h : (k == EntrypointKind.function) = true) : k = .function := by
+  cases k <;> simp [BEq.beq] at h <;> try rfl
+  all_goals exact (nomatch h)
+
+/-- PF-P3-01: Counter entrypoints are `.function` with empty params. -/
+theorem isCounterInitializeEntrypoint_kind_params
+    (ep : Entrypoint) (h : isCounterInitializeEntrypoint ep = true) :
+    ep.kind = .function ∧ ep.params = #[] := by
+  simp only [isCounterInitializeEntrypoint, noArgFunctionReturning, Bool.and_eq_true] at h
+  refine ⟨entrypointKind_eq_of_beq_function h.1.1.1.1.2,
+    Array.eq_empty_of_size_eq_zero (beq_iff_eq.mp h.1.1.1.2)⟩
+
+theorem isCounterIncrementEntrypoint_kind_params
+    (ep : Entrypoint) (h : isCounterIncrementEntrypoint ep = true) :
+    ep.kind = .function ∧ ep.params = #[] := by
+  simp only [isCounterIncrementEntrypoint, noArgFunctionReturning, Bool.and_eq_true] at h
+  refine ⟨entrypointKind_eq_of_beq_function h.1.1.1.1.2,
+    Array.eq_empty_of_size_eq_zero (beq_iff_eq.mp h.1.1.1.2)⟩
+
+theorem isCounterGetEntrypoint_kind_params
+    (ep : Entrypoint) (h : isCounterGetEntrypoint ep = true) :
+    ep.kind = .function ∧ ep.params = #[] := by
+  simp only [isCounterGetEntrypoint, noArgFunctionReturning, Bool.and_eq_true] at h
+  refine ⟨entrypointKind_eq_of_beq_function h.1.1.1.1.2,
+    Array.eq_empty_of_size_eq_zero (beq_iff_eq.mp h.1.1.1.2)⟩
+
+/-- Body arrays are unique under the Counter body predicates (via `toList`). -/
+theorem isCounterInitializeEntrypoint_body_array
+    (ep : Entrypoint) (h : isCounterInitializeEntrypoint ep = true) :
+    ep.body = #[.effect (.storageScalarWrite "count" (.literal (.u64 0)))] :=
+  Array.toList_inj.mp (isCounterInitializeEntrypoint_body ep h)
+
+theorem isCounterIncrementEntrypoint_body_array
+    (ep : Entrypoint) (h : isCounterIncrementEntrypoint ep = true) :
+    ep.body = #[
+      .letBind "n" .u64 (.effect (.storageScalarRead "count")),
+      .effect (.storageScalarWrite "count"
+        (.add (.local "n") (.literal (.u64 1)) true))
+    ] :=
+  Array.toList_inj.mp (isCounterIncrementEntrypoint_body ep h)
+
+theorem isCounterGetEntrypoint_body_array
+    (ep : Entrypoint) (h : isCounterGetEntrypoint ep = true) :
+    ep.body = #[.return (.effect (.storageScalarRead "count"))] :=
+  Array.toList_inj.mp (isCounterGetEntrypoint_body ep h)
+
 /-- From `isCounterModuleShape`, recover the three entrypoints and their predicates. -/
 theorem isCounterModuleShape_entrypoints
     (state : List StateDecl) (entrypoints : List Entrypoint)
@@ -431,6 +544,32 @@ theorem isCounterModuleShape_entrypoints
               simp [isCounterModuleShape, Bool.and_eq_true] at h
               exact ⟨e0, e1, e2, rfl, h.1.1.2, h.1.2, h.2⟩
 
+/-- From `isCounterModuleShape`, recover the unique Counter state decl. -/
+theorem isCounterModuleShape_state
+    (state : List StateDecl) (entrypoints : List Entrypoint)
+    (h : isCounterModuleShape state entrypoints = true) :
+    ∃ sd, state = [sd] ∧ isCounterStateDecl sd = true := by
+  cases state with
+  | nil => simp [isCounterModuleShape] at h
+  | cons sd srest =>
+    cases srest with
+    | cons _ _ => simp [isCounterModuleShape] at h
+    | nil =>
+      cases entrypoints with
+      | nil => simp [isCounterModuleShape] at h
+      | cons e0 r0 =>
+        cases r0 with
+        | nil => simp [isCounterModuleShape] at h
+        | cons e1 r1 =>
+          cases r1 with
+          | nil => simp [isCounterModuleShape] at h
+          | cons e2 r2 =>
+            cases r2 with
+            | cons _ _ => simp [isCounterModuleShape] at h
+            | nil =>
+              simp [isCounterModuleShape, Bool.and_eq_true] at h
+              exact ⟨sd, rfl, h.1.1.1⟩
+
 /-- Content-honest decomposition: any `m` in the Counter fragment has three
 entrypoints whose bodies are fixed by the body-extraction lemmas. -/
 theorem isCounterModule_entrypoints {m : Module} (hm : isCounterModule m = true) :
@@ -443,6 +582,97 @@ theorem isCounterModule_entrypoints {m : Module} (hm : isCounterModule m = true)
     isCounterModule_implies_shape_lowerable m hm
   simp only [isCounterShapeLowerable, Bool.and_eq_true] at hshape
   exact isCounterModuleShape_entrypoints m.state.toList m.entrypoints.toList hshape.2
+
+/-- PF-P3-01 structural flags of any shape-lowerable Counter module (independent
+of `module.name`). -/
+theorem isCounterShapeLowerable_flags
+    (m : Module) (h : isCounterShapeLowerable m = true) :
+    m.structs = #[] ∧
+      m.proxyPattern? = none ∧
+      m.nearCrosscallStrings = #[] ∧
+      m.overflowChecked = false := by
+  simp only [isCounterShapeLowerable, Bool.and_eq_true] at h
+  refine ⟨?structs, ?proxy, ?near, ?overflow⟩
+  · exact Array.eq_empty_of_size_eq_zero (beq_iff_eq.mp h.1.1.1.1)
+  · have hp : m.proxyPattern?.isNone = true := h.1.1.1.2
+    revert hp
+    cases m.proxyPattern? with
+    | none => intro; rfl
+    | some _ =>
+      intro hp
+      simp [Option.isNone] at hp
+  · exact Array.eq_empty_of_size_eq_zero (beq_iff_eq.mp h.1.1.2)
+  · have ho : (!m.overflowChecked) = true := h.1.2
+    cases hov : m.overflowChecked with
+    | false => rfl
+    | true =>
+      simp [hov] at ho
+
+/-- PF-P3-01: shape-lowerable modules carry the Counter entrypoint triple. -/
+theorem isCounterShapeLowerable_entrypoints
+    (m : Module) (h : isCounterShapeLowerable m = true) :
+    ∃ e0 e1 e2,
+      m.entrypoints.toList = [e0, e1, e2] ∧
+      isCounterInitializeEntrypoint e0 = true ∧
+      isCounterIncrementEntrypoint e1 = true ∧
+      isCounterGetEntrypoint e2 = true := by
+  simp only [isCounterShapeLowerable, Bool.and_eq_true] at h
+  exact isCounterModuleShape_entrypoints m.state.toList m.entrypoints.toList h.2
+
+/-- PF-P3-01: shape-lowerable modules carry the unique Counter state decl. -/
+theorem isCounterShapeLowerable_state
+    (m : Module) (h : isCounterShapeLowerable m = true) :
+    ∃ sd, m.state.toList = [sd] ∧ isCounterStateDecl sd = true ∧
+      sd = { id := "count", kind := .scalar, type := .u64 } := by
+  simp only [isCounterShapeLowerable, Bool.and_eq_true] at h
+  obtain ⟨sd, hlist, hdecl⟩ :=
+    isCounterModuleShape_state m.state.toList m.entrypoints.toList h.2
+  exact ⟨sd, hlist, hdecl, isCounterStateDecl_eq sd hdecl⟩
+
+/-- PF-P3-01 progressive structural skeleton: every shape-lowerable module has
+fixed host/scalar flags, unique `count` state, and a triple of Counter
+entrypoints with forced names/selectors/returns/params/bodies.
+
+Unconstrained metadata (`paramAbiWords`, `allocator`) is intentionally outside
+this skeleton — the full `∀ m, lowerable m → lowerModule m = .ok` bridge still
+requires either strengthening `isCounterShapeLowerable` to pin those fields or
+a lowerer-total theorem over them. -/
+theorem isCounterShapeLowerable_skeleton
+    (m : Module) (h : isCounterShapeLowerable m = true) :
+    m.structs = #[] ∧
+      m.proxyPattern? = none ∧
+      m.nearCrosscallStrings = #[] ∧
+      m.overflowChecked = false ∧
+      (∃ sd, m.state.toList = [sd] ∧
+        sd = { id := "count", kind := .scalar, type := .u64 }) ∧
+      (∃ e0 e1 e2,
+        m.entrypoints.toList = [e0, e1, e2] ∧
+          e0.name = "initialize" ∧ e0.selector? = some "8129fc1c" ∧
+            e0.returns = .unit ∧ e0.params = #[] ∧ e0.kind = .function ∧
+            e0.body = #[.effect (.storageScalarWrite "count" (.literal (.u64 0)))] ∧
+          e1.name = "increment" ∧ e1.selector? = some "d09de08a" ∧
+            e1.returns = .unit ∧ e1.params = #[] ∧ e1.kind = .function ∧
+            e1.body = #[
+              .letBind "n" .u64 (.effect (.storageScalarRead "count")),
+              .effect (.storageScalarWrite "count"
+                (.add (.local "n") (.literal (.u64 1)) true))] ∧
+          e2.name = "get" ∧ e2.selector? = some "6d4ce63c" ∧
+            e2.returns = .u64 ∧ e2.params = #[] ∧ e2.kind = .function ∧
+            e2.body = #[.return (.effect (.storageScalarRead "count"))]) := by
+  obtain ⟨hstructs, hproxy, hnear, hoverflow⟩ := isCounterShapeLowerable_flags m h
+  obtain ⟨sd, hstate, _, hsd⟩ := isCounterShapeLowerable_state m h
+  obtain ⟨e0, e1, e2, heps, h0, h1, h2⟩ := isCounterShapeLowerable_entrypoints m h
+  obtain ⟨n0, s0, r0, _⟩ := isCounterInitializeEntrypoint_fields e0 h0
+  obtain ⟨k0, p0⟩ := isCounterInitializeEntrypoint_kind_params e0 h0
+  obtain ⟨n1, s1, r1, _⟩ := isCounterIncrementEntrypoint_fields e1 h1
+  obtain ⟨k1, p1⟩ := isCounterIncrementEntrypoint_kind_params e1 h1
+  obtain ⟨n2, s2, r2, _⟩ := isCounterGetEntrypoint_fields e2 h2
+  obtain ⟨k2, p2⟩ := isCounterGetEntrypoint_kind_params e2 h2
+  refine ⟨hstructs, hproxy, hnear, hoverflow, ⟨sd, hstate, hsd⟩,
+    ⟨e0, e1, e2, heps,
+      n0, s0, r0, p0, k0, isCounterInitializeEntrypoint_body_array e0 h0,
+      n1, s1, r1, p1, k1, isCounterIncrementEntrypoint_body_array e1 h1,
+      n2, s2, r2, p2, k2, isCounterGetEntrypoint_body_array e2 h2⟩⟩
 
 def FormalFragment.acceptsModule : FormalFragment → Module → Bool
   | .counter, module => isCounterModule module
