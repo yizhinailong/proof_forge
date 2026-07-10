@@ -33,16 +33,18 @@ fail() {
 }
 
 # Fixture-only Spike/MVP/Research targets: source build must fail closed.
+# CosmWasm (PF-P3-02 Counter MVP) accepts contract_source for supported
+# fragments; ValueVault may fail-closed on host-runtime gaps (like Soroban).
 is_fixture_only() {
   case "$1" in
-    wasm-cosmwasm|psy-dpn|aleo-leo|move-aptos|move-sui|wasm-cloudflare-workers) return 0 ;;
+    psy-dpn|aleo-leo|move-aptos|move-sui|wasm-cloudflare-workers) return 0 ;;
     *) return 1 ;;
   esac
 }
 
 # Primary triad product targets expected to accept ValueVault contract_source.
-# Soroban remains Spike: Counter/source builds may succeed, but ValueVault can
-# fail-closed on honest host-runtime gaps (PF-P0-04).
+# Soroban / CosmWasm Counter-MVP: Counter source builds; ValueVault may
+# fail-closed on honest host-runtime gaps (PF-P0-04 / PF-P3-02).
 is_source_supported() {
   case "$1" in
     evm|solana-sbpf-asm|wasm-near) return 0 ;;
@@ -93,7 +95,7 @@ build_one() {
       out_arg="$out_dir/ValueVault.so"
       extra+=(--artifact-output "$out_dir/ValueVault.proof-forge-artifact.json")
       ;;
-    wasm-near|wasm-stellar-soroban)
+    wasm-near|wasm-stellar-soroban|wasm-cosmwasm)
       out_arg="$out_dir"
       extra+=(--artifact-output "$out_dir/ValueVault.proof-forge-artifact.json")
       ;;

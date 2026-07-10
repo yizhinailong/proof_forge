@@ -166,11 +166,13 @@ def main : IO UInt32 := do
   requireErrorContains
     ["build", "--target", "move-sui", "--root", ".", "-o", "build/source-sdk/move-sui", "Examples/Product/Counter.lean"]
     #["move-sui", "source input is not supported"]
-  -- PF-P0-01: fixture-only build routes must not accept Lean sources (no silent Counter).
-  requireErrorContains
-    ["build", "--target", "wasm-cosmwasm", "--root", ".", "-o", "build/source-sdk/cosmwasm.wat",
-      "Examples/Product/ValueVault.lean"]
-    #["wasm-cosmwasm", "source input is not supported"]
+  -- PF-P3-02: CosmWasm accepts contract_source Lean modules (HostBridge.cosmWasm).
+  requireLegacy
+    ["build", "--target", "wasm-cosmwasm", "--root", ".", "-o", "build/source-sdk/cosmwasm",
+      "Examples/Product/Counter.lean"]
+    ["--contract-source-emitwat", "-o", "build/source-sdk/cosmwasm", "--root", ".", "--target",
+      "wasm-cosmwasm", "Examples/Product/Counter.lean"]
+  -- PF-P0-01: remaining fixture-only build routes must not accept Lean sources.
   requireErrorContains
     ["build", "--target", "psy-dpn", "--root", ".", "-o", "build/source-sdk/vault.psy",
       "Examples/Product/ValueVault.lean"]
@@ -187,7 +189,7 @@ def main : IO UInt32 := do
     ["build", "--target", "wasm-cloudflare-workers", "--root", ".", "-o", "build/source-sdk/workers",
       "Examples/Product/ValueVault.lean"]
     #["wasm-cloudflare-workers", "source input is not supported"]
-  -- Fixture emit remains the supported surface for Counter spikes.
+  -- Fixture emit remains available for the CosmWasm region/cosmwasm-check spike.
   requireLegacy
     ["build", "--target", "wasm-cosmwasm", "-o", "build/cosmwasm/Counter.wat"]
     ["--emit-counter-ir-cosmwasm", "-o", "build/cosmwasm/Counter.wat"]
