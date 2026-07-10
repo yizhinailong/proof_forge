@@ -58,6 +58,24 @@ rebuild_constructor_init_fixture DynamicConstructorProbe "$ROOT/Examples/Backend
 rebuild_constructor_init_fixture Counter "$ROOT/Examples/Backend/Evm/Contracts/Counter.lean" \
   --evm-constructor-arg "initial=123"
 
+# PF-P2-03: RemoteCall with deploy-time peer address for real CALL peer equivalence.
+(
+  cd "$ROOT"
+  "${proof_forge[@]}" build \
+    --target evm \
+    --root . \
+    --peer "peer.callee=0x000000000000000000000000000000000000b0b0" \
+    --yul-output "$OUT_DIR/RemoteCall.peer.yul" \
+    --artifact-output "$OUT_DIR/RemoteCall.peer.proof-forge-artifact.json" \
+    -o "$OUT_DIR/RemoteCall.peer.bin" \
+    Examples/Product/RemoteCall.lean
+  # CALL target must be the peer address (0xb0b0 = 45232), method selector remote_call(uint256,uint256).
+  grep -Fq '4054714009' "$OUT_DIR/RemoteCall.peer.yul" \
+    || { echo "foundry-smoke: RemoteCall.peer.yul missing remote_call selector" >&2; exit 1; }
+  grep -Fq '45232' "$OUT_DIR/RemoteCall.peer.yul" \
+    || { echo "foundry-smoke: RemoteCall.peer.yul missing peer address word 0xb0b0=45232" >&2; exit 1; }
+)
+
 rm -rf "$FORGE_DIR"
 mkdir -p "$FORGE_DIR/test"
 
@@ -116,6 +134,13 @@ contract Bad1155Receiver {
         returns (bytes4)
     {
         return bytes4(0xdeadbeef);
+    }
+}
+
+/// PF-P2-03: peer oracle for RemoteCall.call_with_args (42 + 7 = 49).
+contract PeerOracle {
+    function remote_call(uint256 a, uint256 b) external pure returns (uint256) {
+        return a + b;
     }
 }
 
@@ -620,6 +645,20 @@ contract ProofForgeSmokeTest {
         (, bytes memory badBal) =
             token.call(abi.encodeWithSignature("balanceOf(address,uint256)", address(bad), uint256(11)));
         assertEq(abi.decode(badBal, (uint256)), 0);
+    }
+
+    // PF-P2-03: real peer CALL — RemoteCall.call_with_args → PeerOracle.remote_call(42,7)=49.
+    function testRemoteCallPeerEquivalence_callWithArgs() public {
+        address caller = address(0xC411);
+        // Must match --peer peer.callee=… used when building RemoteCall.peer.bin.
+        address peer = address(0xB0B0);
+        PeerOracle oracle = new PeerOracle();
+        deployRuntime(address(oracle).code, peer);
+        deployRuntime(hex"$(cat "$OUT_DIR/RemoteCall.peer.bin")", caller);
+
+        (bool ok, bytes memory ret) = caller.call(abi.encodeWithSignature("call_with_args()"));
+        assertTrue(ok);
+        assertEq(abi.decode(ret, (uint256)), 49);
     }
 
     // PF-P2-02: size-2 batch MVP (safeBatchTransferFrom2) to EOA.

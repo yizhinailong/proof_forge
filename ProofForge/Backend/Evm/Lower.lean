@@ -385,7 +385,8 @@ def buildCrosscallReturnAssignmentPlan
   .ok {
     returns
     mode
-    target := ← buildExprPlan module env target
+    target := ← buildExprPlan module env
+      (ProtocolMaterialize.resolveEvmTargetExpr module.nearCrosscallStrings target)
     methodId := ← buildExprPlan module env
       (ProtocolMaterialize.resolveEvmMethodExpr module.nearCrosscallStrings methodId)
     callValue? := ← callValue?.mapM (buildExprPlan module env)
