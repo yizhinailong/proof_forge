@@ -887,7 +887,10 @@ fn define_host_imports(linker: &mut Linker<HostState>) -> Result<()> {
         },
     )?;
 
-    // Promise API stubs
+    // Promise API stubs.
+    // near-sys: amount is a *pointer* to little-endian u128 (16 bytes), not a
+    // raw yocto value (matches EmitWat.lowerNearDeposit). Trace prints the low
+    // 64 bits for offline readability.
     linker.func_wrap(
         "env",
         "promise_create",
@@ -898,12 +901,13 @@ fn define_host_imports(linker: &mut Linker<HostState>) -> Result<()> {
          method_ptr: i64,
          args_len: i64,
          args_ptr: i64,
-         amount: i64,
+         amount_ptr: i64,
          gas: i64|
          -> Result<i64> {
             let account = read_utf8_lossy(&mut caller, account_ptr, account_len)?;
             let method = read_utf8_lossy(&mut caller, method_ptr, method_len)?;
             let args = read_utf8_lossy(&mut caller, args_ptr, args_len)?;
+            let amount = read_u128_le_low64(&mut caller, amount_ptr)?;
             let state = caller.data_mut();
             let id = state.next_promise_id;
             state.next_promise_id += 1;
@@ -924,12 +928,13 @@ fn define_host_imports(linker: &mut Linker<HostState>) -> Result<()> {
          method_ptr: i64,
          args_len: i64,
          args_ptr: i64,
-         amount: i64,
+         amount_ptr: i64,
          gas: i64|
          -> Result<i64> {
             let account = read_utf8_lossy(&mut caller, account_ptr, account_len)?;
             let method = read_utf8_lossy(&mut caller, method_ptr, method_len)?;
             let args = read_utf8_lossy(&mut caller, args_ptr, args_len)?;
+            let amount = read_u128_le_low64(&mut caller, amount_ptr)?;
             let state = caller.data_mut();
             let id = state.next_promise_id;
             state.next_promise_id += 1;
@@ -995,6 +1000,14 @@ fn ensure_memory(caller: &mut Caller<'_, HostState>, end: u64) -> Result<()> {
         .grow(&mut *caller, pages)
         .context("failed to grow wasm linear memory")?;
     Ok(())
+}
+
+/// Read little-endian u128 from guest memory; return the low 64 bits for traces.
+fn read_u128_le_low64(caller: &mut Caller<'_, HostState>, ptr: i64) -> Result<u64> {
+    let bytes = read_memory(caller, ptr, 16)?;
+    let mut buf = [0u8; 8];
+    buf.copy_from_slice(&bytes[..8]);
+    Ok(u64::from_le_bytes(buf))
 }
 
 fn read_memory(caller: &mut Caller<'_, HostState>, ptr: i64, len: i64) -> Result<Vec<u8>> {

@@ -88,5 +88,53 @@ require_file "$WAT_OUT"
 require_contains "$WAT_OUT" "ft_transfer" "NEP-141 body must mention ft_transfer"
 require_contains "$WAT_OUT" "storage_write" "NEP-141 body should use host storage_write"
 require_contains "$WAT_OUT" "promise_create" "NEP-141 body should support promise_create for transfer_call"
+require_contains "$WAT_OUT" "ft_mint" "NEP-141 body must export mint for lifecycle smoke"
+require_contains "$WAT_OUT" "ft_balance_of" "NEP-141 body must export balance_of"
 
-echo "product-token-near: ok (plan · NEP-141 body WAT)"
+echo "=== product-token-near step 3: offline-host mint/transfer lifecycle (N1.3) ==="
+# Prefer dedicated Backend FT body for deterministic offline lifecycle (stdlib module).
+FT_OUT="$OUT_DIR/lifecycle"
+rm -rf "$FT_OUT"
+mkdir -p "$FT_OUT"
+lake env proof-forge build --target wasm-near --root . -o "$FT_OUT" \
+  Examples/Backend/WasmNear/FungibleToken.lean \
+  || fail "lifecycle build NearFungibleToken backend source failed"
+LIFECYCLE_WAT="$(find "$FT_OUT" -name '*.wat' | head -n1)"
+require_file "$LIFECYCLE_WAT"
+
+# ft_transfer param order in stdlib: receiver hash + amount (see NearFungibleToken).
+eval "$(python3 - <<'PY'
+import hashlib, struct
+sender = hashlib.sha256(b"alice.testnet").digest()
+receiver = hashlib.sha256(b"bob.testnet").digest()
+inputs = [
+    b"",
+    sender + struct.pack("<Q", 100),
+    sender,
+    receiver + struct.pack("<Q", 30),
+    sender,
+    receiver,
+]
+print(f'INPUTS_HEX="{",".join(i.hex() for i in inputs)}"')
+PY
+)"
+
+HOST=(cargo run --quiet --manifest-path runtime/offline-host/Cargo.toml -- run)
+out="$("${HOST[@]}" "$LIFECYCLE_WAT" \
+  init \
+  ft_mint \
+  ft_balance_of \
+  ft_transfer \
+  ft_balance_of \
+  ft_balance_of \
+  --predecessor-account-id alice.testnet \
+  --signer-account-id alice.testnet \
+  --current-account-id proof-forge.testnet \
+  --inputs-hex "$INPUTS_HEX")"
+echo "$out"
+grep -Fq "return_u64=100" <<<"$out" || fail "expected mint balance 100"
+grep -Fq "return_u64=70" <<<"$out" || fail "expected sender balance 70 after transfer"
+grep -Fq "return_u64=30" <<<"$out" || fail "expected receiver balance 30 after transfer"
+echo "offline-host FT mint/transfer: ok"
+
+echo "product-token-near: ok (plan · NEP-141 body WAT · offline mint/transfer)"
