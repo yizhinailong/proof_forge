@@ -757,6 +757,8 @@ mutual
       err (crosscallEvmOnlyMessage "crosscallCreate")
     | .crosscallCreate2 _ _ _ =>
       err (crosscallEvmOnlyMessage "crosscallCreate2")
+    | .crosscallNamed _ _ _ _ =>
+      err "EmitWat: crosscallNamed (named-callee cross-program call) is a ZK-lane construct; not lowered on Wasm hosts — use crosscallInvoke* / NEAR promise forms"
     | .nearCrosscallInvokePool accountIndex methodId args deposit =>
       if ctx.bridge == .soroban then err sorobanNearPromiseUnsupportedMessage
       else lowerNearCrosscallInvokePool ctx env accountIndex methodId args deposit

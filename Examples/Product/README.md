@@ -81,5 +81,14 @@ host rewrite: `--peer logical.peer=…` / PeerMap.
 | [FungibleToken.lean](FungibleToken.lean) | TokenSpec mintable+burnable |
 | [FeeToken.lean](FeeToken.lean) | transfer_fee feature |
 | [SoulboundToken.lean](SoulboundToken.lean) | non_transferable feature |
+| [SoulboundTokenBody.lean](SoulboundTokenBody.lean) | non-transferable balances body (`contract_source`) |
+| [EscrowVault.lean](EscrowVault.lean) | two-party escrow (NEAR compare) |
+| [GuestBook.lean](GuestBook.lean) | guestbook messages (NEAR compare) |
+| [StatusMessage.lean](StatusMessage.lean) | status message (NEAR compare) |
+| [StorageDeposit.lean](StorageDeposit.lean) | storage deposit economics |
+| [HeightLockVault.lean](HeightLockVault.lean) | height-lock vault |
+| [TimelockVault.lean](TimelockVault.lean) | timelock vault |
+| [VestingVault.lean](VestingVault.lean) | vesting vault |
+| [ProRataVault.lean](ProRataVault.lean) | pro-rata vault |
 
 Chain goldens live under [`../Backend/`](../Backend/) — not authoring sources.

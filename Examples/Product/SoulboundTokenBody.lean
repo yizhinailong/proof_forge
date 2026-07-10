@@ -4,8 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 # Soulbound token **body** (non-transferable balances)
 
-Portable `contract_source` surface for dual-deploy compare. Complements
-TokenSpec intent in `SoulboundToken.lean` (Solana Token-2022 plan path).
+Portable `contract_source` surface for dual-deploy compare. Complements the
+token-intent module in `SoulboundToken.lean` (Solana Token-2022 plan path).
 
 - Mint / burn / balanceOf / totalSupply
 - **No transfer** entry (soulbound honesty)

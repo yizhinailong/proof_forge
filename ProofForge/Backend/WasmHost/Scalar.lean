@@ -172,6 +172,8 @@ mutual
     | .crosscallCreate v _ => exprReadsPackedScalar scalars v
     | .crosscallCreate2 v s _ =>
         exprReadsPackedScalar scalars v || exprReadsPackedScalar scalars s
+    | .crosscallNamed _ _ args _ =>
+        args.any (exprReadsPackedScalar scalars)
     | .nearCrosscallInvokePool a m args d =>
         exprReadsPackedScalar scalars a || exprReadsPackedScalar scalars m ||
           exprReadsPackedScalar scalars d || args.any (exprReadsPackedScalar scalars)
