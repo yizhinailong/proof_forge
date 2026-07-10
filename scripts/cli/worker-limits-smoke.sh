@@ -18,19 +18,31 @@ fail() { echo "worker-limits: $*" >&2; exit 1; }
 # Prefer GNU timeout / gtimeout; fall back to python if missing.
 run_with_timeout() {
   local secs="$1"; shift
-  if command -v timeout >/dev/null 2>&1; then
+  if [[ "${PROOF_FORGE_FORCE_PYTHON_TIMEOUT:-0}" != "1" ]] && command -v timeout >/dev/null 2>&1; then
     timeout "$secs" "$@"
-  elif command -v gtimeout >/dev/null 2>&1; then
+  elif [[ "${PROOF_FORGE_FORCE_PYTHON_TIMEOUT:-0}" != "1" ]] && command -v gtimeout >/dev/null 2>&1; then
     gtimeout "$secs" "$@"
   else
     python3 - "$secs" "$@" <<'PY'
-import subprocess, sys
+import os, signal, subprocess, sys
 secs = float(sys.argv[1])
 cmd = sys.argv[2:]
+proc = subprocess.Popen(cmd, start_new_session=True)
 try:
-    r = subprocess.run(cmd, timeout=secs)
-    sys.exit(r.returncode)
+    sys.exit(proc.wait(timeout=secs))
 except subprocess.TimeoutExpired:
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        proc.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait()
     sys.exit(124)
 PY
   fi
@@ -76,8 +88,32 @@ set +e
 run_with_timeout 0.01 sleep 2 >/dev/null 2>&1
 st=$?
 set -e
-# 124 is timeout(1) convention; python fallback also uses 124.
-[[ "$st" -eq 124 || "$st" -ne 0 ]] || fail "expected timeout wrapper to kill sleep (exit $st)"
+# 124 is timeout(1) convention; Python fallback deliberately matches it.
+[[ "$st" -eq 124 ]] || fail "expected timeout wrapper exit 124, got unrelated exit $st"
 echo "worker-limits: gate3 timeout enforcement ok (exit $st)"
+
+# Gate 4: the Python fallback must terminate the entire process group, not only
+# its direct child. Otherwise compiler/tool descendants can outlive the worker.
+descendant_pid_file="$OUT/descendant.pid"
+set +e
+PROOF_FORGE_FORCE_PYTHON_TIMEOUT=1 run_with_timeout 0.3 \
+  python3 -c 'import subprocess,sys,time; child=subprocess.Popen(["sleep","30"]); open(sys.argv[1],"w").write(str(child.pid)); time.sleep(30)' \
+  "$descendant_pid_file" >/dev/null 2>&1
+st=$?
+set -e
+[[ "$st" -eq 124 ]] || fail "Python timeout fallback returned $st instead of 124"
+[[ -s "$descendant_pid_file" ]] || fail "Python timeout fallback descendant did not publish its PID"
+descendant_pid="$(cat "$descendant_pid_file")"
+for _ in $(seq 1 50); do
+  if ! kill -0 "$descendant_pid" 2>/dev/null; then
+    break
+  fi
+  sleep 0.05
+done
+if kill -0 "$descendant_pid" 2>/dev/null; then
+  kill -9 "$descendant_pid" 2>/dev/null || true
+  fail "Python timeout fallback left descendant PID $descendant_pid alive"
+fi
+echo "worker-limits: gate4 Python fallback process-group cleanup ok"
 
 echo "worker-limits: ok (PF-P3-03 wall-clock worker control; cgroup CPU/mem remain follow-on)"

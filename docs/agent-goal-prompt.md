@@ -8,10 +8,12 @@ Status: **Active**
 Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
 
-Baseline: Waves 0–4 done (PF-P3-02 @8d4dd0c4 / fdbdf1ff). Wave 5: PF-P3-01 formal
-fragment (proved⊂lowerable + triad renamed/canonical-name witnesses; structural
-∀-lowerable⇒ok still open) + PF-P3-03 (HOSTED_ISOLATION + lean pin + rebuild-hash
-+ wall-clock worker-limits; cgroup CPU/mem remain).
+Baseline: Waves 0–3 done. Wave 4 PF-P3-02 is reopened until every promotion gate
+uses strict tool exits and executable runtime/package validation on one revision.
+Wave 5: PF-P3-01 formal fragment (proved⊂lowerable + triad renamed/canonical-name
+witnesses + NEAR allocator/bridge precondition; structural ∀-lowerable⇒ok still
+open) + PF-P3-03 (shared frontend refusal + parsed-root Lean pin + isolated
+rebuild-hash + wall-clock worker-limits; cgroup CPU/mem remain).
 
 ---
 
@@ -120,9 +122,9 @@ implementation SHA is only known after the implementation commit exists.
 | 3 | PF-P2-01 | done: verified@72c5789e; just product-catalog; just product; just testkit; just testkit-array-example; just testkit-ownable; just testkit-remote-call; just check | Waves 1 and 2 done |
 | 3 | PF-P2-02 | done: verified@7c4def9c; Foundry ERC721/1155/custom-error; Solana ELF; `just near-sandbox-peer` (storage_usage + promise peer); `just product`; `just check` | Waves 1 and 2 done; complete one backend slice at a time |
 | 3 | PF-P2-03 | done: verified@7c4def9c; `just testkit-remote-call` (evm+solana); Foundry peer; Mollusk CPI; `just near-sandbox-peer` (call_with_args→49); `just product` | Waves 1 and 2 done |
-| 5 | PF-P3-01 | in_progress: shape lowerable ⊃ proved + triad renamed/canonical + EVM finite name-family lowering-total; next: structural ∀ m, lowerable m → lowerModule m = .ok | Wave 3 done; after PF-P3-02 |
-| 5 | PF-P3-03 | in_progress: HOSTED_ISOLATION + lean pin + rebuild-hash + `just worker-limits` (wall-clock); next: cgroup CPU/mem isolation | Wave 3 done |
-| 4 | PF-P3-02 | done: verified@8d4dd0c4; `just soroban-promotion` `cosmwasm-promotion` `aptos-promotion` `sui-promotion` `cloudflare-promotion` `psy-promotion` `aleo-promotion` | Wave 3 done; promote only one target at a time, and do not block Wave 5 |
+| 5 | PF-P3-01 | in_progress: shape lowerable ⊃ proved + triad renamed/canonical + EVM finite name-family + NEAR bridge-aware allocator exclusion; next: structural ∀ m, lowerable m → lowerModule m = .ok | Wave 3 done; do not claim general correctness |
+| 5 | PF-P3-03 | in_progress: all initializer-enabled loaders share HOSTED_ISOLATION refusal; Lean pin resolves from parsed `--root`; isolated compiler rebuild-hash; strict wall-clock timeout; next: cgroup CPU/mem isolation | Wave 3 done |
+| 4 | PF-P3-02 | in_progress: prior verification reopened because Cloudflare accepted non-zero wrangler and used grep-only semantics; strict wrangler + executable Worker lifecycle now pass, and Aptos compile/unit-test passes locally but remains Spike/capability while product `contract_source` is unsupported; rerun all scheduled promotion gates on one revision | Wave 3 done; promote only one target at a time, and do not block Wave 5 |
 
 PF-P3-02 promotion order is fixed unless the human changes it: Soroban,
 CosmWasm, Aptos, Sui, Cloudflare Workers, Psy, Aleo. Completing one target is a

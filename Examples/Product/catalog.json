@@ -48,6 +48,14 @@
       "note": "stdlib ERC4626 body re-export; not full triad runtime yet"
     },
     {
+      "file": "EscrowVault.lean",
+      "authoring": "contract_source",
+      "kind": "token-accounting",
+      "targets": ["evm", "solana-sbpf-asm", "wasm-near", "wasm-stellar-soroban"],
+      "outputStage": "intermediate",
+      "gates": ["product-matrix", "testkit:escrow-vault"]
+    },
+    {
       "file": "ExternalTokenTransfer.lean",
       "authoring": "contract_source",
       "kind": "token-accounting",
@@ -79,6 +87,22 @@
       "targets": ["evm", "solana-sbpf-asm", "wasm-near"],
       "outputStage": "plan",
       "gates": ["product-matrix", "product-token-near", "product-token-solana"]
+    },
+    {
+      "file": "GuestBook.lean",
+      "authoring": "contract_source",
+      "kind": "aggregate",
+      "targets": ["evm", "solana-sbpf-asm", "wasm-near", "wasm-stellar-soroban"],
+      "outputStage": "intermediate",
+      "gates": ["product-matrix", "testkit:guestbook"]
+    },
+    {
+      "file": "HeightLockVault.lean",
+      "authoring": "contract_source",
+      "kind": "context",
+      "targets": ["evm", "solana-sbpf-asm", "wasm-near", "wasm-stellar-soroban"],
+      "outputStage": "intermediate",
+      "gates": ["product-matrix", "testkit:height-lock-vault"]
     },
     {
       "file": "HostEnvProbe.lean",
@@ -123,6 +147,14 @@
       "gates": ["product-matrix"]
     },
     {
+      "file": "ProRataVault.lean",
+      "authoring": "contract_source",
+      "kind": "token-accounting",
+      "targets": ["evm", "solana-sbpf-asm", "wasm-near", "wasm-stellar-soroban"],
+      "outputStage": "intermediate",
+      "gates": ["product-matrix", "testkit:pro-rata-vault"]
+    },
+    {
       "file": "ReentrancyGuard.lean",
       "authoring": "contract_source",
       "kind": "auth-policy",
@@ -159,6 +191,15 @@
       "note": "EVM honest reject (non-transferable)"
     },
     {
+      "file": "SoulboundTokenBody.lean",
+      "authoring": "contract_source",
+      "kind": "token-accounting",
+      "targets": ["evm", "solana-sbpf-asm", "wasm-near", "wasm-stellar-soroban"],
+      "outputStage": "intermediate",
+      "gates": ["product-matrix", "testkit:soulbound-token"],
+      "note": "portable non-transferable token body; complements the TokenSpec plan"
+    },
+    {
       "file": "StakingVault.lean",
       "authoring": "contract_source",
       "kind": "token-accounting",
@@ -168,6 +209,31 @@
       "note": "testkit runtime scenario is EVM-focused today"
     },
     {
+      "file": "StatusMessage.lean",
+      "authoring": "contract_source",
+      "kind": "aggregate",
+      "targets": ["evm", "solana-sbpf-asm", "wasm-near", "wasm-stellar-soroban"],
+      "outputStage": "intermediate",
+      "gates": ["product-matrix", "testkit:status-message"]
+    },
+    {
+      "file": "StorageDeposit.lean",
+      "authoring": "contract_source",
+      "kind": "token-accounting",
+      "targets": ["evm", "wasm-near", "wasm-stellar-soroban"],
+      "outputStage": "intermediate",
+      "gates": ["product-matrix", "testkit:storage-deposit"],
+      "note": "portable NEP-145-lite accounting surface; Solana Hash ABI parameters are not yet supported"
+    },
+    {
+      "file": "TimelockVault.lean",
+      "authoring": "contract_source",
+      "kind": "context",
+      "targets": ["evm", "solana-sbpf-asm", "wasm-near", "wasm-stellar-soroban"],
+      "outputStage": "intermediate",
+      "gates": ["product-matrix", "testkit:timelock-vault"]
+    },
+    {
       "file": "ValueVault.lean",
       "authoring": "contract_source",
       "kind": "scalar-state",
@@ -175,6 +241,14 @@
       "outputStage": "final-deployable",
       "gates": ["product-matrix", "portable-value-vault"],
       "runtimeTriad": true
+    },
+    {
+      "file": "VestingVault.lean",
+      "authoring": "contract_source",
+      "kind": "context",
+      "targets": ["evm", "solana-sbpf-asm", "wasm-near", "wasm-stellar-soroban"],
+      "outputStage": "intermediate",
+      "gates": ["product-matrix", "testkit:vesting-vault"]
     }
   ]
 }

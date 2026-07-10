@@ -100,11 +100,23 @@ structure StructDecl where
   fields : Array StructField
   deriveStorage : Bool := false
   isPublic : Bool := true
-  /-- Aleo/ZK opt-in: lower this struct as a Leo `record` (private UTXO-like
-  state with an `owner: address` field). Chain-neutral flag in the spirit of
-  `deriveStorage`; non-Aleo backends ignore it. -/
+  /-- Linear/consumable record semantics. Aleo materializes this as a private
+  UTXO-like `record`; adapters without equivalent ownership semantics must
+  explicitly reject it rather than treating it as a copyable struct. -/
   isRecord : Bool := false
   deriving Repr
+
+inductive StructSemantics where
+  | value
+  | linearRecord
+  deriving BEq, DecidableEq, Repr
+
+def StructSemantics.id : StructSemantics → String
+  | .value => "value"
+  | .linearRecord => "linear_record"
+
+def StructDecl.semantics (decl : StructDecl) : StructSemantics :=
+  if decl.isRecord then .linearRecord else .value
 
 inductive StateKind where
   | scalar
@@ -400,9 +412,22 @@ inductive EntrypointKind where
   | receive
   deriving Repr, BEq
 
+/-- Host-visible invocation semantics. A return value does not imply `view`:
+mutating calls may return a value on-chain, so the conservative default is
+`call` and read-only methods must opt in explicitly. -/
+inductive EntrypointMutability where
+  | call
+  | view
+  deriving Repr, BEq, DecidableEq, Inhabited
+
+def EntrypointMutability.id : EntrypointMutability → String
+  | .call => "call"
+  | .view => "view"
+
 structure Entrypoint where
   name : String
   kind : EntrypointKind := .function
+  mutability : EntrypointMutability := .call
   /-- Optional target dispatch tag. On EVM this is the 4-byte selector hex;
   other targets may use it as an instruction discriminator or ignore it. -/
   selector? : Option String := none
@@ -620,7 +645,9 @@ def StructField.capabilities (field : StructField) : Array ProofForge.Target.Cap
   field.type.capabilities
 
 def StructDecl.capabilities (decl : StructDecl) : Array ProofForge.Target.Capability :=
-  #[.dataStruct] ++ decl.fields.foldl (fun acc field => acc ++ field.capabilities) #[]
+  #[.dataStruct] ++
+    (if decl.semantics == .linearRecord then #[.dataLinearRecord] else #[]) ++
+    decl.fields.foldl (fun acc field => acc ++ field.capabilities) #[]
 
 def StateDecl.capabilities (state : StateDecl) : Array ProofForge.Target.Capability :=
   match state.kind with

@@ -47,11 +47,11 @@ portable Counter 流程，`evm`、`solana-sbpf-asm`、`wasm-near` 和
 | `wasm-near` | portable IR → `EmitWat`（Wasm AST → WAT）→ `wat2wasm` | Experimental | 诊断、IR 覆盖清单、形式化 trace obligation、target-first 冒烟、离线宿主冒烟（signer+deposit+promise stubs）、artifact/deploy metadata、NEP-141 FT stdlib、aggregate ABI params、nested mapKey paths、nativeValue U64 truncation、eventEmitIndexed flattening |
 | `wasm-stellar-soroban` | portable IR → `EmitWat` + `HostBridge.soroban` → WAT → `wat2wasm` | Counter MVP（PF-P3-02 六门） | `just soroban-promotion`（源身份 · fail-closed · HostBridge · wat2wasm · offline-host 生命周期 · 文档）；auth 仍为 always-auth spike；Stellar CLI/TTL 为后续 |
 | `wasm-cosmwasm` | portable IR → `EmitWat` + `HostBridge.cosmWasm` → WAT → `wat2wasm` | Counter MVP（PF-P3-02 六门） | `just cosmwasm-promotion`（产品 Counter · offline-host 0→1 · 无 NEAR 偷换）；`execute_msg` 仍为 stub；fixture `cosmwasm-check` 见 `just cosmwasm-counter-smoke` |
-| `move-aptos` | portable IR → Aptos Move 包 | Counter MVP（PF-P3-02 六门） | `just aptos-promotion`（fixture counter · aptos compile/test · 产品源 fail-closed）；需 `aptos` CLI |
+| `move-aptos` | portable IR → Aptos Move 源码包 | Counter sourcegen Spike | fixture Counter 包 + capability 检查；`just aptos-promotion` 是严格晋级门，要求 `aptos move compile/test`，不作为默认最终制品证据 |
 | `move-sui` | portable IR → Sui Move 包 | Counter MVP | 本地 `sui move build/test`、`just sui-counter-smoke` 等 |
 | `psy-dpn` | portable IR → `.psy` → Dargo → DPN circuit JSON | Experimental（受限子集） | golden source、诊断、`dargo` execute 冒烟 |
-| `aleo-leo` | portable IR → Leo package → `leo build`/`leo test` | Counter MVP（PF-P3-02 六门；Road 2 待开放） | `just aleo-promotion`（fixture counter · leo build/test · 产品源 fail-closed）；通用 IR→Leo lowering（`Backend/Aleo/IR/{Common,Validate}` + `IR`）、标量+map 存储、artifact metadata（`Metadata`/`MetadataJson`）、Counter/PureMath golden + map-lowering + metadata 冒烟 |
-| `wasm-cloudflare-workers` | portable IR → TypeScript Worker | Counter MVP（PF-P3-02 六门） | `just cloudflare-promotion`（fixture TS · wrangler · 产品源 fail-closed）；非 Wasm 二进制 |
+| `aleo-leo` | portable IR → Leo 源码包 | Research sourcegen | 已验证 pure、Unit-final 和状态无关 `(T, Final)` 子集；保序 Poseidon pair hash、record 语义和 plan 派生 metadata；Leo 4.0.2 下依赖状态的非 Unit 返回会 fail closed |
+| `wasm-cloudflare-workers` | portable IR → TypeScript Worker | 链下 Research sourcegen | 仅 fixture Counter TS；产品源 fail closed；晋级要求 Wrangler dry-run 成功并执行 Worker 生命周期；非 Wasm 二进制 |
 
 **仅 CLI 的验证目标：** `quint` 可通过 `proof-forge emit --target quint` 用于形式化/模型检查
 fixture，但**不在** `Target.knownIds` / `--list-targets` 中（验证通道，不是产品 host）。
@@ -103,7 +103,7 @@ lake env proof-forge build --target evm --root . --module contract \
 lake env proof-forge emit --target wasm-near --fixture counter --format wat -o build/wasm-near
 lake env proof-forge emit --target solana-sbpf-asm --fixture counter --format elf -o build/solana/counter.so
 lake env proof-forge emit --target psy-dpn --fixture counter --format psy -o build/psy/Counter.psy
-lake env proof-forge emit --target aleo-leo --fixture counter --format leo -o build/aleo
+lake env proof-forge emit --target aleo-leo --fixture pure-math --format leo -o build/aleo/PureMath.leo
 lake env proof-forge emit --target wasm-cloudflare-workers --fixture counter --format ts -o build/ts/Counter.ts
 ```
 

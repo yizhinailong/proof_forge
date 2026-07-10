@@ -167,11 +167,12 @@ def pushStmt (statement : Statement) : EntryM Unit := do
 
 def entryFull (name : String) (selector? : Option String) (returns : ValueType)
     (params : Array (String × ValueType)) (paramAbiWords : Array (Option String))
-    (body : EntryM Unit) : ModuleM Unit := do
+    (body : EntryM Unit) (mutability : EntrypointMutability := .call) : ModuleM Unit := do
   let (_, entryBuilder) := body.run {}
   let entrypoint : Entrypoint := {
     name := name
     selector? := selector?
+    mutability := mutability
     params := params
     paramAbiWords := paramAbiWords
     returns := returns

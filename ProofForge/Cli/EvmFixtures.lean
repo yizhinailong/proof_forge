@@ -141,8 +141,11 @@ def compileValueVaultIrBytecode (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/ir/ValueVault.bin")
   writeTextFile output (bytecode ++ "\n")
   let spec := ProofForge.Contract.ContractSpec.fromIR module
-  writeEvmContractSdkArtifactMetadata opts "ValueVault" "ProofForge.Contract.Examples.ValueVault"
-    spec module yulOutput output
+  writeEvmContractSdkArtifactMetadata opts "ValueVault" {
+    moduleName := "ProofForge.Contract.Examples.ValueVault"
+    kind := "portable-ir"
+    leanElaborated := false
+  } spec module yulOutput output
   IO.println s!"wrote {output} ({bytecode.length} hex chars)"
   return 0
 

@@ -359,13 +359,17 @@ jobs:
         if: steps.install-leo.outputs.available == 'true'
         run: just build
 
-      - name: Run Aleo Counter smoke
+      - name: Run Aleo Counter fail-closed smoke
         if: steps.install-leo.outputs.available == 'true'
         run: ./scripts/aleo/counter-smoke.sh
 
       - name: Run Aleo PureMath smoke
         if: steps.install-leo.outputs.available == 'true'
         run: ./scripts/aleo/pure-math-smoke.sh
+
+      - name: Run full Aleo Leo build smoke
+        if: steps.install-leo.outputs.available == 'true'
+        run: just aleo-leo-build-smoke
 
       - name: Skip Aleo smoke
         if: steps.install-leo.outputs.available != 'true'

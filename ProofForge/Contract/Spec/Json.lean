@@ -75,6 +75,7 @@ def entrypointJson (entrypoint : Entrypoint) : String :=
   jsonObject #[
     ("name", jsonString entrypoint.name),
     ("selector", jsonStringOption entrypoint.selector?),
+    ("mutability", jsonString entrypoint.mutability.id),
     ("returns", valueTypeJson entrypoint.returns),
     ("params", jsonArray (entrypoint.params.map paramJson))
   ]

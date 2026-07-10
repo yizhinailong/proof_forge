@@ -53,11 +53,11 @@ with local `sui move build/test` validation.
 | `wasm-near` | portable IR → `EmitWat` (Wasm AST → WAT) → `wat2wasm` | Experimental | diagnostics, IR coverage manifests, formal trace obligations, target-first smoke, offline host smoke (signer+deposit+promise stubs), artifact/deploy metadata, NEP-141 FT stdlib, aggregate ABI params, nested mapKey paths, nativeValue U64 truncation, eventEmitIndexed flattening |
 | `wasm-stellar-soroban` | portable IR → `EmitWat` + `HostBridge.soroban` → WAT → `wat2wasm` | Counter MVP (PF-P3-02 six-gate) | `just soroban-promotion` (source identity · fail-closed · HostBridge · wat2wasm · offline-host lifecycle · docs); auth still spike-always; Stellar CLI/TTL remain follow-on |
 | `wasm-cosmwasm` | portable IR → `EmitWat` + `HostBridge.cosmWasm` → WAT → `wat2wasm` | Counter MVP (PF-P3-02 six-gate) | `just cosmwasm-promotion` (product Counter source · offline-host 0→1 · no NEAR swap); `execute_msg` still stub; fixture `cosmwasm-check` via `just cosmwasm-counter-smoke` |
-| `move-aptos` | portable IR → Aptos Move package | Counter MVP (PF-P3-02 six-gate) | `just aptos-promotion` (fixture counter · aptos compile/test · product source fail-closed); needs `aptos` CLI |
+| `move-aptos` | portable IR → Aptos Move source package | Counter sourcegen Spike | fixture Counter package + capability checks; `just aptos-promotion` is a strict promotion gate requiring `aptos move compile/test`, not default final-artifact evidence |
 | `move-sui` | portable IR → Sui Move package | Counter MVP | Counter package layout, local `sui move build/test`, unsupported-shape diagnostics, emit/build parity, object semantics, local-only validation, TypeScript client smoke |
 | `psy-dpn` | portable IR → `.psy` → Dargo → DPN circuit JSON | Experimental (restricted subset) | golden sources, diagnostics, `dargo` execute smokes |
-| `aleo-leo` | portable IR → Leo package → `leo build`/`leo test` | Counter MVP (PF-P3-02 six-gate; Road 2 open) | `just aleo-promotion` (fixture counter · leo build/test · product fail-closed); generic IR→Leo lowering (`Backend/Aleo/IR/{Common,Validate}` + `IR`), scalar+map storage, artifact metadata (`Metadata`/`MetadataJson`), Counter/PureMath goldens + map-lowering + metadata smokes |
-| `wasm-cloudflare-workers` | portable IR → TypeScript Worker | Counter MVP (PF-P3-02 six-gate) | `just cloudflare-promotion` (fixture TS · wrangler · product fail-closed); not Wasm binary |
+| `aleo-leo` | portable IR → Leo source package | Research sourcegen | validated pure, Unit-final, and state-independent `(T, Final)` fragment; ordered Poseidon pair hashing, record semantics, and plan-derived metadata; state-derived non-Unit returns fail closed under Leo 4.0.2 |
+| `wasm-cloudflare-workers` | portable IR → TypeScript Worker | Off-chain Research sourcegen | fixture Counter TS only; product source fails closed; promotion requires successful Wrangler dry-run plus executable Worker lifecycle; not a Wasm binary |
 
 **CLI-only verification target:** `quint` is accepted by `proof-forge emit --target quint`
 for formal/model-checking fixtures but is **not** in `Target.knownIds` /
@@ -111,7 +111,7 @@ lake env proof-forge emit --target wasm-near --fixture counter --format wat -o b
 lake env proof-forge emit --target solana-sbpf-asm --fixture counter --format elf -o build/solana/counter.so
 lake env proof-forge emit --target move-sui --fixture counter --format sui -o build/sui
 lake env proof-forge emit --target psy-dpn --fixture counter --format psy -o build/psy/Counter.psy
-lake env proof-forge emit --target aleo-leo --fixture counter --format leo -o build/aleo
+lake env proof-forge emit --target aleo-leo --fixture pure-math --format leo -o build/aleo/PureMath.leo
 lake env proof-forge emit --target wasm-cloudflare-workers --fixture counter --format ts -o build/ts/Counter.ts
 ```
 

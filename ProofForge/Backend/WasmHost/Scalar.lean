@@ -172,6 +172,8 @@ mutual
     | .crosscallCreate v _ => exprReadsPackedScalar scalars v
     | .crosscallCreate2 v s _ =>
         exprReadsPackedScalar scalars v || exprReadsPackedScalar scalars s
+    | .crosscallNamed _ _ args _ =>
+        args.any (exprReadsPackedScalar scalars)
     | .nearCrosscallInvokePool a m args d =>
         exprReadsPackedScalar scalars a || exprReadsPackedScalar scalars m ||
           exprReadsPackedScalar scalars d || args.any (exprReadsPackedScalar scalars)
@@ -238,8 +240,9 @@ mutual
         exprReadsPackedScalar scalars cond || body.any (stmtReadsPackedScalar scalars)
 end
 
-/-- Entrypoint only writes packed scalars (no prior pack read/RMW) → safe to
-skip cold `storage_read` via `__pf_pack_begin_fresh`. -/
+/-- Conservative packed-state read scan. This remains useful for analysis, but
+code generation must not infer a definite full overwrite merely from `false`:
+an entrypoint may write only one field in a multi-field blob. -/
 def entrypointReadsPackedScalar (scalars : Array StateInfo) (ep : Entrypoint) : Bool :=
   ep.body.any (stmtReadsPackedScalar scalars)
 

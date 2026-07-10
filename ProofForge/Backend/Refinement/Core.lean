@@ -1,6 +1,7 @@
 import ProofForge.IR.Contract
 import ProofForge.IR.Semantics
 import ProofForge.IR.StepSemantics
+import ProofForge.Target.HostBridge
 
 namespace ProofForge.Backend.Refinement
 
@@ -371,9 +372,35 @@ def isCounterShapeLowerable (module : Module) : Bool :=
     !module.overflowChecked &&
     isCounterModuleShape module.state.toList module.entrypoints.toList
 
+/-- Wasm-host allocator compatibility must be checked against the concrete
+host bridge. In particular, the CosmWasm region allocator is rejected by the
+NEAR and Soroban lowerers before module planning. -/
+def wasmBridgeAcceptsAllocator
+    (bridge : ProofForge.Target.HostBridge) (allocator : AllocatorConfig) : Bool :=
+  !allocator.isCosmWasmRegion || bridge == .cosmWasm
+
+/-- Counter-shape lowerability specialized to one Wasm host bridge. -/
+def isCounterShapeLowerableForWasmBridge
+    (bridge : ProofForge.Target.HostBridge) (module : Module) : Bool :=
+  isCounterShapeLowerable module && wasmBridgeAcceptsAllocator bridge module.allocator
+
 /-- Narrow proved Counter fragment: canonical name plus lowerable shape. -/
 def isCounterModule (module : Module) : Bool :=
   module.name == "Counter" && isCounterShapeLowerable module
+
+/-- Proved Counter fragment specialized to the same Wasm host preconditions as
+its lowerable superset. -/
+def isCounterModuleForWasmBridge
+    (bridge : ProofForge.Target.HostBridge) (module : Module) : Bool :=
+  isCounterModule module && wasmBridgeAcceptsAllocator bridge module.allocator
+
+theorem isCounterModuleForWasmBridge_implies_shape_lowerable
+    (bridge : ProofForge.Target.HostBridge) (module : Module)
+    (h : isCounterModuleForWasmBridge bridge module = true) :
+    isCounterShapeLowerableForWasmBridge bridge module = true := by
+  simp only [isCounterModuleForWasmBridge, isCounterShapeLowerableForWasmBridge,
+    isCounterModule, Bool.and_eq_true] at h ⊢
+  exact ⟨h.1.2, h.2⟩
 
 /-- Every proved Counter module is lowerable under the shape predicate. -/
 theorem isCounterModule_implies_shape_lowerable

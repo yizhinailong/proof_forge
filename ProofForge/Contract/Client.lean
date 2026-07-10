@@ -1,5 +1,7 @@
 import ProofForge.Contract.Spec.Json
+import ProofForge.Backend.Evm.AbiType
 import ProofForge.IR.Contract
+import ProofForge.IR.Mutability
 
 namespace ProofForge.Contract.Client
 
@@ -34,36 +36,48 @@ def typeToTs : ValueType → String
   | .structType _ => "Record<string, any>"
   | .array _ => "any[]"
 
-def solidityAbiType : ValueType → String
-  | .u32 => "uint32"
-  | .u64 => "uint64"
-  | .u8 => "uint8"
-  | .u128 => "uint128"
-  | .bool => "bool"
-  | .hash => "bytes32"
-  | .address => "address"
-  | .bytes => "bytes"
-  | .string => "string"
-  | .unit => ""
-  | .fixedArray _ _ => "bytes"
-  | .structType _ => "bytes"
-  | .array _ => "bytes"
+def entrypointParamAbiWord? (entrypoint : Entrypoint) (index : Nat) : Option String :=
+  if h : index < entrypoint.paramAbiWords.size then entrypoint.paramAbiWords[index] else none
 
-def abiInputJson (param : String × ValueType) : String :=
-  "{\"name\":\"" ++ param.fst ++ "\",\"type\":\"" ++ solidityAbiType param.snd ++ "\"}"
+def paramTypeToTs (entrypoint : Entrypoint) (index : Nat) (type : ValueType) : String :=
+  match entrypointParamAbiWord? entrypoint index with
+  | some abiWord =>
+      if abiWord == "address" || abiWord.startsWith "bytes" then
+        "string"
+      else if abiWord == "bool" then
+        "boolean"
+      else
+        typeToTs type
+  | none => typeToTs type
 
-def abiEntryJson (entrypoint : Entrypoint) : String :=
-  let inputs := String.intercalate "," (entrypoint.params.map abiInputJson).toList
-  let outputs :=
-    if entrypoint.returns == .unit then
-      "[]"
-    else
-      "[{\"type\":\"" ++ solidityAbiType entrypoint.returns ++ "\"}]"
-  let stateMutability := if entrypoint.returns == .unit then "nonpayable" else "view"
-  "{\"name\":\"" ++ entrypoint.name ++ "\",\"type\":\"function\",\"inputs\":[" ++ inputs ++ "],\"outputs\":" ++ outputs ++ ",\"stateMutability\":\"" ++ stateMutability ++ "\"}"
+def abiEntryJson (module : Module) (entrypoint : Entrypoint) : Except String String :=
+  match entrypoint.kind with
+  | .fallback =>
+      .ok "{\"type\":\"fallback\",\"stateMutability\":\"nonpayable\"}"
+  | .receive =>
+      .ok "{\"type\":\"receive\",\"stateMutability\":\"payable\"}"
+  | .function => do
+      let mut inputEntries := #[]
+      for h : idx in [0:entrypoint.params.size] do
+        let param := entrypoint.params[idx]
+        let abiType ← ProofForge.Backend.Evm.AbiType.descriptor module
+          s!"generated EVM client entrypoint `{entrypoint.name}` parameter `{param.fst}`"
+          param.snd (entrypointParamAbiWord? entrypoint idx)
+        inputEntries := inputEntries.push (abiType.toJson (some param.fst))
+      let inputs := String.intercalate "," inputEntries.toList
+      let outputs ←
+        if entrypoint.returns == .unit then
+          pure "[]"
+        else do
+          let abiType ← ProofForge.Backend.Evm.AbiType.descriptor module
+            s!"generated EVM client entrypoint `{entrypoint.name}` return" entrypoint.returns
+          pure ("[" ++ abiType.toJson ++ "]")
+      let stateMutability := if entrypoint.mutability == .view then "view" else "nonpayable"
+      pure ("{\"name\":\"" ++ entrypoint.name ++ "\",\"type\":\"function\",\"inputs\":[" ++ inputs ++ "],\"outputs\":" ++ outputs ++ ",\"stateMutability\":\"" ++ stateMutability ++ "\"}")
 
-def abiJson (module : Module) : String :=
-  "[" ++ String.intercalate "," (module.entrypoints.map abiEntryJson).toList ++ "]"
+def abiJson (module : Module) : Except String String := do
+  let entries ← module.entrypoints.mapM (abiEntryJson module)
+  pure ("[" ++ String.intercalate "," entries.toList ++ "]")
 
 def errorCatalogJson (spec : ContractSpec) : String :=
   ProofForge.Contract.Spec.Json.jsonArray
@@ -122,13 +136,20 @@ def nearErrorHelpersTs (spec : ContractSpec) : String :=
   ]
 
 def evmEntrypointWrapper (entrypoint : Entrypoint) : String :=
-  let params := String.intercalate ", " (entrypoint.params.map fun p => p.fst ++ ": " ++ typeToTs p.snd).toList
+  let params := String.intercalate ", " <| (entrypoint.params.mapIdx fun index p =>
+    p.fst ++ ": " ++ paramTypeToTs entrypoint index p.snd).toList
   let argList := String.intercalate ", " (entrypoint.params.map fun p => p.fst).toList
-  if entrypoint.returns == .unit then
-    "\nexport async function " ++ entrypoint.name ++ "(" ++ params ++ "): Promise<void> {\n" ++
-    "  const tx = await contract.getFunction(\"" ++ entrypoint.name ++ "\")(" ++ argList ++ ");\n" ++
-    "  await tx.wait();\n" ++
-    "}\n"
+  if entrypoint.mutability == .call then
+    if entrypoint.returns == .unit then
+      "\nexport async function " ++ entrypoint.name ++ "(" ++ params ++ "): Promise<void> {\n" ++
+      "  const tx = await contract.getFunction(\"" ++ entrypoint.name ++ "\")(" ++ argList ++ ");\n" ++
+      "  await tx.wait();\n" ++
+      "}\n"
+    else
+      "\nexport async function " ++ entrypoint.name ++ "(" ++ params ++ "): Promise<ethers.ContractTransactionReceipt | null> {\n" ++
+      "  const tx = await contract.getFunction(\"" ++ entrypoint.name ++ "\")(" ++ argList ++ ");\n" ++
+      "  return await tx.wait();\n" ++
+      "}\n"
   else
     "\nexport async function " ++ entrypoint.name ++ "(" ++ params ++ "): Promise<" ++ typeToTs entrypoint.returns ++ "> {\n" ++
     "  return await contract.getFunction(\"" ++ entrypoint.name ++ "\").staticCall(" ++ argList ++ ");\n" ++
@@ -186,14 +207,19 @@ def evmDeployHelpersTs : String :=
     "}"
   ]
 
-def renderEvmAbiWrapper (spec : ContractSpec) (artifactBaseName : String := spec.name) : String :=
-  let entrypointLines := String.intercalate "" (spec.module.entrypoints.map evmEntrypointWrapper).toList
-  String.intercalate "\n" [
+def renderEvmAbiWrapper (spec : ContractSpec) (artifactBaseName : String := spec.name) :
+    Except String String := do
+  ProofForge.IR.Mutability.validateModule spec.module
+  let entrypointLines := String.intercalate "" <|
+    (spec.module.entrypoints.filter (fun entrypoint => entrypoint.kind == .function)
+      |>.map evmEntrypointWrapper).toList
+  let abi ← abiJson spec.module
+  pure <| String.intercalate "\n" [
     "/* ProofForge generated EVM ABI wrapper. */",
     "/* eslint-disable @typescript-eslint/no-explicit-any */",
     "import { ethers } from \"ethers\";",
     "",
-    "export const ABI = " ++ abiJson spec.module ++ " as const;",
+    "export const ABI = " ++ abi ++ " as const;",
     "",
     evmArtifactPathsTs artifactBaseName,
     "",
@@ -218,14 +244,18 @@ def nearArgsObject (entrypoint : Entrypoint) : String :=
 def nearEntrypointWrapper (entrypoint : Entrypoint) : String :=
   let params := String.intercalate ", " (entrypoint.params.map fun p => p.fst ++ ": " ++ typeToTs p.snd).toList
   let argsObj := nearArgsObject entrypoint
-  if entrypoint.returns == .unit then
+  if entrypoint.mutability == .call then
     let paramsWithOptions :=
       if params.isEmpty then
         "options: NearCallOptions = {}"
       else
         params ++ ", options: NearCallOptions = {}"
-    "\nexport async function " ++ entrypoint.name ++ "(" ++ paramsWithOptions ++ "): Promise<void> {\n" ++
-    "  await account.functionCall({\n" ++
+    let returnType :=
+      if entrypoint.returns == .unit then "void"
+      else "Awaited<ReturnType<Account[\"functionCall\"]>>"
+    let returnKeyword := if entrypoint.returns == .unit then "" else "return "
+    "\nexport async function " ++ entrypoint.name ++ "(" ++ paramsWithOptions ++ "): Promise<" ++ returnType ++ "> {\n" ++
+    "  " ++ returnKeyword ++ "await account.functionCall({\n" ++
     "    contractId,\n" ++
     "    methodName: \"" ++ entrypoint.name ++ "\",\n" ++
     "    args: " ++ argsObj ++ ",\n" ++

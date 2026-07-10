@@ -156,7 +156,8 @@ macro "contract_decl " name:ident body:term : term => do
 def scalar (ref : ScalarRef) : ModuleM Unit :=
   ProofForge.Contract.Builder.scalarState ref.id ref.type
 
-def entry (methodRef : MethodRef) (body : EntryM Unit) : ModuleM Unit :=
+def entryWithMutability (mutability : ProofForge.IR.EntrypointMutability)
+    (methodRef : MethodRef) (body : EntryM Unit) : ModuleM Unit :=
   ProofForge.Contract.Builder.entryFull
     methodRef.name
     methodRef.selector?
@@ -164,6 +165,13 @@ def entry (methodRef : MethodRef) (body : EntryM Unit) : ModuleM Unit :=
     (methodRef.params.map fun param => (param.id, param.type))
     (methodRef.params.map fun param => param.abiWord?)
     body
+    mutability
+
+def entry (methodRef : MethodRef) (body : EntryM Unit) : ModuleM Unit :=
+  entryWithMutability .call methodRef body
+
+def view (methodRef : MethodRef) (body : EntryM Unit) : ModuleM Unit :=
+  entryWithMutability .view methodRef body
 
 def bind (bindingRef : BindingRef) (value : ProofForge.IR.Expr) : EntryM Unit :=
   ProofForge.Contract.Builder.letBind bindingRef.id bindingRef.type value

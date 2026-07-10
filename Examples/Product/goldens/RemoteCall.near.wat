@@ -203,10 +203,10 @@
     i64.const 11
     i32.const 49020
     i64.extend_i32_u
-    i64.const 2
+    i64.const 0
     i32.const 48100
     i64.extend_i32_u
-    i64.const 0
+    i64.const 50000
     i64.const 50000000000000
     call $promise_create
     call $promise_return
@@ -235,7 +235,7 @@
     i64.extend_i32_u
     i32.const 47000
     i64.extend_i32_u
-    i64.const 0
+    i64.const 50000
     i64.const 50000000000000
     call $promise_create
     call $promise_return

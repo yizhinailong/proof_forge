@@ -1,9 +1,9 @@
 {
   "README.md": {
-    "sha256": "61898f286c477a10c9ce7ab776cc53b1704264b58841ddd354c13d6c149fb9e8",
+    "sha256": "337f09f63c535807724c88618e596e3b8a8355a86c747eeeed3645382e66a46e",
     "zh": "docs/zh/README-root.zh.md",
     "model": "manual-zh",
-    "note": "synced for contiguous Cloudflare status and Aleo ALU merge"
+    "note": "synced for strict secondary-target promotion claims after review"
   },
   "CONTRIBUTING.md": {
     "sha256": "b47c1fcaf0d003718e5487575f74486b403ed4bbfb88dc7fc1891cbe23cc7b64",
@@ -32,7 +32,7 @@
     "note": "synced after Product/Backend reorg path renames"
   },
   "docs/capability-registry.md": {
-    "sha256": "f20cd943f74234d9f5852c9ffefcb2fa46a71c2fd5033841ae35c8fa2a7a1c73",
+    "sha256": "52236bb675fce0116f4c7facb33bca5a49977e3a11ee851a2ad595d81519649d",
     "zh": "docs/zh/capability-registry.zh.md",
     "model": "manual-zh",
     "note": "manually synced for PF-P0-05 (README/capability registry honesty)"
@@ -77,7 +77,7 @@
     "note": "manually synced through the 2026-07-10 audit integration"
   },
   "docs/validation-gates.md": {
-    "sha256": "86bde14c8df73cb99f36bfafe44a74ae6d1ebfca28af1303950d9687237a0a02",
+    "sha256": "90d7c92e32d06746624f2d21620aba22c68a448f2562608a9995c1e18e81770f",
     "zh": "docs/zh/validation-gates.zh.md",
     "model": "manual-zh",
     "note": "synced after Product/Backend reorg path renames"
