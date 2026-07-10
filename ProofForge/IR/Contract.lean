@@ -298,6 +298,12 @@ mutual
     code, CALL `onERC1155Received(operator,from,id,value,"")` and require
     magic return. Non-EVM targets must reject honestly. -/
     | checkErc1155Received (operator fromAddr toAddr id amount : Expr)
+    /-- EVM ERC-1155 size-2 batch receiver check (E1.2): if `to` has code, CALL
+    `onERC1155BatchReceived(operator,from,[id0,id1],[amount0,amount1],"")` and
+    require magic return. Fixed size-2 (dynamic-length batch ABI later).
+    Non-EVM targets must reject honestly. -/
+    | checkErc1155BatchReceived
+        (operator fromAddr toAddr id0 amount0 id1 amount1 : Expr)
     deriving Repr
 
   inductive StoragePathSegment where
@@ -520,6 +526,7 @@ def Effect.capability : Effect → ProofForge.Target.Capability
   | .eventEmitIndexed _ _ _ => .eventsEmit
   | .checkErc721Received _ _ _ _ => .crosscallInvoke
   | .checkErc1155Received _ _ _ _ _ => .crosscallInvoke
+  | .checkErc1155BatchReceived _ _ _ _ _ _ _ => .crosscallInvoke
 
 mutual
   partial def Expr.capabilities : Expr → Array ProofForge.Target.Capability
@@ -641,6 +648,9 @@ mutual
     | .checkErc1155Received operator fromAddr toAddr id amount =>
         operator.capabilities ++ fromAddr.capabilities ++ toAddr.capabilities ++
           id.capabilities ++ amount.capabilities
+    | .checkErc1155BatchReceived operator fromAddr toAddr id0 amount0 id1 amount1 =>
+        operator.capabilities ++ fromAddr.capabilities ++ toAddr.capabilities ++
+          id0.capabilities ++ amount0.capabilities ++ id1.capabilities ++ amount1.capabilities
 
   partial def StoragePathSegment.capabilities : StoragePathSegment → Array ProofForge.Target.Capability
     | .field _ => #[.dataStruct]

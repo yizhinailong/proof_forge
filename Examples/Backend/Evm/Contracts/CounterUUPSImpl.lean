@@ -14,11 +14,13 @@ open ProofForge.Contract.Stdlib.UUPSUpgradeable
 
 contract_source CounterUUPSImpl do
   upgrade_policy_authority admin;
+  proxy_pattern_uups;
   import ProofForge.Contract.Stdlib.UUPSUpgradeable;
 
   state count : .u64
 
   entry init do
+    do ProofForge.Contract.Surface.requireZero «owner» "already initialized";
     «owner» := caller;
     count := u64 0;
 

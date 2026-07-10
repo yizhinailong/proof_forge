@@ -572,6 +572,8 @@ mutual
         exprFC n a && exprFC n b && exprFC n c && exprFC n d
     | n + 1, .checkErc1155Received a b c d e =>
         exprFC n a && exprFC n b && exprFC n c && exprFC n d && exprFC n e
+    | n + 1, .checkErc1155BatchReceived a b c d e f g =>
+        exprFC n a && exprFC n b && exprFC n c && exprFC n d && exprFC n e && exprFC n f && exprFC n g
 
   /-- Shallow + depth wrapper for `Effect`. -/
   def effectFC (n : Nat) (eff : Effect) : Bool :=

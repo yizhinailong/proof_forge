@@ -186,28 +186,6 @@ object "ERC1155" {
         mstore(32, amount0)
         log4(0, 64, _topic0, _indexed_topic0, _indexed_topic1, _indexed_topic2)
       }
-      {
-        if iszero(iszero(extcodesize(dst))) {
-          mstore(0, shl(224, 4063915617))
-          mstore(4, operator)
-          mstore(36, src)
-          mstore(68, id0)
-          mstore(100, amount0)
-          mstore(132, 160)
-          mstore(164, 0)
-          let __pf_erc1155_ok := call(gas(), dst, 0, 0, 196, 0, 32)
-          if iszero(__pf_erc1155_ok) {
-            revert(0, 0)
-          }
-          if lt(returndatasize(), 32) {
-            revert(0, 0)
-          }
-          let __pf_erc1155_magic := mload(0)
-          if iszero(eq(__pf_erc1155_magic, shl(224, 4063915617))) {
-            revert(0, 0)
-          }
-        }
-      }
       let fromBal1 := sload(__proof_forge_map_slot(__proof_forge_map_slot(0, src), id1))
       if iszero(iszero(lt(fromBal1, amount1))) {
         revert(0, 0)
@@ -238,22 +216,28 @@ object "ERC1155" {
       }
       {
         if iszero(iszero(extcodesize(dst))) {
-          mstore(0, shl(224, 4063915617))
+          mstore(0, shl(224, 3155786881))
           mstore(4, operator)
           mstore(36, src)
-          mstore(68, id1)
-          mstore(100, amount1)
-          mstore(132, 160)
-          mstore(164, 0)
-          let __pf_erc1155_ok := call(gas(), dst, 0, 0, 196, 0, 32)
-          if iszero(__pf_erc1155_ok) {
+          mstore(68, 160)
+          mstore(100, 256)
+          mstore(132, 352)
+          mstore(164, 2)
+          mstore(196, id0)
+          mstore(228, id1)
+          mstore(260, 2)
+          mstore(292, amount0)
+          mstore(324, amount1)
+          mstore(356, 0)
+          let __pf_erc1155_batch_ok := call(gas(), dst, 0, 0, 388, 0, 32)
+          if iszero(__pf_erc1155_batch_ok) {
             revert(0, 0)
           }
           if lt(returndatasize(), 32) {
             revert(0, 0)
           }
-          let __pf_erc1155_magic := mload(0)
-          if iszero(eq(__pf_erc1155_magic, shl(224, 4063915617))) {
+          let __pf_erc1155_batch_magic := mload(0)
+          if iszero(eq(__pf_erc1155_batch_magic, shl(224, 3155786881))) {
             revert(0, 0)
           }
         }

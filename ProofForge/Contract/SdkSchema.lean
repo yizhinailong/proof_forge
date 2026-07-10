@@ -246,6 +246,13 @@ mutual
           (collectExprEvents
             (collectExprEvents
               (collectExprEvents (collectExprEvents events operator) fromAddr) toAddr) id) amount
+    | .checkErc1155BatchReceived operator fromAddr toAddr id0 amount0 id1 amount1 =>
+        collectExprEvents
+          (collectExprEvents
+            (collectExprEvents
+              (collectExprEvents
+                (collectExprEvents
+                  (collectExprEvents (collectExprEvents events operator) fromAddr) toAddr) id0) amount0) id1) amount1
     | .storageScalarRead _
     | .storageDynamicArrayPop _
     | .storageStructFieldRead _ _

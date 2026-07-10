@@ -27,7 +27,7 @@ gaps.
 |---|---|---|---|
 | ERC-20 | Covered | `ProofForge/Contract/Stdlib/ERC20.lean` stdlib mixin (transfer/approve/transferFrom/mint/burn + Transfer/Approval events + `transfer_conserves_supply` Lean proof); `Examples/Backend/Evm/Contracts/stdlib/ERC20.lean` golden Yul; `token-intent-evm-vm-smoke.sh` exercises the shared Lean `TokenSpec` SDK path in a Rust/revm VM; `evm-mixin-compose` validates Ownable+ERC-20 composition. `ProofForge/Contract/Token/Evm.lean` is the legacy hand-written Yul path for the Token SDK and remains non-canonical | — |
 | ERC-721 (NFT) | Covered | `ProofForge/Contract/Stdlib/ERC721.lean` stdlib mixin (ownerOf/transferFrom/safeTransferFrom/mint/burn + three-indexed Transfer event); `Examples/Backend/Evm/Contracts/stdlib/ERC721.lean` golden Yul. **PF-P2-02:** `safeTransferFrom` invokes `onERC721Received` when `extcodesize(to) > 0` (magic `0x150b7a02`); Foundry `testERC721SafeTransferToReceiver_{accepts,rejects}` in `scripts/evm/foundry-smoke.sh` | — |
-| ERC-1155 (multi-token) | Covered (limited) | `ProofForge/Contract/Stdlib/ERC1155.lean` stdlib mixin covers balances, operator approvals, mint, burn, single `safeTransferFrom`, and **size-2 batch** `safeBatchTransferFrom2`; `Examples/Backend/Evm/Contracts/stdlib/ERC1155.lean` golden Yul. **PF-P2-02:** receiver `onERC1155Received` + Foundry accept/reject + `testERC1155SafeBatchTransferFrom2`. **Limitation:** arbitrary-length batch arrays and `onERC1155BatchReceived` remain open | P1 |
+| ERC-1155 (multi-token) | Covered (size-2 batch) | `ProofForge/Contract/Stdlib/ERC1155.lean` stdlib mixin covers balances, operator approvals, mint, burn, single `safeTransferFrom`, and **size-2 batch** `safeBatchTransferFrom2` with **E1.2** `onERC1155BatchReceived` (fixed two ids); golden Yul + Foundry `testERC1155SafeBatchTransferFrom2` + accept/reject batch receiver. **Limitation:** arbitrary-length dynamic-array batch ABI remains open | P1 remain: dynamic-length batch |
 | ERC-4626 (vault standard) | Covered (v1 frozen) | **Call** peer: `IERC4626` / `external_vault`. **Deploy body:** `Stdlib.ERC4626` pro-rata + entry/exit feeBps + FOT vault+recipient deltas (`just product-erc4626-vault`). **v2:** fee-recipient re-measure; non-EVM vault body | — |
 | ERC-2612 (permit) | Covered (EVM) | Peer client + stdlib body + **TokenSpec `moduleFor` merges ERC20Permit** when `permit` feature set (`Tests/TokenEvm`). DOMAIN still init-set; staged `setPermitSig` | — |
 | ERC-1820 / ERC-777 | Missing | No hook registry or ERC-777 sender/recipient hooks | P2 |
@@ -46,11 +46,11 @@ gaps.
 
 | Feature | Status | Evidence | Priority |
 |---|---|---|---|
-| UUPS proxy | Partial | `ProofForge/Contract/Stdlib/UUPSProxy.lean` and `UUPSUpgradeable.lean` stdlib mixins (ERC-1967 slot + delegatecall fallback); semantic-plan and golden Yul coverage exist. **Gap:** `UpgradePolicy` still rejects non-immutable EVM deployment policies for product contracts | P1 |
+| UUPS proxy | Covered (E1.4) | `Stdlib/UUPSProxy` + `UUPSUpgradeable` (ERC-1967 + delegatecall); proxy and example implementation initialization are single-use, and Foundry checks repeat-init plus unauthorized-upgrade rejection. Product EVM build runs `resolveSpec` before codegen. **Allowed:** `authority` + `proxy_pattern uups`. **Fail-closed:** authority without proxy, transparent proxy, governance (`just evm-upgrade-policy-honesty`, `Tests/UpgradePolicy.lean`). Transparent proxy still not lowered | — |
 | Transparent proxy | Missing | Same rejection | P1 |
 | Beacon proxy | Missing | Same rejection | P2 |
 | Diamonds (EIP-2535) | Missing | No facet/loupe storage pattern | P2 |
-| CREATE2 factory | Covered (limited) | `ProofForge/Contract/Stdlib/Create2Factory.lean` + IR `create2` lowering; Foundry proves deterministic deploy. **Limitation:** advanced factory templates / salt bookkeeping remain product follow-ups | P1 |
+| CREATE2 factory | Covered (limited, E1.5) | `Stdlib/Create2Factory` + IR `create2` + Foundry `testCreate2FactoryProbeLifecycle` / `crosscall-ir-smoke` create2. **Explicit defer:** multi-template factories, salt registries, CREATE3 | P2 |
 
 ### DeFi primitives
 
@@ -69,9 +69,9 @@ gaps.
 | Custom errors (0.8.4+) | Partial (validated static constants) | **E1.1 static slice:** `ErrorRef.solidityArgWords` + `solidityArgTypes` lower selector + ABI words; EVM validation rejects malformed selectors, arity/type/range mismatches, and dynamic types. `scripts/evm/errors-ir-smoke.sh` checks a `uint64` value above JS safe-integer range; ContractSpec/client expose schema only and decode runtime payload values. **Limitation:** the fields are still a transitional EVM annotation on portable `ErrorRef`; runtime expression args, dynamic args, and standard ABI `error` entries remain open | P0 remain: typed runtime args through EVM Plan; P1: dynamic args / standard ABI entries |
 | Structured events | Covered | Named events, indexed topics, aggregate data — all lowered | — |
 | Constructor args | Covered | CLI ABI-encodes static words and dynamic types (`string`/`bytes`/`uint256[]`, CS-3.4) into the initcode tail; deploy manifest records the schema; `DynamicConstructorProbe` exercises `cstring`/`cbytes`/`u256array` with `evmConstructorInitBindings`; deploy-object initcode reads the tail via `codesize()-argsSize` and binds storage at deploy time; Foundry (`foundry-smoke.sh`) and Anvil (`dynamic-constructor-anvil-smoke.sh`) positive smokes | — |
-| Storage packing | Missing | One slot per field; no packing/layout optimizer | P1 |
-| Batch operations | Partial | ERC-1155 size-2 batch MVP (`safeBatchTransferFrom2`) + Foundry smoke (PF-P2-02). Multicall3 peer packing exists as ABI helper; general multicall product body and arbitrary-length ERC-1155 batch remain open | P1 |
-| Factory deployment | Partial | Foundry deploys init code; no reusable factory contract | P1 |
+| Storage packing | Covered (D-051) | EVM consecutive small-scalar packing in `Plan/Storage.lean` (`byteOffset`/`byteWidth` on packable scalars; mask/shift sload/sstore). Evidence: `scripts/evm/packed-storage-ir-smoke.sh` (Foundry 6/6) + `storageLayout` in deploy/artifact metadata. Hash/map/array/struct remain full-slot. NEAR/WasmHost uses separate `__pf_pack_*` key packing | — |
+| Batch operations | Partial | ERC-1155 size-2 batch + `onERC1155BatchReceived` (E1.2 Foundry accept/reject). Multicall3 peer packing exists as ABI helper; general multicall product body and arbitrary-length ERC-1155 batch remain open | P1 |
+| Factory deployment | Covered (limited, E1.5) | `Stdlib/Create2Factory` is the reusable fixed-template factory path; Foundry covers deterministic lifecycle. Multi-template registries, salt bookkeeping, and CREATE3 remain explicitly deferred | P2 |
 
 ---
 
@@ -232,15 +232,15 @@ Probe: `proof-forge build --target wasm-near` on Product sources after S0 merge.
 
 ## Summary: P0 blockers per chain
 
-**EVM (1 open P0, 5 closed):** ERC-20 (closed — stdlib mixin + compose), ERC-721 NFT (closed — stdlib mixin + `onERC721Received` PF-P2-02), ERC-165 (closed — stdlib mixin), AccessControl roles (closed — stdlib mixin), Constructor dynamic args (closed — CS-3.4 runtime init + Foundry/Anvil smokes). **Open P0:** typed runtime custom-error args through the EVM target plan. Remaining P1: arbitrary ERC-1155 batch/`onERC1155BatchReceived`, custom-error dynamic args / standard ABI entries, storage packing, full multicall body.
+**EVM (1 open P0, 5 closed):** ERC-20 (closed — stdlib mixin + compose), ERC-721 NFT (closed — stdlib mixin + `onERC721Received` PF-P2-02), ERC-165 (closed — stdlib mixin), AccessControl roles (closed — stdlib mixin), Constructor dynamic args (closed — CS-3.4 runtime init + Foundry/Anvil smokes). **Open P0:** typed runtime custom-error args through the EVM target plan. Remaining P1: arbitrary-length ERC-1155 dynamic batch ABI, custom-error dynamic args / standard ABI entries, and full multicall body. E1.2 closes only the fixed size-2 receiver path; D-051 closes storage packing.
 
 **Solana (0 open P0, 5 closed P0):** Account constraint owner validation, user-facing realloc API, SPL Token close-account lowering, ComputeBudgetInstruction, and Token-2022 direct sBPF CPI lowering for transfer_fee + non_transferable + metadata_pointer + default_account_state + immutable_owner + permanent_delegate + interest_bearing + memo_transfer + transfer_hook initialization + pausable are closed. The P1 Associated Token `create_idempotent` CPI gap and Token-2022 transfer-hook `Execute`/extra-account-meta routing are also now covered.
 
-**NEAR (0 open P0, 6 closed):** Promise API host imports + crosscall stub (closed — P1 for full async), Callback handling (closed — P1 for full dispatch), NEP-141 FT (closed — stdlib mixin), signer_account_id (closed), attached_deposit (closed), Aggregate ABI (closed).
+**NEAR (2 open P0, 4 closed):** **Open:** TokenSpec must produce one parameterized runtime artifact; storage withdrawal still needs the 1-yocto guard and predecessor refund Promise. Promise materialization, signer_account_id, attached_deposit, and aggregate ABI have executable coverage; richer callbacks remain P1.
 
-Total: 0 open P0 blockers across three chains (0 EVM + 0 Solana + 0 NEAR).
-All three primary chains now have zero open P0 blockers. Remaining work is
-P1 feature expansion. PF-P2-02 closed EVM receiver callbacks (`onERC721Received`,
+Total: 3 open P0 blockers across three chains (1 EVM + 0 Solana + 2 NEAR).
+Remaining work includes these product-path P0 gaps plus P1 feature expansion.
+PF-P2-02 closed EVM receiver callbacks (`onERC721Received`,
 `onERC1155Received`), custom-error 4-byte selector surface, and ERC-1155 size-2
 batch MVP; PF-P2-03 closed EVM/Solana/NEAR real peer `call_with_args → 49`
 (`just testkit-remote-call`, `just near-sandbox-peer`).

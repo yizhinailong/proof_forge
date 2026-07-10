@@ -334,6 +334,8 @@ mutual
         .error { message := "checkErc721Received is EVM-only (PF-P2-02); not an expression on Psy" }
     | .checkErc1155Received _ _ _ _ _ =>
         .error { message := "checkErc1155Received is EVM-only (PF-P2-02); not an expression on Psy" }
+    | .checkErc1155BatchReceived _ _ _ _ _ _ _ =>
+        .error { message := "checkErc1155BatchReceived is EVM-only (PF-P2-02); not an expression on Psy" }
 end
 
 partial def inferAssignTargetType (module : Module) (env : TypeEnv) : Expr → Except LowerError ValueType
@@ -462,6 +464,8 @@ def validateEffectStmt (module : Module) (env : TypeEnv) : Effect → Except Low
       .error { message := "checkErc721Received is EVM-only (PF-P2-02); not supported by Psy IR v0" }
   | .checkErc1155Received _ _ _ _ _ =>
       .error { message := "checkErc1155Received is EVM-only (PF-P2-02); not supported by Psy IR v0" }
+  | .checkErc1155BatchReceived _ _ _ _ _ _ _ =>
+      .error { message := "checkErc1155BatchReceived is EVM-only (PF-P2-02); not supported" }
 
 mutual
   partial def validateStatement (module : Module) (entrypoint : Entrypoint) (env : TypeEnv) : Statement → Except LowerError TypeEnv

@@ -21,6 +21,7 @@ contract_source UUPSProxy do
   use ProofForge.Contract.Surface.scalar eip1967Implementation
 
   entry init (impl : .address) do
+    do ProofForge.Contract.Surface.requireZero eip1967Implementation "already initialized";
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref impl) "zero implementation";
     eip1967Implementation := impl;
 

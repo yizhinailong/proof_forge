@@ -213,6 +213,17 @@ mutual
           classifyExpr s!"{path}.id" d ++
           classifyExpr s!"{path}.amount" e
 
+    | .checkErc1155BatchReceived a b c d e f g =>
+        -- EVM-only IERC1155Receiver check (PF-P2-02); not triad-portable.
+        #[finding path "checkErc1155BatchReceived" (.targetFamilyOnly .evm)] ++
+          classifyExpr s!"{path}.operator" a ++
+          classifyExpr s!"{path}.from" b ++
+          classifyExpr s!"{path}.to" c ++
+          classifyExpr s!"{path}.id0" d ++
+          classifyExpr s!"{path}.amount0" e ++
+          classifyExpr s!"{path}.id1" f ++
+          classifyExpr s!"{path}.amount1" g
+
   partial def classifyPathSegment (path : String) : StoragePathSegment → Array PortabilityFinding
     | .field _ => #[]
     | .index index => classifyExpr s!"{path}.index" index

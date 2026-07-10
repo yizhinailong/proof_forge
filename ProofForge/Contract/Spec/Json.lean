@@ -121,11 +121,15 @@ structure ErrorCatalogEntry where
   deriving Repr
 
 def ErrorCatalogEntry.matches (entry : ErrorCatalogEntry) (ref : ErrorRef) (message : String) : Bool :=
-  entry.assertionId == ref.assertionId &&
-    entry.userCode? == ref.userCode? &&
-    entry.soliditySelector? == ref.soliditySelector? &&
-    entry.solidityArgTypes == ref.solidityArgTypes &&
-    entry.message == message
+  match entry.soliditySelector?, ref.soliditySelector? with
+  | some entrySelector, some refSelector =>
+      entrySelector.toLower == refSelector.toLower &&
+        entry.solidityArgTypes == ref.solidityArgTypes
+  | none, none =>
+      entry.assertionId == ref.assertionId &&
+        entry.userCode? == ref.userCode? &&
+        entry.message == message
+  | _, _ => false
 
 def addErrorRef (entrypointName message : String) (ref : ErrorRef)
     (entries : Array ErrorCatalogEntry) : Array ErrorCatalogEntry :=

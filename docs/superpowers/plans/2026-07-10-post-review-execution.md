@@ -177,10 +177,10 @@ just near-target-first   # or dedicated just near-nep141-smoke
 | ID | Task | Work | Acceptance | Size | Status |
 |----|------|------|------------|------|--------|
 | **E1.1** | Custom error ABI args | Extend `revertWithError` / ABI encoder beyond 4-byte selector; Foundry assert selector+args | `scripts/evm/errors-ir-smoke.sh` covers arg case; client metadata exposes arg types | M | in_progress: validated compile-time static-word slice + runtime client decode landed; runtime `Expr` args through EVM Plan remain |
-| **E1.2** | ERC-1155 arbitrary batch | Dynamic batch transfer + `onERC1155BatchReceived`; keep size-2 path | Foundry accept/reject batch receiver tests green | L | pending |
-| **E1.3** | Storage packing decision | Either implement simple consecutive packing for small scalars **or** document permanent one-slot-per-field + diagnostic/lint. Prefer decision RFC note if deferring. | Decision recorded in `decisions.md` or gap doc; if implement, Foundry layout test | M | pending |
-| **E1.4** | Upgrade policy honesty | Align UUPS stdlib with Workstream 32 `upgradePolicy`: either lower allowed proxy path or reject product deploy with actionable error (no half-working proxy). | Product contract with non-immutable policy fails closed **or** UUPS smoke passes under allowed policy | M | pending |
-| **E1.5** | CREATE2 / factory polish | Advanced salt bookkeeping only if product example needs it; otherwise close gap as “limited covered” with example | Existing Create2 Foundry green; gap doc accurate | S | pending |
+| **E1.2** | ERC-1155 arbitrary batch | Dynamic batch transfer + `onERC1155BatchReceived`; keep size-2 path | Foundry accept/reject batch receiver tests green | L | in_progress: fixed size-2 `onERC1155BatchReceived` accept/reject landed; arbitrary-length dynamic ABI remains |
+| **E1.3** | Storage packing decision | Either implement simple consecutive packing for small scalars **or** document permanent one-slot-per-field + diagnostic/lint. Prefer decision RFC note if deferring. | Decision recorded in `decisions.md` or gap doc; if implement, Foundry layout test | M | implementation landed: D-051 consecutive packing; fresh merged-revision verification pending |
+| **E1.4** | Upgrade policy honesty | Align UUPS stdlib with Workstream 32 `upgradePolicy`: either lower allowed proxy path or reject product deploy with actionable error (no half-working proxy). | Product contract with non-immutable policy fails closed **or** UUPS smoke passes under allowed policy | M | implementation landed: EVM product resolveSpec + honesty smoke; fresh merged-revision verification pending |
+| **E1.5** | CREATE2 / factory polish | Advanced salt bookkeeping only if product example needs it; otherwise close gap as “limited covered” with example | Existing Create2 Foundry green; gap doc accurate | S | implementation landed: limited stdlib factory coverage; fresh merged-revision verification pending |
 | **E1.6** | Selective DeFi example | One product example (staking **or** simple vault extension already partially present) multi-target if portable; else EVM-only Backend example | `just product` or `just evm-all` includes example; budgets pinned if in testkit | M | pending |
 
 ### E1 parallelization
@@ -600,7 +600,7 @@ The plan is **complete** when:
 |------|-------|----------|
 | S0 | done: verified@81b4c373; S0.1 merge + S0.2 product green + S0.3 claim + S0.4 INDEX + S0.5 inventory | just product green; origin 0 behind; branch inventory written |
 | N1 | in_progress: N1.1 complete; N1.2/N1.4/N1.6/N1.7 implementation landed; N1.3/N1.5 remain partial; fresh merged-revision verification pending | executable aggregate Borsh; testkit peer 49; caller-bound storage ledger debit; budget/deploy honesty; Product TokenSpec runtime and NEP-145 refund remain open |
-| E1 | in_progress: E1.1 validated static-constant slice landed; runtime typed args remain | errors-ir-smoke selector + words; fail-closed diagnostics; schema-only metadata + client payload decode |
+| E1 | in_progress: E1.1/E1.2 remain partial; E1.3–E1.5 implementation landed; fresh merged-revision verification pending | static custom-error args; size-2 ERC-1155 batch; packing; upgrade honesty; CREATE2 limited factory |
 | L1 | pending | |
 | B1 | in_progress: B1.0 skeleton done; next B1.1 schema | `docs/benchmarks.md`, `benchmarks/README.md` |
 | Z1 | in_progress: Z1.0 catalog lock done; next Z1.1 goldens | `docs/targets/psy-dpn.md` DPN bytecode section + official links |

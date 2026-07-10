@@ -226,6 +226,8 @@ mutual
         .error { message := "checkErc721Received is EVM-only (PF-P2-02); not an expression on wasm-near" }
     | .checkErc1155Received _ _ _ _ _ =>
         .error { message := "checkErc1155Received is EVM-only (PF-P2-02); not an expression on wasm-near" }
+    | .checkErc1155BatchReceived _ _ _ _ _ _ _ =>
+        .error { message := "checkErc1155BatchReceived is EVM-only (PF-P2-02); not an expression on host" }
 
   partial def mapValueSuffix (valueType : ValueType) : String :=
     match valueType with
@@ -334,6 +336,8 @@ mutual
         .error { message := "checkErc721Received is EVM-only (PF-P2-02); not supported by wasm-near" }
     | .checkErc1155Received _ _ _ _ _ =>
         .error { message := "checkErc1155Received is EVM-only (PF-P2-02); not supported by wasm-near" }
+    | .checkErc1155BatchReceived _ _ _ _ _ _ _ =>
+        .error { message := "checkErc1155BatchReceived is EVM-only (PF-P2-02); not an expression on host" }
 
   partial def lowerStoragePathWrite (module : Module) (stateId : String) (path : Array StoragePathSegment) (value : Expr) : Except LowerError (Array String) := do
     let state ← stateDeclOf module stateId "storage path"

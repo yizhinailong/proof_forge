@@ -265,6 +265,8 @@ mutual
         .error { message := "checkErc721Received is EVM-only (PF-P2-02); not an expression on Leo" }
     | .checkErc1155Received _ _ _ _ _ =>
         .error { message := "checkErc1155Received is EVM-only (PF-P2-02); not an expression on Leo" }
+    | .checkErc1155BatchReceived _ _ _ _ _ _ _ =>
+        .error { message := "checkErc1155BatchReceived is EVM-only (PF-P2-02); not an expression on host" }
 
   /-- Lower an `Effect` in statement position to Leo statements (storage writes). -/
   partial def buildEffectStmt (ctx : BuildContext) : IR.Effect → Except LowerError (Array Statement)
@@ -324,6 +326,8 @@ mutual
         .error { message := "checkErc721Received is EVM-only (PF-P2-02); not supported by Leo IR v0" }
     | .checkErc1155Received _ _ _ _ _ =>
         .error { message := "checkErc1155Received is EVM-only (PF-P2-02); not supported by Leo IR v0" }
+    | .checkErc1155BatchReceived _ _ _ _ _ _ _ =>
+        .error { message := "checkErc1155BatchReceived is EVM-only (PF-P2-02); not an expression on host" }
 
   /-- Lower a portable IR statement to zero or more Leo statements. -/
   partial def buildStmt (ctx : BuildContext) : IR.Statement → Except LowerError (Array Statement)

@@ -120,6 +120,16 @@ def materializeUpgrade (targetId : String) (policy : UpgradePolicy)
       }
   | "evm", .governance _ | "solana-sbpf-asm", .governance _ | "wasm-near", .governance _ =>
       .error (upgradeReject targetId "governance upgrade not materialized in v0")
+  -- Research / experimental targets: immutable-only deploy is honest; authority
+  -- and governance are already rejected by checkSupported.
+  | "psy-dpn", .immutable
+  | "aleo-leo", .immutable =>
+      .ok {
+        targetId := targetId
+        policyKind := policy.kind
+        shape := .immutableDeploy
+        note := "experimental target: immutable deploy only"
+      }
   | _, _ =>
       .error (upgradeReject targetId s!"no lifecycle row for policy `{policy.kind}`")
 

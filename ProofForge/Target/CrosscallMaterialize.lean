@@ -237,6 +237,8 @@ where
         exprUses a || exprUses b || exprUses c || exprUses d
     | .checkErc1155Received a b c d e =>
         exprUses a || exprUses b || exprUses c || exprUses d || exprUses e
+    | .checkErc1155BatchReceived a b c d e f g =>
+        exprUses a || exprUses b || exprUses c || exprUses d || exprUses e || exprUses f || exprUses g
     | .storageScalarRead _ | .storageStructFieldRead _ _ | .storageDynamicArrayPop _
     | .storageArrayStructFieldRead _ _ _ | .contextRead _ => false
   pathUses : StoragePathSegment → Bool
@@ -334,6 +336,8 @@ where
         exprUses a || exprUses b || exprUses c || exprUses d
     | .checkErc1155Received a b c d e =>
         exprUses a || exprUses b || exprUses c || exprUses d || exprUses e
+    | .checkErc1155BatchReceived a b c d e f g =>
+        exprUses a || exprUses b || exprUses c || exprUses d || exprUses e || exprUses f || exprUses g
     | .storageScalarRead _ | .storageStructFieldRead _ _ | .storageDynamicArrayPop _
     | .storageArrayStructFieldRead _ _ _ | .contextRead _ => false
   pathUses : StoragePathSegment → Bool

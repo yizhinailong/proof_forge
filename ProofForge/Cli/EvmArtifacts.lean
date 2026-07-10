@@ -29,6 +29,12 @@ namespace ProofForge.Cli
 
 def renderContractSpecEvmYul (opts : CliOptions) (spec : ProofForge.Contract.ContractSpec) :
     IO (String × ProofForge.IR.Module) := do
+  -- E1.4: fail closed on upgrade/proxy honesty before codegen (same gate as
+  -- NEAR/Solana contract-source builds via resolveSpec). UUPS + authority is
+  -- allowed; authority without proxy_pattern, transparent, and governance reject.
+  match ProofForge.Target.resolveSpec ProofForge.Target.evm spec with
+  | .ok _ => pure ()
+  | .error err => throw <| IO.userError err.render
   -- PF-P2-03: apply deploy-time peer map so logical peer ids become `0x…`
   -- host addresses (and method pool strings stay for selector resolve).
   let module0 := ProofForge.Target.PeerMap.applyToModule spec.module opts.peerMap

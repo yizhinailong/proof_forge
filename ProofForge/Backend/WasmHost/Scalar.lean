@@ -223,6 +223,11 @@ mutual
           exprReadsPackedScalar scalars c || exprReadsPackedScalar scalars d ||
           exprReadsPackedScalar scalars e
 
+    | .checkErc1155BatchReceived a b c d e f g =>
+        exprReadsPackedScalar scalars a || exprReadsPackedScalar scalars b ||
+          exprReadsPackedScalar scalars c || exprReadsPackedScalar scalars d ||
+          exprReadsPackedScalar scalars e || exprReadsPackedScalar scalars f || exprReadsPackedScalar scalars g
+
   partial def stmtReadsPackedScalar (scalars : Array StateInfo) : Statement → Bool
     | .letBind _ _ e | .letMutBind _ _ e | .assign _ e | .assignOp _ _ e | .return e =>
         exprReadsPackedScalar scalars e

@@ -272,6 +272,9 @@ mutual
     | .checkErc1155Received a b c d e =>
         ((((analyzeExpr a).merge (analyzeExpr b)).merge (analyzeExpr c)).merge
           (analyzeExpr d)).merge (analyzeExpr e)
+    | .checkErc1155BatchReceived a b c d e f g =>
+        (#[a, b, c, d, e, f, g].foldl
+          (fun facts expr => facts.merge (analyzeExpr expr)) {})
 
   partial def analyzePath (path : Array StoragePathSegment) : ExprFacts :=
     path.foldl (fun acc segment =>

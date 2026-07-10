@@ -102,9 +102,9 @@ def repeatedCustomErrorModule : Module := {
     {
       name := "second"
       body := #[.revertWithError {
-        assertionId := 7
-        userCode? := some "InsufficientBalance"
-        soliditySelector? := some "9432a7ee"
+        assertionId := 99
+        userCode? := some "DifferentPortableLabel"
+        soliditySelector? := some "9432A7EE"
         solidityArgTypes := #["uint64", "uint64"]
         solidityArgWords := #[9007199254740993, 5]
       }]
@@ -115,7 +115,7 @@ def repeatedCustomErrorModule : Module := {
 def testCustomErrorCatalogStoresSchemaNotValues : IO Unit := do
   let catalog := ProofForge.Contract.Spec.Json.errorCatalog repeatedCustomErrorModule
   require (catalog.size == 1)
-    s!"same custom-error schema should deduplicate across values, got {catalog.size} entries"
+    s!"same custom-error signature should deduplicate across sites, got {catalog.size} entries"
   let some entry := catalog[0]?
     | throw <| IO.userError "missing deduplicated custom-error catalogue entry"
   require (entry.solidityArgTypes == #["uint64", "uint64"])

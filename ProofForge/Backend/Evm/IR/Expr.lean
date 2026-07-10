@@ -538,6 +538,8 @@ mutual
         .error { message := "checkErc721Received is a statement effect, not an expression" }
     | .checkErc1155Received _ _ _ _ _ =>
         .error { message := "checkErc1155Received is a statement effect, not an expression" }
+    | .checkErc1155BatchReceived _ _ _ _ _ _ _ =>
+        .error { message := "checkErc1155BatchReceived is EVM-only (PF-P2-02); not an expression on host" }
 
   partial def lowerPlanEffectExpr
       (module : Module)
@@ -1488,4 +1490,16 @@ def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerE
           operatorYul fromYul toYul idYul amountYul
       .ok (.block { statements := stmts })
 
+  | .checkErc1155BatchReceived operator fromAddr toAddr id0 amount0 id1 amount1 => do
+      let operatorYul ← lowerExpr module env operator
+      let fromYul ← lowerExpr module env fromAddr
+      let toYul ← lowerExpr module env toAddr
+      let id0Yul ← lowerExpr module env id0
+      let amount0Yul ← lowerExpr module env amount0
+      let id1Yul ← lowerExpr module env id1
+      let amount1Yul ← lowerExpr module env amount1
+      let stmts :=
+        ProofForge.Backend.Evm.ToYul.checkErc1155BatchReceivedStatements
+          operatorYul fromYul toYul id0Yul amount0Yul id1Yul amount1Yul
+      .ok (.block { statements := stmts })
 end ProofForge.Backend.Evm.IR

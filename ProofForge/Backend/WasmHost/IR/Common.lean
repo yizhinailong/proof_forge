@@ -495,6 +495,8 @@ mutual
         .error { message := "checkErc721Received is EVM-only (PF-P2-02); not an expression on wasm-near" }
     | .checkErc1155Received _ _ _ _ _ =>
         .error { message := "checkErc1155Received is EVM-only (PF-P2-02); not an expression on wasm-near" }
+    | .checkErc1155BatchReceived _ _ _ _ _ _ _ =>
+        .error { message := "checkErc1155BatchReceived is EVM-only (PF-P2-02); not an expression on host" }
 
   partial def inferStoragePathType (module : Module) (env : TypeEnv) (stateId : String) (path : Array StoragePathSegment) : Except LowerError ValueType := do
     let state ← stateDeclOf module stateId "storage path"
@@ -638,6 +640,8 @@ mutual
         .error { message := "checkErc721Received is EVM-only (PF-P2-02); not supported by wasm-near" }
     | .checkErc1155Received _ _ _ _ _ =>
         .error { message := "checkErc1155Received is EVM-only (PF-P2-02); not supported by wasm-near" }
+    | .checkErc1155BatchReceived _ _ _ _ _ _ _ =>
+        .error { message := "checkErc1155BatchReceived is EVM-only (PF-P2-02); not supported by wasm-near" }
   partial def validateStatements (module : Module) (entrypoint : Entrypoint) (env : TypeEnv) (statements : Array Statement) : Except LowerError TypeEnv :=
     statements.foldlM (init := env) fun acc stmt =>
       validateStatementTypes module entrypoint acc stmt

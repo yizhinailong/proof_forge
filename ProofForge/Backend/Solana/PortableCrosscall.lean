@@ -520,6 +520,13 @@ where
           (collectFromExpr entrypoint
             (collectFromExpr entrypoint
               (collectFromExpr entrypoint (collectFromExpr entrypoint acc a) b) c) d) e
+    | .checkErc1155BatchReceived a b c d e f g =>
+        collectFromExpr entrypoint
+          (collectFromExpr entrypoint
+            (collectFromExpr entrypoint
+              (collectFromExpr entrypoint
+                (collectFromExpr entrypoint
+                  (collectFromExpr entrypoint (collectFromExpr entrypoint acc a) b) c) d) e) f) g
     | .storageScalarRead _ | .storageStructFieldRead _ _ | .storageDynamicArrayPop _
     | .storageArrayStructFieldRead _ _ _ | .contextRead _ => acc
   collectFromPath (entrypoint : String) (acc : Array PortableCrosscallSite) :

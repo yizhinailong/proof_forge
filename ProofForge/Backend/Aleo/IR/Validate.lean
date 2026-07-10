@@ -318,6 +318,8 @@ mutual
         .error { message := "checkErc721Received is EVM-only (PF-P2-02); not an expression on Leo" }
     | .checkErc1155Received _ _ _ _ _ =>
         .error { message := "checkErc1155Received is EVM-only (PF-P2-02); not an expression on Leo" }
+    | .checkErc1155BatchReceived _ _ _ _ _ _ _ =>
+        .error { message := "checkErc1155BatchReceived is EVM-only (PF-P2-02); not an expression on host" }
 
   partial def inferAssignTargetType (module : Module) (env : TypeEnv) : Expr → Except LowerError ValueType
     | .local name =>
@@ -396,6 +398,8 @@ def validateEffectStmt (module : Module) (env : TypeEnv) : Effect → Except Low
       .error { message := "checkErc721Received is EVM-only (PF-P2-02); not supported by Leo IR v0" }
   | .checkErc1155Received _ _ _ _ _ =>
       .error { message := "checkErc1155Received is EVM-only (PF-P2-02); not supported by Leo IR v0" }
+  | .checkErc1155BatchReceived _ _ _ _ _ _ _ =>
+      .error { message := "checkErc1155BatchReceived is EVM-only (PF-P2-02); not supported by Leo IR v0" }
 
 /-! ### Statement validation -/
 
