@@ -269,6 +269,10 @@ mutual
     | contextRead (field : ContextField)
     | eventEmit (name : String) (fields : Array (String × Expr))
     | eventEmitIndexed (name : String) (indexedFields dataFields : Array (String × Expr))
+    /-- EVM ERC-721 receiver check (PF-P2-02): if `to` has code, CALL
+    `onERC721Received(operator,from,tokenId,"")` and require magic return.
+    Non-EVM targets must reject this effect honestly. -/
+    | checkErc721Received (operator fromAddr toAddr tokenId : Expr)
     deriving Repr
 
   inductive StoragePathSegment where
@@ -469,6 +473,7 @@ def Effect.capability : Effect → ProofForge.Target.Capability
   | .contextRead field => field.capability
   | .eventEmit _ _ => .eventsEmit
   | .eventEmitIndexed _ _ _ => .eventsEmit
+  | .checkErc721Received _ _ _ _ => .crosscallInvoke
 
 mutual
   partial def Expr.capabilities : Expr → Array ProofForge.Target.Capability
@@ -582,6 +587,8 @@ mutual
     | .eventEmitIndexed _ indexedFields dataFields =>
         indexedFields.foldl (fun acc field => acc ++ field.snd.capabilities)
           (dataFields.foldl (fun acc field => acc ++ field.snd.capabilities) #[])
+    | .checkErc721Received operator fromAddr toAddr tokenId =>
+        operator.capabilities ++ fromAddr.capabilities ++ toAddr.capabilities ++ tokenId.capabilities
 
   partial def StoragePathSegment.capabilities : StoragePathSegment → Array ProofForge.Target.Capability
     | .field _ => #[.dataStruct]

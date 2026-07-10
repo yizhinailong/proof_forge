@@ -405,6 +405,9 @@ mutual
     | .storageArrayRead _ _ | .storageArrayStructFieldRead _ _ _
     | .storageStructFieldRead _ _ | .storagePathRead _ _
     | .contextRead _ | .eventEmit _ _ | .eventEmitIndexed _ _ _ => false
+    | .checkErc721Received a b c d =>
+        exprUsesCheckedArithmetic a || exprUsesCheckedArithmetic b ||
+          exprUsesCheckedArithmetic c || exprUsesCheckedArithmetic d
 
   partial def exprUsesCheckedArithmetic : Expr → Bool
     | .add _ _ _ | .sub _ _ _ | .mul _ _ _ => true

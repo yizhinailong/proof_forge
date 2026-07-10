@@ -1369,6 +1369,12 @@ mutual
             | .error { message := s!"event `{name}` missing data field plan at index {idx}" }
           buildEventFieldValuePlan module env name field.fst fieldPlan.type field.snd
         eventEffectWordPlan module env (.eventEmitIndexed eventPlan plannedIndexed plannedData)
+    | .checkErc721Received operator fromAddr toAddr tokenId => do
+        .ok (.checkErc721Received
+          (← buildExprPlan module env operator)
+          (← buildExprPlan module env fromAddr)
+          (← buildExprPlan module env toAddr)
+          (← buildExprPlan module env tokenId))
 
   partial def buildStatementPlan
       (module : Module)

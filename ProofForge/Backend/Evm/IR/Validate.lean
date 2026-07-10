@@ -349,6 +349,8 @@ mutual
         .error { message := "event.emit is a statement effect, not an expression" }
     | .eventEmitIndexed _ _ _ =>
         .error { message := "event.emit.indexed is a statement effect, not an expression" }
+    | .checkErc721Received _ _ _ _ =>
+        .error { message := "checkErc721Received is a statement effect, not an expression" }
 end
 
 partial def inferEventFieldExprType (module : Module) (env : TypeEnv) : ProofForge.IR.Expr → Except LowerError ValueType
@@ -483,6 +485,11 @@ def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Excep
       for field in indexedFields do
         ensureIndexedEventFieldType module name field.fst (← inferEventFieldExprType module env field.snd)
       discard <| eventSignature module env name (indexedFields ++ dataFields)
+  | .checkErc721Received operator fromAddr toAddr tokenId => do
+      discard <| inferExprType module env operator
+      discard <| inferExprType module env fromAddr
+      discard <| inferExprType module env toAddr
+      discard <| inferExprType module env tokenId
 
 def requireMutableLocal (env : TypeEnv) (context name : String) : Except LowerError LocalBinding := do
   let some binding := findLocal? env name

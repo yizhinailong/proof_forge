@@ -9,8 +9,8 @@ Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
 
 Baseline: Waves 0–2 done. Wave 3: PF-P2-01 done. PF-P2-02 in progress: Solana
-source-ELF in testkit + EVM Solidity custom-error selector encoding; remaining
-ERC721 receiver, ERC1155 batch, NEAR sandbox/Promise.
+source-ELF, EVM custom-error, ERC721 onERC721Received; remaining ERC1155 batch
+and NEAR sandbox/Promise.
 
 ---
 
@@ -117,7 +117,7 @@ implementation SHA is only known after the implementation commit exists.
 | 2 | PF-P1-05 | done: verified@d3d2f3d8; just source-dsl-arity; just portable-default; just product; just check | Wave 1 done |
 | 2 | PF-P1-06 | done: verified@1f4c73e7; just leo-printer-fail-closed; just aleo-leo-codegen-smoke; just product; just check | Wave 1 done |
 | 3 | PF-P2-01 | done: verified@72c5789e; just product-catalog; just product; just testkit; just testkit-array-example; just testkit-ownable; just testkit-remote-call; just check | Waves 1 and 2 done |
-| 3 | PF-P2-02 | in_progress: Solana source-ELF testkit + EVM custom-error encoding/client; next: ERC721 onERC721Received, ERC1155 batch, NEAR sandbox | Waves 1 and 2 done; complete one backend slice at a time |
+| 3 | PF-P2-02 | in_progress: Solana ELF + EVM custom-error + ERC721 receiver; next: ERC1155 batch, NEAR sandbox | Waves 1 and 2 done; complete one backend slice at a time |
 | 3 | PF-P2-03 | pending | Waves 1 and 2 done |
 | 5 | PF-P3-01 | pending | Wave 3 done |
 | 5 | PF-P3-03 | pending | Wave 3 done |

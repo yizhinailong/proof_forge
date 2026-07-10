@@ -36,4 +36,65 @@ def revertWithMessageStatements (message : String) : Array Lean.Compiler.Yul.Sta
     .exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num totalSize])
   ]
 
+/-- IERC721Receiver.onERC721Received selector (`cast sig "onERC721Received(address,address,uint256,bytes)"`). -/
+def onErc721ReceivedSelector : Nat := 0x150b7a02
+
+/-- PF-P2-02: ERC-721 safe transfer receiver check.
+If `to` is an EOA (`extcodesize == 0`), leave. Otherwise CALL
+`onERC721Received(operator, from, tokenId, "")` and require magic return. -/
+def checkErc721ReceivedStatements
+    (operator fromAddr toAddr tokenId : Lean.Compiler.Yul.Expr) :
+    Array Lean.Compiler.Yul.Statement :=
+  let isContract :=
+    Lean.Compiler.Yul.builtin "iszero" #[
+      Lean.Compiler.Yul.builtin "iszero" #[
+        Lean.Compiler.Yul.builtin "extcodesize" #[toAddr]
+      ]
+    ]
+  let magicWord :=
+    Lean.Compiler.Yul.builtin "shl" #[
+      Lean.Compiler.Yul.Expr.num 224,
+      Lean.Compiler.Yul.Expr.num onErc721ReceivedSelector
+    ]
+  let callSuccess := Lean.Compiler.Yul.Expr.id "__pf_erc721_ok"
+  let retMagic := Lean.Compiler.Yul.Expr.id "__pf_erc721_magic"
+  let contractBody : Array Lean.Compiler.Yul.Statement := #[
+    -- ABI: selector + operator + from + tokenId + bytes offset(0x80) + length 0
+    .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, magicWord]),
+    .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 4, operator]),
+    .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 36, fromAddr]),
+    .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 68, tokenId]),
+    .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 100, Lean.Compiler.Yul.Expr.num 0x80]),
+    .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 132, Lean.Compiler.Yul.Expr.num 0]),
+    .varDecl #[{ name := "__pf_erc721_ok" }] (some <|
+      Lean.Compiler.Yul.builtin "call" #[
+        Lean.Compiler.Yul.builtin "gas" #[],
+        toAddr,
+        Lean.Compiler.Yul.Expr.num 0,
+        Lean.Compiler.Yul.Expr.num 0,
+        Lean.Compiler.Yul.Expr.num 164,
+        Lean.Compiler.Yul.Expr.num 0,
+        Lean.Compiler.Yul.Expr.num 32
+      ]),
+    .ifStmt
+      (Lean.Compiler.Yul.builtin "iszero" #[callSuccess])
+      { statements := #[revertStatement] },
+    .ifStmt
+      (Lean.Compiler.Yul.builtin "lt" #[
+        Lean.Compiler.Yul.builtin "returndatasize" #[],
+        Lean.Compiler.Yul.Expr.num 32
+      ])
+      { statements := #[revertStatement] },
+    .varDecl #[{ name := "__pf_erc721_magic" }] (some <|
+      Lean.Compiler.Yul.builtin "mload" #[Lean.Compiler.Yul.Expr.num 0]),
+    .ifStmt
+      (Lean.Compiler.Yul.builtin "iszero" #[
+        Lean.Compiler.Yul.builtin "eq" #[retMagic, magicWord]
+      ])
+      { statements := #[revertStatement] }
+  ]
+  #[
+    .ifStmt isContract { statements := contractBody }
+  ]
+
 end ProofForge.Backend.Evm.ToYul

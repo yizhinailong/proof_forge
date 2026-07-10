@@ -533,6 +533,8 @@ mutual
         .error { message := "event.emit is a statement effect, not an expression" }
     | .eventEmitIndexed _ _ _ =>
         .error { message := "event.emit.indexed is a statement effect, not an expression" }
+    | .checkErc721Received _ _ _ _ =>
+        .error { message := "checkErc721Received is a statement effect, not an expression" }
 
   partial def lowerPlanEffectExpr
       (module : Module)
@@ -1461,5 +1463,15 @@ def lowerEffectStmt (module : Module) (env : TypeEnv) : Effect → Except LowerE
       lowerEventEmitStmt module env name fields
   | .eventEmitIndexed name indexedFields dataFields =>
       lowerEventEmitIndexedStmt module env name indexedFields dataFields
+  | .checkErc721Received operator fromAddr toAddr tokenId => do
+      let operatorYul ← lowerExpr module env operator
+      let fromYul ← lowerExpr module env fromAddr
+      let toYul ← lowerExpr module env toAddr
+      let tokenYul ← lowerExpr module env tokenId
+      let stmts :=
+        ProofForge.Backend.Evm.ToYul.checkErc721ReceivedStatements
+          operatorYul fromYul toYul tokenYul
+      -- Wrap multi-statement sequence as a single block statement.
+      .ok (.block { statements := stmts })
 
 end ProofForge.Backend.Evm.IR

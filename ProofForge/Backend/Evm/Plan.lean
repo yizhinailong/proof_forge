@@ -193,6 +193,7 @@ mutual
     | eventEmitIndexed (event : EventPlan) (indexedFields dataFields : Array AbiValuePlan)
     | eventEmitWords (event : EventPlan) (dataFieldWords : Array (Array ExprPlan))
     | eventEmitIndexedWords (event : EventPlan) (indexedFieldWords dataFieldWords : Array (Array ExprPlan))
+    | checkErc721Received (operator fromAddr toAddr tokenId : ExprPlan)
     deriving Repr
 
   inductive EventFieldPlan where
@@ -715,6 +716,8 @@ mutual
     | .contextRead field => #[{ field }]
     | .eventEmit _ fields | .eventEmitIndexed _ fields _ =>
         fields.foldl (init := #[]) fun acc field => acc ++ contextOpsFromExpr field.snd
+    | .checkErc721Received a b c d =>
+        contextOpsFromExpr a ++ contextOpsFromExpr b ++ contextOpsFromExpr c ++ contextOpsFromExpr d
 
   partial def contextOpsFromStatement (statement : Statement) : Array ContextPlan :=
     match statement with

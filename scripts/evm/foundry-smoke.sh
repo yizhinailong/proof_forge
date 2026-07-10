@@ -83,6 +83,20 @@ interface Vm {
     function prank(address msgSender) external;
 }
 
+/// PF-P2-02: IERC721Receiver that returns the required magic.
+contract GoodReceiver {
+    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+}
+
+/// PF-P2-02: IERC721Receiver that returns the wrong selector.
+contract BadReceiver {
+    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
+        return bytes4(0xdeadbeef);
+    }
+}
+
 contract ProofForgeSmokeTest {
     Vm constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
@@ -429,6 +443,50 @@ contract ProofForgeSmokeTest {
 
         (bool burnedOwnerOk,) = probe.call(abi.encodeWithSignature("ownerOf(uint256)", uint256(1)));
         assertFalse(burnedOwnerOk);
+    }
+
+    // PF-P2-02: IERC721Receiver accept / reject for safeTransferFrom.
+    function testERC721SafeTransferToReceiver_accepts() public {
+        address probe = address(0x7211);
+        address alice = address(0xA11CE);
+        GoodReceiver good = new GoodReceiver();
+        deployRuntime(hex"$(cat "$OUT_DIR/ERC721Probe.bin")", probe);
+
+        vm.prank(alice);
+        (bool mintOk,) = probe.call(abi.encodeWithSignature("mint(address,uint256)", alice, uint256(2)));
+        assertTrue(mintOk);
+
+        vm.prank(alice);
+        (bool safeOk,) =
+            probe.call(abi.encodeWithSignature("safeTransferFrom(address,address,uint256)", alice, address(good), uint256(2)));
+        assertTrue(safeOk);
+
+        (bool ownerOk, bytes memory ownerResult) =
+            probe.call(abi.encodeWithSignature("ownerOf(uint256)", uint256(2)));
+        assertTrue(ownerOk);
+        assertEq(abi.decode(ownerResult, (uint256)), uint256(uint160(address(good))));
+    }
+
+    function testERC721SafeTransferToReceiver_rejects() public {
+        address probe = address(0x7212);
+        address alice = address(0xA11CE);
+        BadReceiver bad = new BadReceiver();
+        deployRuntime(hex"$(cat "$OUT_DIR/ERC721Probe.bin")", probe);
+
+        vm.prank(alice);
+        (bool mintOk,) = probe.call(abi.encodeWithSignature("mint(address,uint256)", alice, uint256(3)));
+        assertTrue(mintOk);
+
+        vm.prank(alice);
+        (bool safeOk,) =
+            probe.call(abi.encodeWithSignature("safeTransferFrom(address,address,uint256)", alice, address(bad), uint256(3)));
+        assertFalse(safeOk);
+
+        // Ownership must remain with alice after failed safe transfer.
+        (bool ownerOk, bytes memory ownerResult) =
+            probe.call(abi.encodeWithSignature("ownerOf(uint256)", uint256(3)));
+        assertTrue(ownerOk);
+        assertEq(abi.decode(ownerResult, (uint256)), uint256(uint160(alice)));
     }
 
     function testERC1155Lifecycle() public {

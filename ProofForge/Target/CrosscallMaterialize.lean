@@ -202,6 +202,8 @@ where
     | .eventEmit _ fs => fs.any (fun f => exprUses f.snd)
     | .eventEmitIndexed _ indexed data =>
         indexed.any (fun f => exprUses f.snd) || data.any (fun f => exprUses f.snd)
+    | .checkErc721Received a b c d =>
+        exprUses a || exprUses b || exprUses c || exprUses d
     | .storageScalarRead _ | .storageStructFieldRead _ _ | .storageDynamicArrayPop _
     | .storageArrayStructFieldRead _ _ _ | .contextRead _ => false
   pathUses : StoragePathSegment → Bool
@@ -294,6 +296,8 @@ where
     | .eventEmit _ fs => fs.any (fun f => exprUses f.snd)
     | .eventEmitIndexed _ indexed data =>
         indexed.any (fun f => exprUses f.snd) || data.any (fun f => exprUses f.snd)
+    | .checkErc721Received a b c d =>
+        exprUses a || exprUses b || exprUses c || exprUses d
     | .storageScalarRead _ | .storageStructFieldRead _ _ | .storageDynamicArrayPop _
     | .storageArrayStructFieldRead _ _ _ | .contextRead _ => false
   pathUses : StoragePathSegment → Bool

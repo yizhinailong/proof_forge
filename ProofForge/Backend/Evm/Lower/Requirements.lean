@@ -220,6 +220,9 @@ mutual
     | .eventEmitIndexedWords _ indexedFieldWords dataFieldWords =>
         indexedFieldWords.any (fun words => words.any exprPlanUsesCheckedArithmetic) ||
           dataFieldWords.any (fun words => words.any exprPlanUsesCheckedArithmetic)
+    | .checkErc721Received a b c d =>
+        exprPlanUsesCheckedArithmetic a || exprPlanUsesCheckedArithmetic b ||
+          exprPlanUsesCheckedArithmetic c || exprPlanUsesCheckedArithmetic d
 
   partial def stmtPlanUsesCheckedArithmetic : StmtPlan → Bool
     | .letBind _ _ value
@@ -524,6 +527,14 @@ mutual
         dataFieldWords.foldl (init := indexed) fun acc words =>
           words.foldl (init := acc) fun wordAcc word =>
             mergeLocalArrayHelperRequirements wordAcc (localArrayHelperRequirementsFromExprPlan word)
+    | .checkErc721Received a b c d =>
+        mergeLocalArrayHelperRequirements
+          (mergeLocalArrayHelperRequirements
+            (localArrayHelperRequirementsFromExprPlan a)
+            (localArrayHelperRequirementsFromExprPlan b))
+          (mergeLocalArrayHelperRequirements
+            (localArrayHelperRequirementsFromExprPlan c)
+            (localArrayHelperRequirementsFromExprPlan d))
 
   partial def localArrayHelperRequirementsFromStmtPlan :
       StmtPlan → LocalArrayHelperRequirements
@@ -883,6 +894,10 @@ mutual
         dataFieldWords.foldl (init := indexed) fun acc words =>
           words.foldl (init := acc) fun wordAcc word =>
             mergeHelperSets wordAcc (plannedHelpersFromExprPlan word)
+    | .checkErc721Received a b c d =>
+        mergeHelperSets
+          (mergeHelperSets (plannedHelpersFromExprPlan a) (plannedHelpersFromExprPlan b))
+          (mergeHelperSets (plannedHelpersFromExprPlan c) (plannedHelpersFromExprPlan d))
 
   partial def plannedHelpersFromStmtPlan : StmtPlan → HelperSet
     | .letBind _ _ value
@@ -1152,6 +1167,9 @@ mutual
         dataFieldWords.foldl (init := indexed) fun acc words =>
           words.foldl (init := acc) fun wordAcc word =>
             mergeContextPlans wordAcc (contextOpsFromExprPlan word)
+    | .checkErc721Received a b c d =>
+        contextOpsFromExprPlan a ++ contextOpsFromExprPlan b ++
+          contextOpsFromExprPlan c ++ contextOpsFromExprPlan d
 
   partial def contextOpsFromStmtPlan : StmtPlan → Array ContextPlan
     | .letBind _ _ value

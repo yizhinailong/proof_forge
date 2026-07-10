@@ -355,6 +355,17 @@ def nativeTransfer (recipient amount : ProofForge.IR.Expr) : EntryM Unit :=
   ProofForge.Contract.Builder.letBind "_sent" .u64
     (.crosscallInvokeValueTyped recipient (u64 0) amount #[] .u64)
 
+/-- EVM ERC-721 safe-transfer receiver check (PF-P2-02).
+
+If `to` has code (`extcodesize`), CALL
+`onERC721Received(operator, from, tokenId, "")` and require the magic
+`bytes4` return. EOAs skip the callback. Non-EVM targets reject this
+effect. -/
+def checkErc721Received (operator fromAddr toAddr tokenId : ProofForge.IR.Expr) :
+    EntryM Unit :=
+  ProofForge.Contract.Builder.effect
+    (.checkErc721Received operator fromAddr toAddr tokenId)
+
 /-- Portable cross-contract intent (family-shared). Backends materialize as
 EVM CALL / Solana CPI / NEAR `promise_create` / Soroban `invoke_contract` —
 authors never write CPI metas or Promise chains here. Prefer `declareRemote`

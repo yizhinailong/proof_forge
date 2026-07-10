@@ -439,6 +439,10 @@ where
     | .eventEmitIndexed _ ix data =>
         data.foldl (fun a f => collectFromExpr entrypoint a f.snd)
           (ix.foldl (fun a f => collectFromExpr entrypoint a f.snd) acc)
+    | .checkErc721Received a b c d =>
+        collectFromExpr entrypoint
+          (collectFromExpr entrypoint
+            (collectFromExpr entrypoint (collectFromExpr entrypoint acc a) b) c) d
     | .storageScalarRead _ | .storageStructFieldRead _ _ | .storageDynamicArrayPop _
     | .storageArrayStructFieldRead _ _ _ | .contextRead _ => acc
   collectFromPath (entrypoint : String) (acc : Array PortableCrosscallSite) :

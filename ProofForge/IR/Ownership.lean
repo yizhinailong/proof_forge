@@ -224,6 +224,11 @@ mutual
     | fuel + 1, entrypoint, env, .eventEmitIndexed _ indexedFields dataFields => do
         indexedFields.foldlM (init := ()) fun _ field => checkExprFuel fuel entrypoint env field.snd
         dataFields.foldlM (init := ()) fun _ field => checkExprFuel fuel entrypoint env field.snd
+    | fuel + 1, entrypoint, env, .checkErc721Received operator fromAddr toAddr tokenId => do
+        checkExprFuel fuel entrypoint env operator
+        checkExprFuel fuel entrypoint env fromAddr
+        checkExprFuel fuel entrypoint env toAddr
+        checkExprFuel fuel entrypoint env tokenId
 
   def checkStoragePathSegmentFuel : Nat → String → Env → StoragePathSegment →
       Except OwnershipError Unit
