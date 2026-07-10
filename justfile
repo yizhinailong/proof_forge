@@ -436,6 +436,11 @@ wasm-near-ft-transfer-call:
 wasm-near-ft-transfer-call-e2e:
     scripts/near/ft-transfer-call-smoke.sh
 
+# PF-P2-02/P2-03: near-sandbox real peer RemoteCall.call_with_args → 49 + storage_usage.
+# Requires `near-sandbox` on PATH (or ~/.near/near-sandbox-*/near-sandbox).
+near-sandbox-peer:
+    scripts/near/sandbox-peer-smoke.sh
+
 # Build the shared portable Counter to EVM, Solana sBPF, and NEAR/Wasm from one source file.
 portable-counter-multi-target:
     scripts/portable/counter-multi-target.sh
