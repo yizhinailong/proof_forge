@@ -65,6 +65,25 @@ def entryRevertCustomError : Entrypoint := {
   ]
 }
 
+/-- E1.1: Solidity custom error with ABI static args —
+    `error InsufficientBalance(uint64,uint64)` → selector `0x9432a7ee`.
+    Entrypoint selector is `revertCustomErrorArgs()` (cast sig below). -/
+def entryRevertCustomErrorArgs : Entrypoint := {
+  name := "revertCustomErrorArgs"
+  selector? := some "1cff28dd"  -- cast sig revertCustomErrorArgs()
+  params := #[]
+  returns := .unit
+  body := #[
+    .revertWithError {
+      assertionId := 7
+      userCode? := some "InsufficientBalance"
+      soliditySelector? := some "9432a7ee"
+      solidityArgWords := #[9007199254740993, 3]  -- above JS Number.MAX_SAFE_INTEGER
+      solidityArgTypes := #["uint64", "uint64"]
+    }
+  ]
+}
+
 def entryGuardedRevert : Entrypoint := {
   name := "guardedRevert"
   selector? := some "0ff6ea62"
@@ -106,6 +125,7 @@ def module : Module := {
     entryRevertWithMessage,
     entryRevertWithErrorRef,
     entryRevertCustomError,
+    entryRevertCustomErrorArgs,
     entryGuardedRevert,
     entryConditionalRevert,
     entryNormalPath

@@ -3,6 +3,7 @@ import ProofForge.Contract.Spec
 import ProofForge.Cli.EvmAbi
 import ProofForge.IR.Examples.Counter
 import ProofForge.IR.Examples.ErrorRefProbe
+import ProofForge.IR.Examples.EvmErrorsProbe
 import ProofForge.IR.Examples.EvmAbiAggregateProbe
 import ProofForge.IR.Examples.EvmFallbackProbe
 import ProofForge.Contract.Stdlib.NearFungibleToken
@@ -89,6 +90,26 @@ def testEvmWrapperErrors : IO Unit := do
     "EVM wrapper missing ProofForge revert ABI decode"
   require (contains wrapper "errorByAssertionId")
     "EVM wrapper missing assertion-id lookup helper"
+
+def testEvmCustomErrorArgDecoder : IO Unit := do
+  let spec := ContractSpec.fromIR ProofForge.IR.Examples.EvmErrorsProbe.module
+  let wrapper ← renderEvm spec "EvmErrorsProbe"
+  require (contains wrapper "\"solidityArgTypes\": [\"uint64\", \"uint64\"]")
+    "EVM custom-error client missing static arg schema"
+  require (contains wrapper "decodeProofForgeRevertDetails")
+    "EVM custom-error client missing detailed decoder"
+  require (contains wrapper "candidates.length !== 1")
+    "EVM custom-error client must fail closed on selector collisions"
+  require (contains wrapper "soliditySelector?.toLowerCase() === sel")
+    "EVM custom-error client must normalize author-provided selector case"
+  require (contains wrapper "AbiCoder.defaultAbiCoder().decode(argTypes")
+    "EVM custom-error client must decode payload words from the revert data"
+  require (contains wrapper "return decodeProofForgeRevertDetails(error)?.error;")
+    "EVM custom-error client must preserve the legacy decoder API"
+  require (!contains wrapper "solidityArgWords")
+    "EVM custom-error client must not embed concrete compile-time words"
+  require (!contains wrapper "9007199254740993")
+    "EVM custom-error client must not serialize large words as JS numbers"
 
 def testNearWrapperErrors : IO Unit := do
   let wrapper := ProofForge.Contract.Client.renderNearWrapper errorRefSpec
@@ -266,6 +287,7 @@ def testFallbackAndReceiveAbi : IO Unit := do
 
 def main : IO UInt32 := do
   testEvmWrapperErrors
+  testEvmCustomErrorArgDecoder
   testNearWrapperErrors
   testCounterWrapperEmptyErrors
   testEvmDeployHelpers

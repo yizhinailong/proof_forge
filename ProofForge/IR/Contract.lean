@@ -373,9 +373,16 @@ structure ErrorRef where
   assertionId : UInt32
   userCode? : Option String := none
   /-- Optional Solidity custom-error selector (8 hex digits, no `0x`).
-  When set, EVM lowers to `abi.encodeWithSelector(selector)` (PF-P2-02)
-  instead of the ProofForge `(assertionId, string)` envelope. -/
+  When set, EVM lowers to `abi.encodeWithSelector(selector[, args…])`
+  (PF-P2-02 / E1.1) instead of the ProofForge `(assertionId, string)` envelope. -/
   soliditySelector? : Option String := none
+  /-- Transitional EVM-only compile-time ABI static words after the 4-byte
+  selector (E1.1). EVM validation checks arity, supported type, and range.
+  Runtime expressions belong in a future target-plan representation. -/
+  solidityArgWords : Array Nat := #[]
+  /-- Solidity ABI type names parallel to `solidityArgWords`. Contract metadata
+  exposes this schema, but deliberately omits the concrete compile-time words. -/
+  solidityArgTypes : Array String := #[]
   deriving Repr, BEq
 
 inductive Statement where

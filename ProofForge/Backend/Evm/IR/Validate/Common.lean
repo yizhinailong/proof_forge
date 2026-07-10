@@ -147,27 +147,42 @@ def parseSoliditySelectorHex (hex : String) : Option Nat :=
         | some d => go (i + 1) (acc * 16 + d)
     go 0 0
 
-/-- Solidity custom-error revert: 4-byte selector left-aligned in memory. -/
-def solidityCustomErrorRevertStmts (selector : Nat) : Array Lean.Compiler.Yul.Statement :=
-  -- mstore(0, shl(224, selector)); revert(0, 4)
-  let word :=
+/-- Solidity custom-error revert: 4-byte selector + optional ABI static words (E1.1).
+    Layout: `mstore(0, shl(224, selector)); mstore(4, w0); mstore(36, w1); …; revert(0, 4+32*n)`. -/
+def solidityCustomErrorRevertStmts (selector : Nat) (argWords : Array Nat := #[]) :
+    Array Lean.Compiler.Yul.Statement :=
+  let selectorWord :=
     Lean.Compiler.Yul.builtin "shl" #[
       Lean.Compiler.Yul.Expr.num 224,
       Lean.Compiler.Yul.Expr.num selector
     ]
-  #[
-    .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, word]),
-    .exprStmt (Lean.Compiler.Yul.builtin "revert" #[Lean.Compiler.Yul.Expr.num 0, Lean.Compiler.Yul.Expr.num 4])
+  let header : Array Lean.Compiler.Yul.Statement := #[
+    .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[Lean.Compiler.Yul.Expr.num 0, selectorWord])
+  ]
+  let argStmts :=
+    argWords.foldl (init := (#[] : Array Lean.Compiler.Yul.Statement)) fun acc word =>
+      let offset := 4 + acc.size * 32
+      acc.push <| .exprStmt (Lean.Compiler.Yul.builtin "mstore" #[
+        Lean.Compiler.Yul.Expr.num offset,
+        Lean.Compiler.Yul.Expr.num word
+      ])
+  let totalSize := 4 + argWords.size * 32
+  header ++ argStmts ++ #[
+    .exprStmt (Lean.Compiler.Yul.builtin "revert" #[
+      Lean.Compiler.Yul.Expr.num 0,
+      Lean.Compiler.Yul.Expr.num totalSize
+    ])
   ]
 
 def errorRefRevertStmts (ref : ProofForge.IR.ErrorRef) : Array Lean.Compiler.Yul.Statement :=
   match ref.soliditySelector? with
   | some hex =>
       match parseSoliditySelectorHex hex with
-      | some sel => solidityCustomErrorRevertStmts sel
+      | some sel => solidityCustomErrorRevertStmts sel ref.solidityArgWords
       | none =>
-          -- Invalid selector falls back to envelope so build stays fail-open for typos
-          -- at IR construction time (callers should validate selectors).
+          -- The public lowering paths reject this in validateSolidityErrorRef.
+          -- Keep the legacy defensive branch reverting with the PF envelope if
+          -- an internal caller invokes this helper without validation.
           let code := ref.userCode?.getD ""
           let codeLen := code.length
           let paddedLen := ((codeLen + 31) / 32) * 32

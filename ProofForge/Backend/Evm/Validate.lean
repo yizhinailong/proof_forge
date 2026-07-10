@@ -733,19 +733,25 @@ mutual
     | .effect effect => do
         validateEffectStmtTypes module env effect
         .ok env
-    | .assert condition _ _ => do
+    | .assert condition _ errorRef? => do
         ensureType "assert condition" .bool (← inferExprType module env condition)
+        if let some ref := errorRef? then
+          validateSolidityErrorRef "assert" ref
         .ok env
-    | .assertEq lhs rhs _ _ => do
+    | .assertEq lhs rhs _ errorRef? => do
         let lhsType ← inferExprType module env lhs
         let rhsType ← inferExprType module env rhs
         ensureType "assert_eq right operand" lhsType rhsType
         ensureEqType "assert_eq" lhsType
+        if let some ref := errorRef? then
+          validateSolidityErrorRef "assert_eq" ref
         .ok env
     | .release _ =>
         .error { message := "release statements are not supported by IR EVM v0" }
     | .revert _ => .ok env
-    | .revertWithError _ => .ok env
+    | .revertWithError ref => do
+        validateSolidityErrorRef "revertWithError" ref
+        .ok env
     | .ifElse condition thenBody elseBody => do
         ensureType "if condition" .bool (← inferExprType module env condition)
         discard <| validateStatements module entrypoint env thenBody

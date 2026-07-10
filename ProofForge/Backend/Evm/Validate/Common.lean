@@ -73,6 +73,57 @@ def twoPow64 : Nat := 18446744073709551616
 def maxU64 : Nat := twoPow64 - 1
 def maxU32 : Nat := 4294967295
 
+/-- Bit width for the compile-time Solidity ABI word subset supported by E1.1.
+    Dynamic, signed, tuple, array, and short fixed-bytes types are rejected. -/
+def solidityStaticArgBitWidth? : String -> Option Nat
+  | "uint8" => some 8
+  | "uint32" => some 32
+  | "uint64" => some 64
+  | "uint128" => some 128
+  | "uint256" => some 256
+  | "bool" => some 1
+  | "address" => some 160
+  | "bytes32" => some 256
+  | _ => none
+
+/-- Fail-closed validation for the transitional EVM custom-error static-word
+    annotation on portable `ErrorRef`. Runtime expressions and dynamic ABI
+    values require a future target-plan representation. -/
+def validateSolidityErrorRef (context : String) (ref : ErrorRef) : Except LowerError Unit := do
+  match ref.soliditySelector? with
+  | none =>
+      if !ref.solidityArgTypes.isEmpty || !ref.solidityArgWords.isEmpty then
+        .error {
+          message := s!"{context} has Solidity custom-error args without a selector"
+        }
+      else
+        .ok ()
+  | some selector =>
+      if selector.length != 8 || !(selector.all isHexChar) then
+        .error {
+          message := s!"{context} Solidity custom-error selector must be exactly 8 hex digits"
+        }
+      if ref.solidityArgTypes.size != ref.solidityArgWords.size then
+        .error {
+          message :=
+            s!"{context} Solidity custom-error arg type/value count mismatch: " ++
+              s!"{ref.solidityArgTypes.size} type(s), {ref.solidityArgWords.size} value(s)"
+        }
+      for ((abiType, word), index) in
+          (ref.solidityArgTypes.zip ref.solidityArgWords).zipIdx do
+        let some width := solidityStaticArgBitWidth? abiType
+          | .error {
+              message :=
+                s!"{context} Solidity custom-error arg {index} has unsupported static ABI type " ++
+                  s!"`{abiType}`"
+            }
+        if word >= 2 ^ width then
+          .error {
+            message :=
+              s!"{context} Solidity custom-error arg {index} value `{word}` exceeds `{abiType}` range"
+          }
+      .ok ()
+
 -- ASCII "PROOF_FORGE_MAP_PRESENCE" packed as one EVM word.
 def mapPresenceDomain : Nat := 1969478005224772198022937154314036040895674356107534287685
 

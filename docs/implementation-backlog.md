@@ -3322,7 +3322,7 @@ so authors never drop to Builder for common EVM patterns. Cross-ref
 | CS-3.2 | Native ETH transfer helper (plain transfer to EOA/contract) | P0 | No manual `crosscallInvokeValueTyped(u64 0)` in examples |
 | CS-3.3 | Entry modifiers / guards (`onlyOwner`, `whenNotPaused`, role guards) | P0 | Desugar to portable IR checks; diagnostics on misuse |
 | CS-3.4 | Constructor dynamic ABI (string, bytes, dynamic arrays) | P0 | CLI + artifact metadata; deploy-object init reads initcode tail into storage; Foundry + Anvil smokes with `DynamicConstructorProbe` |
-| CS-3.5 | Custom errors (Solidity-style selectors) | P1 | ✅ 4-byte custom-error selector surface (`errors-ir-smoke` `test_revertCustomError_selector`); ABI-encoded args remain open |
+| CS-3.5 | Custom errors (Solidity-style selectors) | P1 | Partial: 4-byte selector + validated compile-time static ABI words (`errors-ir-smoke`); runtime expression args, dynamic args, and a target-plan representation remain open |
 | CS-3.6 | ERC-165 `supportsInterface` module | P0 | ✅ Foundry interface probe + stdlib mixin |
 | CS-3.7 | AccessControl roles (grant/revoke/hasRole) | P0 | ✅ stdlib mixin + `guard_role` |
 | CS-3.8 | ERC-721 core (ownerOf, transfer, safeTransferFrom, mint, burn) | P0 | ✅ stdlib mixin + **PF-P2-02** `onERC721Received` (Foundry accept/reject) |

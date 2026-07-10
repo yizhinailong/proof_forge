@@ -9,6 +9,8 @@ OUT_DIR="${IR_EVM_OUT_DIR:-$ROOT/build/ir}"
 FORGE_DIR="${IR_EVM_FORGE_DIR:-$ROOT/build/foundry-ir-errors-smoke}"
 GOLDEN_FILE="${IR_EVM_GOLDEN:-$ROOT/Examples/Backend/Evm/EvmErrorsProbe.golden.yul}"
 METADATA_FILE="${IR_EVM_METADATA:-$OUT_DIR/EvmErrorsProbe.proof-forge-artifact.json}"
+SPEC_FILE="$OUT_DIR/EvmErrorsProbe.contract-spec.json"
+CLIENT_FILE="$OUT_DIR/proof-forge-evm-abi.ts"
 
 export PATH="$HOME/.foundry/bin:$PATH"
 
@@ -19,6 +21,11 @@ fi
 
 if ! command -v solc >/dev/null 2>&1; then
   echo "solc not found" >&2
+  exit 1
+fi
+
+if ! command -v cast >/dev/null 2>&1; then
+  echo "cast not found" >&2
   exit 1
 fi
 
@@ -42,10 +49,39 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint revertWithMessage:185c38a4 \
   --expect-entrypoint revertWithErrorRef:b34aafd2 \
   --expect-entrypoint revertCustomError:c5159795 \
+  --expect-entrypoint revertCustomErrorArgs:1cff28dd \
   --expect-entrypoint guardedRevert:0ff6ea62 \
   --expect-entrypoint conditionalRevert:194fd609 \
   --expect-entrypoint normalPath:a3f05111 \
   "$METADATA_FILE"
+
+custom_error_selector="$(cast sig 'InsufficientBalance(uint64,uint64)')"
+[[ "${custom_error_selector#0x}" == "9432a7ee" ]] || {
+  echo "unexpected InsufficientBalance selector: $custom_error_selector" >&2
+  exit 1
+}
+
+python3 - "$SPEC_FILE" "$CLIENT_FILE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+spec_path, client_path = map(Path, sys.argv[1:])
+spec_text = spec_path.read_text()
+spec = json.loads(spec_text)
+entry = next(
+    item for item in spec["errors"]
+    if item.get("soliditySelector") == "9432a7ee"
+)
+assert entry["solidityArgTypes"] == ["uint64", "uint64"]
+assert "solidityArgWords" not in spec_text
+
+client = client_path.read_text()
+assert "decodeProofForgeRevertDetails" in client
+assert "AbiCoder.defaultAbiCoder().decode(argTypes" in client
+assert "solidityArgWords" not in client
+print("custom-error spec/client schema: ok")
+PY
 
 probe_hex="$(tr -d '\n' < "$OUT_DIR/EvmErrorsProbe.bin")"
 
@@ -114,6 +150,26 @@ contract ProofForgeIRErrorsSmokeTest {
             sel := mload(add(ret, 32))
         }
         require(sel == bytes4(0x09caebf3), "unexpected custom error selector");
+    }
+
+    // E1.1: custom error with ABI static args — InsufficientBalance(uint64,uint64).
+    function test_revertCustomErrorArgs_selector_and_words() public {
+        (bool ok, bytes memory ret) = PROBE.call(hex"1cff28dd");
+        assertFalse(ok);
+        // 4-byte selector + 2 × 32-byte ABI words
+        require(ret.length == 68, "custom error args should be 4+64 bytes");
+        bytes4 sel;
+        uint64 available;
+        uint64 required;
+        assembly {
+            sel := mload(add(ret, 32))
+            // ABI words start at ret+4 (after selector); load as full words then cast
+            available := mload(add(ret, 36))
+            required := mload(add(ret, 68))
+        }
+        require(sel == bytes4(0x9432a7ee), "unexpected InsufficientBalance selector");
+        require(available == 9007199254740993, "available arg word mismatch");
+        require(required == 3, "required arg word mismatch");
     }
 
     function test_guardedRevert_false_reverts() public {
