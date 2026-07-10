@@ -1,6 +1,6 @@
 {
   "README.md": {
-    "sha256": "356419e9dd44da718a452876d77693b04ca01c9594af68ff706ec4e32c4e19f0",
+    "sha256": "2366b0c089a544abebbc05db1a58a989cbf962335fb375528806e97b545b7dd1",
     "zh": "docs/zh/README-root.zh.md",
     "model": "manual-zh",
     "note": "manually synced for PF-P1-02 (backend-status generated table pointer)"
