@@ -5,8 +5,8 @@
 # hosted-isolation). This smoke documents the next boundary: a *local* worker
 # wrapper that enforces wall-clock time so runaway elaboration cannot hang CI.
 #
-# Full multi-process sandbox with CPU/mem cgroups remains follow-on work; this
-# gate proves the wall-clock control path exists and fails closed on timeout.
+# This gate proves wall-clock and process-tree cleanup. The companion
+# `worker-cgroup` gate exercises the CPU/memory wrapper and cgroup fallback.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -24,24 +24,36 @@ run_with_timeout() {
     gtimeout "$secs" "$@"
   else
     python3 - "$secs" "$@" <<'PY'
-import os, signal, subprocess, sys
+import os, signal, subprocess, sys, time
 secs = float(sys.argv[1])
 cmd = sys.argv[2:]
 proc = subprocess.Popen(cmd, start_new_session=True)
 try:
     sys.exit(proc.wait(timeout=secs))
 except subprocess.TimeoutExpired:
+    def group_exists():
+        try:
+            os.killpg(proc.pid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+
     try:
         os.killpg(proc.pid, signal.SIGTERM)
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         pass
-    try:
-        proc.wait(timeout=1)
-    except subprocess.TimeoutExpired:
+    deadline = time.monotonic() + 1
+    while time.monotonic() < deadline:
+        proc.poll()
+        if not group_exists():
+            break
+        time.sleep(0.02)
+    if group_exists():
         try:
             os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):
             pass
+    if proc.poll() is None:
         proc.wait()
     sys.exit(124)
 PY
@@ -97,7 +109,7 @@ echo "worker-limits: gate3 timeout enforcement ok (exit $st)"
 descendant_pid_file="$OUT/descendant.pid"
 set +e
 PROOF_FORGE_FORCE_PYTHON_TIMEOUT=1 run_with_timeout 0.3 \
-  python3 -c 'import subprocess,sys,time; child=subprocess.Popen(["sleep","30"]); open(sys.argv[1],"w").write(str(child.pid)); time.sleep(30)' \
+  python3 -c 'import subprocess,sys,time; code="import os,signal,sys,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); open(sys.argv[1],\"w\").write(str(os.getpid())); time.sleep(30)"; subprocess.Popen([sys.executable,"-c",code,sys.argv[1]]); time.sleep(30)' \
   "$descendant_pid_file" >/dev/null 2>&1
 st=$?
 set -e
@@ -116,4 +128,4 @@ if kill -0 "$descendant_pid" 2>/dev/null; then
 fi
 echo "worker-limits: gate4 Python fallback process-group cleanup ok"
 
-echo "worker-limits: ok (PF-P3-03 wall-clock worker control; cgroup CPU/mem remain follow-on)"
+echo "worker-limits: ok (PF-P3-03 wall-clock worker control; see just worker-cgroup for CPU/mem)"

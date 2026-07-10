@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# PF-P3-02: six-gate promotion smoke for wasm-cloudflare-workers (Counter TS spike→MVP fragment).
+# PF-P3-02: strict promotion-readiness audit for the off-chain Research
+# Counter TypeScript sourcegen fragment. Passing does not change target maturity.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
@@ -104,4 +105,4 @@ print("ok")
 PY
 ok "gate6 surface"
 
-echo "cloudflare-promotion: ok (six gates for Counter TS fragment)"
+echo "cloudflare-promotion: ok (Counter TS Research readiness gates; maturity unchanged)"

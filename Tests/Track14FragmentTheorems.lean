@@ -91,8 +91,34 @@ theorem near_allocator_mismatch_is_rejected_by_lowerer :
     (ProofForge.Backend.WasmHost.EmitWat.lowerModule nearAllocatorMismatchWitness).isOk = false := by
   native_decide
 
+-- PF-P3-01 progressive structural skeleton (constrained IR unique under lowerable).
+#check isCounterShapeLowerable_skeleton
+#check isCounterShapeLowerable_flags
+#check isCounterStateDecl_eq
+#check isCounterInitializeEntrypoint_fields
+#check isCounterInitializeEntrypoint_body_array
+#check isCounterShapeLowerable_state_array
+#check isCounterShapeLowerable_entrypoints_array
+#check isCounterInitializeEntrypoint_eq
+#check counterShapeModule
+#check isCounterShapeLowerable_matches_counterShapeModule
+#check isCounterShapeLowerable_eq_counterShapeModule
+#check evm_lowerable_implies_counter_skeleton
+#check evm_lowerable_state_eq_counter
+#check evm_counter_module_eq_counterShapeModule
+#check evm_counterShapeModule_Counter_lowering_total
+#check evm_lowerable_eq_counterShapeModule
+#check evm_withCanonical_of_lowerable_eq_counter
+#check evm_lowerable_implies_canonical_lowering_total
+#check evm_lowerable_implies_lowering_total_of_name_indep
+#check counterShapeModule_eq_evmCounterShapeWithName
+#check evm_lowerable_implies_lowering_total_of_family_name
+#check evm_lowerModuleCore_counterShape_Counter_isOk
+#check evm_shape_lowerable_implies_lowering_total
+#check evm_lowerable_implies_lowering_total
+
 end ProofForge.Tests.Track14FragmentTheorems
 
 def main : IO UInt32 := do
-  IO.println "track14-fragment-theorems-smoke: triad proven⊂lowerable + renamed/canonical + finite name-family lowering-total"
+  IO.println "track14-fragment-theorems-smoke: triad proven⊂lowerable + allocator guard + finite name-family + structural skeleton"
   return 0

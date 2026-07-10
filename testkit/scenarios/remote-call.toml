@@ -301,8 +301,9 @@ contains = [
 call = "initialize"
 
 # PF-P2-03: real peer on EVM (revm PeerOracle at 0xb0b0) and Solana (Mollusk
-# PeerOracleSum ELF). call_with_args (42+7) must return u64 49. NEAR sandbox
-# peer is still blocked (no near CLI / sandbox tools).
+# PeerOracleSum ELF) in the default offline testkit path. call_with_args (42+7)
+# must return u64 49. NEAR real-peer sandbox (same return 49) is verified by
+# `just near-sandbox-peer` and is not inlined here (requires near-sandbox tools).
 [[step]]
 call = "call_with_args"
 targets = ["evm", "solana-sbpf-asm"]

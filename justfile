@@ -221,6 +221,11 @@ track14-fragment-theorems-smoke:
     lake env lean --run Tests/CounterLowerableAllocator.lean
     lake env lean --run Tests/Track14FragmentTheorems.lean
 
+# PF-P3-01: computational free-name lowering-total for Counter shape (dense name set).
+evm-counter-shape-name-totality:
+    lake build ProofForge.Backend.Evm.Refinement
+    lake env lean --run Tests/EvmCounterShapeNameTotality.lean
+
 # Track 1.7 / FV-8: exercise user-authored Lean invariants (ValueVault + Counter) pre-codegen.
 lean-invariants-smoke:
     lake build ProofForge.Contract.LeanInvariant ProofForge.Contract.Examples.ValueVaultInvariant ProofForge.Contract.Examples.CounterInvariant ProofForge.Contract.Examples.Counter
@@ -379,9 +384,13 @@ hosted-isolation:
 rebuild-hash:
     scripts/cli/rebuild-hash-smoke.sh
 
-# PF-P3-03: wall-clock worker limit wrapper (cgroup CPU/mem remain follow-on).
+# PF-P3-03: process-tree wall-clock worker limit wrapper.
 worker-limits:
     scripts/cli/worker-limits-smoke.sh
+
+# PF-P3-03: CPU RLIMIT + wall-clock worker limits; memory when cgroup v2 / RLIMIT_AS available.
+worker-cgroup:
+    scripts/cli/worker-cgroup-smoke.sh
 
 # Generic sBPF step lemmas — active C-proof surface (PRs touch SbpfExec here).
 solana-sbpf-exec-smoke:
@@ -1236,7 +1245,7 @@ testkit-remote-call:
 
 # Run the fast local baseline used before broader target smokes.
 # Product gate runs early so business multi-target failures surface first.
-check: build build-test-deps product target-registry target-backend target-support artifact-bundle preflight-l2 source-dsl-arity leo-printer-fail-closed contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke diagnostic-smoke ir-step-semantics-smoke ir-counter-semantics-smoke ir-portability-smoke semantics-fuel-smoke constructor-coverage-smoke counter-universal-refinement-smoke supported-fragment-smoke track14-fragment-theorems-smoke lean-invariants-smoke target-semantics-instances-smoke wasm-exec-smoke wasm-near-host-smoke wasm-cosmwasm-host-smoke wasm-soroban-host-smoke zk-portability-smoke aleo-leo-codegen-smoke wasm-cosmwasm-refinement-smoke value-vault-wasm-refinement-smoke evm-bytecode-semantics-smoke ir-exec-result-smoke fv5-overflow-smoke solana-light portable-counter-multi-target cli-target-first source-identity registry-command solana-source-elf soroban-profile wat2wasm-fail-closed check-l2-parity hosted-isolation rebuild-hash worker-limits contract-source-diagnostics near-target-first wasm-near-plan near-plan-smoke wasm-near-scalar-safety near-promise-amount-pointer near-offline-host-transaction near-offline-host-fuel near-compare-matrix-test wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-test-naming psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli quint-mbt-gate quint-ir-model-gate aleo-leo-codegen-smoke
+check: build build-test-deps product target-registry target-backend target-support artifact-bundle preflight-l2 source-dsl-arity leo-printer-fail-closed contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke diagnostic-smoke ir-step-semantics-smoke ir-counter-semantics-smoke ir-portability-smoke semantics-fuel-smoke constructor-coverage-smoke counter-universal-refinement-smoke supported-fragment-smoke track14-fragment-theorems-smoke evm-counter-shape-name-totality lean-invariants-smoke target-semantics-instances-smoke wasm-exec-smoke wasm-near-host-smoke wasm-cosmwasm-host-smoke wasm-soroban-host-smoke zk-portability-smoke aleo-leo-codegen-smoke wasm-cosmwasm-refinement-smoke value-vault-wasm-refinement-smoke evm-bytecode-semantics-smoke ir-exec-result-smoke fv5-overflow-smoke solana-light portable-counter-multi-target cli-target-first source-identity registry-command solana-source-elf soroban-profile wat2wasm-fail-closed check-l2-parity hosted-isolation rebuild-hash worker-limits worker-cgroup contract-source-diagnostics near-target-first wasm-near-plan near-plan-smoke wasm-near-scalar-safety near-promise-amount-pointer near-offline-host-transaction near-offline-host-fuel near-compare-matrix-test wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-test-naming psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli quint-mbt-gate quint-ir-model-gate aleo-leo-codegen-smoke
 
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:

@@ -1265,10 +1265,10 @@ def evmCounterShapeWithName (name : String) : ProofForge.IR.Module :=
   { ProofForge.IR.Examples.Counter.module with name := name }
 
 /-- Finite name family used to discharge lowering-total beyond the single
-canonical Counter constant. Not a general ∀-m bridge; extends the checked
-witness set for the shape-lowerable class. -/
+canonical Counter constant. Not a general ∀-String bridge; extends the checked
+witness set for the shape-lowerable class (empty/short/renamed labels). -/
 def evmCounterShapeNameFamily : Array String :=
-  #["Counter", "CounterRenamed", "C", "shape", "VaultCounter"]
+  #["Counter", "CounterRenamed", "C", "shape", "VaultCounter", "", "a", "Foo", "Vault2", "m"]
 
 theorem evm_shape_name_Counter_lowerable_total :
     evmYulTargetSemantics.lowerableAccepts
@@ -1305,6 +1305,41 @@ theorem evm_shape_name_VaultCounter_lowerable_total :
           (evmCounterShapeWithName "VaultCounter")).isOk = true := by
   native_decide
 
+theorem evm_shape_name_empty_lowerable_total :
+    evmYulTargetSemantics.lowerableAccepts
+        (evmCounterShapeWithName "") = true ∧
+      (ProofForge.Backend.Evm.IR.lowerModule
+          (evmCounterShapeWithName "")).isOk = true := by
+  native_decide
+
+theorem evm_shape_name_a_lowerable_total :
+    evmYulTargetSemantics.lowerableAccepts
+        (evmCounterShapeWithName "a") = true ∧
+      (ProofForge.Backend.Evm.IR.lowerModule
+          (evmCounterShapeWithName "a")).isOk = true := by
+  native_decide
+
+theorem evm_shape_name_Foo_lowerable_total :
+    evmYulTargetSemantics.lowerableAccepts
+        (evmCounterShapeWithName "Foo") = true ∧
+      (ProofForge.Backend.Evm.IR.lowerModule
+          (evmCounterShapeWithName "Foo")).isOk = true := by
+  native_decide
+
+theorem evm_shape_name_Vault2_lowerable_total :
+    evmYulTargetSemantics.lowerableAccepts
+        (evmCounterShapeWithName "Vault2") = true ∧
+      (ProofForge.Backend.Evm.IR.lowerModule
+          (evmCounterShapeWithName "Vault2")).isOk = true := by
+  native_decide
+
+theorem evm_shape_name_m_lowerable_total :
+    evmYulTargetSemantics.lowerableAccepts
+        (evmCounterShapeWithName "m") = true ∧
+      (ProofForge.Backend.Evm.IR.lowerModule
+          (evmCounterShapeWithName "m")).isOk = true := by
+  native_decide
+
 /-- PF-P3-01: every name in the finite family is lowerable and lowers. -/
 theorem evm_counter_shape_name_family_lowerable_total :
     (evmYulTargetSemantics.lowerableAccepts
@@ -1326,11 +1361,225 @@ theorem evm_counter_shape_name_family_lowerable_total :
     (evmYulTargetSemantics.lowerableAccepts
         (evmCounterShapeWithName "VaultCounter") = true ∧
       (ProofForge.Backend.Evm.IR.lowerModule
-          (evmCounterShapeWithName "VaultCounter")).isOk = true) :=
+          (evmCounterShapeWithName "VaultCounter")).isOk = true) ∧
+    (evmYulTargetSemantics.lowerableAccepts
+        (evmCounterShapeWithName "") = true ∧
+      (ProofForge.Backend.Evm.IR.lowerModule
+          (evmCounterShapeWithName "")).isOk = true) ∧
+    (evmYulTargetSemantics.lowerableAccepts
+        (evmCounterShapeWithName "a") = true ∧
+      (ProofForge.Backend.Evm.IR.lowerModule
+          (evmCounterShapeWithName "a")).isOk = true) ∧
+    (evmYulTargetSemantics.lowerableAccepts
+        (evmCounterShapeWithName "Foo") = true ∧
+      (ProofForge.Backend.Evm.IR.lowerModule
+          (evmCounterShapeWithName "Foo")).isOk = true) ∧
+    (evmYulTargetSemantics.lowerableAccepts
+        (evmCounterShapeWithName "Vault2") = true ∧
+      (ProofForge.Backend.Evm.IR.lowerModule
+          (evmCounterShapeWithName "Vault2")).isOk = true) ∧
+    (evmYulTargetSemantics.lowerableAccepts
+        (evmCounterShapeWithName "m") = true ∧
+      (ProofForge.Backend.Evm.IR.lowerModule
+          (evmCounterShapeWithName "m")).isOk = true) :=
   ⟨evm_shape_name_Counter_lowerable_total,
     evm_shape_name_CounterRenamed_lowerable_total,
     evm_shape_name_C_lowerable_total,
     evm_shape_name_shape_lowerable_total,
-    evm_shape_name_VaultCounter_lowerable_total⟩
+    evm_shape_name_VaultCounter_lowerable_total,
+    evm_shape_name_empty_lowerable_total,
+    evm_shape_name_a_lowerable_total,
+    evm_shape_name_Foo_lowerable_total,
+    evm_shape_name_Vault2_lowerable_total,
+    evm_shape_name_m_lowerable_total⟩
+
+/-- PF-P3-01 progressive structural bridge: every EVM-lowerable module carries
+the pinned Counter IR skeleton (flags, default allocator, empty
+paramAbiWords, fixed state/entrypoint mutability/bodies). -/
+theorem evm_lowerable_implies_counter_skeleton
+    (m : ProofForge.IR.Module)
+    (h : evmYulTargetSemantics.lowerableAccepts m = true) :
+    m.structs = #[] ∧
+      m.proxyPattern? = none ∧
+      m.nearCrosscallStrings = #[] ∧
+      m.overflowChecked = false ∧
+      m.allocator = ProofForge.IR.defaultAllocator ∧
+      (∃ sd, m.state.toList = [sd] ∧
+        sd = { id := "count", kind := .scalar, type := .u64 }) ∧
+      (∃ e0 e1 e2,
+        m.entrypoints.toList = [e0, e1, e2] ∧
+          e0.paramAbiWords = #[] ∧ e1.paramAbiWords = #[] ∧ e2.paramAbiWords = #[] ∧
+          e0.name = "initialize" ∧ e0.mutability = .call ∧
+            e0.selector? = some "8129fc1c" ∧
+            e0.returns = .unit ∧ e0.params = #[] ∧ e0.kind = .function ∧
+            e0.body = #[.effect (.storageScalarWrite "count" (.literal (.u64 0)))] ∧
+          e1.name = "increment" ∧ e1.mutability = .call ∧
+            e1.selector? = some "d09de08a" ∧
+            e1.returns = .unit ∧ e1.params = #[] ∧ e1.kind = .function ∧
+            e1.body = #[
+              .letBind "n" .u64 (.effect (.storageScalarRead "count")),
+              .effect (.storageScalarWrite "count"
+                (.add (.local "n") (.literal (.u64 1)) true))] ∧
+          e2.name = "get" ∧ e2.mutability = .view ∧
+            e2.selector? = some "6d4ce63c" ∧
+            e2.returns = .u64 ∧ e2.params = #[] ∧ e2.kind = .function ∧
+            e2.body = #[.return (.effect (.storageScalarRead "count"))]) :=
+  isCounterShapeLowerable_skeleton m h
+
+/-- PF-P3-01: every EVM-lowerable module has the same state array as the
+canonical Counter fixture (name remains free). -/
+theorem evm_lowerable_state_eq_counter
+    (m : ProofForge.IR.Module)
+    (h : evmYulTargetSemantics.lowerableAccepts m = true) :
+    m.state = ProofForge.IR.Examples.Counter.module.state := by
+  have harr := isCounterShapeLowerable_state_array m h
+  simpa [ProofForge.IR.Examples.Counter.module, ProofForge.IR.Examples.Counter.stateCount] using harr
+
+/-- PF-P3-01: the IR fixture Counter is definitionally the pinned shape module. -/
+theorem evm_counter_module_eq_counterShapeModule :
+    ProofForge.IR.Examples.Counter.module = counterShapeModule "Counter" := by
+  simp only [
+    ProofForge.IR.Examples.Counter.module,
+    ProofForge.IR.Examples.Counter.stateCount,
+    ProofForge.IR.Examples.Counter.initializeEntrypoint,
+    ProofForge.IR.Examples.Counter.increment,
+    ProofForge.IR.Examples.Counter.get,
+    counterShapeModule,
+    counterInitializeEntrypoint,
+    counterIncrementEntrypoint,
+    counterGetEntrypoint,
+    ProofForge.IR.defaultAllocator
+  ]
+
+/-- PF-P3-01: `counterShapeModule "Counter"` lowers (via fixture identity). -/
+theorem evm_counterShapeModule_Counter_lowering_total :
+    (ProofForge.Backend.Evm.IR.lowerModule
+      (counterShapeModule "Counter")).isOk = true := by
+  rw [← evm_counter_module_eq_counterShapeModule]
+  exact evm_counter_lowering_total
+
+/-- PF-P3-01: every lowerable module equals `counterShapeModule` at its name. -/
+theorem evm_lowerable_eq_counterShapeModule
+    (m : ProofForge.IR.Module)
+    (h : evmYulTargetSemantics.lowerableAccepts m = true) :
+    m = counterShapeModule m.name :=
+  isCounterShapeLowerable_eq_counterShapeModule m h
+
+/-- PF-P3-01: name-pin of any lowerable module equals the Counter fixture. -/
+theorem evm_withCanonical_of_lowerable_eq_counter
+    (m : ProofForge.IR.Module)
+    (h : evmYulTargetSemantics.lowerableAccepts m = true) :
+    withCanonicalCounterName m = ProofForge.IR.Examples.Counter.module := by
+  have hshape : isCounterShapeLowerable (withCanonicalCounterName m) = true := by
+    have hcanon :=
+      isCounterShapeLowerable_implies_isCounterModule_with_canonical_name m h
+    exact isCounterModule_implies_shape_lowerable _ hcanon
+  have heq := isCounterShapeLowerable_eq_counterShapeModule (withCanonicalCounterName m) hshape
+  -- withCanonicalCounterName m has name "Counter"
+  have hname : (withCanonicalCounterName m).name = "Counter" := by
+    simp only [withCanonicalCounterName]
+  calc
+    withCanonicalCounterName m = counterShapeModule (withCanonicalCounterName m).name := heq
+    _ = counterShapeModule "Counter" := by simp only [hname]
+    _ = ProofForge.IR.Examples.Counter.module := evm_counter_module_eq_counterShapeModule.symm
+
+/-- PF-P3-01 structural `∀ m, lowerable m → lowerModule (withCanonicalCounterName m) = .ok`.
+Free-name `lowerModule m = .ok` still needs name-independence of `isOk`. -/
+theorem evm_lowerable_implies_canonical_lowering_total
+    (m : ProofForge.IR.Module)
+    (h : evmYulTargetSemantics.lowerableAccepts m = true) :
+    (ProofForge.Backend.Evm.IR.lowerModule
+      (withCanonicalCounterName m)).isOk = true := by
+  rw [evm_withCanonical_of_lowerable_eq_counter m h]
+  exact evm_counter_lowering_total
+
+/-- Local `isOk` so theorems do not depend on which `Except.isOk` is in scope. -/
+def evmLowerIsOk {α : Type} : Except ProofForge.Backend.Evm.IR.LowerError α → Bool
+  | .ok _ => true
+  | .error _ => false
+
+/-- PF-P3-01: the Counter IR core always lowers (shared by the free-name path). -/
+theorem evm_lowerModuleCore_counterShape_Counter_isOk :
+    evmLowerIsOk (ProofForge.Backend.Evm.IR.lowerModuleCore
+      (counterShapeModule "Counter")) = true := by
+  native_decide
+
+/-- PF-P3-01 structural free-name totality: every shape-lowerable module lowers.
+
+The Counter-shape path in `lowerModule` lowers the fixed Counter core then
+relabels Yul names to `module.name`, so success does not depend on the free
+name label. -/
+theorem evm_shape_lowerable_implies_lowering_total
+    (m : ProofForge.IR.Module)
+    (h : isCounterShapeLowerable m = true) :
+    evmLowerIsOk (ProofForge.Backend.Evm.IR.lowerModule m) = true := by
+  unfold ProofForge.Backend.Evm.IR.lowerModule
+  rw [if_pos h]
+  have hbase := evm_lowerModuleCore_counterShape_Counter_isOk
+  cases hres : ProofForge.Backend.Evm.IR.lowerModuleCore (counterShapeModule "Counter") with
+  | error e =>
+    simp only [evmLowerIsOk, hres] at hbase
+    exact (nomatch hbase)
+  | ok obj =>
+    simp only [evmLowerIsOk]
+
+/-- PF-P3-01 acceptance: `∀ m, lowerable m → lowerModule m = .ok` over the
+structural Counter-shape predicate (free name included). -/
+theorem evm_lowerable_implies_lowering_total
+    (m : ProofForge.IR.Module)
+    (h : evmYulTargetSemantics.lowerableAccepts m = true) :
+    evmLowerIsOk (ProofForge.Backend.Evm.IR.lowerModule m) = true :=
+  evm_shape_lowerable_implies_lowering_total m h
+
+/-- PF-P3-01 free-name bridge schema (legacy): if `isOk` is independent of
+`module.name`, free-name lowering is total. Superseded by
+`evm_lowerable_implies_lowering_total` via the Counter-shape total path. -/
+theorem evm_lowerable_implies_lowering_total_of_name_indep
+    (m : ProofForge.IR.Module)
+    (h : evmYulTargetSemantics.lowerableAccepts m = true)
+    (hindep :
+      (ProofForge.Backend.Evm.IR.lowerModule m).isOk =
+        (ProofForge.Backend.Evm.IR.lowerModule
+          (withCanonicalCounterName m)).isOk) :
+    (ProofForge.Backend.Evm.IR.lowerModule m).isOk = true := by
+  rw [hindep]
+  exact evm_lowerable_implies_canonical_lowering_total m h
+
+/-- `counterShapeModule name` is the Counter fixture renamed. -/
+theorem counterShapeModule_eq_evmCounterShapeWithName (name : String) :
+    counterShapeModule name = evmCounterShapeWithName name := by
+  simp only [counterShapeModule, evmCounterShapeWithName,
+    ProofForge.IR.Examples.Counter.module,
+    ProofForge.IR.Examples.Counter.stateCount,
+    ProofForge.IR.Examples.Counter.initializeEntrypoint,
+    ProofForge.IR.Examples.Counter.increment,
+    ProofForge.IR.Examples.Counter.get,
+    counterInitializeEntrypoint, counterIncrementEntrypoint, counterGetEntrypoint,
+    ProofForge.IR.defaultAllocator]
+
+/-- PF-P3-01: free-name lowering-total for any lowerable module whose name is in
+the discharged finite family. Uses structural identity `m = counterShapeModule
+m.name` plus per-name `native_decide` bridges — not a general `∀ String`. -/
+theorem evm_lowerable_implies_lowering_total_of_family_name
+    (m : ProofForge.IR.Module)
+    (h : evmYulTargetSemantics.lowerableAccepts m = true)
+    (hn :
+      m.name = "Counter" ∨ m.name = "CounterRenamed" ∨ m.name = "C" ∨
+        m.name = "shape" ∨ m.name = "VaultCounter" ∨ m.name = "" ∨
+        m.name = "a" ∨ m.name = "Foo" ∨ m.name = "Vault2" ∨ m.name = "m") :
+    (ProofForge.Backend.Evm.IR.lowerModule m).isOk = true := by
+  have heq := evm_lowerable_eq_counterShapeModule m h
+  rw [heq, counterShapeModule_eq_evmCounterShapeWithName]
+  rcases hn with h1 | h1 | h1 | h1 | h1 | h1 | h1 | h1 | h1 | h1
+  · simp only [h1]; exact (evm_shape_name_Counter_lowerable_total).2
+  · simp only [h1]; exact (evm_shape_name_CounterRenamed_lowerable_total).2
+  · simp only [h1]; exact (evm_shape_name_C_lowerable_total).2
+  · simp only [h1]; exact (evm_shape_name_shape_lowerable_total).2
+  · simp only [h1]; exact (evm_shape_name_VaultCounter_lowerable_total).2
+  · simp only [h1]; exact (evm_shape_name_empty_lowerable_total).2
+  · simp only [h1]; exact (evm_shape_name_a_lowerable_total).2
+  · simp only [h1]; exact (evm_shape_name_Foo_lowerable_total).2
+  · simp only [h1]; exact (evm_shape_name_Vault2_lowerable_total).2
+  · simp only [h1]; exact (evm_shape_name_m_lowerable_total).2
 
 end ProofForge.Backend.Evm.Refinement

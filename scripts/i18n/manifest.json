@@ -32,10 +32,10 @@
     "note": "synced after Product/Backend reorg path renames"
   },
   "docs/capability-registry.md": {
-    "sha256": "52236bb675fce0116f4c7facb33bca5a49977e3a11ee851a2ad595d81519649d",
+    "sha256": "c09147d448ca67bce2651cbcca633231f3b78383c386d53f4d4fe248a68ebe14",
     "zh": "docs/zh/capability-registry.zh.md",
     "model": "manual-zh",
-    "note": "manually synced for PF-P0-05 (README/capability registry honesty)"
+    "note": "synced after Psy value.native capability audit"
   },
   "docs/portable-ir.md": {
     "sha256": "d28f500c252fcfbeb905950ec2f67ee3c43a331e4c4c7dafdaccbfde762015c2",
@@ -55,7 +55,7 @@
     "note": "synced after Product/Backend reorg path renames"
   },
   "docs/multi-chain-gap-audit-2026-07-10.md": {
-    "sha256": "22434af91fff59c31a0596b8312a541f6367976b60b1cc3da116ad7a050c871b",
+    "sha256": "2446fc2ae30d319e6ca589ddff1e2abcde8166d3a06c179415fa5e1855cd8557",
     "zh": "docs/zh/multi-chain-gap-audit-2026-07-10.zh.md",
     "model": "manual-zh"
   },
