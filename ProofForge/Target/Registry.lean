@@ -402,7 +402,7 @@ def psyDpn : TargetProfile := {
   ]
   requiredTools := #["dargo"]
   support := TargetSupport.fixtureSpike
-    "restricted IR → .psy intermediate → dargo circuit JSON; fixture/sourcegen lane"
+    "PF-P3-02: fixture Counter .psy + diagnostics; dargo final execute when installed; product source fail-closed"
     #[{ tool := "dargo", stage := "final-deployable" }]
 }
 
@@ -435,9 +435,16 @@ def aleoLeo : TargetProfile := {
     .zkProof
   ]
   requiredTools := #["leo"]
-  support := TargetSupport.fixtureResearch
-    "Counter/PureMath Leo sourcegen research spike; fixture emit"
-    #[{ tool := "leo", stage := "sourcegen" }]
+  support := {
+    maturity := .counterMvp
+    inputModes := #[.fixture]
+    commands := #[.emit, .check]
+    outputStages := #[.sourcegen, .finalDeployable]
+    validationLevel := .package
+    supportedFragment :=
+      "Counter MVP (PF-P3-02 six-gate): fixture counter → Leo package; leo build/test; product source fail-closed"
+    toolStages := #[{ tool := "leo", stage := "sourcegen" }]
+  }
 }
 
 /-- All defined profiles, including deprecated ones. Tests that exercise

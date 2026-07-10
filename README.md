@@ -56,7 +56,8 @@ with local `sui move build/test` validation.
 | `move-aptos` | portable IR → Aptos Move package | Counter MVP (PF-P3-02 six-gate) | `just aptos-promotion` (fixture counter · aptos compile/test · product source fail-closed); needs `aptos` CLI |
 | `move-sui` | portable IR → Sui Move package | Counter MVP | Counter package layout, local `sui move build/test`, unsupported-shape diagnostics, emit/build parity, object semantics, local-only validation, TypeScript client smoke |
 | `psy-dpn` | portable IR → `.psy` → Dargo → DPN circuit JSON | Experimental (restricted subset) | golden sources, diagnostics, `dargo` execute smokes |
-| `aleo-leo` | portable IR → Leo package → `leo build`/`leo test` | Research spike (listed; fixture emit + optional `leo` gates) | Counter/PureMath golden fixtures and smokes |
+| `aleo-leo` | portable IR → Leo package → `leo build`/`leo test` | Counter MVP (PF-P3-02 six-gate) | `just aleo-promotion` (fixture counter · leo build/test · product fail-closed) |
+
 | `wasm-cloudflare-workers` | portable IR → TypeScript Worker | Counter MVP (PF-P3-02 six-gate) | `just cloudflare-promotion` (fixture TS · wrangler · product fail-closed); not Wasm binary |
 
 **CLI-only verification target:** `quint` is accepted by `proof-forge emit --target quint`
