@@ -29,9 +29,22 @@ artifact-bundle:
 preflight-l2:
     lake env lean --run Tests/PreflightL2.lean
 
-# PF-P1-05: contract_source DSL arity + version surface.
+# PF-P1-05: contract_source DSL arity + version surface + Solana Surface isolation.
 source-dsl-arity:
+    #!/usr/bin/env bash
+    set -euo pipefail
     lake env lean --run Tests/SourceDslArity.lean
+    python3 - <<'PY'
+    from pathlib import Path
+    src = Path("ProofForge/Contract/Source.lean").read_text()
+    assert "import ProofForge.Solana.Surface" not in src
+    assert "import ProofForge.Solana\n" not in src and "import ProofForge.Solana\r" not in src
+    assert "Solana.Surface" not in src
+    sol = Path("ProofForge/Contract/Source/Solana.lean").read_text()
+    assert "import ProofForge.Solana.Surface" in sol
+    assert "trySolanaEntryStmt" in sol
+    print("source-dsl isolation: ok")
+    PY
 
 # Regenerate docs/generated/backend-status.md from --list-targets --json.
 backend-status-gen:
