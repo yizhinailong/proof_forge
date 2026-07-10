@@ -426,7 +426,7 @@ def evmYulTargetSemantics : TargetSemantics := {
   id := "evm-yul-subset"
   supportedFragments := #[.counter]
   fragmentAccepts := isCounterModule
-  lowerableAccepts := isCounterModule
+  lowerableAccepts := isCounterShapeLowerable
   MachineState := EvmYulMachineState
   Call := TraceCall
   Obs := ObservableStep
@@ -1159,9 +1159,9 @@ proven fragment.
 
 1. `evm_counter_lowering_total` — the canonical Counter module lowers
    successfully (`lowerModule = .ok`), witnessed by `native_decide`.
-2. `evm_proven_subset_lowerable_counter` — the proven-fragment predicate
-   (`isCounterModule`) implies the lowerable-fragment predicate (currently the
-   same predicate; will widen as more shapes are characterized).
+2. `evm_proven_subset_lowerable` — structural `isCounterModule ⊂
+   isCounterShapeLowerable` (proven ⇒ lowerable) for every module.
+3. PF-P3-01 renamed witness — lowerable ∧ ¬proven, and lowers successfully.
 -/
 
 /-- The canonical Counter module lowers to a Yul object without error.
@@ -1173,16 +1173,20 @@ theorem evm_counter_lowering_total :
       ProofForge.IR.Examples.Counter.module).isOk = true := by
   native_decide
 
-/-- The EVM proven-fragment predicate implies the EVM lowerable-fragment
-predicate for the canonical Counter module (currently reflexive: both are
-`isCounterModule`, so `proven ⊂ lowerable` holds by equality). -/
+/-- PF-P3-01 structural inclusion: every proved Counter module is EVM-lowerable. -/
+theorem evm_proven_subset_lowerable
+    (m : ProofForge.IR.Module)
+    (h : evmYulTargetSemantics.fragmentAccepts m = true) :
+    evmYulTargetSemantics.lowerableAccepts m = true :=
+  isCounterModule_implies_shape_lowerable m h
+
+/-- Counter-constant specialization kept for Track 1.4 smoke continuity. -/
 theorem evm_proven_subset_lowerable_counter :
     evmYulTargetSemantics.fragmentAccepts
       ProofForge.IR.Examples.Counter.module = true →
     evmYulTargetSemantics.lowerableAccepts
-      ProofForge.IR.Examples.Counter.module = true := by
-  intros
-  rfl
+      ProofForge.IR.Examples.Counter.module = true :=
+  evm_proven_subset_lowerable ProofForge.IR.Examples.Counter.module
 
 /-- Track 1.4 theorem 1 (lowerable ⇒ lowering-total), EVM Counter instance:
 if the Counter module is in the EVM lowerable fragment, then EVM `lowerModule`
@@ -1199,8 +1203,8 @@ theorem evm_fragment_subset_lowerable_counter
     (h : evmYulTargetSemantics.fragmentAccepts
       ProofForge.IR.Examples.Counter.module = true) :
     evmYulTargetSemantics.lowerableAccepts
-      ProofForge.IR.Examples.Counter.module = true := by
-  exact evm_proven_subset_lowerable_counter h
+      ProofForge.IR.Examples.Counter.module = true :=
+  evm_proven_subset_lowerable_counter h
 
 /-- Track 1.4 theorem 3 (capability-accept ⇒ lowerable), EVM Counter instance:
 if the EVM target profile resolves the Counter module's capability spec, then
@@ -1211,5 +1215,34 @@ theorem evm_capability_accept_implies_lowerable_counter
     evmYulTargetSemantics.lowerableAccepts
       ProofForge.IR.Examples.Counter.module = true := by
   native_decide
+
+/-- PF-P3-01 witness: Counter shape with a non-canonical name. Lowerable and
+not proved; not the canonical `Counter.module` constant. -/
+def evmRenamedCounterWitness : ProofForge.IR.Module :=
+  { ProofForge.IR.Examples.Counter.module with name := "CounterRenamed" }
+
+theorem evm_renamed_counter_lowerable_not_proved :
+    evmYulTargetSemantics.lowerableAccepts evmRenamedCounterWitness = true ∧
+      evmYulTargetSemantics.fragmentAccepts evmRenamedCounterWitness = false := by
+  native_decide
+
+theorem evm_renamed_counter_lowering_total :
+    (ProofForge.Backend.Evm.IR.lowerModule
+      evmRenamedCounterWitness).isOk = true := by
+  native_decide
+
+/-- PF-P3-01 partial lowerable ⇒ lowering-total: discharged for the proved
+canonical Counter and the renamed lowerable-not-proved witness. A full
+structural `∀ m, lowerable m → lowerModule m = .ok` bridge remains progressive. -/
+theorem evm_lowerable_implies_lowering_total_witnesses :
+    (evmYulTargetSemantics.lowerableAccepts
+        ProofForge.IR.Examples.Counter.module = true →
+      (ProofForge.Backend.Evm.IR.lowerModule
+          ProofForge.IR.Examples.Counter.module).isOk = true) ∧
+    (evmYulTargetSemantics.lowerableAccepts
+        evmRenamedCounterWitness = true →
+      (ProofForge.Backend.Evm.IR.lowerModule
+          evmRenamedCounterWitness).isOk = true) :=
+  ⟨fun _ => evm_counter_lowering_total, fun _ => evm_renamed_counter_lowering_total⟩
 
 end ProofForge.Backend.Evm.Refinement

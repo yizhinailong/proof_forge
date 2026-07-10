@@ -98,7 +98,7 @@ def solanaSbpfTargetSemantics : TargetSemantics := {
   id := "solana-sbpf-asm"
   supportedFragments := #[.counter]
   fragmentAccepts := isCounterModule
-  lowerableAccepts := isCounterModule
+  lowerableAccepts := isCounterShapeLowerable
   MachineState := SolanaSbpfMachineState
   Call := TraceCall
   Obs := ObservableStep
@@ -622,13 +622,19 @@ theorem solana_counter_lowering_total :
       ProofForge.IR.Examples.Counter.module).isOk = true := by
   native_decide
 
+/-- PF-P3-01 structural inclusion: every proved Counter module is Solana-lowerable. -/
+theorem solana_proven_subset_lowerable
+    (m : ProofForge.IR.Module)
+    (h : solanaSbpfTargetSemantics.fragmentAccepts m = true) :
+    solanaSbpfTargetSemantics.lowerableAccepts m = true :=
+  isCounterModule_implies_shape_lowerable m h
+
 theorem solana_proven_subset_lowerable_counter :
     solanaSbpfTargetSemantics.fragmentAccepts
       ProofForge.IR.Examples.Counter.module = true →
     solanaSbpfTargetSemantics.lowerableAccepts
-      ProofForge.IR.Examples.Counter.module = true := by
-  intros
-  rfl
+      ProofForge.IR.Examples.Counter.module = true :=
+  solana_proven_subset_lowerable ProofForge.IR.Examples.Counter.module
 
 theorem solana_lowerable_implies_lowering_total_counter
     (_h : solanaSbpfTargetSemantics.lowerableAccepts
@@ -652,6 +658,19 @@ theorem solana_capability_accept_implies_lowerable_counter
         ProofForge.IR.Examples.Counter.module).isOk = true) :
     solanaSbpfTargetSemantics.lowerableAccepts
       ProofForge.IR.Examples.Counter.module = true := by
+  native_decide
+
+def solanaRenamedCounterWitness : ProofForge.IR.Module :=
+  { ProofForge.IR.Examples.Counter.module with name := "CounterRenamed" }
+
+theorem solana_renamed_counter_lowerable_not_proved :
+    solanaSbpfTargetSemantics.lowerableAccepts solanaRenamedCounterWitness = true ∧
+      solanaSbpfTargetSemantics.fragmentAccepts solanaRenamedCounterWitness = false := by
+  native_decide
+
+theorem solana_renamed_counter_lowering_total :
+    (ProofForge.Backend.Solana.SbpfAsm.lowerModule
+      solanaRenamedCounterWitness).isOk = true := by
   native_decide
 
 end ProofForge.Backend.Solana.Refinement

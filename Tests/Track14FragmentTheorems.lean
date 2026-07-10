@@ -7,14 +7,15 @@ import ProofForge.Backend.Refinement.CounterUniversal
 
 Exercises the two-predicate fragment machinery (proven `fragmentAccepts` /
 lowerable `lowerableAccepts`) and the three Track 1.4 theorems across the
-EVM, Solana sBPF, and Wasm/NEAR backends on the canonical Counter module:
+EVM, Solana sBPF, and Wasm/NEAR backends on the canonical Counter module,
+plus the PF-P3-01 structural split:
 
 1. `*_lowering_total` — `lowerModule Counter.module = .ok _` (lowerable ⇒
    lowering-total bridge, `native_decide`).
-2. `*_fragment_subset_lowerable_counter` — `fragmentAccepts ⊂ lowerableAccepts`
-   (proven ⇒ lowerable).
+2. `*_proven_subset_lowerable` — structural `∀ m, proved m → lowerable m`.
 3. `*_capability_accept_implies_lowerable_counter` — capability resolution
    ⇒ lowerable.
+4. Renamed Counter witnesses: `lowerable ∧ ¬proved` and lowering-total.
 
 This is the machine-checked replacement for the ad-hoc
 `check-ir-coverage-manifest.py` scripts for the Counter proven fragment.
@@ -26,10 +27,15 @@ open ProofForge.Backend.Evm.Refinement
 open ProofForge.Backend.Solana.Refinement
 open ProofForge.Backend.WasmHost.Refinement
 open ProofForge.Backend.Refinement.CounterUniversal
+open ProofForge.Backend.Refinement
 
 #check evm_counter_lowering_total
 #check solana_counter_lowering_total
 #check wasm_near_counter_lowering_total
+
+#check evm_proven_subset_lowerable
+#check solana_proven_subset_lowerable
+#check wasm_near_proven_subset_lowerable
 
 #check evm_proven_subset_lowerable_counter
 #check solana_proven_subset_lowerable_counter
@@ -47,8 +53,20 @@ open ProofForge.Backend.Refinement.CounterUniversal
 #check solana_capability_accept_implies_lowerable_counter
 #check wasm_near_capability_accept_implies_lowerable_counter
 
+-- PF-P3-01: structural proved ⇒ lowerable is not limited to Counter.module.
+#check isCounterModule_implies_shape_lowerable
+
+-- PF-P3-01: checked lowerable ∧ ¬proved witnesses (renamed Counter shape).
+#check evm_renamed_counter_lowerable_not_proved
+#check solana_renamed_counter_lowerable_not_proved
+#check wasm_near_renamed_counter_lowerable_not_proved
+#check evm_renamed_counter_lowering_total
+#check solana_renamed_counter_lowering_total
+#check wasm_near_renamed_counter_lowering_total
+#check evm_lowerable_implies_lowering_total_witnesses
+
 end ProofForge.Tests.Track14FragmentTheorems
 
 def main : IO UInt32 := do
-  IO.println "track14-fragment-theorems-smoke: EVM/Solana/Wasm lowering-total, proven⊂lowerable, capability⇒lowerable theorems checked on Counter"
+  IO.println "track14-fragment-theorems-smoke: EVM/Solana/Wasm proven⊂lowerable (structural), Counter+renamed witnesses, capability⇒lowerable"
   return 0
