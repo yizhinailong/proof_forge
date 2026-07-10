@@ -759,6 +759,10 @@ near-budget-honesty:
 near-deploy-honesty:
     scripts/near/deploy-honesty-smoke.sh
 
+# E1.4: EVM upgrade-policy honesty (UUPS ok; authority without proxy fails closed).
+evm-upgrade-policy-honesty:
+    scripts/evm/upgrade-policy-honesty-smoke.sh
+
 # Build the shared portable Counter to EVM, Solana sBPF, and NEAR/Wasm from one source file.
 portable-counter-multi-target:
     scripts/portable/counter-multi-target.sh
