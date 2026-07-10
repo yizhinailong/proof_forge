@@ -12,7 +12,7 @@ Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
 
 Baseline: Waves 0–3 done. Wave 5 PF-P3-01 is complete through the structural
-`evm_lowerable_implies_lowering_total` Counter-shape path; PF-P3-03 now includes
+`evm_lowerable_implies_lowering_total` Counter-shape path; PF-P3-03 is complete with
 shared frontend refusal, parsed-root Lean provenance, isolated rebuild hashes,
 process-tree wall-clock enforcement, and CPU/memory resource gates. Wave 4
 PF-P3-02 remains reopened until every advertised secondary-target maturity is
@@ -126,7 +126,7 @@ implementation SHA is only known after the implementation commit exists.
 | 3 | PF-P2-02 | done: verified@7c4def9c; Foundry ERC721/1155/custom-error; Solana ELF; `just near-sandbox-peer` (storage_usage + promise peer); `just product`; `just check` | Waves 1 and 2 done; complete one backend slice at a time |
 | 3 | PF-P2-03 | done: verified@7c4def9c; `just testkit-remote-call` (evm+solana); Foundry peer; Mollusk CPI; `just near-sandbox-peer` (call_with_args→49); `just product` | Waves 1 and 2 done |
 | 5 | PF-P3-01 | done: verified@c576ae4f; `just track14-fragment-theorems-smoke`; `just evm-counter-shape-name-totality`; `just evm-foundry`; `just product` | Wave 3 done; Counter-shape theorem only, not general compiler correctness |
-| 5 | PF-P3-03 | in_progress: implementation includes shared HOSTED_ISOLATION refusal, parsed-root declared/observed Lean provenance, isolated rebuild hash, process-tree wall timeout, and cgroup/RLIMIT CPU+memory controls; next: fresh merged-revision verification SHA | Wave 3 done |
+| 5 | PF-P3-03 | done: verified@06bf854a; `just hosted-isolation`; `just rebuild-hash`; `just worker-limits`; `just worker-cgroup`; `just check` | Wave 3 done |
 | 4 | PF-P3-02 | in_progress: Cloudflare is honestly retained as off-chain Research sourcegen; Aptos remains Spike/sourcegen while product `contract_source` is unsupported; Aleo remains Research/sourcegen because state-derived getters fail closed; rerun promotion-readiness gates on one revision without overstating maturity | Wave 3 done; promote only one target at a time, and do not block Wave 5 |
 
 PF-P3-02 promotion order is fixed unless the human changes it: Soroban,
