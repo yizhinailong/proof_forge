@@ -101,6 +101,9 @@ open ProofForge.Backend.Refinement
 #check evm_lowerable_implies_lowering_total_of_name_indep
 #check counterShapeModule_eq_evmCounterShapeWithName
 #check evm_lowerable_implies_lowering_total_of_family_name
+#check evm_lowerModuleCore_counterShape_Counter_isOk
+#check evm_shape_lowerable_implies_lowering_total
+#check evm_lowerable_implies_lowering_total
 
 end ProofForge.Tests.Track14FragmentTheorems
 

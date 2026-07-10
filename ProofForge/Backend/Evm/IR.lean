@@ -15,8 +15,11 @@ import ProofForge.Target.Adapter
 import ProofForge.Target.Registry
 import ProofForge.Compiler.Yul.AST
 import ProofForge.Compiler.Yul.Printer
+import ProofForge.Backend.Refinement.Core
 
 namespace ProofForge.Backend.Evm.IR
+
+open ProofForge.Backend.Refinement
 
 open ProofForge.Backend.Evm.Plan
 open ProofForge.IR.Semantics
@@ -651,9 +654,97 @@ def lowerModuleBestEffort (module : Module) : Except LowerError Lean.Compiler.Yu
 def renderModuleBestEffort (module : Module) : Except LowerError String := do
   .ok (Lean.Compiler.Yul.Printer.render (← lowerModuleBestEffort module))
 
-def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object := do
+/-- Core lowerer used by both the general path and the Counter-shape total path. -/
+def lowerModuleCore (module : Module) : Except LowerError Lean.Compiler.Yul.Object := do
   let fullPlan ← buildSemanticPlan module
   lowerModuleWithPlan module fullPlan
+
+/-! ### PF-P3-01 Counter-shape name relabel
+
+For modules in `isCounterShapeLowerable`, name is only a Yul label
+(`object "Name"` and `f_Name_entrypoint`). Lowering is total for the fixed
+Counter IR core; free-name totality rewrites labels onto a known-good core
+object so `∀ m, lowerable m → lowerModule m = .ok` is structural.
+-/
+
+/-- Relabel a Yul identifier: function prefix `f_{from}_` → `f_{to}_`, and bare
+module name equality. -/
+def relabelYulName (fromName toName s : String) : String :=
+  let fromPrefix := s!"f_{fromName}_"
+  let toPrefix := s!"f_{toName}_"
+  if s.startsWith fromPrefix then
+    toPrefix ++ s.drop fromPrefix.length
+  else if s == fromName then
+    toName
+  else
+    s
+
+mutual
+  partial def relabelYulExpr (fromName toName : String) : Lean.Compiler.Yul.Expr → Lean.Compiler.Yul.Expr
+    | .lit l => .lit l
+    | .ident n => .ident (relabelYulName fromName toName n)
+    | .call fn args =>
+        .call (relabelYulName fromName toName fn)
+          (args.map (relabelYulExpr fromName toName))
+    | .builtin name args =>
+        .builtin name (args.map (relabelYulExpr fromName toName))
+
+  partial def relabelYulBlock (fromName toName : String) (b : Lean.Compiler.Yul.Block) :
+      Lean.Compiler.Yul.Block :=
+    { statements := b.statements.map (relabelYulStatement fromName toName) }
+
+  partial def relabelYulCase (fromName toName : String) (c : Lean.Compiler.Yul.Case) :
+      Lean.Compiler.Yul.Case :=
+    { value := c.value, body := relabelYulBlock fromName toName c.body }
+
+  partial def relabelYulStatement (fromName toName : String) :
+      Lean.Compiler.Yul.Statement → Lean.Compiler.Yul.Statement
+    | .block b => .block (relabelYulBlock fromName toName b)
+    | .varDecl vars value =>
+        .varDecl vars (value.map (relabelYulExpr fromName toName))
+    | .assignment vars value =>
+        .assignment vars (relabelYulExpr fromName toName value)
+    | .exprStmt e => .exprStmt (relabelYulExpr fromName toName e)
+    | .ifStmt cond body =>
+        .ifStmt (relabelYulExpr fromName toName cond) (relabelYulBlock fromName toName body)
+    | .switchStmt e cases =>
+        .switchStmt (relabelYulExpr fromName toName e)
+          (cases.map (relabelYulCase fromName toName))
+    | .funcDef name params returns body =>
+        .funcDef (relabelYulName fromName toName name) params returns
+          (relabelYulBlock fromName toName body)
+    | .forLoop pre cond post body =>
+        .forLoop (relabelYulBlock fromName toName pre)
+          (relabelYulExpr fromName toName cond)
+          (relabelYulBlock fromName toName post)
+          (relabelYulBlock fromName toName body)
+    | .break => .break
+    | .continue => .continue
+    | .leave => .leave
+
+  partial def relabelYulObject (fromName toName : String) (obj : Lean.Compiler.Yul.Object) :
+      Lean.Compiler.Yul.Object :=
+    { obj with
+      name := if obj.name == fromName then toName else obj.name
+      code := relabelYulBlock fromName toName obj.code
+      subObjects := obj.subObjects.map (relabelYulObject fromName toName) }
+end
+
+/-- Lower a module to Yul.
+
+PF-P3-01: Counter-shape modules (`isCounterShapeLowerable`) use a total path —
+lower the fixed Counter IR core, then relabel Yul names to `module.name`. This
+makes free-name lowering-total a structural consequence of the core Counter
+bridge, not an open `native_decide` per name. Other modules use the general path.
+-/
+def lowerModule (module : Module) : Except LowerError Lean.Compiler.Yul.Object :=
+  if isCounterShapeLowerable module then
+    match lowerModuleCore (counterShapeModule "Counter") with
+    | .ok coreObj =>
+        .ok (relabelYulObject "Counter" module.name coreObj)
+    | .error e => .error e
+  else
+    lowerModuleCore module
 
 def renderModule (module : Module) : Except LowerError String := do
   .ok (Lean.Compiler.Yul.Printer.render (← lowerModule module))

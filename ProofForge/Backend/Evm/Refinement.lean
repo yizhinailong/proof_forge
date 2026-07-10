@@ -1490,12 +1490,47 @@ theorem evm_lowerable_implies_canonical_lowering_total
   rw [evm_withCanonical_of_lowerable_eq_counter m h]
   exact evm_counter_lowering_total
 
-/-- PF-P3-01 free-name bridge schema: if `isOk` is independent of `module.name`
-for a lowerable module, then free-name lowering is total.
+/-- Local `isOk` so theorems do not depend on which `Except.isOk` is in scope. -/
+def evmLowerIsOk {α : Type} : Except ProofForge.Backend.Evm.IR.LowerError α → Bool
+  | .ok _ => true
+  | .error _ => false
 
-The premise is the remaining structural obligation on `lowerModule` (name is only
-a label in Yul object/error strings for Counter-shape IR). Finite name-family
-witnesses already discharge concrete instances via `native_decide`. -/
+/-- PF-P3-01: the Counter IR core always lowers (shared by the free-name path). -/
+theorem evm_lowerModuleCore_counterShape_Counter_isOk :
+    evmLowerIsOk (ProofForge.Backend.Evm.IR.lowerModuleCore
+      (counterShapeModule "Counter")) = true := by
+  native_decide
+
+/-- PF-P3-01 structural free-name totality: every shape-lowerable module lowers.
+
+The Counter-shape path in `lowerModule` lowers the fixed Counter core then
+relabels Yul names to `module.name`, so success does not depend on the free
+name label. -/
+theorem evm_shape_lowerable_implies_lowering_total
+    (m : ProofForge.IR.Module)
+    (h : isCounterShapeLowerable m = true) :
+    evmLowerIsOk (ProofForge.Backend.Evm.IR.lowerModule m) = true := by
+  unfold ProofForge.Backend.Evm.IR.lowerModule
+  rw [if_pos h]
+  have hbase := evm_lowerModuleCore_counterShape_Counter_isOk
+  cases hres : ProofForge.Backend.Evm.IR.lowerModuleCore (counterShapeModule "Counter") with
+  | error e =>
+    simp only [evmLowerIsOk, hres] at hbase
+    exact (nomatch hbase)
+  | ok obj =>
+    simp only [evmLowerIsOk]
+
+/-- PF-P3-01 acceptance: `∀ m, lowerable m → lowerModule m = .ok` over the
+structural Counter-shape predicate (free name included). -/
+theorem evm_lowerable_implies_lowering_total
+    (m : ProofForge.IR.Module)
+    (h : evmYulTargetSemantics.lowerableAccepts m = true) :
+    evmLowerIsOk (ProofForge.Backend.Evm.IR.lowerModule m) = true :=
+  evm_shape_lowerable_implies_lowering_total m h
+
+/-- PF-P3-01 free-name bridge schema (legacy): if `isOk` is independent of
+`module.name`, free-name lowering is total. Superseded by
+`evm_lowerable_implies_lowering_total` via the Counter-shape total path. -/
 theorem evm_lowerable_implies_lowering_total_of_name_indep
     (m : ProofForge.IR.Module)
     (h : evmYulTargetSemantics.lowerableAccepts m = true)
