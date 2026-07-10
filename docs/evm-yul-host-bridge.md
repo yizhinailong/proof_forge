@@ -32,6 +32,7 @@ EvmYulMachineState  (lowered Yul object + WordBindings storage)
 | Existing executable-trace anchors re-checked | same | same |
 | Counter IR↔powdr bytecode delivery boundary | `EvmRefinement/CounterRefinement.lean` | `just evm-powdr-counter-refinement-smoke` |
 | Counter runtime bytecode matches CLI emit witness | `scripts/evm/powdr-counter-runtime-smoke.sh` | `just evm-powdr-counter-runtime` |
+| Counter Yul→bytecode verified via external `solc` | `scripts/evm/yul-compiler-counter-smoke.sh` | `just evm-yul-compiler-counter-smoke` |
 
 ### Storage relation (Counter)
 
@@ -76,4 +77,7 @@ witnessed by `value_vault_yul_trace_simulation_sound_checked`.
 
 1. ~~Multi-field storage relation for ValueVault (not only observables).~~ ✅ Done.
 2. ~~Strengthen powdr delivery boundary (opt-in) for Counter bytecode.~~ ✅ Done.
-3. Optional: yul-compiler integration for verified Yul→bytecode (external).
+3. ~~Optional: yul-compiler integration for verified Yul→bytecode (external).~~ ✅ Done for Counter.
+
+Future: extend the external `solc` Yul→bytecode verification to ValueVault and
+other product sources as their powdr/bytecode witnesses land.

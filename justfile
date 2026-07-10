@@ -314,6 +314,11 @@ evm-powdr-counter-refinement-smoke:
 evm-powdr-counter-runtime: build
     scripts/evm/powdr-counter-runtime-smoke.sh
 
+# External Yul→bytecode verification: compile emitted Counter Yul with solc
+# and check it reproduces the embedded powdr runtime witness.
+evm-yul-compiler-counter-smoke: build
+    scripts/evm/yul-compiler-counter-smoke.sh
+
 # Check the three-valued ExecResult (ok/reverted/error) classification for
 # the IR reference semantics (FV-2 revert-model prerequisite).
 ir-exec-result-smoke:
