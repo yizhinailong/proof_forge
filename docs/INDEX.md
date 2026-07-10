@@ -106,7 +106,7 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - [Portable SDK unification plan (2026-07-09)](superpowers/plans/2026-07-09-portable-sdk-unification.md): **complete** (policy · Token · remote · author polish).
 - [Unified support roadmap (2026-07-09)](superpowers/plans/2026-07-09-unified-support-roadmap.md): prior unification waves (historical context; unfinished U4/U6 absorbed by post-review plan).
 - [Post-review execution plan (2026-07-10)](superpowers/plans/2026-07-10-post-review-execution.md): **active** — S0 trunk · N1 NEAR · E1 EVM · L1 Solana · **B1 benchmarks** · **Z1 Psy DPN** · **Z2 Aleo Instructions** · P1 platform · F1 FV · D1 DX.
-- [Benchmarks (PF vs native)](benchmarks.md): B1 matrix skeleton — behavior + native cost dimensions (no fake cross-chain score).
+- [Benchmarks (PF vs native)](benchmarks.md): B1 Counter matrix (PF+native runners, behavior gate, cost table) — no fake cross-chain score. Snapshot: [generated/benchmark-counter.md](generated/benchmark-counter.md).
 - [CLI M4 legacy inventory](cli-m4-legacy-inventory.md): EmitMode/flag zoo inventory before alias deletion.
 - [CLI M4 deletion checklist](cli-m4-deletion-checklist.md): ordered delete steps (compat window).
 - [RFC 0012 versioning](rfcs/0012-versioning-and-compatibility-policy.md) + `just versioning-policy`.
