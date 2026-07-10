@@ -1,6 +1,7 @@
 # SDK Ecosystem Gap Analysis (2026-07)
 
-Status: **Planning document; audited 2026-07-04**
+Status: **Living gap inventory; EVM receiver/selector MVP closed under PF-P2-02
+(2026-07). Last inventory pass: 2026-07-10.**
 
 Gate P0 is closed — the three primary chains have production-grade
 compilers, artifact emission, deploy manifests, testkit parity, and

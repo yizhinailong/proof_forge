@@ -387,29 +387,38 @@ skip it.
 
 #### PF-P2-02 - Primary backends still have ecosystem-specific gaps
 
-**Evidence:** `docs/sdk-ecosystem-gaps-2026-07.md` still records the EVM
-receiver/batch/error gaps; PF-P0-03 demonstrates that generic Solana source
-builds do not yet produce ELF; and the NEAR deploy manifest explicitly reports
-local offline-host mode with no sandbox deployment. Existing specialized token,
-CPI and FT Promise smokes prove useful slices, not the general behaviors below.
+**Status (2026-07):** **EVM slice closed** (PF-P2-02 @7c4def9c / follow-ons).
+`docs/sdk-ecosystem-gaps-2026-07.md` marks ERC-721 `onERC721Received`, ERC-1155
+receiver + size-2 batch, and custom-error **4-byte selector** surface as
+Covered (limited where noted). Remaining open work is P1 depth (arbitrary-length
+ERC-1155 batch / `onERC1155BatchReceived`, custom-error *argument* ABI), plus
+Solana/NEAR items below — not a reopening of the EVM receiver/selector MVP.
 
-**Required change:** finish the gaps already documented in target/SDK notes,
-without treating every chain-native feature as portable:
+**Historical evidence (pre-close):** gap doc and target notes recorded missing
+EVM receiver/batch/error surfaces; PF-P0-03 showed generic Solana source builds
+without ELF; NEAR deploy manifest reported local offline-host without sandbox.
 
-- EVM: Solidity-compatible custom-error selector/ABI/client surfaces (the IR
-  already has structured `revertWithError`), ERC721 receiver behavior, and
-  ERC1155 batch/callback depth;
+**Required change (remaining):** finish documented gaps without treating every
+chain-native feature as portable:
+
+- EVM (done for MVP): Solidity-compatible custom-error **selector** surface
+  (`errors-ir-smoke` `test_revertCustomError_selector`), ERC721
+  `onERC721Received` Foundry accept/reject, ERC1155 `onERC1155Received` +
+  size-2 `safeBatchTransferFrom2` Foundry cases. Open: arg ABI + full batch.
 - Solana: generic source-to-ELF, deployment-level runtime coverage and remaining
-  ABI/length limits;
-- NEAR: generalize async Promise/callback support beyond specialized flows,
-  complete storage accounting, and add a real sandbox gate.
+  ABI/length limits (source-ELF path closed separately under PF-P0-03 /
+  `just solana-source-elf` where applicable);
+- NEAR: generalize async Promise/callback beyond specialized flows, complete
+  storage accounting, and keep sandbox peer gates (`just near-sandbox-peer`).
 
 Unsupported chain-native behavior must be an explicit target extension or a
 diagnostic, never an invented portable semantic.
 
 **Acceptance:** EVM adds positive and rejection Foundry/Anvil cases for
 Solidity-compatible custom-error ABI/client behavior, ERC721 receiver callbacks
-and ERC1155 batch/callback behavior; a
+and ERC1155 batch/callback behavior — **met** via `just evm-foundry` /
+`scripts/evm/foundry-smoke.sh` (`testERC721*`, `testERC1155*`) and
+`scripts/evm/errors-ir-smoke.sh` (`test_revertCustomError_selector`); a
 source-built Solana ELF runs through the strict testkit gate with boundary ABI
 fixtures; and NEAR executes a general caller/callee Promise callback plus
 storage-accounting scenario in sandbox. Each capability remains absent from

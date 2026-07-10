@@ -350,29 +350,36 @@ claimed target 不能被静默跳过。
 
 #### PF-P2-02 - 主要后端仍有生态特定缺口
 
-**证据：**`docs/sdk-ecosystem-gaps-2026-07.md` 仍记录 EVM
-receiver/batch/error 缺口；PF-P0-03 证明通用 Solana 源码构建尚不生成 ELF；
-NEAR deploy manifest 也明确报告 local offline-host mode，没有 sandbox 部署。
-现有专项 token、CPI 和 FT Promise smoke 证明了有价值的切片，但没有证明下方
-通用行为。
+**状态（2026-07）：EVM 切片已关闭**（PF-P2-02 @7c4def9c 及后续）。
+`docs/sdk-ecosystem-gaps-2026-07.md` 将 ERC-721 `onERC721Received`、ERC-1155
+receiver + size-2 batch、以及 custom-error **4-byte selector** 表面标为
+Covered（有限处另注）。仍开放的是 P1 深度（任意长度 ERC-1155 batch /
+`onERC1155BatchReceived`、custom-error *参数* ABI），以及下方 Solana/NEAR
+项——不是重新打开 EVM receiver/selector MVP。
 
-**必须修改：**完成 target/SDK notes 已记录的缺口，但不要把所有链原生特性都
-当成 portable：
+**历史证据（关闭前）：** gap 文档与 target notes 记录了缺失的 EVM
+receiver/batch/error 表面；PF-P0-03 显示通用 Solana 源码构建无 ELF；NEAR
+deploy manifest 报告 local offline-host、无 sandbox。
 
-- EVM：Solidity-compatible custom-error selector/ABI/client surface（IR 已有
-  结构化 `revertWithError`）、ERC721 receiver 行为、ERC1155
-  batch/callback 深度；
-- Solana：通用 source-to-ELF、部署级 runtime coverage 和剩余 ABI/长度限制；
+**必须修改（剩余）：**完成已记录缺口，但不要把所有链原生特性都当成 portable：
+
+- EVM（MVP 已完成）：custom-error **selector** 表面
+  （`errors-ir-smoke` `test_revertCustomError_selector`）、ERC721
+  `onERC721Received` Foundry 接受/拒绝、ERC1155 `onERC1155Received` +
+  size-2 `safeBatchTransferFrom2` Foundry。开放：参数 ABI + 全长 batch。
+- Solana：通用 source-to-ELF、部署级 runtime coverage 和剩余 ABI/长度限制
+  （source-ELF 路径在 PF-P0-03 / `just solana-source-elf` 另有关闭项）；
 - NEAR：把 async Promise/callback 从专项流程推广到通用路径，完成 storage
-  accounting，并增加真实 sandbox 门禁。
+  accounting，并保持 sandbox peer 门禁（`just near-sandbox-peer`）。
 
 不支持的链原生行为必须是显式 target extension 或 diagnostic，不能发明
 portable semantic。
 
-**验收：**EVM 为 Solidity-compatible custom-error ABI/client 行为、ERC721
-receiver callback 和 ERC1155 batch/callback 行为增加正向及拒绝
-Foundry/Anvil 用例；源码构建的 Solana ELF
-通过严格 testkit 门禁和边界 ABI fixture；NEAR 在 sandbox 中执行通用
+**验收：**EVM 为 custom-error ABI/client、ERC721 receiver、ERC1155
+batch/callback 增加正向及拒绝 Foundry/Anvil 用例——**已满足**
+（`just evm-foundry` / `foundry-smoke.sh` 的 `testERC721*`、`testERC1155*`，
+以及 `errors-ir-smoke.sh` 的 `test_revertCustomError_selector`）；源码构建的
+Solana ELF 通过严格 testkit 与边界 ABI fixture；NEAR 在 sandbox 中执行通用
 caller/callee Promise callback 与 storage-accounting 场景。每项 capability
 在对应门禁通过前都不能加入 portable profile。
 
