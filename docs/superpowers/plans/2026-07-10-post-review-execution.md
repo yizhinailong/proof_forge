@@ -477,13 +477,13 @@ rejects direct path and Leo Road 1 is reinforced with clear reasons.
 
 | ID | Task | Work | Acceptance | Size | Status |
 |----|------|------|------------|------|--------|
-| **Z2.0** | Feasibility note | Document Aleo Instructions grammar surface needed for Counter (`program`, `mapping`, `function`/`finalize`, `set`/`get.or_use`/`add`, constructor). Cite official “compilers other than Leo” guidance | Update `docs/targets/aleo-leo.md` Road 3 section with go criteria | S | pending |
-| **Z2.1** | Golden `.aleo` pin | Track `Examples/Backend/Aleo/Counter.golden.aleo` from `leo build` of current golden Leo | Diff in `scripts/aleo/counter-smoke.sh` or sibling | S | pending |
-| **Z2.2** | AST for Instructions | Add `ProofForge/Compiler/Aleo/{AST,Printer}.lean` (or under Backend/Aleo) modeling only Counter-needed instruction forms | Printer round-trip on golden `.aleo` | M | pending |
-| **Z2.3** | IR → Instructions lower | Lower IR Counter fixture to Aleo Instructions AST; emit `.aleo` | `proof-forge emit --target aleo-leo --fixture counter --format aleo` (or new format id) matches golden within allowed whitespace/normalization | L | pending |
-| **Z2.4** | snarkVM / leo validate | Validate emitted `.aleo` with official toolchain (`leo` import path or snarkVM) without requiring our Leo printer | Tool smoke green or skip-if-missing with honest exit | M | pending |
-| **Z2.5** | Fallback policy | If Z2.3 blocked: keep Leo sourcegen; improve fail-closed product input; record blockers (async/finalize split, private records, edition/constructor) | Decision recorded; Road 1 still MVP-honest | S | pending |
-| **Z2.6** | Road 2 defer | Private records / transitions / proof gen remain out of Z2 | Explicit non-goal in target note | S | pending |
+| **Z2.0** | Feasibility note | Document Aleo Instructions grammar surface needed for Counter (`program`, `mapping`, `function`/`finalize`, `set`/`get.or_use`/`add`, constructor). Cite official “compilers other than Leo” guidance | Update `docs/targets/aleo-leo.md` Road 3 section with go criteria | S | done: Road 3 + Z2 policy surface |
+| **Z2.1** | Golden `.aleo` pin | Track `Examples/Backend/Aleo/Counter.golden.aleo` from `leo build` of current golden Leo | Diff in `scripts/aleo/counter-smoke.sh` or sibling | S | done: Counter.golden.aleo; just aleo-aleo-goldens |
+| **Z2.2** | AST for Instructions | Add `ProofForge/Compiler/Aleo/{AST,Printer}.lean` (or under Backend/Aleo) modeling only Counter-needed instruction forms | Printer round-trip on golden `.aleo` | M | done: Backend/Aleo/Instructions/*; just aleo-instructions-printer |
+| **Z2.3** | IR → Instructions lower | Lower IR Counter fixture to Aleo Instructions AST; emit `.aleo` | `proof-forge emit --target aleo-leo --fixture counter --format aleo` (or new format id) matches golden within allowed whitespace/normalization | L | done: --format aleo; just aleo-instructions-direct |
+| **Z2.4** | snarkVM / leo validate | Validate emitted `.aleo` with official toolchain (`leo` import path or snarkVM) without requiring our Leo printer | Tool smoke green or skip-if-missing with honest exit | M | done: just aleo-instructions-validate (leo tool-gated) |
+| **Z2.5** | Fallback policy | If Z2.3 blocked: keep Leo sourcegen; improve fail-closed product input; record blockers (async/finalize split, private records, edition/constructor) | Decision recorded; Road 1 still MVP-honest | S | done: docs/superpowers/specs/2026-07-10-z2-fallback-policy.md |
+| **Z2.6** | Road 2 defer | Private records / transitions / proof gen remain out of Z2 | Explicit non-goal in target note | S | done: Z2 policy Road 2 defer |
 
 **Hard rules:**
 - Prefer `.aleo` over inventing AVM bytecode files.
@@ -604,7 +604,7 @@ The plan is **complete** when:
 | L1 | done: L1.1–L1.5 closed | memo multi-byte; pinocchio 7 refs; solana-source-elf |
 | B1 | done: B1.0–B1.8 closed | just benchmark-matrix / benchmark-zk-counter |
 | Z1 | done: Z1.0–Z1.6 closed | dpn goldens; metadata honesty; AST; Counter dpn-json; fallback policy |
-| Z2 | pending | research findings landed in this plan |
+| Z2 | done: Z2.0–Z2.6 closed | Counter .aleo direct; Leo fallback policy |
 | P1 | pending | |
 | F1 | pending | |
 | D1 | pending | |

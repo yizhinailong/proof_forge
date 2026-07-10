@@ -1333,6 +1333,23 @@ psy-dpn-direct:
 psy-dpn-execute-oracle:
     scripts/psy/dpn-execute-oracle-smoke.sh
 
+# Z2.1: Counter Aleo Instructions golden pin (leo rebuild-diff when present).
+aleo-aleo-goldens:
+    scripts/aleo/aleo-goldens-gate.sh
+
+# Z2.2: Lean Aleo Instructions printer round-trip.
+aleo-instructions-printer:
+    lake build ProofForge.Backend.Aleo.Instructions
+    lake env lean --run Tests/AleoInstructionsPrinter.lean
+
+# Z2.3: Counter IR → .aleo direct emit matches golden.
+aleo-instructions-direct:
+    scripts/aleo/aleo-instructions-direct-smoke.sh
+
+# Z2.4: leo validate direct .aleo (skip if no leo).
+aleo-instructions-validate:
+    scripts/aleo/aleo-instructions-validate-smoke.sh
+
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:
     #!/usr/bin/env bash

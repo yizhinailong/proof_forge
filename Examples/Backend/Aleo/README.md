@@ -1,22 +1,20 @@
-# Aleo Examples
+# Aleo backend fixtures
 
-This directory contains golden fixtures for the Aleo Leo sourcegen backend.
+| File | Role |
+|------|------|
+| `Counter.golden.leo` | Road 1 Leo sourcegen golden |
+| `Counter.golden.aleo` | Z2 Aleo Instructions golden (`leo build` of Counter.leo) |
+| `PureMath.golden.leo` | Pure-math Leo fixture |
 
-## Files
+Regenerate `.aleo` golden:
 
-- `Counter.golden.leo` — expected output of
-  `proof-forge emit --target aleo-leo --fixture counter --format leo` for the
-  portable IR `Counter` module (`ProofForge.IR.Examples.Counter`).
-
-## Updating the golden fixture
-
-After changing the Aleo backend, regenerate the fixture through the target-first
-CLI:
-
-```bash
-lake build
-./.lake/build/bin/proof-forge emit --target aleo-leo --fixture counter --format leo -o build/aleo/Counter.leo
-cp build/aleo/Counter.leo Examples/Backend/Aleo/Counter.golden.leo
+```sh
+mkdir -p build/aleo/z2-counter-golden/src
+cp Examples/Backend/Aleo/Counter.golden.leo build/aleo/z2-counter-golden/src/main.leo
+printf '{"program":"counter.aleo","version":"0.1.0","description":"","license":"Apache-2.0"}\n' \
+  > build/aleo/z2-counter-golden/program.json
+(cd build/aleo/z2-counter-golden && leo build)
+cp build/aleo/z2-counter-golden/build/main.aleo Examples/Backend/Aleo/Counter.golden.aleo
 ```
 
-Then review the diff before committing.
+Gate: `just aleo-aleo-goldens` / `just aleo-instructions-direct`

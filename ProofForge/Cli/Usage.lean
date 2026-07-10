@@ -165,6 +165,8 @@ def usage : String :=
     "  proof-forge --emit-hash-ir-wasm-near -o output-dir",
     "  proof-forge --emit-map-ir-wasm-near -o output-dir",
     "  proof-forge --emit-counter-ir-leo [-o output.leo]",
+    "  proof-forge --emit-counter-ir-aleo [-o output.aleo]",
+    "  proof-forge emit --target aleo-leo --fixture counter --format aleo [-o output.aleo]",
     "  proof-forge --emit-counter-ir-cosmwasm [-o output.wat]   (CosmWasm Counter spike)",
     "  proof-forge --emit-counter-ir-aptos [-o output-dir]       (Aptos Move Counter spike)",
     "  proof-forge --emit-counter-ir-sui [-o output-dir]         (Sui Move Counter MVP)",

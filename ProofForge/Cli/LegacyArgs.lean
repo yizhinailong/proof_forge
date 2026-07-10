@@ -393,6 +393,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .mapEmitWat }
   | "--emit-counter-ir-leo" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrLeo }
+  | "--emit-counter-ir-aleo" :: rest, opts =>
+      parseArgs rest { opts with mode := .counterIrAleo }
   | "--emit-pure-math-ir-leo" :: rest, opts =>
       parseArgs rest { opts with mode := .pureMathIrLeo }
   | "--emit-counter-ir-cosmwasm" :: rest, opts =>

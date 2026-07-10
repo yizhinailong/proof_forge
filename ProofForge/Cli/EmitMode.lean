@@ -163,6 +163,7 @@ inductive EmitMode where
   | hashEmitWat
   | mapEmitWat
   | counterIrLeo
+  | counterIrAleo
   | pureMathIrLeo
   | counterIrCosmWasm
   | counterIrAptos
@@ -346,6 +347,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .hashEmitWat
   | .mapEmitWat
   | .counterIrLeo
+  | .counterIrAleo
   | .pureMathIrLeo
   | .counterIrTs
   | .counterIrCosmWasm

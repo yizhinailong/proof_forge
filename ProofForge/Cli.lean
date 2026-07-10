@@ -288,6 +288,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .hashEmitWat => compileHashEmitWat opts
   | .mapEmitWat => compileMapEmitWat opts
   | .counterIrLeo => compileCounterIrLeo opts
+  | .counterIrAleo => compileCounterIrAleo opts
   | .pureMathIrLeo => compilePureMathIrLeo opts
   | .counterIrCosmWasm => compileCounterIrCosmWasm opts
   | .counterIrAptos => compileCounterIrAptos opts

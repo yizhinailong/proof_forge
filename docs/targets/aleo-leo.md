@@ -244,6 +244,21 @@ First spike:
 This is the path that proves Aleo support is more than an account-chain source
 generator.
 
+### Road 3 status (Z2, 2026-07-10)
+
+**Counter public-mapping path is live** as a bootstrap direct emit:
+
+```sh
+proof-forge emit --target aleo-leo --fixture counter --format aleo -o Counter.aleo
+just aleo-instructions-direct
+just aleo-instructions-printer
+just aleo-aleo-goldens
+```
+
+Golden: `Examples/Backend/Aleo/Counter.golden.aleo` (from `leo build` of
+`Counter.golden.leo`). Policy: `docs/superpowers/specs/2026-07-10-z2-fallback-policy.md`.
+Leo Road 1 remains the general front-end; private records / proofs are Road 2.
+
 ### Road 3: Direct Aleo Instructions
 
 Use this road only after Leo sourcegen proves the semantics.

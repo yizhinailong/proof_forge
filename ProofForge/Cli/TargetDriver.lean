@@ -288,10 +288,14 @@ def aleoResolveBuild (req : BuildRequest) : Except String String :=
     fixtureOnlyBuild "aleo-leo" "--emit-counter-ir-leo" req
 
 def aleoResolveEmit (req : EmitRequest) : Except String String :=
-  match req.fixture with
-  | "counter" => Except.ok "--emit-counter-ir-leo"
-  | "pure-math" => Except.ok "--emit-pure-math-ir-leo"
-  | f => Except.error s!"emit --target aleo-leo --fixture {f} --format {req.format?.getD ""} is not yet mapped to a legacy flag"
+  let fmt := req.format?.getD ""
+  if (fmt == "aleo" || fmt == "instructions") && req.fixture == "counter" then
+    Except.ok "--emit-counter-ir-aleo"
+  else
+    match req.fixture with
+    | "counter" => Except.ok "--emit-counter-ir-leo"
+    | "pure-math" => Except.ok "--emit-pure-math-ir-leo"
+    | f => Except.error s!"emit --target aleo-leo --fixture {f} --format {req.format?.getD ""} is not yet mapped to a legacy flag"
 
 def aptosResolveBuild (req : BuildRequest) : Except String String :=
   if isLearnInput req.input? then

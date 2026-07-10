@@ -98,6 +98,7 @@ inductive Format where
   | qnt
   | scenario
   | dpnJson
+  | aleo
   deriving BEq, Inhabited, Repr
 
 def Format.id : Format → String
@@ -115,6 +116,7 @@ def Format.id : Format → String
   | .qnt => "qnt"
   | .scenario => "scenario"
   | .dpnJson => "dpn-json"
+  | .aleo => "aleo"
 
 def parseFormat? (s : String) : Option Format :=
   match s with
@@ -131,6 +133,7 @@ def parseFormat? (s : String) : Option Format :=
   | "elf" | "so" => some .elf
   | "qnt" => some .qnt
   | "dpn-json" | "dpn" | "json" => some .dpnJson
+  | "aleo" | "instructions" => some .aleo
   | "scenario" | "toml" => some .scenario
   | _ => none
 
@@ -218,6 +221,7 @@ def supportsFormat (targetId fixtureId : String) (format : Format) : Bool :=
   | "psy-dpn", f, .psy => isPsyFixture f
   | "psy-dpn", "counter", .dpnJson => true
   | "aleo-leo", "counter", .leo => true
+  | "aleo-leo", "counter", .aleo => true
   | "aleo-leo", "pure-math", .leo => true
   | "move-aptos", "counter", .aptos => true
   | "move-sui", "counter", .sui => true
