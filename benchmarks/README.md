@@ -8,9 +8,17 @@ ProofForge vs native comparison corpus and runners.
 
 ## Status
 
-- Layout skeleton only (B1.0).
-- Native sources (`native/`), schema (`schema/`), and `just benchmark-counter`
-  land in B1.1–B1.4.
+- **B1.0** layout + spec doc: done.
+- **B1.1** result schema + checker: done (`schema/`, `just benchmark-schema`).
+- **B1.2+** native corpus and `just benchmark-counter` runners: pending.
+
+## Schema
+
+```sh
+just benchmark-schema
+# validates benchmarks/schema/fixtures/* via
+# scripts/benchmarks/validate-result-schema.py
+```
 
 ## Temporary seeds
 

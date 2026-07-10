@@ -1220,6 +1220,10 @@ quint-solana-replay-smoke:
 quint-ir-model-gate:
     scripts/quint/ir-model-gate.sh
 
+# B1.1: validate benchmark result JSON schema fixtures.
+benchmark-schema:
+    scripts/benchmarks/schema-smoke.sh
+
 # Run the unified RFC 0007 testkit scenario suite.
 testkit:
     CAST="${CAST:-$HOME/.foundry/bin/cast}" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run

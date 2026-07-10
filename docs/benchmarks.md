@@ -1,6 +1,6 @@
 # ProofForge vs Native Benchmark Matrix
 
-Status: **Active (B1.0 skeleton)**  
+Status: **Active (B1.1 schema landed)**  
 Plan: [post-review execution plan](superpowers/plans/2026-07-10-post-review-execution.md) wave **B1**
 
 ## Why
@@ -49,12 +49,20 @@ This document is the SOT for that matrix. Results (when generated) live under
 | `bm-psy-counter` | IR Counter → psy-dpn | hand `.psy` Counter | Experimental |
 | `bm-aleo-counter` | IR Counter → aleo | hand Leo Counter | Experimental |
 
-## Result schema (B1.1 draft)
+## Result schema (B1.1)
+
+Machine-readable SOT:
+
+- JSON Schema draft: [`benchmarks/schema/result.schema.json`](../benchmarks/schema/result.schema.json)
+- Pure-Python checker (no `jsonschema` dep):
+  [`scripts/benchmarks/validate-result-schema.py`](../scripts/benchmarks/validate-result-schema.py)
+- Fixtures + accept/reject smoke: `just benchmark-schema`
 
 Each run emits one JSON object per (scenario, target, implementation):
 
 ```json
 {
+  "schema": "proof-forge.benchmark-result.v1",
   "schemaVersion": 1,
   "scenario": "bm-counter",
   "target": "evm",
@@ -82,14 +90,17 @@ Each run emits one JSON object per (scenario, target, implementation):
 }
 ```
 
-Validation rules:
+Validation rules (enforced by the checker):
 
-1. `implementation` is only `proofforge` or `native`.
-2. `costs` keys must be from the target’s allowed cost dimensions.
-3. Behavior steps for the same scenario must match across implementations on
-   the **same** target before cost ratios are reported.
-4. Missing tools → skip row with `behavior.ok = false` and honest `notes`, never
-   fake zeros as success.
+1. `schema` is `proof-forge.benchmark-result.v1`; `schemaVersion` is `1`.
+2. `implementation` is only `proofforge` or `native`.
+3. `scenario` matches `^bm-[a-z0-9-]+$`; `target` is one of the triad + optional ZK ids.
+4. `costs` keys must be from the target’s allowed cost dimensions
+   (`evm_gas` / `solana_cu` / `wasmtime_fuel_*`+`near_gas` / Psy / Aleo fields).
+5. Behavior steps for the same scenario must match across implementations on
+   the **same** target before cost ratios are reported (B1.5 gate).
+6. Missing tools → skip row with `behavior.ok = false` and non-empty honest
+   `notes`; never fake zeros as success.
 
 ## Tolerances (initial)
 
@@ -99,30 +110,30 @@ Validation rules:
 - Solana native baseline policy: document whether native is Pinocchio-class or
   Anchor-class in the row `notes`.
 
-## Layout (to create in B1.2+)
+## Layout
 
 ```text
 benchmarks/
   README.md                 # points here
-  native/
-    evm/Counter.sol
-    solana/counter/         # minimal program
-    near/counter/           # near-sdk or equivalent
-  scripts/
-    run-counter.sh          # just benchmark-counter
   schema/
-    result.schema.json
+    result.schema.json      # B1.1
+    fixtures/               # accept/reject samples for just benchmark-schema
+  native/                   # B1.2+ hand-written corpus
+    evm/Counter.sol
+    solana/counter/
+    near/counter/
 ```
 
-## Commands (target state)
+## Commands
 
 ```sh
+just benchmark-schema    # B1.1 — schema fixtures accept/reject
 just benchmark-counter   # B1.3/B1.4 — not implemented yet
 # → build/benchmarks/counter-*.json
 # → optional docs/generated/benchmark-counter.md
 ```
 
-Until those recipes exist, reuse seeds:
+Until runners exist, reuse seeds:
 
 ```sh
 just testkit             # Counter/ValueVault budgets (not full native matrix)
@@ -133,8 +144,8 @@ just product             # multi-target compile matrix
 
 | Task | Status |
 |------|--------|
-| B1.0 Spec + layout (this doc) | **done (skeleton)** |
-| B1.1 Schema checker | pending |
+| B1.0 Spec + layout (this doc) | **done** |
+| B1.1 Schema checker | **done** (`just benchmark-schema`) |
 | B1.2 Native Counter corpus | pending |
 | B1.3 PF Counter runner | pending |
 | B1.4 Native Counter runner | pending |
