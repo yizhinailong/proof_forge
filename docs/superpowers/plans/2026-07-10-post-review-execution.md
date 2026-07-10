@@ -598,7 +598,7 @@ The plan is **complete** when:
 
 | Wave | State | Evidence |
 |------|-------|----------|
-| S0 | done: verified@pending-s0-commit; S0.1 merge + S0.2 product green + S0.3 claim + S0.4 INDEX + S0.5 inventory | just product green; origin 0 behind; branch inventory written |
+| S0 | done: verified@81b4c373; S0.1 merge + S0.2 product green + S0.3 claim + S0.4 INDEX + S0.5 inventory | just product green; origin 0 behind; branch inventory written |
 | N1 | pending (next after S0 commit) | |
 | E1 | pending | |
 | L1 | pending | |
