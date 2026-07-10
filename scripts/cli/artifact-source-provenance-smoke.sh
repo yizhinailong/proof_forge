@@ -23,7 +23,7 @@ lake env proof-forge build --target wasm-near --root . \
   --artifact-output "$OUT/near/artifact.json" \
   -o "$OUT/near" "$SOURCE" >/dev/null
 
-lake env proof-forge --emit-value-vault-ir-bytecode --root . \
+lake env proof-forge emit --target evm --fixture value-vault --format bytecode \
   --yul-output "$OUT/fixture/ValueVault.yul" \
   --artifact-output "$OUT/fixture/artifact.json" \
   -o "$OUT/fixture/ValueVault.bin" >/dev/null

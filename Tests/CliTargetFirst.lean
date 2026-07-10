@@ -63,6 +63,13 @@ def main : IO UInt32 := do
     ["build", "--target", "evm", "--fixture", "counter", "--format", "bytecode", "-o", "build/sdk/evm"]
     ["--emit-counter-ir-bytecode", "-o", "build/sdk/evm/Counter.bin", "--yul-output", "build/sdk/evm/Counter.yul", "--solc", "solc", "--cast", "cast"]
   requireLegacy
+    ["emit", "--target", "evm", "--fixture", "value-vault", "--format", "bytecode",
+      "--yul-output", "build/ir/ValueVault.yul", "--artifact-output", "build/ir/ValueVault.json",
+      "-o", "build/ir/ValueVault.bin"]
+    ["--emit-value-vault-ir-bytecode", "-o", "build/ir/ValueVault.bin",
+      "--yul-output", "build/ir/ValueVault.yul", "--artifact-output", "build/ir/ValueVault.json",
+      "--solc", "solc", "--cast", "cast"]
+  requireLegacy
     ["emit", "--target", "evm", "--fixture", "evm-event", "--format", "bytecode", "--yul-output", "build/ir/EventProbe.yul", "--artifact-output", "build/ir/EventProbe.json", "-o", "build/ir/EventProbe.bin"]
     ["--emit-evm-event-ir-bytecode", "-o", "build/ir/EventProbe.bin", "--yul-output", "build/ir/EventProbe.yul", "--artifact-output", "build/ir/EventProbe.json", "--solc", "solc", "--cast", "cast"]
   requireLegacy
