@@ -3322,13 +3322,13 @@ so authors never drop to Builder for common EVM patterns. Cross-ref
 | CS-3.2 | Native ETH transfer helper (plain transfer to EOA/contract) | P0 | No manual `crosscallInvokeValueTyped(u64 0)` in examples |
 | CS-3.3 | Entry modifiers / guards (`onlyOwner`, `whenNotPaused`, role guards) | P0 | Desugar to portable IR checks; diagnostics on misuse |
 | CS-3.4 | Constructor dynamic ABI (string, bytes, dynamic arrays) | P0 | CLI + artifact metadata; deploy-object init reads initcode tail into storage; Foundry + Anvil smokes with `DynamicConstructorProbe` |
-| CS-3.5 | Custom errors (Solidity-style selectors) | P1 | Structured revert surface + client decode helpers |
-| CS-3.6 | ERC-165 `supportsInterface` module | P0 | Foundry interface probe tests |
-| CS-3.7 | AccessControl roles (grant/revoke/hasRole) | P0 | Role-guarded entries in `contract_source` |
-| CS-3.8 | ERC-721 core (ownerOf, transfer, safeTransferFrom, mint, burn) | P0 | Foundry NFT lifecycle smoke |
+| CS-3.5 | Custom errors (Solidity-style selectors) | P1 | ✅ 4-byte custom-error selector surface (`errors-ir-smoke` `test_revertCustomError_selector`); ABI-encoded args remain open |
+| CS-3.6 | ERC-165 `supportsInterface` module | P0 | ✅ Foundry interface probe + stdlib mixin |
+| CS-3.7 | AccessControl roles (grant/revoke/hasRole) | P0 | ✅ stdlib mixin + `guard_role` |
+| CS-3.8 | ERC-721 core (ownerOf, transfer, safeTransferFrom, mint, burn) | P0 | ✅ stdlib mixin + **PF-P2-02** `onERC721Received` (Foundry accept/reject) |
 | CS-3.9 | CREATE2 factory template module | P1 | Deterministic deploy example + metadata |
 | CS-3.10 | Proxy/upgrade patterns (UUPS or transparent) aligned with Workstream 32 `upgradePolicy` | P1 | Honest lowering or explicit reject per policy |
-| CS-3.11 | ERC-1155 single-transfer core | P1 | ✅ `Stdlib/ERC1155.lean` covers balances, operator approvals, mint, burn, and single `safeTransferFrom`; Foundry smoke covers lifecycle. Batch transfer and receiver callbacks remain open |
+| CS-3.11 | ERC-1155 single-transfer core | P1 | ✅ `Stdlib/ERC1155.lean` + `onERC1155Received` + size-2 `safeBatchTransferFrom2` (PF-P2-02 Foundry); arbitrary-length batch / `onERC1155BatchReceived` remain open |
 
 ### Phase CS-4 — Project development experience
 
@@ -3490,19 +3490,21 @@ just Counter and ValueVault. The full gap analysis lives in
 chain's P0 SDK blockers are closed. "P0 SDK blocker" = a feature whose absence
 means a real developer cannot write a common contract pattern.
 
-### EVM SDK blockers (5 P0, 10 P1)
+### EVM SDK blockers (0 open P0, 5 closed P0; limited P1 remain)
 
-Tracked in detail as **Workstream 34 Phase CS-2/CS-3**; implementation must
-land in `contract_source` / Token SDK syntax, not Builder fixtures.
+Tracked in detail as **Workstream 34 Phase CS-2/CS-3** and
+[`docs/sdk-ecosystem-gaps-2026-07.md`](sdk-ecosystem-gaps-2026-07.md);
+implementation must land in `contract_source` / Token SDK syntax, not Builder
+fixtures.
 
 - ✅ P0: ERC-20 (stdlib mixin + compose + Foundry + VM smoke)
-- ✅ P0: ERC-721 NFT (stdlib mixin; safeTransferFrom lacks onERC721Received → P1)
+- ✅ P0: ERC-721 NFT (stdlib mixin + **PF-P2-02** `onERC721Received`; Foundry accept/reject)
 - ✅ P0: ERC-165 supportsInterface (stdlib mixin)
 - ✅ P0: AccessControl roles (stdlib mixin + guard_role)
 - ✅ P0: Constructor dynamic-type args (CLI ABI encoding + constructor_body + Anvil verified)
-- P1: ERC-1155 batch transfer/receiver callbacks, ERC-4626 vault, ERC-2612 permit, custom errors,
-  storage packing, batch operations, factory deployment template, AMM,
-  Pausable auth, ERC-721 onERC721Received, dynamic constructor args runtime
+- ✅ P1 (partial): custom-error 4-byte selector surface; ERC-1155 receiver + size-2 batch MVP
+- P1 still open: arbitrary-length ERC-1155 batch / `onERC1155BatchReceived`, custom-error
+  ABI args, storage packing, general multicall body, factory template, AMM, Pausable auth
 
 ### Solana SDK blockers (5 tracked P0, 4 closed, 7 P1)
 
