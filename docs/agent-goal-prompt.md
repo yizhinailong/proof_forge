@@ -3,7 +3,7 @@
 Copy this entire document into one long-running goal or agent session. It is a
 continuous execution charter, not a request for another audit or plan.
 
-Status: **Active** — Waves 0–5 ledger complete at c576ae4f; terminal Complete after global gate revalidation.
+Status: **Complete: verified@9a2ec055**
 
 Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
