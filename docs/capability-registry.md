@@ -43,7 +43,7 @@ remain uniform.
 | `storage.map` | Key-value or mapping storage | Y | Y | Y | P | P | N | P | Y |
 | `storage.array` | Fixed-size indexed storage array | P | P | N | Y | N | N | P | N |
 | `caller.sender` | Transaction signer/caller | Y | Y | Y | Y | Y | N | P | Y |
-| `value.native` | Native token attached to call | Y | Y | Y | Y | Y | N | P | N |
+| `value.native` | Native token attached to call | Y | Y | Y | Y | Y | N | N | N |
 | `events.emit` | Structured log/event output | Y | Y | Y | Y | Y | N | Y | Y |
 | `crosscall.invoke` | Call another contract/program | Y | Y | Y | Y | Y | N | P | Y |
 | `env.block` | Block height/time/chain id reads | Y | Y | P | P | P | N | P | P |

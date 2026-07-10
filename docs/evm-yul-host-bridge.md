@@ -61,8 +61,13 @@ witnessed by `value_vault_yul_trace_simulation_sound_checked`.
 
 - **Tier C-diff:** fixed Counter and ValueVault scenarios match IR observables
   under `YulSemantics` (pointwise `native_decide`).
+- **Delivery boundary (Counter):** the CLI-emitted Counter runtime bytecode
+  matches the embedded powdr witness (`just evm-powdr-counter-runtime`), and
+  compiling the emitted Yul with external `solc --strict-assembly` reproduces
+  that runtime code (`just evm-yul-compiler-counter-smoke`).
 - **Not claimed:** universal all-input IR↔Yul refinement; powdr bytecode
-  equivalence; solc hop. Those remain opt-in / research.
+  equivalence beyond Counter; solc hop for products other than Counter.
+  Those remain opt-in / future work.
 
 ## Relation to Solana lane
 

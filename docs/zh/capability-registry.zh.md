@@ -32,7 +32,7 @@ Target Extension SDK 可以暴露 Solana PDA/CPI/runtime allocator 配置、Move
 | `storage.map` | 键值对或映射存储 | Y | Y | Y | P | P | N | P | Y |
 | `storage.array` | 固定大小的索引存储数组 | P | P | N | Y | N | N | P | N |
 | `caller.sender` | 交易签名者/调用者 | Y | Y | Y | Y | Y | N | P | Y |
-| `value.native` | 调用附带的原生代币 | Y | Y | Y | Y | Y | N | P | N |
+| `value.native` | 调用附带的原生代币 | Y | Y | Y | Y | Y | N | N | N |
 | `events.emit` | 结构化日志/事件输出 | Y | Y | Y | Y | Y | N | Y | Y |
 | `crosscall.invoke` | 调用另一个合约/程序 | Y | Y | Y | Y | Y | N | P | Y |
 | `env.block` | 区块高度/时间/链 id 读取 | Y | Y | P | P | P | N | P | P |
