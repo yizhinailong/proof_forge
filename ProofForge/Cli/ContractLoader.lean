@@ -3,6 +3,7 @@ import Lean
 import Lean.Elab.Frontend
 import Lean.Util.Path
 import ProofForge.Contract.Spec
+import ProofForge.Contract.Token
 
 namespace ProofForge.Cli.ContractLoader
 
@@ -54,10 +55,34 @@ private def resolveSpecConstName (env : Environment) (modName : Name) : Option N
   (candidateSpecNames modName).find? fun candidate =>
     env.constants.contains candidate && isContractSpecConst env candidate
 
+/-- True when `spec` is a `TokenSpec` (TokenSpec modules must use `--token`). -/
+private def isTokenSpecConst (env : Environment) (constName : Name) : Bool :=
+  match env.find? constName with
+  | some info =>
+      match info.type with
+      | Expr.const `ProofForge.Contract.Token.TokenSpec _ => true
+      | _ => false
+  | none => false
+
+private def resolveTokenSpecConstName (env : Environment) (modName : Name) : Option Name :=
+  (candidateSpecNames modName).find? fun candidate =>
+    env.constants.contains candidate && isTokenSpecConst env candidate
+
+/-- N1.3: point TokenSpec authors at `--token` instead of a bare ContractSpec miss. -/
+def missingContractSpecMessage (modName : Name) (hasTokenSpec : Bool) : String :=
+  if hasTokenSpec then
+    s!"module `{modName}` defines `spec : ProofForge.Contract.Token.TokenSpec`, not ContractSpec; \
+use `proof-forge build --target <id> --token …` (or `just product-token-near` / product-token-solana) \
+for TokenSpec modules"
+  else
+    s!"no `spec : ProofForge.Contract.ContractSpec` found while loading module `{modName}`; \
+define one with `contract_source` or `def spec : ProofForge.Contract.ContractSpec` \
+(TokenSpec modules need `--token`)"
+
 unsafe def loadSpecFromEnv (env : Environment) (modName : Name) : IO ProofForge.Contract.ContractSpec := do
   let some constName := resolveSpecConstName env modName
     | throw <| IO.userError
-        s!"no `spec : ProofForge.Contract.ContractSpec` found while loading module `{modName}`; define one with `contract_source` or `def spec : ProofForge.Contract.ContractSpec`"
+        (missingContractSpecMessage modName (resolveTokenSpecConstName env modName).isSome)
   match env.evalConstCheck ProofForge.Contract.ContractSpec {} `ProofForge.Contract.ContractSpec constName with
   | .ok spec => pure spec
   | .error msg => throw <| IO.userError msg

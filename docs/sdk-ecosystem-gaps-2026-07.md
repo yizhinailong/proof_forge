@@ -157,7 +157,7 @@ Probe: `proof-forge build --target wasm-near` on Product sources after S0 merge.
 | `RoleGatedToken.lean` | contract_source | OK | maps + multi-param entries |
 | `EscrowVault.lean` (+ other NEAR-compare vaults) | contract_source | OK | product compile |
 | `SoulboundTokenBody.lean` | contract_source | OK | body balances (no TokenSpec) |
-| `FungibleToken.lean` / `FeeToken` / `SoulboundToken` | **TokenSpec** | **FAIL** as bare `build` | needs `--token` / `just product-token-near` path — not ContractSpec |
+| `FungibleToken.lean` / `FeeToken` / `SoulboundToken` | **TokenSpec** | **FAIL** as bare `build` (actionable diagnostic) | needs `--token` / `just product-token-near`; N1.3 message points at TokenSpec path |
 | NEP-141 body | stdlib + TokenSpec plan | OK via `just product-token-near` | plan JSON + `NearFungibleToken.wat` |
 
 **Gap classes for N1 (ordered):**
