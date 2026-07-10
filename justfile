@@ -106,6 +106,7 @@ cli-deploy:
 # Check structured proof-forge check diagnostics.
 cli-check:
     lake env lean --run Tests/CliCheck.lean
+    scripts/cli/token-spec-routing-smoke.sh
 
 # Check that shared contract_source examples match their legacy Learn fixtures.
 shared-contract-source:
