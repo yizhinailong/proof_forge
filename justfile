@@ -1247,6 +1247,29 @@ benchmark-behavior-gate:
 benchmark-cost-table:
     scripts/benchmarks/cost-table-smoke.sh
 
+# B1.7: ValueVault matrix (PF + native where available).
+benchmark-value-vault-pf:
+    scripts/benchmarks/value-vault-pf-runner.sh
+
+benchmark-value-vault-native:
+    scripts/benchmarks/value-vault-native-runner.sh
+
+benchmark-value-vault: benchmark-value-vault-pf benchmark-value-vault-native
+
+# B1.7: Ownable matrix (EVM lifecycle primary; NEAR host tests; Solana size/skip).
+benchmark-ownable-pf:
+    scripts/benchmarks/ownable-pf-runner.sh
+
+benchmark-ownable-native:
+    scripts/benchmarks/ownable-native-runner.sh
+
+benchmark-ownable: benchmark-ownable-pf benchmark-ownable-native
+
+# B1.7 aggregate: Counter + ValueVault + Ownable rows, then behavior + cost table.
+benchmark-matrix: benchmark-counter benchmark-value-vault benchmark-ownable
+    just benchmark-behavior-gate
+    just benchmark-cost-table
+
 # Run the unified RFC 0007 testkit scenario suite.
 testkit:
     CAST="${CAST:-$HOME/.foundry/bin/cast}" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run

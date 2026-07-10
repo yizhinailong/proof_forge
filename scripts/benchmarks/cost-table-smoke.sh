@@ -19,6 +19,13 @@ python3 scripts/benchmarks/render-cost-table.py --dir "$DIR" -o "$OUT" \
   || fail "render failed"
 [ -s "$OUT" ] || fail "empty $OUT"
 grep -q 'bm-counter' "$OUT" || fail "table missing bm-counter section"
+# Expanded scenarios (B1.7+) are optional in the snapshot when runners have been executed.
+if ls "$DIR"/bm-value-vault_*.json >/dev/null 2>&1; then
+  grep -q 'bm-value-vault' "$OUT" || fail "table missing bm-value-vault section"
+fi
+if ls "$DIR"/bm-ownable_*.json >/dev/null 2>&1; then
+  grep -q 'bm-ownable' "$OUT" || fail "table missing bm-ownable section"
+fi
 grep -q 'No cross-chain score' "$OUT" || fail "missing non-goal rule"
 
 echo "=== benchmark-cost-table: PASS ($OUT) ==="

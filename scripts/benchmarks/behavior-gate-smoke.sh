@@ -14,6 +14,7 @@ if ! ls "$DIR"/bm-counter_*_proofforge.json >/dev/null 2>&1 \
   just benchmark-counter || fail "benchmark-counter failed"
 fi
 
+# Compare all bm-* scenarios present (counter, value-vault, ownable, …).
 python3 scripts/benchmarks/behavior-gate.py --dir "$DIR" \
   || fail "behavior gate failed"
 

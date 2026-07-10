@@ -67,11 +67,11 @@ def ratio(pf: int | float | None, native: int | float | None) -> str:
 
 def render(groups: dict[tuple[str, str], dict[str, dict[str, Any]]], out: pathlib.Path) -> None:
     lines: list[str] = []
-    lines.append("# Benchmark Counter matrix (generated)")
+    lines.append("# Benchmark matrix (generated)")
     lines.append("")
     lines.append(f"Generated: `{datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}`")
     lines.append("")
-    lines.append("Source rows: `build/benchmarks/bm-counter_*_{proofforge,native}.json`")
+    lines.append("Source rows: `build/benchmarks/bm-*_*_{proofforge,native}.json`")
     lines.append("")
     lines.append("Rules:")
     lines.append("")

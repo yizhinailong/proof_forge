@@ -420,7 +420,7 @@ aleo-leo        | …              | *       | *           | …               |
 | **B1.4** | Native Counter runner | Same scenario steps on native corpus; same schema | Side-by-side rows for triad | M | done: counter-native-runner; EVM Anvil gas; Solana check; NEAR wasm size |
 | **B1.5** | Behavior gate | Assert identical storage/returns/events for PF vs native within each target | Fail CI job (optional non-required) on mismatch | M | done: behavior-gate.py step name/return parity; just benchmark-behavior-gate |
 | **B1.6** | Cost table + budgets | Publish markdown table; optionally pin regression bands (start ±15% vs native, tighten later) | `docs/generated/benchmark-counter.md` or committed snapshot | M | done: render-cost-table.py; just benchmark-cost-table; snapshot committed |
-| **B1.7** | Expand scenarios | ValueVault then Ownable; FT/remote only after N1/E1 readiness | Matrix rows ≥3 scenarios on triad | L | pending |
+| **B1.7** | Expand scenarios | ValueVault then Ownable; FT/remote only after N1/E1 readiness | Matrix rows ≥3 scenarios on triad | L | done: bm-value-vault + bm-ownable runners; just benchmark-matrix |
 | **B1.8** | ZK optional rows | Psy DPN JSON size/ops vs hand `.psy`; Aleo `.aleo` vs hand Leo (when tools installed) | Documented experimental tables; skip if tools missing | M | pending |
 
 ### Implementation notes
@@ -602,7 +602,7 @@ The plan is **complete** when:
 | N1 | done: N1.1–N1.7 closed | near-deploy-honesty; budget honesty; storage_withdraw; FT offline |
 | E1 | done: E1.1–E1.6 closed | upgrade honesty; packing D-051; StakingVault; batch receiver |
 | L1 | done: L1.1–L1.5 closed | memo multi-byte; pinocchio 7 refs; solana-source-elf |
-| B1 | in_progress: B1.0–B1.6 done; next B1.7 expand scenarios | just benchmark-cost-table |
+| B1 | in_progress: B1.0–B1.7 done; next B1.8 ZK optional | just benchmark-matrix (≥3 scenarios) |
 | Z1 | in_progress: Z1.0 catalog lock done; next Z1.1 goldens | `docs/targets/psy-dpn.md` DPN bytecode section + official links |
 | Z2 | pending | research findings landed in this plan |
 | P1 | pending | |

@@ -1,8 +1,8 @@
-# Benchmark Counter matrix (generated)
+# Benchmark matrix (generated)
 
-Generated: `2026-07-10T11:20:14Z`
+Generated: `2026-07-10T11:26:37Z`
 
-Source rows: `build/benchmarks/bm-counter_*_{proofforge,native}.json`
+Source rows: `build/benchmarks/bm-*_*_{proofforge,native}.json`
 
 Rules:
 
@@ -26,6 +26,44 @@ Rules:
 - **solana-sbpf-asm/native**: cargo check ok; cargo-build-sbf failed (see build log); CU deferred
 - **wasm-near/proofforge**: offline-host; wasmtime fuel delta (not NEAR gas)
 - **wasm-near/native**: near-sdk host tests + release wasm; fuel not comparable to PF offline-host ABI
+
+</details>
+
+## `bm-ownable`
+
+| Target | PF ok | Native ok | PF artifact | Native artifact | PF/native size | PF costs | Native costs |
+|--------|------:|----------:|------------:|----------------:|---------------:|----------|--------------|
+| `evm` | yes | yes | 293 | 520 | 0.56× | — | gas[init=25792, transferOwnership=0, renounceOwnership=26353] |
+| `solana-sbpf-asm` | yes | no | 2744 | 0 | — | — | — |
+| `wasm-near` | yes | yes | 627 | 160515 | 0.00× | — | — |
+
+<details><summary>Row notes</summary>
+
+- **evm/proofforge**: runtime bytecode; gas via native Anvil runner
+- **evm/native**: Anvil/cast Ownable.sol lifecycle
+- **solana-sbpf-asm/proofforge**: ELF size only; owner is u64 projection (not AccountId)
+- **solana-sbpf-asm/native**: skipped: no Pinocchio Ownable corpus (B1.7 EVM/NEAR focus)
+- **wasm-near/proofforge**: wasm size; PF owner is u64 projection vs near-sdk AccountId (parity is structural)
+- **wasm-near/native**: near-sdk host tests (testkit/compare/near/ownable)
+
+</details>
+
+## `bm-value-vault`
+
+| Target | PF ok | Native ok | PF artifact | Native artifact | PF/native size | PF costs | Native costs |
+|--------|------:|----------:|------------:|----------------:|---------------:|----------|--------------|
+| `evm` | yes | yes | 1326 | 745 | 1.78× | — | gas[initialize=65847, deposit=32139, get_balance=23425] |
+| `solana-sbpf-asm` | yes | no | 5088 | 0 | — | — | — |
+| `wasm-near` | yes | yes | 2053 | 156142 | 0.01× | fuelΔ[initialize=1293, get_balance=86, deposit=1589] | — |
+
+<details><summary>Row notes</summary>
+
+- **evm/proofforge**: runtime bytecode; evm_gas deferred (native runner has Anvil gas)
+- **evm/native**: Anvil/cast ValueVault.sol lifecycle
+- **solana-sbpf-asm/proofforge**: ELF via sbpf; CU deferred
+- **solana-sbpf-asm/native**: skipped: no Pinocchio ValueVault corpus yet (Counter-only native Solana in B1.2)
+- **wasm-near/proofforge**: offline-host initialize(100)/deposit(50); fuelΔ (not NEAR gas)
+- **wasm-near/native**: near-sdk host tests + release wasm; dual-deploy gas via just near-compare-value-vault-live
 
 </details>
 
