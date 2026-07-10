@@ -416,8 +416,7 @@ mutual
           exprUsesCheckedArithmetic c || exprUsesCheckedArithmetic d || exprUsesCheckedArithmetic e
 
     | .checkErc1155BatchReceived a b c d e f g =>
-        exprUsesCheckedArithmetic a || exprUsesCheckedArithmetic b ||
-          exprUsesCheckedArithmetic c || exprUsesCheckedArithmetic d || exprUsesCheckedArithmetic e || exprUsesCheckedArithmetic f || exprUsesCheckedArithmetic g
+        #[a, b, c, d, e, f, g].any exprUsesCheckedArithmetic
 
   partial def exprUsesCheckedArithmetic : Expr → Bool
     | .add _ _ _ | .sub _ _ _ | .mul _ _ _ => true

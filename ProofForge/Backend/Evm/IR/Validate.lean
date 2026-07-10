@@ -505,13 +505,8 @@ def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Excep
       discard <| inferExprType module env amount
 
   | .checkErc1155BatchReceived operator fromAddr toAddr id0 amount0 id1 amount1 => do
-      discard <| inferExprType module env operator
-      discard <| inferExprType module env fromAddr
-      discard <| inferExprType module env toAddr
-      discard <| inferExprType module env id0
-      discard <| inferExprType module env amount0
-      discard <| inferExprType module env id1
-      discard <| inferExprType module env amount1
+      for expr in #[operator, fromAddr, toAddr, id0, amount0, id1, amount1] do
+        discard <| inferExprType module env expr
 def requireMutableLocal (env : TypeEnv) (context name : String) : Except LowerError LocalBinding := do
   let some binding := findLocal? env name
     | .error { message := s!"unknown local `{name}`" }

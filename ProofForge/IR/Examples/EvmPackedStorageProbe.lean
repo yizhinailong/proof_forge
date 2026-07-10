@@ -6,10 +6,12 @@ open ProofForge.IR
 
 /-- Packed storage probe: multiple small scalars sharing slots.
     Layout (Solidity-style packing):
-    - Slot 0: flag(bool, offset 0, 1B) + counter(u8, offset 1, 1B) + tag(u32, offset 4, 4B) + value(u64, offset 8, 8B)
-    - Slot 1: big(u128, offset 0, 16B)
-    - Slot 2: owner(address, offset 0, 20B) + active(bool, offset 20, 1B)
-    - Slot 3: total(u64, offset 0, 8B) + reserve(u32, offset 8, 4B) + spare(u8, offset 12, 1B) + done(bool, offset 13, 1B) -/
+    - Slot 0: flag(bool, offset 0, 1B) + counter(u8, offset 1, 1B) +
+      tag(u32, offset 2, 4B) + value(u64, offset 6, 8B) + big(u128, offset 14, 16B)
+    - Slot 1: owner(address, offset 0, 20B) + active(bool, offset 20, 1B) +
+      total(u64, offset 21, 8B)
+    - Slot 2: reserve(u32, offset 0, 4B) + spare(u8, offset 4, 1B) +
+      done(bool, offset 5, 1B) -/
 
 def stateFlag : StateDecl := {
   id := "flag"
@@ -196,6 +198,53 @@ def packedAssignOp : Entrypoint := {
   ]
 }
 
+/-- A wrapping expression assigned to packed storage must truncate to the field
+    width. An unmasked `u8` carry would otherwise spill into an adjacent field. -/
+def packedAssignOpWraps : Entrypoint := {
+  name := "packed_assign_op_wraps"
+  selector? := some "9641cb4f"
+  returns := .bool
+  body := #[
+    .effect (.storageScalarWrite "flag" (boolLit false)),
+    .effect (.storageScalarWrite "tag" (u32Lit 305419896)),
+    .effect (.storageScalarWrite "counter" (.add (u8Lit 255) (u8Lit 1) false)),
+    .assertEq (.effect (.storageScalarRead "counter")) (u8Lit 0) "counter wraps to zero",
+    .assertEq (.effect (.storageScalarRead "flag")) (boolLit false) "counter carry does not set flag",
+    .assertEq (.effect (.storageScalarRead "tag")) (u32Lit 305419896) "counter carry does not alter tag",
+    .return (.effect (.storageScalarRead "flag"))
+  ]
+}
+
+/-- Checked compound assignment must reject a value that fits in an EVM word
+    but not in the packed field. The whole call, including neighboring writes,
+    must roll back. -/
+def packedAssignOpOverflowReverts : Entrypoint := {
+  name := "packed_assign_op_overflow_reverts"
+  selector? := some "ab0efcd6"
+  returns := .bool
+  body := #[
+    .effect (.storageScalarWrite "flag" (boolLit false)),
+    .effect (.storageScalarWrite "counter" (u8Lit 255)),
+    .effect (.storageScalarWrite "tag" (u32Lit 305419896)),
+    .effect (.storageScalarAssignOp "counter" .add (u8Lit 1)),
+    .return (.effect (.storageScalarRead "flag"))
+  ]
+}
+
+/-- A checked expression written directly to a packed field must reject a
+    value that fits in an EVM word but not in the destination field. -/
+def packedCheckedWriteOverflowReverts : Entrypoint := {
+  name := "packed_checked_write_overflow_reverts"
+  selector? := some "2b19bf56"
+  returns := .bool
+  body := #[
+    .effect (.storageScalarWrite "flag" (boolLit false)),
+    .effect (.storageScalarWrite "tag" (u32Lit 305419896)),
+    .effect (.storageScalarWrite "counter" (.add (u8Lit 255) (u8Lit 1) true)),
+    .return (.effect (.storageScalarRead "flag"))
+  ]
+}
+
 def module : Module := {
   name := "EvmPackedStorageProbe"
   state := #[
@@ -209,8 +258,12 @@ def module : Module := {
     packedSlot1Lifecycle,
     packedSlot2Lifecycle,
     packedSlot3Lifecycle,
-    packedAssignOp
+    packedAssignOp,
+    packedAssignOpWraps,
+    packedAssignOpOverflowReverts,
+    packedCheckedWriteOverflowReverts
   ]
+  overflowChecked := true
 }
 
 end ProofForge.IR.Examples.EvmPackedStorageProbe

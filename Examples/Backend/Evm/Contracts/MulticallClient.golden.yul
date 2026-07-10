@@ -13,7 +13,7 @@ object "MulticallClient" {
     }
     function f_MulticallClient_batch(tag) {
       let _r := __proof_forge_crosscall_1(0, 623753794, tag)
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, tag)))
+      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(tag, 18446744073709551615))))
     }
     function __proof_forge_crosscall_1(target, selector, arg0) -> result {
       mstore(0, shl(224, selector))

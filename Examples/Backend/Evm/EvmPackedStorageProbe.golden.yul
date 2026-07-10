@@ -26,133 +26,206 @@ object "EvmPackedStorageProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0x9641cb4f {
+      let _r := f_EvmPackedStorageProbe_packed_assign_op_wraps()
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0xab0efcd6 {
+      let _r := f_EvmPackedStorageProbe_packed_assign_op_overflow_reverts()
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0x2b19bf56 {
+      let _r := f_EvmPackedStorageProbe_packed_checked_write_overflow_reverts()
+      mstore(0, _r)
+      return(0, 32)
+    }
     default {
       revert(0, 0)
     }
     function f_EvmPackedStorageProbe_packed_slot0_lifecycle() -> result {
-      sstore(0, or(and(sload(0), not(shl(248, 255))), shl(248, 1)))
-      sstore(0, or(and(sload(0), not(shl(240, 255))), shl(240, 200)))
-      sstore(0, or(and(sload(0), not(shl(208, 4294967295))), shl(208, 1000)))
-      sstore(0, or(and(sload(0), not(shl(144, 18446744073709551615))), shl(144, 99999)))
-      if iszero(eq(and(shr(248, sload(0)), 255), 1)) {
+      sstore(0, or(and(sload(0), not(shl(0, 255))), shl(0, and(1, 255))))
+      sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(200, 255))))
+      sstore(0, or(and(sload(0), not(shl(16, 4294967295))), shl(16, and(1000, 4294967295))))
+      sstore(0, or(and(sload(0), not(shl(48, 18446744073709551615))), shl(48, and(99999, 18446744073709551615))))
+      if iszero(eq(and(shr(0, sload(0)), 255), 1)) {
         revert(0, 0)
       }
-      if iszero(eq(and(shr(240, sload(0)), 255), 200)) {
+      if iszero(eq(and(shr(8, sload(0)), 255), 200)) {
         revert(0, 0)
       }
-      if iszero(eq(and(shr(208, sload(0)), 4294967295), 1000)) {
+      if iszero(eq(and(shr(16, sload(0)), 4294967295), 1000)) {
         revert(0, 0)
       }
-      if iszero(eq(and(shr(144, sload(0)), 18446744073709551615), 99999)) {
+      if iszero(eq(and(shr(48, sload(0)), 18446744073709551615), 99999)) {
         revert(0, 0)
       }
-      sstore(0, or(and(sload(0), not(shl(240, 255))), shl(240, 42)))
-      if iszero(eq(and(shr(240, sload(0)), 255), 42)) {
+      sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(42, 255))))
+      if iszero(eq(and(shr(8, sload(0)), 255), 42)) {
         revert(0, 0)
       }
-      if iszero(eq(and(shr(248, sload(0)), 255), 1)) {
+      if iszero(eq(and(shr(0, sload(0)), 255), 1)) {
         revert(0, 0)
       }
-      if iszero(eq(and(shr(208, sload(0)), 4294967295), 1000)) {
+      if iszero(eq(and(shr(16, sload(0)), 4294967295), 1000)) {
         revert(0, 0)
       }
-      if iszero(eq(and(shr(144, sload(0)), 18446744073709551615), 99999)) {
+      if iszero(eq(and(shr(48, sload(0)), 18446744073709551615), 99999)) {
         revert(0, 0)
       }
-      result := and(shr(144, sload(0)), 18446744073709551615)
+      result := and(shr(48, sload(0)), 18446744073709551615)
     }
     function f_EvmPackedStorageProbe_packed_slot1_lifecycle() -> result {
-      sstore(0, or(and(sload(0), not(shl(248, 255))), shl(248, 1)))
-      sstore(0, or(and(sload(0), not(shl(240, 255))), shl(240, 42)))
-      sstore(0, or(and(sload(0), not(shl(16, 340282366920938463463374607431768211455))), shl(16, 340282366920938463463374607431768211455)))
-      if iszero(eq(and(shr(16, sload(0)), 340282366920938463463374607431768211455), 340282366920938463463374607431768211455)) {
+      sstore(0, or(and(sload(0), not(shl(0, 255))), shl(0, and(1, 255))))
+      sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(42, 255))))
+      sstore(0, or(and(sload(0), not(shl(112, 340282366920938463463374607431768211455))), shl(112, and(340282366920938463463374607431768211455, 340282366920938463463374607431768211455))))
+      if iszero(eq(and(shr(112, sload(0)), 340282366920938463463374607431768211455), 340282366920938463463374607431768211455)) {
         revert(0, 0)
       }
-      if iszero(eq(and(shr(248, sload(0)), 255), 1)) {
+      if iszero(eq(and(shr(0, sload(0)), 255), 1)) {
         revert(0, 0)
       }
-      if iszero(eq(and(shr(240, sload(0)), 255), 42)) {
+      if iszero(eq(and(shr(8, sload(0)), 255), 42)) {
         revert(0, 0)
       }
-      sstore(0, or(and(sload(0), not(shl(16, 340282366920938463463374607431768211455))), shl(16, 1)))
-      if iszero(eq(and(shr(16, sload(0)), 340282366920938463463374607431768211455), 1)) {
+      sstore(0, or(and(sload(0), not(shl(112, 340282366920938463463374607431768211455))), shl(112, and(1, 340282366920938463463374607431768211455))))
+      if iszero(eq(and(shr(112, sload(0)), 340282366920938463463374607431768211455), 1)) {
         revert(0, 0)
       }
-      if iszero(eq(and(shr(240, sload(0)), 255), 42)) {
+      if iszero(eq(and(shr(8, sload(0)), 255), 42)) {
         revert(0, 0)
       }
-      if iszero(eq(and(shr(248, sload(0)), 255), 1)) {
+      if iszero(eq(and(shr(0, sload(0)), 255), 1)) {
         revert(0, 0)
       }
-      result := and(shr(16, sload(0)), 340282366920938463463374607431768211455)
+      result := and(shr(112, sload(0)), 340282366920938463463374607431768211455)
     }
     function f_EvmPackedStorageProbe_packed_slot2_lifecycle() -> result {
-      sstore(1, or(and(sload(1), not(shl(96, 1461501637330902918203684832716283019655932542975))), shl(96, 97433442511412352346923430580824580583949948245)))
-      sstore(1, or(and(sload(1), not(shl(88, 255))), shl(88, 1)))
-      if iszero(eq(and(shr(88, sload(1)), 255), 1)) {
+      sstore(1, or(and(sload(1), not(shl(0, 1461501637330902918203684832716283019655932542975))), shl(0, and(97433442511412352346923430580824580583949948245, 1461501637330902918203684832716283019655932542975))))
+      sstore(1, or(and(sload(1), not(shl(160, 255))), shl(160, and(1, 255))))
+      if iszero(eq(and(shr(160, sload(1)), 255), 1)) {
         revert(0, 0)
       }
-      sstore(1, or(and(sload(1), not(shl(88, 255))), shl(88, 0)))
-      if iszero(eq(and(shr(88, sload(1)), 255), 0)) {
+      sstore(1, or(and(sload(1), not(shl(160, 255))), shl(160, and(0, 255))))
+      if iszero(eq(and(shr(160, sload(1)), 255), 0)) {
         revert(0, 0)
       }
-      sstore(1, or(and(sload(1), not(shl(88, 255))), shl(88, 1)))
-      if iszero(eq(and(shr(88, sload(1)), 255), 1)) {
+      sstore(1, or(and(sload(1), not(shl(160, 255))), shl(160, and(1, 255))))
+      if iszero(eq(and(shr(160, sload(1)), 255), 1)) {
         revert(0, 0)
       }
-      result := and(shr(88, sload(1)), 255)
+      result := and(shr(160, sload(1)), 255)
     }
     function f_EvmPackedStorageProbe_packed_slot3_lifecycle() -> result {
-      sstore(1, or(and(sload(1), not(shl(24, 18446744073709551615))), shl(24, 500000)))
-      sstore(2, or(and(sload(2), not(shl(224, 4294967295))), shl(224, 7777)))
-      sstore(2, or(and(sload(2), not(shl(216, 255))), shl(216, 99)))
-      sstore(2, or(and(sload(2), not(shl(208, 255))), shl(208, 1)))
-      if iszero(eq(and(shr(24, sload(1)), 18446744073709551615), 500000)) {
+      sstore(1, or(and(sload(1), not(shl(168, 18446744073709551615))), shl(168, and(500000, 18446744073709551615))))
+      sstore(2, or(and(sload(2), not(shl(0, 4294967295))), shl(0, and(7777, 4294967295))))
+      sstore(2, or(and(sload(2), not(shl(32, 255))), shl(32, and(99, 255))))
+      sstore(2, or(and(sload(2), not(shl(40, 255))), shl(40, and(1, 255))))
+      if iszero(eq(and(shr(168, sload(1)), 18446744073709551615), 500000)) {
         revert(0, 0)
       }
-      if iszero(eq(and(shr(224, sload(2)), 4294967295), 7777)) {
+      if iszero(eq(and(shr(0, sload(2)), 4294967295), 7777)) {
         revert(0, 0)
       }
-      if iszero(eq(and(shr(216, sload(2)), 255), 99)) {
+      if iszero(eq(and(shr(32, sload(2)), 255), 99)) {
         revert(0, 0)
       }
-      if iszero(eq(and(shr(208, sload(2)), 255), 1)) {
+      if iszero(eq(and(shr(40, sload(2)), 255), 1)) {
         revert(0, 0)
       }
-      sstore(2, or(and(sload(2), not(shl(216, 255))), shl(216, 1)))
-      if iszero(eq(and(shr(216, sload(2)), 255), 1)) {
+      sstore(2, or(and(sload(2), not(shl(32, 255))), shl(32, and(1, 255))))
+      if iszero(eq(and(shr(32, sload(2)), 255), 1)) {
         revert(0, 0)
       }
-      if iszero(eq(and(shr(24, sload(1)), 18446744073709551615), 500000)) {
+      if iszero(eq(and(shr(168, sload(1)), 18446744073709551615), 500000)) {
         revert(0, 0)
       }
-      if iszero(eq(and(shr(224, sload(2)), 4294967295), 7777)) {
+      if iszero(eq(and(shr(0, sload(2)), 4294967295), 7777)) {
         revert(0, 0)
       }
-      if iszero(eq(and(shr(208, sload(2)), 255), 1)) {
+      if iszero(eq(and(shr(40, sload(2)), 255), 1)) {
         revert(0, 0)
       }
-      result := and(shr(24, sload(1)), 18446744073709551615)
+      result := and(shr(168, sload(1)), 18446744073709551615)
     }
     function f_EvmPackedStorageProbe_packed_assign_op() -> result {
-      sstore(0, or(and(sload(0), not(shl(240, 255))), shl(240, 10)))
-      sstore(0, or(and(sload(0), not(shl(240, 255))), shl(240, add(and(shr(240, sload(0)), 255), 5))))
-      if iszero(eq(and(shr(240, sload(0)), 255), 15)) {
+      sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(10, 255))))
+      {
+        let __pf_packed_value := __pf_checked_add(and(shr(8, sload(0)), 255), 5)
+        if gt(__pf_packed_value, 255) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(__pf_packed_value, 255))))
+      }
+      if iszero(eq(and(shr(8, sload(0)), 255), 15)) {
         revert(0, 0)
       }
-      sstore(0, or(and(sload(0), not(shl(240, 255))), shl(240, mul(and(shr(240, sload(0)), 255), 2))))
-      if iszero(eq(and(shr(240, sload(0)), 255), 30)) {
+      {
+        let __pf_packed_value := __pf_checked_mul(and(shr(8, sload(0)), 255), 2)
+        if gt(__pf_packed_value, 255) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(__pf_packed_value, 255))))
+      }
+      if iszero(eq(and(shr(8, sload(0)), 255), 30)) {
         revert(0, 0)
       }
-      sstore(0, or(and(sload(0), not(shl(208, 4294967295))), shl(208, 42)))
-      sstore(0, or(and(sload(0), not(shl(208, 4294967295))), shl(208, add(and(shr(208, sload(0)), 4294967295), 8))))
-      if iszero(eq(and(shr(208, sload(0)), 4294967295), 50)) {
+      sstore(0, or(and(sload(0), not(shl(16, 4294967295))), shl(16, and(42, 4294967295))))
+      {
+        let __pf_packed_value := __pf_checked_add(and(shr(16, sload(0)), 4294967295), 8)
+        if gt(__pf_packed_value, 4294967295) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(16, 4294967295))), shl(16, and(__pf_packed_value, 4294967295))))
+      }
+      if iszero(eq(and(shr(16, sload(0)), 4294967295), 50)) {
         revert(0, 0)
       }
-      if iszero(eq(and(shr(240, sload(0)), 255), 30)) {
+      if iszero(eq(and(shr(8, sload(0)), 255), 30)) {
         revert(0, 0)
       }
-      result := and(shr(240, sload(0)), 255)
+      result := and(shr(8, sload(0)), 255)
+    }
+    function f_EvmPackedStorageProbe_packed_assign_op_wraps() -> result {
+      sstore(0, or(and(sload(0), not(shl(0, 255))), shl(0, and(0, 255))))
+      sstore(0, or(and(sload(0), not(shl(16, 4294967295))), shl(16, and(305419896, 4294967295))))
+      sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(add(255, 1), 255))))
+      if iszero(eq(and(shr(8, sload(0)), 255), 0)) {
+        revert(0, 0)
+      }
+      if iszero(eq(and(shr(0, sload(0)), 255), 0)) {
+        revert(0, 0)
+      }
+      if iszero(eq(and(shr(16, sload(0)), 4294967295), 305419896)) {
+        revert(0, 0)
+      }
+      result := and(shr(0, sload(0)), 255)
+    }
+    function f_EvmPackedStorageProbe_packed_assign_op_overflow_reverts() -> result {
+      sstore(0, or(and(sload(0), not(shl(0, 255))), shl(0, and(0, 255))))
+      sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(255, 255))))
+      sstore(0, or(and(sload(0), not(shl(16, 4294967295))), shl(16, and(305419896, 4294967295))))
+      {
+        let __pf_packed_value := __pf_checked_add(and(shr(8, sload(0)), 255), 1)
+        if gt(__pf_packed_value, 255) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(__pf_packed_value, 255))))
+      }
+      result := and(shr(0, sload(0)), 255)
+    }
+    function f_EvmPackedStorageProbe_packed_checked_write_overflow_reverts() -> result {
+      sstore(0, or(and(sload(0), not(shl(0, 255))), shl(0, and(0, 255))))
+      sstore(0, or(and(sload(0), not(shl(16, 4294967295))), shl(16, and(305419896, 4294967295))))
+      {
+        let __pf_packed_value := __pf_checked_add(255, 1)
+        if gt(__pf_packed_value, 255) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(__pf_packed_value, 255))))
+      }
+      result := and(shr(0, sload(0)), 255)
     }
     function __pf_checked_add(a, b) -> r {
       if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {

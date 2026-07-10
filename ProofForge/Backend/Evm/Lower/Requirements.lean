@@ -90,8 +90,8 @@ mutual
         storageSlotPlanUsesCheckedArithmetic slot
     | .builtin _ args | .helperCall _ args | .arrayLit _ args =>
         args.any exprPlanUsesCheckedArithmetic
-    | .checkedArith op lhs rhs _ =>
-        needsCheckedArithmetic op ||
+    | .checkedArith op lhs rhs overflowChecked =>
+        (overflowChecked && needsCheckedArithmetic op) ||
           exprPlanUsesCheckedArithmetic lhs ||
           exprPlanUsesCheckedArithmetic rhs
     | .arrayGet lhs rhs
@@ -229,9 +229,7 @@ mutual
           exprPlanUsesCheckedArithmetic e
 
     | .checkErc1155BatchReceived a b c d e f g =>
-        exprPlanUsesCheckedArithmetic a || exprPlanUsesCheckedArithmetic b ||
-          exprPlanUsesCheckedArithmetic c || exprPlanUsesCheckedArithmetic d ||
-          exprPlanUsesCheckedArithmetic e || exprPlanUsesCheckedArithmetic f || exprPlanUsesCheckedArithmetic g
+        #[a, b, c, d, e, f, g].any exprPlanUsesCheckedArithmetic
 
   partial def stmtPlanUsesCheckedArithmetic : StmtPlan → Bool
     | .letBind _ _ value
@@ -556,15 +554,10 @@ mutual
           (localArrayHelperRequirementsFromExprPlan e)
 
     | .checkErc1155BatchReceived a b c d e f g =>
-        mergeLocalArrayHelperRequirements
-          (mergeLocalArrayHelperRequirements
-            (mergeLocalArrayHelperRequirements
-              (localArrayHelperRequirementsFromExprPlan a)
-              (localArrayHelperRequirementsFromExprPlan b))
-            (mergeLocalArrayHelperRequirements
-              (localArrayHelperRequirementsFromExprPlan c)
-              (localArrayHelperRequirementsFromExprPlan d)))
-          (mergeLocalArrayHelperRequirements (mergeLocalArrayHelperRequirements (localArrayHelperRequirementsFromExprPlan e) (mergeLocalArrayHelperRequirements (localArrayHelperRequirementsFromExprPlan f) (localArrayHelperRequirementsFromExprPlan g))) (mergeLocalArrayHelperRequirements (localArrayHelperRequirementsFromExprPlan f) (localArrayHelperRequirementsFromExprPlan g)))
+        #[a, b, c, d, e, f, g].foldl
+          (init := emptyLocalArrayHelperRequirements) fun acc expr =>
+            mergeLocalArrayHelperRequirements acc
+              (localArrayHelperRequirementsFromExprPlan expr)
 
   partial def localArrayHelperRequirementsFromStmtPlan :
       StmtPlan → LocalArrayHelperRequirements
@@ -936,11 +929,8 @@ mutual
           (plannedHelpersFromExprPlan e)
 
     | .checkErc1155BatchReceived a b c d e f g =>
-        mergeHelperSets
-          (mergeHelperSets
-            (mergeHelperSets (plannedHelpersFromExprPlan a) (plannedHelpersFromExprPlan b))
-            (mergeHelperSets (plannedHelpersFromExprPlan c) (plannedHelpersFromExprPlan d)))
-          (mergeHelperSets (mergeHelperSets (plannedHelpersFromExprPlan e) (mergeHelperSets (plannedHelpersFromExprPlan f) (plannedHelpersFromExprPlan g))) (mergeHelperSets (plannedHelpersFromExprPlan f) (plannedHelpersFromExprPlan g)))
+        #[a, b, c, d, e, f, g].foldl (init := #[]) fun acc expr =>
+          mergeHelperSets acc (plannedHelpersFromExprPlan expr)
 
   partial def plannedHelpersFromStmtPlan : StmtPlan → HelperSet
     | .letBind _ _ value
@@ -1219,9 +1209,8 @@ mutual
           contextOpsFromExprPlan e
 
     | .checkErc1155BatchReceived a b c d e f g =>
-        contextOpsFromExprPlan a ++ contextOpsFromExprPlan b ++
-          contextOpsFromExprPlan c ++ contextOpsFromExprPlan d ++
-          contextOpsFromExprPlan e ++ contextOpsFromExprPlan f ++ contextOpsFromExprPlan g
+        #[a, b, c, d, e, f, g].foldl (init := #[]) fun acc expr =>
+          mergeContextPlans acc (contextOpsFromExprPlan expr)
 
   partial def contextOpsFromStmtPlan : StmtPlan → Array ContextPlan
     | .letBind _ _ value

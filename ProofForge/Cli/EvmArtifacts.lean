@@ -29,9 +29,10 @@ namespace ProofForge.Cli
 
 def renderContractSpecEvmYul (opts : CliOptions) (spec : ProofForge.Contract.ContractSpec) :
     IO (String × ProofForge.IR.Module) := do
-  -- E1.4: fail closed on upgrade/proxy honesty before codegen (same gate as
-  -- NEAR/Solana contract-source builds via resolveSpec). UUPS + authority is
-  -- allowed; authority without proxy_pattern, transparent, and governance reject.
+  -- Fail closed on upgrade/proxy honesty before codegen (same gate as
+  -- NEAR/Solana contract-source builds via resolveSpec). The UUPS dispatch
+  -- backend spike may compile without a product policy, but EVM authority and
+  -- governance policies reject until their declared references are enforced.
   match ProofForge.Target.resolveSpec ProofForge.Target.evm spec with
   | .ok _ => pure ()
   | .error err => throw <| IO.userError err.render
@@ -183,7 +184,11 @@ def writeEvmInitCode
   let initCode ←
     match module? with
     | some module =>
-        if ProofForge.Backend.Evm.ConstructorInit.shouldUseDeployObject constructorInitBindings constructorArgsHex then
+        if module.proxyPattern? == some "uups" &&
+            !constructorInitBindings.isEmpty && argsTrimmed.isEmpty then
+          throw <| IO.userError
+            "UUPS proxy deployment requires constructor arguments for atomic implementation and admin initialization"
+        else if ProofForge.Backend.Evm.ConstructorInit.shouldUseDeployObject constructorInitBindings constructorArgsHex then
           match ProofForge.Backend.Evm.ConstructorInit.renderDeployObject
               module.name module specParams constructorInitBindings runtimeTrimmed argsByteLen with
           | .error err => throw <| IO.userError err.render

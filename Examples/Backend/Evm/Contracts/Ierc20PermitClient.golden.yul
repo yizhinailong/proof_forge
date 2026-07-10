@@ -21,7 +21,7 @@ object "Ierc20PermitClient" {
     }
     function f_Ierc20PermitClient_runPermit(owner, spender, value, deadline, v, r, s) {
       let _ok := __proof_forge_crosscall_7(0, 3573918927, owner, spender, value, deadline, v, r, s)
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, value)))
+      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(value, 18446744073709551615))))
     }
     function f_Ierc20PermitClient_readNonce(owner) -> result {
       result := __proof_forge_crosscall_1(0, 2127478272, owner)

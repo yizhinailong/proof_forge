@@ -23,7 +23,7 @@ def scalarStorageWriteStatements
       .exprStmt (Lean.Compiler.Yul.builtin "sstore" #[storageSlot, valueExpr])
     ]
   else
-    let shiftBits := (32 - (byteOffset + byteWidth)) * 8
+    let shiftBits := byteOffset * 8
     let mask := (2^(byteWidth * 8 : Nat)) - 1
     let shiftedMask := Lean.Compiler.Yul.builtin "shl" #[
       Lean.Compiler.Yul.Expr.num shiftBits,
@@ -39,7 +39,10 @@ def scalarStorageWriteStatements
           ],
           Lean.Compiler.Yul.builtin "shl" #[
             Lean.Compiler.Yul.Expr.num shiftBits,
-            valueExpr
+            Lean.Compiler.Yul.builtin "and" #[
+              valueExpr,
+              Lean.Compiler.Yul.Expr.num mask
+            ]
           ]
         ]
       ])
@@ -51,7 +54,7 @@ def scalarStoragePackedReadExpr
   if byteWidth >= 32 || byteOffset == 0 && byteWidth == 32 then
     Lean.Compiler.Yul.builtin "sload" #[storageSlot]
   else
-    let shiftBits := (32 - (byteOffset + byteWidth)) * 8
+    let shiftBits := byteOffset * 8
     let mask := (2^(byteWidth * 8 : Nat)) - 1
     Lean.Compiler.Yul.builtin "and" #[
       Lean.Compiler.Yul.builtin "shr" #[
@@ -60,6 +63,26 @@ def scalarStoragePackedReadExpr
       ],
       Lean.Compiler.Yul.Expr.num mask
     ]
+
+def scalarStorageCheckedWriteStatements
+    (overflowChecked : Bool)
+    (storageSlot valueExpr : Lean.Compiler.Yul.Expr)
+    (byteOffset byteWidth : Nat) : Array Lean.Compiler.Yul.Statement :=
+  if overflowChecked && byteWidth < 32 then
+    let mask := (2^(byteWidth * 8 : Nat)) - 1
+    let valueName := "__pf_packed_value"
+    let valueRef := Lean.Compiler.Yul.Expr.id valueName
+    #[.block {
+      statements := #[
+        .varDecl #[{ name := valueName }] (some valueExpr),
+        revertIfStatement (Lean.Compiler.Yul.builtin "gt" #[
+          valueRef,
+          Lean.Compiler.Yul.Expr.num mask
+        ])
+      ] ++ scalarStorageWriteStatements storageSlot valueRef byteOffset byteWidth
+    }]
+  else
+    scalarStorageWriteStatements storageSlot valueExpr byteOffset byteWidth
 
 def scalarStorageTargetReadExpr
     {ε : Type}
@@ -78,7 +101,8 @@ def scalarStorageAssignOpStatements
     (byteOffset byteWidth : Nat) : Array Lean.Compiler.Yul.Statement :=
   let packedRead := scalarStoragePackedReadExpr storageSlot byteOffset byteWidth
   let computedValue := arithExpr overflowChecked op packedRead valueExpr
-  scalarStorageWriteStatements storageSlot computedValue byteOffset byteWidth
+  scalarStorageCheckedWriteStatements
+    overflowChecked storageSlot computedValue byteOffset byteWidth
 
 def scalarStorageEffectPlanStatements
     {ε : Type}
@@ -93,7 +117,8 @@ def scalarStorageEffectPlanStatements
       let storageSlot ← storageSlotFor stateId
       let valueExpr ← exprPlanExpr mkError lowerExpr lowerEffect value
       let (byteOffset, byteWidth) ← packingFor stateId
-      .ok <| scalarStorageWriteStatements storageSlot valueExpr byteOffset byteWidth
+      .ok <| scalarStorageCheckedWriteStatements
+        overflowChecked storageSlot valueExpr byteOffset byteWidth
   | .storageScalarAssignOp stateId op value => do
       let storageSlot ← storageSlotFor stateId
       let (byteOffset, byteWidth) ← packingFor stateId
@@ -126,7 +151,8 @@ def scalarStorageTargetEffectPlanStatements
   | .storageScalarWriteTarget target value => do
       let targetSlot ← storageSlotExpr mkError lowerExpr target.slot
       let valueExpr ← exprPlanExpr mkError lowerExpr lowerEffect value
-      .ok <| scalarStorageWriteStatements targetSlot valueExpr target.byteOffset target.byteWidth
+      .ok <| scalarStorageCheckedWriteStatements
+        overflowChecked targetSlot valueExpr target.byteOffset target.byteWidth
   | .storageScalarAssignOpTarget target op value => do
       let targetSlot ← storageSlotExpr mkError lowerExpr target.slot
       let valueExpr ← exprPlanExpr mkError lowerExpr lowerEffect value

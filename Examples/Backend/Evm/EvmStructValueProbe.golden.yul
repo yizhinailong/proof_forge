@@ -75,7 +75,7 @@ object "EvmStructValueProbe" {
       let __proof_forge_struct_p_x := 7
       let __proof_forge_struct_p_y := 13
       __proof_forge_struct_p_x := 9
-      __proof_forge_struct_p_y := __pf_checked_add(__proof_forge_struct_p_y, 5)
+      __proof_forge_struct_p_y := add(__proof_forge_struct_p_y, 5)
       result := __pf_checked_add(__proof_forge_struct_p_x, __proof_forge_struct_p_y)
     }
     function f_EvmStructValueProbe_mutable_mixed_fields() -> result {

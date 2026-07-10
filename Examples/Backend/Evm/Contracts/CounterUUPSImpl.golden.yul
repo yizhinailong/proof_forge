@@ -8,10 +8,6 @@ object "CounterUUPSImpl" {
       f_CounterUUPSImpl_upgradeTo(calldataload(4))
       return(0, 0)
     }
-    case 0xe1c7392a {
-      f_CounterUUPSImpl_init()
-      return(0, 0)
-    }
     case 0xd09de08a {
       f_CounterUUPSImpl_increment()
       return(0, 0)
@@ -25,7 +21,7 @@ object "CounterUUPSImpl" {
       revert(0, 0)
     }
     function f_CounterUUPSImpl_upgradeTo(newImpl) {
-      if iszero(eq(caller(), and(shr(192, sload(0)), 18446744073709551615))) {
+      if iszero(eq(__proof_forge_hash_word(caller()), sload(0))) {
         revert(0, 0)
       }
       if iszero(iszero(eq(newImpl, 0))) {
@@ -39,16 +35,22 @@ object "CounterUUPSImpl" {
         log2(0, 0, _topic0, _indexed_topic0)
       }
     }
-    function f_CounterUUPSImpl_init() {
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, caller())))
-      sstore(0, or(and(sload(0), not(shl(64, 18446744073709551615))), shl(64, 0)))
-    }
     function f_CounterUUPSImpl_increment() {
-      let n := and(shr(64, sload(0)), 18446744073709551615)
-      sstore(0, or(and(sload(0), not(shl(64, 18446744073709551615))), shl(64, __pf_checked_add(n, 1))))
+      let n := and(shr(64, sload(1)), 18446744073709551615)
+      {
+        let __pf_packed_value := __pf_checked_add(n, 1)
+        if gt(__pf_packed_value, 18446744073709551615) {
+          revert(0, 0)
+        }
+        sstore(1, or(and(sload(1), not(shl(64, 18446744073709551615))), shl(64, and(__pf_packed_value, 18446744073709551615))))
+      }
     }
     function f_CounterUUPSImpl_get() -> result {
-      result := and(shr(64, sload(0)), 18446744073709551615)
+      result := and(shr(64, sload(1)), 18446744073709551615)
+    }
+    function __proof_forge_hash_word(value) -> result {
+      mstore(0, value)
+      result := keccak256(0, 32)
     }
     function __pf_checked_add(a, b) -> r {
       if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {

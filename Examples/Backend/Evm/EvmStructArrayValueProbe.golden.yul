@@ -131,7 +131,7 @@ object "EvmStructArrayValueProbe" {
       let __proof_forge_array_struct_people_1_age := 20
       let __proof_forge_array_struct_people_1_score := 90
       __proof_forge_array_struct_people_1_age := 33
-      __proof_forge_array_struct_people_0_score := __pf_checked_add(__proof_forge_array_struct_people_0_score, 5)
+      __proof_forge_array_struct_people_0_score := add(__proof_forge_array_struct_people_0_score, 5)
       result := __pf_checked_add(__proof_forge_array_struct_people_0_score, __proof_forge_array_struct_people_1_age)
     }
     function f_EvmStructArrayValueProbe_mixed_struct_array_fields() -> result {

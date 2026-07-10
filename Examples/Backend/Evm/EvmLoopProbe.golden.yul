@@ -26,32 +26,38 @@ object "EvmLoopProbe" {
       revert(0, 0)
     }
     function f_EvmLoopProbe_count_to_three() -> result {
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, 0)))
+      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(0, 18446744073709551615))))
       for {
         let _i := 0
       } lt(_i, 3) {
         _i := add(_i, 1)
       } {
-        let n := and(shr(192, sload(0)), 18446744073709551615)
-        sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, __pf_checked_add(n, 1))))
+        let n := and(shr(0, sload(0)), 18446744073709551615)
+        {
+          let __pf_packed_value := __pf_checked_add(n, 1)
+          if gt(__pf_packed_value, 18446744073709551615) {
+            revert(0, 0)
+          }
+          sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(__pf_packed_value, 18446744073709551615))))
+        }
       }
-      result := and(shr(192, sload(0)), 18446744073709551615)
+      result := and(shr(0, sload(0)), 18446744073709551615)
     }
     function f_EvmLoopProbe_choose_with_early_return(flag) -> result {
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, 0)))
+      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(0, 18446744073709551615))))
       switch flag
       case 0 {
-        sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, 22)))
+        sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(22, 18446744073709551615))))
       }
       default {
         result := 11
         leave
       }
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, 99)))
-      result := and(shr(192, sload(0)), 18446744073709551615)
+      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(99, 18446744073709551615))))
+      result := and(shr(0, sload(0)), 18446744073709551615)
     }
     function f_EvmLoopProbe_loop_early_return() -> result {
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, 100)))
+      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(100, 18446744073709551615))))
       for {
         let _i := 0
       } lt(_i, 3) {

@@ -97,7 +97,7 @@ object "EvmErrorsProbe" {
       }
     }
     function f_EvmErrorsProbe_normalPath() -> result {
-      result := and(shr(192, sload(0)), 18446744073709551615)
+      result := and(shr(0, sload(0)), 18446744073709551615)
     }
   }
 }

@@ -27,7 +27,7 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/decisions.md": {
-    "sha256": "d13125ee7414a338eca0b7d799711585ff0ab43224853487795d30f065d83c14",
+    "sha256": "bce38e4fa1c2c6534ed456a0863c7b6500543ee9de2d6d716cca825fac3a0c7e",
     "zh": "docs/zh/decisions.zh.md",
     "model": "gemini-3-flash-preview",
     "note": "synced after Product/Backend reorg path renames"
@@ -61,7 +61,7 @@
     "model": "manual-zh"
   },
   "docs/implementation-backlog.md": {
-    "sha256": "8743a8d905057f71e6bc5e63826cd9af9c23544f6b3f0ddec5941bdd14c27c2e",
+    "sha256": "1f2d3872cf2eb04196a959c092c546d9187455a7a795fd3b593828aa611eb627",
     "zh": "docs/zh/implementation-backlog.zh.md",
     "model": "manual-zh",
     "note": "synced EN/zh PF-P2-02 ERC721/1155/custom-error closed status"
@@ -161,7 +161,7 @@
     "model": "manual-zh",
     "en_sha256": "4dc4946dd7f8d2dcb3efb6a25618c1292182c7a8ecea319720a0432bb5b06205"
   },
-  "docs/sdk-ecosystem-gaps-2026-07.md": "b0c7b3f3c81606ecb03d8e29c40856dce56434a06e2bb8c4bd19c4888bf9d078",
+  "docs/sdk-ecosystem-gaps-2026-07.md": "db4d63dfae76eb25d95abaaea4a34000c6cca181b90812b986560b77aa36a7ca",
   "docs/tutorials/portable-shared-path.md": {
     "sha256": "01bc8f804f62c56a171796721b7adbba2fd36955bdedbc48187f7020236ace08",
     "zh": "docs/zh/tutorials/portable-shared-path.zh.md",

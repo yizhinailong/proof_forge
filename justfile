@@ -75,6 +75,7 @@ contract-spec-json:
 # Check generated target wrapper sketches from ContractSpec.
 contract-client: entrypoint-mutability
     lake env lean --run Tests/ContractClient.lean
+    bash scripts/ts/evm-contract-client-smoke.sh
 
 # Entrypoint call/view semantics across source DSL, validation, and canonical fixtures.
 entrypoint-mutability:
@@ -168,8 +169,9 @@ evm-plan:
 
 # Check the EVM semantic plan (entrypoints, events, metadata) smoke.
 evm-semantic-plan:
-    lake build ProofForge.Backend.Evm.IR ProofForge.IR.Examples.Counter ProofForge.IR.Examples.EvmMapProbe ProofForge.IR.Examples.EvmStorageArrayProbe ProofForge.IR.Examples.EvmStorageStructProbe ProofForge.IR.Examples.EventProbe
+    lake build ProofForge.Backend.Evm.IR ProofForge.IR.Examples.Counter ProofForge.IR.Examples.EvmMapProbe ProofForge.IR.Examples.EvmStorageArrayProbe ProofForge.IR.Examples.EvmStorageStructProbe ProofForge.IR.Examples.EvmPackedStorageProbe ProofForge.IR.Examples.EventProbe
     lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
+    lake env lean --run Tests/Backend/Evm/EvmPackedStorage.lean
 
 # Check the RFC 0014 Phase 1 shared validate subset (identifiers, return-path predicate, type-check helpers).
 shared-validate-smoke:
@@ -794,9 +796,13 @@ near-budget-honesty:
 near-deploy-honesty:
     scripts/near/deploy-honesty-smoke.sh
 
-# E1.4: EVM upgrade-policy honesty (UUPS ok; authority without proxy fails closed).
+# E1.4: EVM upgrade-policy honesty (backend UUPS spike; product authority fails closed).
 evm-upgrade-policy-honesty:
     scripts/evm/upgrade-policy-honesty-smoke.sh
+
+# E1.4: UUPS constructor initialization is atomic; public init races fail closed.
+evm-uups-atomic-init:
+    scripts/evm/uups-atomic-init-smoke.sh
 
 # Build the shared portable Counter to EVM, Solana sBPF, and NEAR/Wasm from one source file.
 portable-counter-multi-target:

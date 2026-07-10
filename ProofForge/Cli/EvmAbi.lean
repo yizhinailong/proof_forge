@@ -191,6 +191,7 @@ def eventAbiWordTypeName : ProofForge.IR.ValueType → Except String String
   | .u128 => .ok "uint128"
   | .bool => .ok "bool"
   | .hash => .ok "bytes32"
+  | .address => .ok "address"
   | type => .error s!"event ABI word type must be scalar, got `{type.name}`"
 
 def eventAbiField

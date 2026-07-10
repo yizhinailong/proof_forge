@@ -75,10 +75,10 @@ object "ERC20" {
       revert(0, 0)
     }
     function f_ERC20_totalSupply() -> result {
-      result := and(shr(192, sload(0)), 18446744073709551615)
+      result := and(shr(0, sload(0)), 18446744073709551615)
     }
     function f_ERC20_decimals() -> result {
-      result := and(shr(128, sload(0)), 18446744073709551615)
+      result := and(shr(64, sload(0)), 18446744073709551615)
     }
     function f_ERC20_balanceOf(who) -> result {
       result := sload(__proof_forge_map_slot(1, who))
@@ -165,8 +165,14 @@ object "ERC20" {
       if iszero(iszero(eq(recipient, 0))) {
         revert(0, 0)
       }
-      let ts := and(shr(192, sload(0)), 18446744073709551615)
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, __pf_checked_add(ts, amount))))
+      let ts := and(shr(0, sload(0)), 18446744073709551615)
+      {
+        let __pf_packed_value := __pf_checked_add(ts, amount)
+        if gt(__pf_packed_value, 18446744073709551615) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(__pf_packed_value, 18446744073709551615))))
+      }
       let bal := sload(__proof_forge_map_slot(1, recipient))
       __proof_forge_map_write(1, recipient, __pf_checked_add(bal, amount))
       {
@@ -187,8 +193,14 @@ object "ERC20" {
         revert(0, 0)
       }
       __proof_forge_map_write(1, who, __pf_checked_sub(bal, amount))
-      let ts := and(shr(192, sload(0)), 18446744073709551615)
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, __pf_checked_sub(ts, amount))))
+      let ts := and(shr(0, sload(0)), 18446744073709551615)
+      {
+        let __pf_packed_value := __pf_checked_sub(ts, amount)
+        if gt(__pf_packed_value, 18446744073709551615) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(__pf_packed_value, 18446744073709551615))))
+      }
       {
         mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288410934)
         mstore(32, 18544826791913921923306290567797672742125270981606496584444378688767337168896)
@@ -201,7 +213,7 @@ object "ERC20" {
       result := 1
     }
     function f_ERC20_init() {
-      sstore(0, or(and(sload(0), not(shl(128, 18446744073709551615))), shl(128, 18)))
+      sstore(0, or(and(sload(0), not(shl(64, 18446744073709551615))), shl(64, and(18, 18446744073709551615))))
     }
     function __proof_forge_map_slot(slot, key) -> result {
       mstore(0, key)

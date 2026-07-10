@@ -109,6 +109,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Install Node dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
       - name: Install Quint CLI
         run: npm install -g @informalsystems/quint
 
@@ -131,6 +134,7 @@ jobs:
           wat2wasm --version
           node --version
           npm --version
+          ./node_modules/.bin/tsc --version
           quint --version
           java -version
 

@@ -29,6 +29,11 @@ def findStorageState (layout : StorageLayout) (stateId : String) : Option Storag
 
 def u64Mask : String := "18446744073709551615"
 
+def eip1967ImplementationStateId : String := "$eip1967.implementation"
+
+def eip1967ImplementationSlot : String :=
+  "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+
 def headWordOffsetExpr (paramIdx : Nat) : String :=
   s!"add(__pf_args_off, {32 * paramIdx})"
 
@@ -43,7 +48,7 @@ def paramDataPtrExpr (param : EvmConstructorParam) (paramIdx : Nat) : String :=
     head
 
 def storePackedU64 (state : StorageStatePlan) (valueExpr : String) : String :=
-  let shift := (32 - (state.byteOffset + state.byteWidth)) * 8
+  let shift := state.byteOffset * 8
   let mask := (1 <<< (8 * state.byteWidth)) - 1
   if state.byteWidth >= 32 || (state.byteOffset == 0 && state.byteWidth == 32) then
     s!"sstore({state.slot}, {valueExpr})"
@@ -52,6 +57,13 @@ def storePackedU64 (state : StorageStatePlan) (valueExpr : String) : String :=
 
 def storeFullWord (state : StorageStatePlan) (valueExpr : String) : String :=
   s!"sstore({state.slot}, {valueExpr})"
+
+def storeFullWordForState
+    (stateId : String) (state : StorageStatePlan) (valueExpr : String) : String :=
+  if stateId == eip1967ImplementationStateId then
+    s!"sstore({eip1967ImplementationSlot}, {valueExpr})"
+  else
+    storeFullWord state valueExpr
 
 def genBindingInit
     (params : Array EvmConstructorParam)
@@ -68,6 +80,27 @@ def genBindingInit
       .error { message := s!"constructor_bind scalar requires static param `{binding.paramName}`" }
     else
       .ok (storePackedU64 state s!"and({codeLoadExpr dataPtr}, {u64Mask})")
+  | .addressWord =>
+    if param.abiType != "address" then
+      .error { message := s!"constructor_bind address_word requires address param `{binding.paramName}`" }
+    else if binding.stateId != eip1967ImplementationStateId &&
+        state.type != ValueType.address && state.type != ValueType.hash then
+      .error { message := s!"constructor_bind address_word target `{binding.stateId}` must be .address or .hash" }
+    else
+      let value := codeLoadExpr dataPtr
+      .ok ("{\n      let __pf_address := " ++ value ++
+        "\n      if iszero(__pf_address) { revert(0, 0) }\n      " ++
+        storeFullWordForState binding.stateId state "__pf_address" ++ "\n    }")
+  | .addressKeccak =>
+    if param.abiType != "address" then
+      .error { message := s!"constructor_bind address_keccak requires address param `{binding.paramName}`" }
+    else if state.type != ValueType.hash then
+      .error { message := s!"constructor_bind address_keccak target `{binding.stateId}` must be .hash" }
+    else
+      let value := codeLoadExpr dataPtr
+      .ok ("{\n      let __pf_address := " ++ value ++
+        "\n      if iszero(__pf_address) { revert(0, 0) }\n      mstore(0, __pf_address)\n      " ++
+        storeFullWord state "keccak256(0, 32)" ++ "\n    }")
   | .stringLength | .bytesLength =>
     if param.abiType != "string" && param.abiType != "bytes" then
       .error { message := s!"constructor_bind length requires string/bytes param `{binding.paramName}`" }

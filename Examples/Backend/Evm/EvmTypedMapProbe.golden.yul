@@ -127,7 +127,7 @@ object "EvmTypedMapProbe" {
       revert(0, 0)
     }
     function f_EvmTypedMapProbe_typed_map_lifecycle() -> result {
-      sstore(3, or(and(sload(3), not(shl(192, 18446744073709551615))), shl(192, 777)))
+      sstore(3, or(and(sload(3), not(shl(0, 18446744073709551615))), shl(0, and(777, 18446744073709551615))))
       let old0 := __proof_forge_map_set_return(0, 7, 11)
       if iszero(eq(old0, 0)) {
         revert(0, 0)
@@ -201,7 +201,7 @@ object "EvmTypedMapProbe" {
       {
         let _slot := __proof_forge_map_slot(__proof_forge_map_slot(0, outer), inner)
         let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, outer), inner)
-        sstore(_slot, __pf_checked_add(sload(_slot), 5))
+        sstore(_slot, add(sload(_slot), 5))
         sstore(_presence_slot, 1)
       }
       result := sload(__proof_forge_map_slot(__proof_forge_map_slot(0, outer), inner))
@@ -232,12 +232,12 @@ object "EvmTypedMapProbe" {
     }
     function __proof_forge_map_assign_add(slot, key, value) {
       let _slot := __proof_forge_map_slot(slot, key)
-      sstore(_slot, __pf_checked_add(sload(_slot), value))
+      sstore(_slot, add(sload(_slot), value))
       sstore(__proof_forge_map_presence_slot(slot, key), 1)
     }
     function __proof_forge_map_assign_mul(slot, key, value) {
       let _slot := __proof_forge_map_slot(slot, key)
-      sstore(_slot, __pf_checked_mul(sload(_slot), value))
+      sstore(_slot, mul(sload(_slot), value))
       sstore(__proof_forge_map_presence_slot(slot, key), 1)
     }
     function __pf_checked_add(a, b) -> r {

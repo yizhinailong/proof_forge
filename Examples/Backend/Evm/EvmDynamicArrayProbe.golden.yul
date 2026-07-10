@@ -56,7 +56,7 @@ object "EvmDynamicArrayProbe" {
       sstore(__proof_forge_dynamic_array_slot(0, 2), 10)
       {
         let _slot := __proof_forge_dynamic_array_slot(0, 2)
-        sstore(_slot, __pf_checked_add(sload(_slot), 5))
+        sstore(_slot, add(sload(_slot), 5))
       }
       result := sload(__proof_forge_dynamic_array_slot(0, 2))
     }

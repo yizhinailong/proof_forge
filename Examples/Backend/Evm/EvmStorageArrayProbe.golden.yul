@@ -42,8 +42,8 @@ object "EvmStorageArrayProbe" {
       revert(0, 0)
     }
     function f_EvmStorageArrayProbe_storage_lifecycle() -> result {
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, 111)))
-      sstore(4, or(and(sload(4), not(shl(192, 18446744073709551615))), shl(192, 222)))
+      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(111, 18446744073709551615))))
+      sstore(4, or(and(sload(4), not(shl(0, 18446744073709551615))), shl(0, and(222, 18446744073709551615))))
       sstore(__proof_forge_array_slot(1, 3, 0), 7)
       sstore(__proof_forge_array_slot(1, 3, 1), 11)
       sstore(__proof_forge_array_slot(1, 3, 2), 13)
@@ -72,7 +72,7 @@ object "EvmStorageArrayProbe" {
       sstore(__proof_forge_array_slot(1, 3, 2), 10)
       {
         let _slot := __proof_forge_array_slot(1, 3, 2)
-        sstore(_slot, __pf_checked_add(sload(_slot), 5))
+        sstore(_slot, add(sload(_slot), 5))
       }
       result := sload(__proof_forge_array_slot(1, 3, 2))
     }

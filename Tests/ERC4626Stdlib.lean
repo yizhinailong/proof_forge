@@ -25,6 +25,21 @@ def main : IO UInt32 := do
   require (netAfterExitFee 1000 100 == 990) "net after exit 1%"
   require (grossSharesForNet 990 100 == some 1000) "gross for net mint"
   require (grossSharesForNet 100 0 == some 100) "gross identity"
+  let sRounding : State := { totalAssets := 2, totalSupply := 3 }
+  require (convertToAssetsUp sRounding 1 == 1)
+    "previewMint inverse conversion rounds assets up"
+  require (convertToSharesUp sRounding 1 == 2)
+    "previewWithdraw inverse conversion rounds shares up"
+  require (convertToAssetsUp sRounding 0 == 0 && convertToSharesUp sRounding 0 == 0)
+    "inverse conversion preserves zero"
+  require (convertToAssetsUp { totalAssets := 6, totalSupply := 3 } 1 == 2)
+    "inverse conversion does not over-round exact division"
+  require (previewMintAssets? sRounding 1 0 == some 1)
+    "previewMint applies ceil conversion after zero-fee grossing"
+  require (previewMintAssets? sRounding 990 100 == some 667)
+    "previewMint applies ceil conversion after entry-fee grossing"
+  require (previewWithdrawShares sRounding 1 == 2)
+    "previewWithdraw uses ceil share conversion"
   -- fee-on-transfer: Spec accounts **actual** received (99), not requested (100)
   match depositActual? empty 99 0 with
   | none => throw (IO.userError "fot actual deposit")
@@ -45,6 +60,12 @@ def main : IO UInt32 := do
       match withdraw? s1 200 0 with
       | some _ => throw (IO.userError "over-withdraw must fail")
       | none => pure ()
+      match withdraw? sRounding 1 0 with
+      | none => throw (IO.userError "rounded withdraw should succeed")
+      | some (sRounded, burned) =>
+          require (burned == 2) "withdraw burns the rounded-up share quote"
+          require (sRounded.totalAssets == 1 && sRounded.totalSupply == 1)
+            "rounded withdraw updates totals with the actual burned shares"
       -- pro-rata after donation: assets grow without minting shares
       let sDonated := { totalAssets := s1.totalAssets + 100, totalSupply := s1.totalSupply }
       require (convertToShares sDonated 100 == 50)
@@ -98,8 +119,11 @@ def main : IO UInt32 := do
   | .error e => throw (IO.userError s!"EVM plan: {e.message}")
   | .ok _ => pure ()
   match ProofForge.Backend.Solana.SbpfAsm.renderModule m with
-  | .error e => throw (IO.userError s!"Solana: {e.message}")
-  | .ok src => require (src.length > 0) "solana"
+  | .ok _ => throw (IO.userError "Solana should reject EVM-primary IERC20 selector remotes")
+  | .error e =>
+      require (e.message.contains "peer" || e.message.contains "remote" ||
+          e.message.contains "PortableHonesty")
+        s!"Solana honesty diagnostic, got: {e.message}"
   -- NEAR: IERC20 selector remotes need a string pool; honest reject without it.
   match ProofForge.Backend.WasmHost.EmitWat.renderModule m with
   | .ok _ => throw (IO.userError "NEAR should reject empty nearCrosscallStrings for asset pull")
@@ -107,7 +131,7 @@ def main : IO UInt32 := do
       require (e.message.contains "nearCrosscallStrings" || e.message.contains "crosscall")
         s!"NEAR honesty diagnostic, got: {e.message}"
 
-  IO.println "erc4626-stdlib: ok (pro-rata·entry/exit fee·EVM·Solana; NEAR honest reject)"
+  IO.println "erc4626-stdlib: ok (pro-rata·entry/exit fee·EVM; Solana/NEAR honest reject)"
   pure 0
 
 end ProofForge.Tests.ERC4626Stdlib

@@ -1009,4 +1009,24 @@ def boundedForStmtPlanStatements
   | _ =>
       .error (mkError "EVM StmtPlan-to-Yul boundedFor lowering expected boundedFor")
 
+/-- Lower the fixed-size ERC-1155 batch receiver check from its semantic
+`EffectPlan`. Keeping expression lowering behind this boundary prevents the
+legacy effect facade from rendering raw IR arguments directly. -/
+def erc1155BatchReceiverEffectPlanStatements
+    {ε : Type}
+    (mkError : String → ε)
+    (lowerExprPlan : ExprPlan → Except ε Lean.Compiler.Yul.Expr) :
+    EffectPlan → Except ε (Array Lean.Compiler.Yul.Statement)
+  | .checkErc1155BatchReceived operator fromAddr toAddr id0 amount0 id1 amount1 => do
+      let args ←
+        #[operator, fromAddr, toAddr, id0, amount0, id1, amount1].mapM lowerExprPlan
+      match args with
+      | #[operatorYul, fromYul, toYul, id0Yul, amount0Yul, id1Yul, amount1Yul] =>
+          .ok (checkErc1155BatchReceivedStatements
+            operatorYul fromYul toYul id0Yul amount0Yul id1Yul amount1Yul)
+      | _ =>
+          .error (mkError "EVM ERC-1155 batch receiver plan must lower exactly seven arguments")
+  | _ =>
+      .error (mkError "EVM ERC-1155 batch receiver lowering expected checkErc1155BatchReceived")
+
 end ProofForge.Backend.Evm.ToYul

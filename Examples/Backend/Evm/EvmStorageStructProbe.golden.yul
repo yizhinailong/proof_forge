@@ -67,8 +67,8 @@ object "EvmStorageStructProbe" {
       revert(0, 0)
     }
     function f_EvmStorageStructProbe_struct_lifecycle() -> result {
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, 111)))
-      sstore(3, or(and(sload(3), not(shl(192, 18446744073709551615))), shl(192, 222)))
+      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(111, 18446744073709551615))))
+      sstore(3, or(and(sload(3), not(shl(0, 18446744073709551615))), shl(0, and(222, 18446744073709551615))))
       sstore(1, 7)
       sstore(2, 11)
       result := __pf_checked_add(sload(1), sload(2))
@@ -78,7 +78,7 @@ object "EvmStorageStructProbe" {
       sstore(2, 22)
       {
         let _slot := 1
-        sstore(_slot, __pf_checked_add(sload(_slot), 5))
+        sstore(_slot, add(sload(_slot), 5))
       }
       result := __pf_checked_add(sload(1), sload(2))
     }
@@ -103,7 +103,7 @@ object "EvmStorageStructProbe" {
       sstore(__proof_forge_struct_array_slot(4, 2, 2, 0, 1), 13)
       {
         let _slot := __proof_forge_struct_array_slot(4, 2, 2, 0, 1)
-        sstore(_slot, __pf_checked_add(sload(_slot), 2))
+        sstore(_slot, add(sload(_slot), 2))
       }
       sstore(__proof_forge_struct_array_slot(4, 2, 2, 1, 0), 8)
       result := __pf_checked_add(sload(__proof_forge_struct_array_slot(4, 2, 2, 0, 1)), sload(__proof_forge_struct_array_slot(4, 2, 2, 1, 0)))

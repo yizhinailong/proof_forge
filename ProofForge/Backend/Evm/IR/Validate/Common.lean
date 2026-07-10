@@ -753,7 +753,8 @@ def ensureCastType (source target : ValueType) : Except LowerError Unit :=
   match source, target with
   | .u8, .u8 | .u8, .u32 | .u8, .u64 | .u8, .u128 | .u8, .bool => .ok ()
   | .u32, .u8 | .u32, .u32 | .u32, .u64 | .u32, .u128 | .u32, .bool => .ok ()
-  | .u64, .u8 | .u64, .u32 | .u64, .u64 | .u64, .u128 | .u64, .bool => .ok ()
+  | .u64, .u8 | .u64, .u32 | .u64, .u64 | .u64, .u128 | .u64, .bool
+  | .u64, .address => .ok ()
   | .u128, .u8 | .u128, .u32 | .u128, .u64 | .u128, .u128 => .ok ()
   | .bool, .u8 | .bool, .u32 | .bool, .u64 | .bool, .u128 | .bool, .bool => .ok ()
   | .address, .address | .address, .u64 | .hash, .address | .address, .hash | .hash, .hash => .ok ()

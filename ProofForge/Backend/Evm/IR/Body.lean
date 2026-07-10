@@ -411,6 +411,8 @@ def effectPlanSupportsPlannedBodyStmt :
   | .eventEmitIndexedWords event indexedFieldWords dataFieldWords =>
       eventFieldWordPlansSupportPlannedBody event.indexedFields indexedFieldWords &&
         eventFieldWordPlansSupportPlannedBody event.dataFields dataFieldWords
+  | .checkErc1155BatchReceived a b c d e f g =>
+      #[a, b, c, d, e, f, g].all exprPlanSupportsPlannedBody
   | _ => false
 
 partial def aggregateReturnExprPlanSupportsPlannedBody
@@ -545,7 +547,14 @@ def lowerPlannedBodyEffectPlan
     (effect : ProofForge.Backend.Evm.Plan.EffectPlan) :
     Except LowerError (Array Lean.Compiler.Yul.Statement) := do
   match effect with
-  | .storageScalarWriteTarget .. | .storageScalarAssignOpTarget .. =>
+  | .storageScalarWriteTarget _ value =>
+      ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
+        (ProofForge.Backend.Evm.Lower.exprPlanUsesCheckedArithmetic value)
+        toYulError
+        (fun expr => lowerExpr module env expr)
+        (lowerPlanEffectExpr module env)
+        (.effect effect)
+  | .storageScalarAssignOpTarget .. =>
       ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
         module.overflowChecked
         toYulError
@@ -572,14 +581,14 @@ def lowerPlannedBodyEffectPlan
           match ProofForge.Backend.Evm.Lower.scalarStorageTargetPlan? module stateId with
           | some target =>
               ProofForge.Backend.Evm.ToYul.scalarStorageTargetEffectStmtPlanStatements
-                module.overflowChecked
+                (ProofForge.Backend.Evm.Lower.exprPlanUsesCheckedArithmetic value)
                 toYulError
                 (fun expr => lowerExpr module env expr)
                 (lowerPlanEffectExpr module env)
                 (.effect (.storageScalarWriteTarget target value))
           | none =>
               ProofForge.Backend.Evm.ToYul.scalarStorageEffectStmtPlanStatements
-                module.overflowChecked
+                (ProofForge.Backend.Evm.Lower.exprPlanUsesCheckedArithmetic value)
                 toYulError
                 (fun expr => lowerExpr module env expr)
                 (lowerPlanEffectExpr module env)
@@ -781,6 +790,11 @@ def lowerPlannedBodyEffectPlan
         (.effect effect)
   | .eventEmit .. | .eventEmitIndexed .. | .eventEmitWords .. | .eventEmitIndexedWords .. =>
       lowerPlannedBodyEventEffectPlan module env effect
+  | .checkErc1155BatchReceived .. =>
+      ProofForge.Backend.Evm.ToYul.erc1155BatchReceiverEffectPlanStatements
+        toYulError
+        (lowerExprPlanExpr module env)
+        effect
   | _ =>
       .error { message := "planned scalar control-flow body expected a supported effect" }
 

@@ -140,7 +140,7 @@ object "EvmArrayValueProbe" {
       let __proof_forge_array_xs_1 := 11
       let __proof_forge_array_xs_2 := 13
       __proof_forge_array_xs_1 := 19
-      __proof_forge_array_xs_2 := __pf_checked_add(__proof_forge_array_xs_2, 5)
+      __proof_forge_array_xs_2 := add(__proof_forge_array_xs_2, 5)
       result := __pf_checked_add(__proof_forge_array_xs_1, __proof_forge_array_xs_2)
     }
     function f_EvmArrayValueProbe_mutable_mixed() -> result {
@@ -245,7 +245,7 @@ object "EvmArrayValueProbe" {
       let __proof_forge_array_matrix_1_0 := 5
       let __proof_forge_array_matrix_1_1 := 7
       __proof_forge_array_matrix_1_0 := 17
-      __proof_forge_array_matrix_0_1 := __pf_checked_add(__proof_forge_array_matrix_0_1, 4)
+      __proof_forge_array_matrix_0_1 := add(__proof_forge_array_matrix_0_1, 4)
       result := __pf_checked_add(__proof_forge_array_matrix_1_0, __proof_forge_array_matrix_0_1)
     }
     function f_EvmArrayValueProbe_nested_whole_array_assign() -> result {

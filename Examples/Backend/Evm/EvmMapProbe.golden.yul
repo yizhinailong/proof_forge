@@ -74,8 +74,8 @@ object "EvmMapProbe" {
       revert(0, 0)
     }
     function f_EvmMapProbe_map_lifecycle() -> result {
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, 111)))
-      sstore(2, or(and(sload(2), not(shl(192, 18446744073709551615))), shl(192, 222)))
+      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(111, 18446744073709551615))))
+      sstore(2, or(and(sload(2), not(shl(0, 18446744073709551615))), shl(0, and(222, 18446744073709551615))))
       let old0 := __proof_forge_map_set_return(1, 1001, 11)
       if iszero(eq(old0, 0)) {
         revert(0, 0)
@@ -155,7 +155,7 @@ object "EvmMapProbe" {
       {
         let _slot := __proof_forge_map_slot(__proof_forge_map_slot(1, 4004), 5005)
         let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(1, 4004), 5005)
-        sstore(_slot, __pf_checked_add(sload(_slot), 7))
+        sstore(_slot, add(sload(_slot), 7))
         sstore(_presence_slot, 1)
       }
       result := sload(__proof_forge_map_slot(__proof_forge_map_slot(1, 4004), 5005))
@@ -195,17 +195,17 @@ object "EvmMapProbe" {
     }
     function __proof_forge_map_assign_add(slot, key, value) {
       let _slot := __proof_forge_map_slot(slot, key)
-      sstore(_slot, __pf_checked_add(sload(_slot), value))
+      sstore(_slot, add(sload(_slot), value))
       sstore(__proof_forge_map_presence_slot(slot, key), 1)
     }
     function __proof_forge_map_assign_sub(slot, key, value) {
       let _slot := __proof_forge_map_slot(slot, key)
-      sstore(_slot, __pf_checked_sub(sload(_slot), value))
+      sstore(_slot, sub(sload(_slot), value))
       sstore(__proof_forge_map_presence_slot(slot, key), 1)
     }
     function __proof_forge_map_assign_mul(slot, key, value) {
       let _slot := __proof_forge_map_slot(slot, key)
-      sstore(_slot, __pf_checked_mul(sload(_slot), value))
+      sstore(_slot, mul(sload(_slot), value))
       sstore(__proof_forge_map_presence_slot(slot, key), 1)
     }
     function __proof_forge_map_assign_div(slot, key, value) {

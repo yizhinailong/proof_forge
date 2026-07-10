@@ -36,11 +36,11 @@ object "Ierc721Client" {
     }
     function f_Ierc721Client_moveToken(from, to, tokenId) {
       let _ok := __proof_forge_crosscall_3(0, 599290589, from, to, tokenId)
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, tokenId)))
+      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(tokenId, 18446744073709551615))))
     }
     function f_Ierc721Client_safeMoveToken(from, to, tokenId) {
       let _ok := __proof_forge_crosscall_3(0, 1115958798, from, to, tokenId)
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, tokenId)))
+      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(tokenId, 18446744073709551615))))
     }
     function f_Ierc721Client_readOwner(tokenId) -> result {
       result := __proof_forge_crosscall_1(0, 1666326814, tokenId)

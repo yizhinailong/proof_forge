@@ -173,40 +173,40 @@ object "ERC4626" {
       revert(0, 0)
     }
     function f_ERC4626_asset() -> result {
-      result := and(shr(192, sload(0)), 18446744073709551615)
+      result := and(shr(0, sload(0)), 18446744073709551615)
     }
     function f_ERC4626_totalAssets() -> result {
-      result := and(shr(64, sload(0)), 18446744073709551615)
+      result := and(shr(128, sload(0)), 18446744073709551615)
     }
     function f_ERC4626_totalSupply() -> result {
-      result := and(shr(0, sload(0)), 18446744073709551615)
+      result := and(shr(192, sload(0)), 18446744073709551615)
     }
     function f_ERC4626_balanceOf(who) -> result {
       result := sload(__proof_forge_map_slot(3, who))
     }
     function f_ERC4626_convertToShares(assets) -> result {
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, assets)))
-      switch gt(and(shr(0, sload(0)), 18446744073709551615), 0)
+      let _pf_convert_shares := assets
+      switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
       case 0 { }
       default {
-        if iszero(iszero(eq(and(shr(64, sload(0)), 18446744073709551615), 0))) {
+        if iszero(iszero(eq(and(shr(128, sload(0)), 18446744073709551615), 0))) {
           revert(0, 0)
         }
-        sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, div(__pf_checked_mul(assets, and(shr(0, sload(0)), 18446744073709551615)), and(shr(64, sload(0)), 18446744073709551615)))))
+        _pf_convert_shares := div(__pf_checked_mul(assets, and(shr(192, sload(0)), 18446744073709551615)), and(shr(128, sload(0)), 18446744073709551615))
       }
-      result := and(shr(192, sload(1)), 18446744073709551615)
+      result := _pf_convert_shares
     }
     function f_ERC4626_convertToAssets(shares) -> result {
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, shares)))
-      switch gt(and(shr(0, sload(0)), 18446744073709551615), 0)
+      let _pf_convert_assets := shares
+      switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
       case 0 { }
       default {
-        if iszero(iszero(eq(and(shr(64, sload(0)), 18446744073709551615), 0))) {
+        if iszero(iszero(eq(and(shr(128, sload(0)), 18446744073709551615), 0))) {
           revert(0, 0)
         }
-        sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, div(__pf_checked_mul(shares, and(shr(64, sload(0)), 18446744073709551615)), and(shr(0, sload(0)), 18446744073709551615)))))
+        _pf_convert_assets := div(__pf_checked_mul(shares, and(shr(128, sload(0)), 18446744073709551615)), and(shr(192, sload(0)), 18446744073709551615))
       }
-      result := and(shr(192, sload(1)), 18446744073709551615)
+      result := _pf_convert_assets
     }
     function f_ERC4626_maxDeposit(who) -> result {
       result := 18446744073709551615
@@ -215,89 +215,129 @@ object "ERC4626" {
       result := 18446744073709551615
     }
     function f_ERC4626_maxWithdraw(holder) -> result {
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, sload(__proof_forge_map_slot(3, holder)))))
-      switch gt(and(shr(0, sload(0)), 18446744073709551615), 0)
+      let _pf_max_withdraw := sload(__proof_forge_map_slot(3, holder))
+      switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
       case 0 { }
       default {
-        if iszero(iszero(eq(and(shr(64, sload(0)), 18446744073709551615), 0))) {
+        if iszero(iszero(eq(and(shr(128, sload(0)), 18446744073709551615), 0))) {
           revert(0, 0)
         }
-        sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, div(__pf_checked_mul(and(shr(192, sload(1)), 18446744073709551615), and(shr(64, sload(0)), 18446744073709551615)), and(shr(0, sload(0)), 18446744073709551615)))))
+        _pf_max_withdraw := div(__pf_checked_mul(sload(__proof_forge_map_slot(3, holder)), and(shr(128, sload(0)), 18446744073709551615)), and(shr(192, sload(0)), 18446744073709551615))
       }
-      sstore(1, or(and(sload(1), not(shl(128, 18446744073709551615))), shl(128, div(__pf_checked_mul(and(shr(192, sload(1)), 18446744073709551615), and(shr(64, sload(2)), 18446744073709551615)), 10000))))
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, __pf_checked_sub(and(shr(192, sload(1)), 18446744073709551615), and(shr(128, sload(1)), 18446744073709551615)))))
-      result := and(shr(192, sload(1)), 18446744073709551615)
+      let _pf_max_withdraw_net := _pf_max_withdraw
+      switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
+      case 0 { }
+      default {
+        _pf_max_withdraw_net := __pf_checked_sub(_pf_max_withdraw, div(__pf_checked_mul(_pf_max_withdraw, and(shr(128, sload(2)), 18446744073709551615)), 10000))
+      }
+      result := _pf_max_withdraw_net
     }
     function f_ERC4626_maxRedeem(holder) -> result {
       result := sload(__proof_forge_map_slot(3, holder))
     }
     function f_ERC4626_feeBps() -> result {
-      result := and(shr(64, sload(2)), 18446744073709551615)
+      result := and(shr(128, sload(2)), 18446744073709551615)
     }
     function f_ERC4626_feeRecipient() -> result {
-      result := and(shr(0, sload(2)), 18446744073709551615)
+      result := and(shr(192, sload(2)), 18446744073709551615)
     }
     function f_ERC4626_previewDeposit(assets) -> result {
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, assets)))
-      switch gt(and(shr(0, sload(0)), 18446744073709551615), 0)
+      let _pf_preview_deposit := assets
+      switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
       case 0 { }
       default {
-        if iszero(iszero(eq(and(shr(64, sload(0)), 18446744073709551615), 0))) {
+        if iszero(iszero(eq(and(shr(128, sload(0)), 18446744073709551615), 0))) {
           revert(0, 0)
         }
-        sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, div(__pf_checked_mul(assets, and(shr(0, sload(0)), 18446744073709551615)), and(shr(64, sload(0)), 18446744073709551615)))))
+        _pf_preview_deposit := div(__pf_checked_mul(assets, and(shr(192, sload(0)), 18446744073709551615)), and(shr(128, sload(0)), 18446744073709551615))
       }
-      sstore(1, or(and(sload(1), not(shl(128, 18446744073709551615))), shl(128, div(__pf_checked_mul(and(shr(192, sload(1)), 18446744073709551615), and(shr(64, sload(2)), 18446744073709551615)), 10000))))
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, __pf_checked_sub(and(shr(192, sload(1)), 18446744073709551615), and(shr(128, sload(1)), 18446744073709551615)))))
-      result := and(shr(192, sload(1)), 18446744073709551615)
+      let _pf_preview_deposit_net := _pf_preview_deposit
+      switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
+      case 0 { }
+      default {
+        _pf_preview_deposit_net := __pf_checked_sub(_pf_preview_deposit, div(__pf_checked_mul(_pf_preview_deposit, and(shr(128, sload(2)), 18446744073709551615)), 10000))
+      }
+      result := _pf_preview_deposit_net
     }
     function f_ERC4626_previewMint(shares) -> result {
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, shares)))
-      switch gt(and(shr(64, sload(2)), 18446744073709551615), 0)
+      let _pf_preview_mint_gross := shares
+      switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
       case 0 { }
       default {
-        if iszero(iszero(eq(and(shr(64, sload(2)), 18446744073709551615), 10000))) {
+        if iszero(iszero(eq(and(shr(128, sload(2)), 18446744073709551615), 10000))) {
           revert(0, 0)
         }
-        sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, div(__pf_checked_mul(and(shr(192, sload(1)), 18446744073709551615), 10000), __pf_checked_sub(10000, and(shr(64, sload(2)), 18446744073709551615))))))
+        _pf_preview_mint_gross := div(__pf_checked_mul(shares, 10000), __pf_checked_sub(10000, and(shr(128, sload(2)), 18446744073709551615)))
       }
-      let gross := and(shr(192, sload(1)), 18446744073709551615)
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, gross)))
-      switch gt(and(shr(0, sload(0)), 18446744073709551615), 0)
+      if iszero(iszero(lt(18446744073709551615, _pf_preview_mint_gross))) {
+        revert(0, 0)
+      }
+      let _pf_preview_mint_assets := _pf_preview_mint_gross
+      switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
       case 0 { }
       default {
-        if iszero(iszero(eq(and(shr(64, sload(0)), 18446744073709551615), 0))) {
+        if iszero(iszero(eq(and(shr(128, sload(0)), 18446744073709551615), 0))) {
           revert(0, 0)
         }
-        sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, div(__pf_checked_mul(gross, and(shr(64, sload(0)), 18446744073709551615)), and(shr(0, sload(0)), 18446744073709551615)))))
+        let _pf_preview_mint_assets_numerator := __pf_checked_mul(_pf_preview_mint_gross, and(shr(128, sload(0)), 18446744073709551615))
+        let _pf_preview_mint_assets_quotient := div(_pf_preview_mint_assets_numerator, and(shr(192, sload(0)), 18446744073709551615))
+        if iszero(iszero(lt(18446744073709551615, _pf_preview_mint_assets_quotient))) {
+          revert(0, 0)
+        }
+        _pf_preview_mint_assets := _pf_preview_mint_assets_quotient
+        switch gt(mod(_pf_preview_mint_assets_numerator, and(shr(192, sload(0)), 18446744073709551615)), 0)
+        case 0 { }
+        default {
+          if iszero(iszero(eq(_pf_preview_mint_assets_quotient, 18446744073709551615))) {
+            revert(0, 0)
+          }
+          _pf_preview_mint_assets := __pf_checked_add(_pf_preview_mint_assets_quotient, 1)
+        }
       }
-      result := and(shr(192, sload(1)), 18446744073709551615)
+      result := _pf_preview_mint_assets
     }
     function f_ERC4626_previewWithdraw(assets) -> result {
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, assets)))
-      switch gt(and(shr(0, sload(0)), 18446744073709551615), 0)
+      let _pf_preview_withdraw := assets
+      switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
       case 0 { }
       default {
-        if iszero(iszero(eq(and(shr(64, sload(0)), 18446744073709551615), 0))) {
+        if iszero(iszero(eq(and(shr(128, sload(0)), 18446744073709551615), 0))) {
           revert(0, 0)
         }
-        sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, div(__pf_checked_mul(assets, and(shr(0, sload(0)), 18446744073709551615)), and(shr(64, sload(0)), 18446744073709551615)))))
+        let _pf_preview_withdraw_numerator := __pf_checked_mul(assets, and(shr(192, sload(0)), 18446744073709551615))
+        let _pf_preview_withdraw_quotient := div(_pf_preview_withdraw_numerator, and(shr(128, sload(0)), 18446744073709551615))
+        if iszero(iszero(lt(18446744073709551615, _pf_preview_withdraw_quotient))) {
+          revert(0, 0)
+        }
+        _pf_preview_withdraw := _pf_preview_withdraw_quotient
+        switch gt(mod(_pf_preview_withdraw_numerator, and(shr(128, sload(0)), 18446744073709551615)), 0)
+        case 0 { }
+        default {
+          if iszero(iszero(eq(_pf_preview_withdraw_quotient, 18446744073709551615))) {
+            revert(0, 0)
+          }
+          _pf_preview_withdraw := __pf_checked_add(_pf_preview_withdraw_quotient, 1)
+        }
       }
-      result := and(shr(192, sload(1)), 18446744073709551615)
+      result := _pf_preview_withdraw
     }
     function f_ERC4626_previewRedeem(shares) -> result {
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, shares)))
-      switch gt(and(shr(0, sload(0)), 18446744073709551615), 0)
+      let _pf_preview_redeem := shares
+      switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
       case 0 { }
       default {
-        if iszero(iszero(eq(and(shr(64, sload(0)), 18446744073709551615), 0))) {
+        if iszero(iszero(eq(and(shr(128, sload(0)), 18446744073709551615), 0))) {
           revert(0, 0)
         }
-        sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, div(__pf_checked_mul(shares, and(shr(64, sload(0)), 18446744073709551615)), and(shr(0, sload(0)), 18446744073709551615)))))
+        _pf_preview_redeem := div(__pf_checked_mul(shares, and(shr(128, sload(0)), 18446744073709551615)), and(shr(192, sload(0)), 18446744073709551615))
       }
-      sstore(1, or(and(sload(1), not(shl(128, 18446744073709551615))), shl(128, div(__pf_checked_mul(and(shr(192, sload(1)), 18446744073709551615), and(shr(64, sload(2)), 18446744073709551615)), 10000))))
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, __pf_checked_sub(and(shr(192, sload(1)), 18446744073709551615), and(shr(128, sload(1)), 18446744073709551615)))))
-      result := and(shr(192, sload(1)), 18446744073709551615)
+      let _pf_preview_redeem_net := _pf_preview_redeem
+      switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
+      case 0 { }
+      default {
+        _pf_preview_redeem_net := __pf_checked_sub(_pf_preview_redeem, div(__pf_checked_mul(_pf_preview_redeem, and(shr(128, sload(2)), 18446744073709551615)), 10000))
+      }
+      result := _pf_preview_redeem_net
     }
     function f_ERC4626_deposit(assets, receiver) -> result {
       if iszero(iszero(eq(receiver, 0))) {
@@ -306,53 +346,94 @@ object "ERC4626" {
       if iszero(iszero(eq(assets, 0))) {
         revert(0, 0)
       }
-      sstore(1, or(and(sload(1), not(shl(64, 18446744073709551615))), shl(64, __proof_forge_crosscall_1(and(shr(192, sload(0)), 18446744073709551615), 1889567281, and(shr(128, sload(0)), 18446744073709551615)))))
-      let _pf_pull := __proof_forge_crosscall_3(and(shr(192, sload(0)), 18446744073709551615), 599290589, caller(), and(shr(128, sload(0)), 18446744073709551615), assets)
-      let _pf_bal_after := __proof_forge_crosscall_1(and(shr(192, sload(0)), 18446744073709551615), 1889567281, and(shr(128, sload(0)), 18446744073709551615))
-      sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, __pf_checked_sub(_pf_bal_after, and(shr(64, sload(1)), 18446744073709551615)))))
-      if iszero(iszero(eq(and(shr(0, sload(1)), 18446744073709551615), 0))) {
-        revert(0, 0)
-      }
-      let actual := and(shr(0, sload(1)), 18446744073709551615)
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, actual)))
-      switch gt(and(shr(0, sload(0)), 18446744073709551615), 0)
-      case 0 { }
-      default {
-        if iszero(iszero(eq(and(shr(64, sload(0)), 18446744073709551615), 0))) {
+      sstore(1, or(and(sload(1), not(shl(128, 18446744073709551615))), shl(128, and(__proof_forge_crosscall_1(and(shr(0, sload(0)), 18446744073709551615), 1889567281, and(shr(64, sload(0)), 18446744073709551615)), 18446744073709551615))))
+      let _pf_pull := __proof_forge_crosscall_3(and(shr(0, sload(0)), 18446744073709551615), 599290589, caller(), and(shr(64, sload(0)), 18446744073709551615), assets)
+      let _pf_bal_after := __proof_forge_crosscall_1(and(shr(0, sload(0)), 18446744073709551615), 1889567281, and(shr(64, sload(0)), 18446744073709551615))
+      {
+        let __pf_packed_value := __pf_checked_sub(_pf_bal_after, and(shr(128, sload(1)), 18446744073709551615))
+        if gt(__pf_packed_value, 18446744073709551615) {
           revert(0, 0)
         }
-        sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, div(__pf_checked_mul(actual, and(shr(0, sload(0)), 18446744073709551615)), and(shr(64, sload(0)), 18446744073709551615)))))
+        sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, and(__pf_packed_value, 18446744073709551615))))
       }
-      let gross := and(shr(192, sload(1)), 18446744073709551615)
+      if iszero(iszero(eq(and(shr(192, sload(1)), 18446744073709551615), 0))) {
+        revert(0, 0)
+      }
+      let actual := and(shr(192, sload(1)), 18446744073709551615)
+      sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(actual, 18446744073709551615))))
+      switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
+      case 0 { }
+      default {
+        if iszero(iszero(eq(and(shr(128, sload(0)), 18446744073709551615), 0))) {
+          revert(0, 0)
+        }
+        {
+          let __pf_packed_value := div(__pf_checked_mul(actual, and(shr(192, sload(0)), 18446744073709551615)), and(shr(128, sload(0)), 18446744073709551615))
+          if gt(__pf_packed_value, 18446744073709551615) {
+            revert(0, 0)
+          }
+          sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(__pf_packed_value, 18446744073709551615))))
+        }
+      }
+      let gross := and(shr(0, sload(1)), 18446744073709551615)
       if iszero(iszero(eq(gross, 0))) {
         revert(0, 0)
       }
-      sstore(1, or(and(sload(1), not(shl(128, 18446744073709551615))), shl(128, div(__pf_checked_mul(and(shr(192, sload(1)), 18446744073709551615), and(shr(64, sload(2)), 18446744073709551615)), 10000))))
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, __pf_checked_sub(and(shr(192, sload(1)), 18446744073709551615), and(shr(128, sload(1)), 18446744073709551615)))))
-      let shares := and(shr(192, sload(1)), 18446744073709551615)
+      sstore(1, or(and(sload(1), not(shl(64, 18446744073709551615))), shl(64, and(0, 18446744073709551615))))
+      switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
+      case 0 { }
+      default {
+        {
+          let __pf_packed_value := div(__pf_checked_mul(and(shr(0, sload(1)), 18446744073709551615), and(shr(128, sload(2)), 18446744073709551615)), 10000)
+          if gt(__pf_packed_value, 18446744073709551615) {
+            revert(0, 0)
+          }
+          sstore(1, or(and(sload(1), not(shl(64, 18446744073709551615))), shl(64, and(__pf_packed_value, 18446744073709551615))))
+        }
+        {
+          let __pf_packed_value := __pf_checked_sub(and(shr(0, sload(1)), 18446744073709551615), and(shr(64, sload(1)), 18446744073709551615))
+          if gt(__pf_packed_value, 18446744073709551615) {
+            revert(0, 0)
+          }
+          sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(__pf_packed_value, 18446744073709551615))))
+        }
+      }
+      let shares := and(shr(0, sload(1)), 18446744073709551615)
       if iszero(iszero(eq(shares, 0))) {
         revert(0, 0)
       }
-      let ta := and(shr(64, sload(0)), 18446744073709551615)
-      sstore(0, or(and(sload(0), not(shl(64, 18446744073709551615))), shl(64, __pf_checked_add(ta, actual))))
-      let ts := and(shr(0, sload(0)), 18446744073709551615)
-      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, __pf_checked_add(ts, gross))))
-      let bal := sload(__proof_forge_map_slot(3, receiver))
-      __proof_forge_map_write(3, receiver, __pf_checked_add(bal, shares))
-      switch gt(and(shr(128, sload(1)), 18446744073709551615), 0)
-      case 0 { }
-      default {
-        if iszero(iszero(eq(and(shr(0, sload(2)), 18446744073709551615), 0))) {
+      let ta := and(shr(128, sload(0)), 18446744073709551615)
+      {
+        let __pf_packed_value := __pf_checked_add(ta, actual)
+        if gt(__pf_packed_value, 18446744073709551615) {
           revert(0, 0)
         }
-        __proof_forge_map_write(3, and(shr(0, sload(2)), 18446744073709551615), __pf_checked_add(sload(__proof_forge_map_slot(3, and(shr(0, sload(2)), 18446744073709551615))), and(shr(128, sload(1)), 18446744073709551615)))
+        sstore(0, or(and(sload(0), not(shl(128, 18446744073709551615))), shl(128, and(__pf_packed_value, 18446744073709551615))))
+      }
+      let ts := and(shr(192, sload(0)), 18446744073709551615)
+      {
+        let __pf_packed_value := __pf_checked_add(ts, gross)
+        if gt(__pf_packed_value, 18446744073709551615) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, and(__pf_packed_value, 18446744073709551615))))
+      }
+      let bal := sload(__proof_forge_map_slot(3, receiver))
+      __proof_forge_map_write(3, receiver, __pf_checked_add(bal, shares))
+      switch gt(and(shr(64, sload(1)), 18446744073709551615), 0)
+      case 0 { }
+      default {
+        if iszero(iszero(eq(and(shr(192, sload(2)), 18446744073709551615), 0))) {
+          revert(0, 0)
+        }
+        __proof_forge_map_write(3, and(shr(192, sload(2)), 18446744073709551615), __pf_checked_add(sload(__proof_forge_map_slot(3, and(shr(192, sload(2)), 18446744073709551615))), and(shr(64, sload(1)), 18446744073709551615)))
         {
           mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288410934)
           mstore(32, 18544826791913921923306290567797672742125270981606496584444378688767337168896)
           let _topic0 := keccak256(0, 33)
           let _indexed_topic0 := 0
-          let _indexed_topic1 := and(shr(0, sload(2)), 18446744073709551615)
-          mstore(0, and(shr(128, sload(1)), 18446744073709551615))
+          let _indexed_topic1 := and(shr(192, sload(2)), 18446744073709551615)
+          mstore(0, and(shr(64, sload(1)), 18446744073709551615))
           log3(0, 32, _topic0, _indexed_topic0, _indexed_topic1)
         }
       }
@@ -384,79 +465,145 @@ object "ERC4626" {
       if iszero(iszero(eq(shares, 0))) {
         revert(0, 0)
       }
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, shares)))
-      switch gt(and(shr(64, sload(2)), 18446744073709551615), 0)
+      sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(shares, 18446744073709551615))))
+      switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
       case 0 { }
       default {
-        if iszero(iszero(eq(and(shr(64, sload(2)), 18446744073709551615), 10000))) {
+        if iszero(iszero(eq(and(shr(128, sload(2)), 18446744073709551615), 10000))) {
           revert(0, 0)
         }
-        sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, div(__pf_checked_mul(and(shr(192, sload(1)), 18446744073709551615), 10000), __pf_checked_sub(10000, and(shr(64, sload(2)), 18446744073709551615))))))
+        {
+          let __pf_packed_value := div(__pf_checked_mul(and(shr(0, sload(1)), 18446744073709551615), 10000), __pf_checked_sub(10000, and(shr(128, sload(2)), 18446744073709551615)))
+          if gt(__pf_packed_value, 18446744073709551615) {
+            revert(0, 0)
+          }
+          sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(__pf_packed_value, 18446744073709551615))))
+        }
       }
-      let grossWanted := and(shr(192, sload(1)), 18446744073709551615)
+      let grossWanted := and(shr(0, sload(1)), 18446744073709551615)
       if iszero(iszero(eq(grossWanted, 0))) {
         revert(0, 0)
       }
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, grossWanted)))
-      switch gt(and(shr(0, sload(0)), 18446744073709551615), 0)
+      sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(grossWanted, 18446744073709551615))))
+      switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
       case 0 { }
       default {
-        if iszero(iszero(eq(and(shr(64, sload(0)), 18446744073709551615), 0))) {
+        if iszero(iszero(eq(and(shr(128, sload(0)), 18446744073709551615), 0))) {
           revert(0, 0)
         }
-        sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, div(__pf_checked_mul(grossWanted, and(shr(64, sload(0)), 18446744073709551615)), and(shr(0, sload(0)), 18446744073709551615)))))
+        let _pf_assets_up_numerator := __pf_checked_mul(grossWanted, and(shr(128, sload(0)), 18446744073709551615))
+        let _pf_assets_up_quotient := div(_pf_assets_up_numerator, and(shr(192, sload(0)), 18446744073709551615))
+        if iszero(iszero(lt(18446744073709551615, _pf_assets_up_quotient))) {
+          revert(0, 0)
+        }
+        sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(_pf_assets_up_quotient, 18446744073709551615))))
+        switch gt(mod(_pf_assets_up_numerator, and(shr(192, sload(0)), 18446744073709551615)), 0)
+        case 0 { }
+        default {
+          if iszero(iszero(eq(_pf_assets_up_quotient, 18446744073709551615))) {
+            revert(0, 0)
+          }
+          {
+            let __pf_packed_value := __pf_checked_add(_pf_assets_up_quotient, 1)
+            if gt(__pf_packed_value, 18446744073709551615) {
+              revert(0, 0)
+            }
+            sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(__pf_packed_value, 18446744073709551615))))
+          }
+        }
       }
-      let assetsWanted := and(shr(192, sload(1)), 18446744073709551615)
+      let assetsWanted := and(shr(0, sload(1)), 18446744073709551615)
       if iszero(iszero(eq(assetsWanted, 0))) {
         revert(0, 0)
       }
-      sstore(1, or(and(sload(1), not(shl(64, 18446744073709551615))), shl(64, __proof_forge_crosscall_1(and(shr(192, sload(0)), 18446744073709551615), 1889567281, and(shr(128, sload(0)), 18446744073709551615)))))
-      let _pf_pull := __proof_forge_crosscall_3(and(shr(192, sload(0)), 18446744073709551615), 599290589, caller(), and(shr(128, sload(0)), 18446744073709551615), assetsWanted)
-      let _pf_bal_after := __proof_forge_crosscall_1(and(shr(192, sload(0)), 18446744073709551615), 1889567281, and(shr(128, sload(0)), 18446744073709551615))
-      sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, __pf_checked_sub(_pf_bal_after, and(shr(64, sload(1)), 18446744073709551615)))))
-      if iszero(iszero(eq(and(shr(0, sload(1)), 18446744073709551615), 0))) {
-        revert(0, 0)
-      }
-      let actual := and(shr(0, sload(1)), 18446744073709551615)
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, actual)))
-      switch gt(and(shr(0, sload(0)), 18446744073709551615), 0)
-      case 0 { }
-      default {
-        if iszero(iszero(eq(and(shr(64, sload(0)), 18446744073709551615), 0))) {
+      sstore(1, or(and(sload(1), not(shl(128, 18446744073709551615))), shl(128, and(__proof_forge_crosscall_1(and(shr(0, sload(0)), 18446744073709551615), 1889567281, and(shr(64, sload(0)), 18446744073709551615)), 18446744073709551615))))
+      let _pf_pull := __proof_forge_crosscall_3(and(shr(0, sload(0)), 18446744073709551615), 599290589, caller(), and(shr(64, sload(0)), 18446744073709551615), assetsWanted)
+      let _pf_bal_after := __proof_forge_crosscall_1(and(shr(0, sload(0)), 18446744073709551615), 1889567281, and(shr(64, sload(0)), 18446744073709551615))
+      {
+        let __pf_packed_value := __pf_checked_sub(_pf_bal_after, and(shr(128, sload(1)), 18446744073709551615))
+        if gt(__pf_packed_value, 18446744073709551615) {
           revert(0, 0)
         }
-        sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, div(__pf_checked_mul(actual, and(shr(0, sload(0)), 18446744073709551615)), and(shr(64, sload(0)), 18446744073709551615)))))
+        sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, and(__pf_packed_value, 18446744073709551615))))
       }
-      let gross := and(shr(192, sload(1)), 18446744073709551615)
+      if iszero(iszero(eq(and(shr(192, sload(1)), 18446744073709551615), 0))) {
+        revert(0, 0)
+      }
+      let actual := and(shr(192, sload(1)), 18446744073709551615)
+      sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(actual, 18446744073709551615))))
+      switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
+      case 0 { }
+      default {
+        if iszero(iszero(eq(and(shr(128, sload(0)), 18446744073709551615), 0))) {
+          revert(0, 0)
+        }
+        {
+          let __pf_packed_value := div(__pf_checked_mul(actual, and(shr(192, sload(0)), 18446744073709551615)), and(shr(128, sload(0)), 18446744073709551615))
+          if gt(__pf_packed_value, 18446744073709551615) {
+            revert(0, 0)
+          }
+          sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(__pf_packed_value, 18446744073709551615))))
+        }
+      }
+      let gross := and(shr(0, sload(1)), 18446744073709551615)
       if iszero(iszero(eq(gross, 0))) {
         revert(0, 0)
       }
-      sstore(1, or(and(sload(1), not(shl(128, 18446744073709551615))), shl(128, div(__pf_checked_mul(and(shr(192, sload(1)), 18446744073709551615), and(shr(64, sload(2)), 18446744073709551615)), 10000))))
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, __pf_checked_sub(and(shr(192, sload(1)), 18446744073709551615), and(shr(128, sload(1)), 18446744073709551615)))))
-      let userShares := and(shr(192, sload(1)), 18446744073709551615)
+      sstore(1, or(and(sload(1), not(shl(64, 18446744073709551615))), shl(64, and(0, 18446744073709551615))))
+      switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
+      case 0 { }
+      default {
+        {
+          let __pf_packed_value := div(__pf_checked_mul(and(shr(0, sload(1)), 18446744073709551615), and(shr(128, sload(2)), 18446744073709551615)), 10000)
+          if gt(__pf_packed_value, 18446744073709551615) {
+            revert(0, 0)
+          }
+          sstore(1, or(and(sload(1), not(shl(64, 18446744073709551615))), shl(64, and(__pf_packed_value, 18446744073709551615))))
+        }
+        {
+          let __pf_packed_value := __pf_checked_sub(and(shr(0, sload(1)), 18446744073709551615), and(shr(64, sload(1)), 18446744073709551615))
+          if gt(__pf_packed_value, 18446744073709551615) {
+            revert(0, 0)
+          }
+          sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(__pf_packed_value, 18446744073709551615))))
+        }
+      }
+      let userShares := and(shr(0, sload(1)), 18446744073709551615)
       if iszero(iszero(eq(userShares, 0))) {
         revert(0, 0)
       }
-      let ta := and(shr(64, sload(0)), 18446744073709551615)
-      sstore(0, or(and(sload(0), not(shl(64, 18446744073709551615))), shl(64, __pf_checked_add(ta, actual))))
-      let ts := and(shr(0, sload(0)), 18446744073709551615)
-      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, __pf_checked_add(ts, gross))))
-      let bal := sload(__proof_forge_map_slot(3, receiver))
-      __proof_forge_map_write(3, receiver, __pf_checked_add(bal, userShares))
-      switch gt(and(shr(128, sload(1)), 18446744073709551615), 0)
-      case 0 { }
-      default {
-        if iszero(iszero(eq(and(shr(0, sload(2)), 18446744073709551615), 0))) {
+      let ta := and(shr(128, sload(0)), 18446744073709551615)
+      {
+        let __pf_packed_value := __pf_checked_add(ta, actual)
+        if gt(__pf_packed_value, 18446744073709551615) {
           revert(0, 0)
         }
-        __proof_forge_map_write(3, and(shr(0, sload(2)), 18446744073709551615), __pf_checked_add(sload(__proof_forge_map_slot(3, and(shr(0, sload(2)), 18446744073709551615))), and(shr(128, sload(1)), 18446744073709551615)))
+        sstore(0, or(and(sload(0), not(shl(128, 18446744073709551615))), shl(128, and(__pf_packed_value, 18446744073709551615))))
+      }
+      let ts := and(shr(192, sload(0)), 18446744073709551615)
+      {
+        let __pf_packed_value := __pf_checked_add(ts, gross)
+        if gt(__pf_packed_value, 18446744073709551615) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, and(__pf_packed_value, 18446744073709551615))))
+      }
+      let bal := sload(__proof_forge_map_slot(3, receiver))
+      __proof_forge_map_write(3, receiver, __pf_checked_add(bal, userShares))
+      switch gt(and(shr(64, sload(1)), 18446744073709551615), 0)
+      case 0 { }
+      default {
+        if iszero(iszero(eq(and(shr(192, sload(2)), 18446744073709551615), 0))) {
+          revert(0, 0)
+        }
+        __proof_forge_map_write(3, and(shr(192, sload(2)), 18446744073709551615), __pf_checked_add(sload(__proof_forge_map_slot(3, and(shr(192, sload(2)), 18446744073709551615))), and(shr(64, sload(1)), 18446744073709551615)))
         {
           mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288410934)
           mstore(32, 18544826791913921923306290567797672742125270981606496584444378688767337168896)
           let _topic0 := keccak256(0, 33)
           let _indexed_topic0 := 0
-          let _indexed_topic1 := and(shr(0, sload(2)), 18446744073709551615)
-          mstore(0, and(shr(128, sload(1)), 18446744073709551615))
+          let _indexed_topic1 := and(shr(192, sload(2)), 18446744073709551615)
+          mstore(0, and(shr(64, sload(1)), 18446744073709551615))
           log3(0, 32, _topic0, _indexed_topic0, _indexed_topic1)
         }
       }
@@ -491,23 +638,59 @@ object "ERC4626" {
       if iszero(eq(caller(), holder)) {
         revert(0, 0)
       }
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, assets)))
-      switch gt(and(shr(0, sload(0)), 18446744073709551615), 0)
+      sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(assets, 18446744073709551615))))
+      switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
       case 0 { }
       default {
-        if iszero(iszero(eq(and(shr(64, sload(0)), 18446744073709551615), 0))) {
+        if iszero(iszero(eq(and(shr(128, sload(0)), 18446744073709551615), 0))) {
           revert(0, 0)
         }
-        sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, div(__pf_checked_mul(assets, and(shr(0, sload(0)), 18446744073709551615)), and(shr(64, sload(0)), 18446744073709551615)))))
+        let _pf_shares_up_numerator := __pf_checked_mul(assets, and(shr(192, sload(0)), 18446744073709551615))
+        let _pf_shares_up_quotient := div(_pf_shares_up_numerator, and(shr(128, sload(0)), 18446744073709551615))
+        if iszero(iszero(lt(18446744073709551615, _pf_shares_up_quotient))) {
+          revert(0, 0)
+        }
+        sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(_pf_shares_up_quotient, 18446744073709551615))))
+        switch gt(mod(_pf_shares_up_numerator, and(shr(128, sload(0)), 18446744073709551615)), 0)
+        case 0 { }
+        default {
+          if iszero(iszero(eq(_pf_shares_up_quotient, 18446744073709551615))) {
+            revert(0, 0)
+          }
+          {
+            let __pf_packed_value := __pf_checked_add(_pf_shares_up_quotient, 1)
+            if gt(__pf_packed_value, 18446744073709551615) {
+              revert(0, 0)
+            }
+            sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(__pf_packed_value, 18446744073709551615))))
+          }
+        }
       }
-      let shares := and(shr(192, sload(1)), 18446744073709551615)
+      let shares := and(shr(0, sload(1)), 18446744073709551615)
       if iszero(iszero(eq(shares, 0))) {
         revert(0, 0)
       }
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, assets)))
-      sstore(1, or(and(sload(1), not(shl(128, 18446744073709551615))), shl(128, div(__pf_checked_mul(and(shr(192, sload(1)), 18446744073709551615), and(shr(64, sload(2)), 18446744073709551615)), 10000))))
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, __pf_checked_sub(and(shr(192, sload(1)), 18446744073709551615), and(shr(128, sload(1)), 18446744073709551615)))))
-      let userAssets := and(shr(192, sload(1)), 18446744073709551615)
+      sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(assets, 18446744073709551615))))
+      sstore(1, or(and(sload(1), not(shl(64, 18446744073709551615))), shl(64, and(0, 18446744073709551615))))
+      switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
+      case 0 { }
+      default {
+        {
+          let __pf_packed_value := div(__pf_checked_mul(and(shr(0, sload(1)), 18446744073709551615), and(shr(128, sload(2)), 18446744073709551615)), 10000)
+          if gt(__pf_packed_value, 18446744073709551615) {
+            revert(0, 0)
+          }
+          sstore(1, or(and(sload(1), not(shl(64, 18446744073709551615))), shl(64, and(__pf_packed_value, 18446744073709551615))))
+        }
+        {
+          let __pf_packed_value := __pf_checked_sub(and(shr(0, sload(1)), 18446744073709551615), and(shr(64, sload(1)), 18446744073709551615))
+          if gt(__pf_packed_value, 18446744073709551615) {
+            revert(0, 0)
+          }
+          sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(__pf_packed_value, 18446744073709551615))))
+        }
+      }
+      let userAssets := and(shr(0, sload(1)), 18446744073709551615)
       if iszero(iszero(eq(userAssets, 0))) {
         revert(0, 0)
       }
@@ -516,33 +699,57 @@ object "ERC4626" {
         revert(0, 0)
       }
       __proof_forge_map_write(3, holder, __pf_checked_sub(ownerBal, shares))
-      let ts := and(shr(0, sload(0)), 18446744073709551615)
-      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, __pf_checked_sub(ts, shares))))
-      sstore(1, or(and(sload(1), not(shl(64, 18446744073709551615))), shl(64, __proof_forge_crosscall_1(and(shr(192, sload(0)), 18446744073709551615), 1889567281, and(shr(128, sload(0)), 18446744073709551615)))))
-      sstore(2, or(and(sload(2), not(shl(192, 18446744073709551615))), shl(192, __proof_forge_crosscall_1(and(shr(192, sload(0)), 18446744073709551615), 1889567281, receiver))))
-      let _pf_push_recv := __proof_forge_crosscall_2(and(shr(192, sload(0)), 18446744073709551615), 2835717307, receiver, userAssets)
-      let _pf_recv_after := __proof_forge_crosscall_1(and(shr(192, sload(0)), 18446744073709551615), 1889567281, receiver)
-      sstore(2, or(and(sload(2), not(shl(128, 18446744073709551615))), shl(128, __pf_checked_sub(_pf_recv_after, and(shr(192, sload(2)), 18446744073709551615)))))
-      switch gt(and(shr(128, sload(1)), 18446744073709551615), 0)
-      case 0 { }
-      default {
-        if iszero(iszero(eq(and(shr(0, sload(2)), 18446744073709551615), 0))) {
+      let ts := and(shr(192, sload(0)), 18446744073709551615)
+      {
+        let __pf_packed_value := __pf_checked_sub(ts, shares)
+        if gt(__pf_packed_value, 18446744073709551615) {
           revert(0, 0)
         }
-        let _pf_exit_fee_push := __proof_forge_crosscall_2(and(shr(192, sload(0)), 18446744073709551615), 2835717307, and(shr(0, sload(2)), 18446744073709551615), and(shr(128, sload(1)), 18446744073709551615))
+        sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, and(__pf_packed_value, 18446744073709551615))))
       }
-      let _pf_bal_after_push := __proof_forge_crosscall_1(and(shr(192, sload(0)), 18446744073709551615), 1889567281, and(shr(128, sload(0)), 18446744073709551615))
-      sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, __pf_checked_sub(and(shr(64, sload(1)), 18446744073709551615), _pf_bal_after_push))))
-      if iszero(iszero(eq(and(shr(0, sload(1)), 18446744073709551615), 0))) {
+      sstore(1, or(and(sload(1), not(shl(128, 18446744073709551615))), shl(128, and(__proof_forge_crosscall_1(and(shr(0, sload(0)), 18446744073709551615), 1889567281, and(shr(64, sload(0)), 18446744073709551615)), 18446744073709551615))))
+      sstore(2, or(and(sload(2), not(shl(0, 18446744073709551615))), shl(0, and(__proof_forge_crosscall_1(and(shr(0, sload(0)), 18446744073709551615), 1889567281, receiver), 18446744073709551615))))
+      let _pf_push_recv := __proof_forge_crosscall_2(and(shr(0, sload(0)), 18446744073709551615), 2835717307, receiver, userAssets)
+      let _pf_recv_after := __proof_forge_crosscall_1(and(shr(0, sload(0)), 18446744073709551615), 1889567281, receiver)
+      {
+        let __pf_packed_value := __pf_checked_sub(_pf_recv_after, and(shr(0, sload(2)), 18446744073709551615))
+        if gt(__pf_packed_value, 18446744073709551615) {
+          revert(0, 0)
+        }
+        sstore(2, or(and(sload(2), not(shl(64, 18446744073709551615))), shl(64, and(__pf_packed_value, 18446744073709551615))))
+      }
+      switch gt(and(shr(64, sload(1)), 18446744073709551615), 0)
+      case 0 { }
+      default {
+        if iszero(iszero(eq(and(shr(192, sload(2)), 18446744073709551615), 0))) {
+          revert(0, 0)
+        }
+        let _pf_exit_fee_push := __proof_forge_crosscall_2(and(shr(0, sload(0)), 18446744073709551615), 2835717307, and(shr(192, sload(2)), 18446744073709551615), and(shr(64, sload(1)), 18446744073709551615))
+      }
+      let _pf_bal_after_push := __proof_forge_crosscall_1(and(shr(0, sload(0)), 18446744073709551615), 1889567281, and(shr(64, sload(0)), 18446744073709551615))
+      {
+        let __pf_packed_value := __pf_checked_sub(and(shr(128, sload(1)), 18446744073709551615), _pf_bal_after_push)
+        if gt(__pf_packed_value, 18446744073709551615) {
+          revert(0, 0)
+        }
+        sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, and(__pf_packed_value, 18446744073709551615))))
+      }
+      if iszero(iszero(eq(and(shr(192, sload(1)), 18446744073709551615), 0))) {
         revert(0, 0)
       }
-      let actualLeft := and(shr(0, sload(1)), 18446744073709551615)
-      let actualRecv := and(shr(128, sload(2)), 18446744073709551615)
-      if iszero(iszero(lt(and(shr(64, sload(0)), 18446744073709551615), actualLeft))) {
+      let actualLeft := and(shr(192, sload(1)), 18446744073709551615)
+      let actualRecv := and(shr(64, sload(2)), 18446744073709551615)
+      if iszero(iszero(lt(and(shr(128, sload(0)), 18446744073709551615), actualLeft))) {
         revert(0, 0)
       }
-      let ta := and(shr(64, sload(0)), 18446744073709551615)
-      sstore(0, or(and(sload(0), not(shl(64, 18446744073709551615))), shl(64, __pf_checked_sub(ta, actualLeft))))
+      let ta := and(shr(128, sload(0)), 18446744073709551615)
+      {
+        let __pf_packed_value := __pf_checked_sub(ta, actualLeft)
+        if gt(__pf_packed_value, 18446744073709551615) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(128, 18446744073709551615))), shl(128, and(__pf_packed_value, 18446744073709551615))))
+      }
       {
         mstore(0, 39537540185534869899848144892628232627837003291985737810377847980649312187753)
         mstore(32, 49959741704575589949118613920192228808117714233700886055915928452907449450496)
@@ -575,23 +782,46 @@ object "ERC4626" {
       if iszero(eq(caller(), holder)) {
         revert(0, 0)
       }
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, shares)))
-      switch gt(and(shr(0, sload(0)), 18446744073709551615), 0)
+      sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(shares, 18446744073709551615))))
+      switch gt(and(shr(192, sload(0)), 18446744073709551615), 0)
       case 0 { }
       default {
-        if iszero(iszero(eq(and(shr(64, sload(0)), 18446744073709551615), 0))) {
+        if iszero(iszero(eq(and(shr(128, sload(0)), 18446744073709551615), 0))) {
           revert(0, 0)
         }
-        sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, div(__pf_checked_mul(shares, and(shr(64, sload(0)), 18446744073709551615)), and(shr(0, sload(0)), 18446744073709551615)))))
+        {
+          let __pf_packed_value := div(__pf_checked_mul(shares, and(shr(128, sload(0)), 18446744073709551615)), and(shr(192, sload(0)), 18446744073709551615))
+          if gt(__pf_packed_value, 18446744073709551615) {
+            revert(0, 0)
+          }
+          sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(__pf_packed_value, 18446744073709551615))))
+        }
       }
-      let grossAssets := and(shr(192, sload(1)), 18446744073709551615)
+      let grossAssets := and(shr(0, sload(1)), 18446744073709551615)
       if iszero(iszero(eq(grossAssets, 0))) {
         revert(0, 0)
       }
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, grossAssets)))
-      sstore(1, or(and(sload(1), not(shl(128, 18446744073709551615))), shl(128, div(__pf_checked_mul(and(shr(192, sload(1)), 18446744073709551615), and(shr(64, sload(2)), 18446744073709551615)), 10000))))
-      sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, __pf_checked_sub(and(shr(192, sload(1)), 18446744073709551615), and(shr(128, sload(1)), 18446744073709551615)))))
-      let userAssets := and(shr(192, sload(1)), 18446744073709551615)
+      sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(grossAssets, 18446744073709551615))))
+      sstore(1, or(and(sload(1), not(shl(64, 18446744073709551615))), shl(64, and(0, 18446744073709551615))))
+      switch gt(and(shr(128, sload(2)), 18446744073709551615), 0)
+      case 0 { }
+      default {
+        {
+          let __pf_packed_value := div(__pf_checked_mul(and(shr(0, sload(1)), 18446744073709551615), and(shr(128, sload(2)), 18446744073709551615)), 10000)
+          if gt(__pf_packed_value, 18446744073709551615) {
+            revert(0, 0)
+          }
+          sstore(1, or(and(sload(1), not(shl(64, 18446744073709551615))), shl(64, and(__pf_packed_value, 18446744073709551615))))
+        }
+        {
+          let __pf_packed_value := __pf_checked_sub(and(shr(0, sload(1)), 18446744073709551615), and(shr(64, sload(1)), 18446744073709551615))
+          if gt(__pf_packed_value, 18446744073709551615) {
+            revert(0, 0)
+          }
+          sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, and(__pf_packed_value, 18446744073709551615))))
+        }
+      }
+      let userAssets := and(shr(0, sload(1)), 18446744073709551615)
       if iszero(iszero(eq(userAssets, 0))) {
         revert(0, 0)
       }
@@ -600,33 +830,57 @@ object "ERC4626" {
         revert(0, 0)
       }
       __proof_forge_map_write(3, holder, __pf_checked_sub(ownerBal, shares))
-      let ts := and(shr(0, sload(0)), 18446744073709551615)
-      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, __pf_checked_sub(ts, shares))))
-      sstore(1, or(and(sload(1), not(shl(64, 18446744073709551615))), shl(64, __proof_forge_crosscall_1(and(shr(192, sload(0)), 18446744073709551615), 1889567281, and(shr(128, sload(0)), 18446744073709551615)))))
-      sstore(2, or(and(sload(2), not(shl(192, 18446744073709551615))), shl(192, __proof_forge_crosscall_1(and(shr(192, sload(0)), 18446744073709551615), 1889567281, receiver))))
-      let _pf_push_recv := __proof_forge_crosscall_2(and(shr(192, sload(0)), 18446744073709551615), 2835717307, receiver, userAssets)
-      let _pf_recv_after := __proof_forge_crosscall_1(and(shr(192, sload(0)), 18446744073709551615), 1889567281, receiver)
-      sstore(2, or(and(sload(2), not(shl(128, 18446744073709551615))), shl(128, __pf_checked_sub(_pf_recv_after, and(shr(192, sload(2)), 18446744073709551615)))))
-      switch gt(and(shr(128, sload(1)), 18446744073709551615), 0)
-      case 0 { }
-      default {
-        if iszero(iszero(eq(and(shr(0, sload(2)), 18446744073709551615), 0))) {
+      let ts := and(shr(192, sload(0)), 18446744073709551615)
+      {
+        let __pf_packed_value := __pf_checked_sub(ts, shares)
+        if gt(__pf_packed_value, 18446744073709551615) {
           revert(0, 0)
         }
-        let _pf_exit_fee_push := __proof_forge_crosscall_2(and(shr(192, sload(0)), 18446744073709551615), 2835717307, and(shr(0, sload(2)), 18446744073709551615), and(shr(128, sload(1)), 18446744073709551615))
+        sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, and(__pf_packed_value, 18446744073709551615))))
       }
-      let _pf_bal_after_push := __proof_forge_crosscall_1(and(shr(192, sload(0)), 18446744073709551615), 1889567281, and(shr(128, sload(0)), 18446744073709551615))
-      sstore(1, or(and(sload(1), not(shl(0, 18446744073709551615))), shl(0, __pf_checked_sub(and(shr(64, sload(1)), 18446744073709551615), _pf_bal_after_push))))
-      if iszero(iszero(eq(and(shr(0, sload(1)), 18446744073709551615), 0))) {
+      sstore(1, or(and(sload(1), not(shl(128, 18446744073709551615))), shl(128, and(__proof_forge_crosscall_1(and(shr(0, sload(0)), 18446744073709551615), 1889567281, and(shr(64, sload(0)), 18446744073709551615)), 18446744073709551615))))
+      sstore(2, or(and(sload(2), not(shl(0, 18446744073709551615))), shl(0, and(__proof_forge_crosscall_1(and(shr(0, sload(0)), 18446744073709551615), 1889567281, receiver), 18446744073709551615))))
+      let _pf_push_recv := __proof_forge_crosscall_2(and(shr(0, sload(0)), 18446744073709551615), 2835717307, receiver, userAssets)
+      let _pf_recv_after := __proof_forge_crosscall_1(and(shr(0, sload(0)), 18446744073709551615), 1889567281, receiver)
+      {
+        let __pf_packed_value := __pf_checked_sub(_pf_recv_after, and(shr(0, sload(2)), 18446744073709551615))
+        if gt(__pf_packed_value, 18446744073709551615) {
+          revert(0, 0)
+        }
+        sstore(2, or(and(sload(2), not(shl(64, 18446744073709551615))), shl(64, and(__pf_packed_value, 18446744073709551615))))
+      }
+      switch gt(and(shr(64, sload(1)), 18446744073709551615), 0)
+      case 0 { }
+      default {
+        if iszero(iszero(eq(and(shr(192, sload(2)), 18446744073709551615), 0))) {
+          revert(0, 0)
+        }
+        let _pf_exit_fee_push := __proof_forge_crosscall_2(and(shr(0, sload(0)), 18446744073709551615), 2835717307, and(shr(192, sload(2)), 18446744073709551615), and(shr(64, sload(1)), 18446744073709551615))
+      }
+      let _pf_bal_after_push := __proof_forge_crosscall_1(and(shr(0, sload(0)), 18446744073709551615), 1889567281, and(shr(64, sload(0)), 18446744073709551615))
+      {
+        let __pf_packed_value := __pf_checked_sub(and(shr(128, sload(1)), 18446744073709551615), _pf_bal_after_push)
+        if gt(__pf_packed_value, 18446744073709551615) {
+          revert(0, 0)
+        }
+        sstore(1, or(and(sload(1), not(shl(192, 18446744073709551615))), shl(192, and(__pf_packed_value, 18446744073709551615))))
+      }
+      if iszero(iszero(eq(and(shr(192, sload(1)), 18446744073709551615), 0))) {
         revert(0, 0)
       }
-      let actualLeft := and(shr(0, sload(1)), 18446744073709551615)
-      let actualRecv := and(shr(128, sload(2)), 18446744073709551615)
-      if iszero(iszero(lt(and(shr(64, sload(0)), 18446744073709551615), actualLeft))) {
+      let actualLeft := and(shr(192, sload(1)), 18446744073709551615)
+      let actualRecv := and(shr(64, sload(2)), 18446744073709551615)
+      if iszero(iszero(lt(and(shr(128, sload(0)), 18446744073709551615), actualLeft))) {
         revert(0, 0)
       }
-      let ta := and(shr(64, sload(0)), 18446744073709551615)
-      sstore(0, or(and(sload(0), not(shl(64, 18446744073709551615))), shl(64, __pf_checked_sub(ta, actualLeft))))
+      let ta := and(shr(128, sload(0)), 18446744073709551615)
+      {
+        let __pf_packed_value := __pf_checked_sub(ta, actualLeft)
+        if gt(__pf_packed_value, 18446744073709551615) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(128, 18446744073709551615))), shl(128, and(__pf_packed_value, 18446744073709551615))))
+      }
       {
         mstore(0, 39537540185534869899848144892628232627837003291985737810377847980649312187753)
         mstore(32, 49959741704575589949118613920192228808117714233700886055915928452907449450496)
@@ -686,16 +940,16 @@ object "ERC4626" {
       result := 1
     }
     function f_ERC4626_init(assetAddr, selfAddr, feeBpsVal, feeRecipientAddr) {
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, assetAddr)))
-      sstore(0, or(and(sload(0), not(shl(128, 18446744073709551615))), shl(128, selfAddr)))
+      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(assetAddr, 18446744073709551615))))
+      sstore(0, or(and(sload(0), not(shl(64, 18446744073709551615))), shl(64, and(selfAddr, 18446744073709551615))))
       if iszero(iszero(lt(10000, feeBpsVal))) {
         revert(0, 0)
       }
-      sstore(2, or(and(sload(2), not(shl(64, 18446744073709551615))), shl(64, feeBpsVal)))
-      sstore(2, or(and(sload(2), not(shl(0, 18446744073709551615))), shl(0, feeRecipientAddr)))
-      sstore(0, or(and(sload(0), not(shl(64, 18446744073709551615))), shl(64, 0)))
-      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, 0)))
-      sstore(1, or(and(sload(1), not(shl(128, 18446744073709551615))), shl(128, 0)))
+      sstore(2, or(and(sload(2), not(shl(128, 18446744073709551615))), shl(128, and(feeBpsVal, 18446744073709551615))))
+      sstore(2, or(and(sload(2), not(shl(192, 18446744073709551615))), shl(192, and(feeRecipientAddr, 18446744073709551615))))
+      sstore(0, or(and(sload(0), not(shl(128, 18446744073709551615))), shl(128, and(0, 18446744073709551615))))
+      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, and(0, 18446744073709551615))))
+      sstore(1, or(and(sload(1), not(shl(64, 18446744073709551615))), shl(64, and(0, 18446744073709551615))))
     }
     function __proof_forge_map_slot(slot, key) -> result {
       mstore(0, key)

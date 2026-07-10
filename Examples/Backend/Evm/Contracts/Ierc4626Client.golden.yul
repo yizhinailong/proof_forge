@@ -30,7 +30,7 @@ object "Ierc4626Client" {
     }
     function f_Ierc4626Client_doDeposit(assets, receiver) -> result {
       let shares := __proof_forge_crosscall_2(0, 1851080549, assets, receiver)
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, shares)))
+      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(shares, 18446744073709551615))))
       result := shares
     }
     function f_Ierc4626Client_readTotalAssets() -> result {

@@ -3322,13 +3322,13 @@ so authors never drop to Builder for common EVM patterns. Cross-ref
 | CS-3.2 | Native ETH transfer helper (plain transfer to EOA/contract) | P0 | No manual `crosscallInvokeValueTyped(u64 0)` in examples |
 | CS-3.3 | Entry modifiers / guards (`onlyOwner`, `whenNotPaused`, role guards) | P0 | Desugar to portable IR checks; diagnostics on misuse |
 | CS-3.4 | Constructor dynamic ABI (string, bytes, dynamic arrays) | P0 | CLI + artifact metadata; deploy-object init reads initcode tail into storage; Foundry + Anvil smokes with `DynamicConstructorProbe` |
-| CS-3.5 | Custom errors (Solidity-style selectors) | P1 | Partial: 4-byte selector + validated compile-time static ABI words (`errors-ir-smoke`); runtime expression args, dynamic args, and a target-plan representation remain open |
+| CS-3.5 | Custom errors (Solidity-style selectors) | P0 | Partial: 4-byte selector + validated compile-time scalar ABI subset (`uint8/32/64/128/256`, `bool`, `address`, `bytes32`) with Foundry payload and generated-client runtime smokes; typed runtime expression args and a target-plan representation remain P0, while broader static/dynamic shapes and standard ABI entries remain P1 |
 | CS-3.6 | ERC-165 `supportsInterface` module | P0 | ✅ Foundry interface probe + stdlib mixin |
 | CS-3.7 | AccessControl roles (grant/revoke/hasRole) | P0 | ✅ stdlib mixin + `guard_role` |
 | CS-3.8 | ERC-721 core (ownerOf, transfer, safeTransferFrom, mint, burn) | P0 | ✅ stdlib mixin + **PF-P2-02** `onERC721Received` (Foundry accept/reject) |
-| CS-3.9 | CREATE2 factory template module | P1 | Deterministic deploy example + metadata |
-| CS-3.10 | Proxy/upgrade patterns (UUPS or transparent) aligned with Workstream 32 `upgradePolicy` | P1 | Honest lowering or explicit reject per policy |
-| CS-3.11 | ERC-1155 single-transfer core | P1 | ✅ `Stdlib/ERC1155.lean` + `onERC1155Received` + size-2 `safeBatchTransferFrom2` with `onERC1155BatchReceived` (E1.2 Foundry accept/reject); arbitrary-length dynamic batch ABI remains open |
+| CS-3.9 | CREATE2 factory template module | P1 | ✅ Limited fixed-template path: deterministic deploy returns ABI `address`, emits `Deployed(address,bytes32)`, and has metadata + Foundry lifecycle coverage; multi-template/salt registries remain deferred |
+| CS-3.10 | Proxy/upgrade patterns (UUPS or transparent) aligned with Workstream 32 `upgradePolicy` | P1 | Partial backend UUPS transport spike: constructor atomically binds non-zero implementation + full-width admin, runtime init selectors are absent, and attacker-first/zero-address regressions are executable. Product `authority`/`governance` policies still fail closed until declared `keyRef` is bound to that constructor authority; arbitrary initializer calldata and transparent remain unsupported |
+| CS-3.11 | ERC-1155 single-transfer core | P1 | ✅ `Stdlib/ERC1155.lean` + `onERC1155Received` + size-2 `safeBatchTransferFrom2` with exact `onERC1155BatchReceived` argument and rollback checks (E1.2 Foundry); arbitrary-length dynamic batch ABI and standard `TransferBatch` remain open |
 
 ### Phase CS-4 — Project development experience
 
@@ -3490,7 +3490,7 @@ just Counter and ValueVault. The full gap analysis lives in
 chain's P0 SDK blockers are closed. "P0 SDK blocker" = a feature whose absence
 means a real developer cannot write a common contract pattern.
 
-### EVM SDK blockers (0 open P0, 5 closed P0; limited P1 remain)
+### EVM SDK blockers (1 open P0, 5 closed P0; limited P1 remain)
 
 Tracked in detail as **Workstream 34 Phase CS-2/CS-3** and
 [`docs/sdk-ecosystem-gaps-2026-07.md`](sdk-ecosystem-gaps-2026-07.md);
@@ -3502,9 +3502,11 @@ fixtures.
 - ✅ P0: ERC-165 supportsInterface (stdlib mixin)
 - ✅ P0: AccessControl roles (stdlib mixin + guard_role)
 - ✅ P0: Constructor dynamic-type args (CLI ABI encoding + constructor_body + Anvil verified)
-- ✅ P1 (partial): custom-error 4-byte selector surface; ERC-1155 receiver + size-2 batch MVP
-- P1 still open: arbitrary-length ERC-1155 batch / `onERC1155BatchReceived`, custom-error
-  ABI args, storage packing, general multicall body, factory template, AMM, Pausable auth
+- P0 still open: typed runtime custom-error arguments through the EVM target plan. The
+  compile-time scalar subset has selector/schema/range validation plus Foundry and generated-client runtime smokes.
+- ✅ P1 (partial): custom-error 4-byte/static-scalar surface; ERC-1155 receiver + size-2 batch MVP
+- P1 still open: arbitrary-length ERC-1155 batch ABI, broader static/dynamic custom-error
+  shapes and standard ABI entries, general multicall body, AMM, and Pausable auth
 
 ### Solana SDK blockers (5 tracked P0, 4 closed, 7 P1)
 

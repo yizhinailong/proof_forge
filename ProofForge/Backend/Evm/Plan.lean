@@ -727,8 +727,8 @@ mutual
           contextOpsFromExpr d ++ contextOpsFromExpr e
 
     | .checkErc1155BatchReceived a b c d e f g =>
-        contextOpsFromExpr a ++ contextOpsFromExpr b ++ contextOpsFromExpr c ++
-          contextOpsFromExpr d ++ contextOpsFromExpr e ++ contextOpsFromExpr f ++ contextOpsFromExpr g
+        #[a, b, c, d, e, f, g].foldl (init := #[]) fun acc expr =>
+          acc ++ contextOpsFromExpr expr
 
   partial def contextOpsFromStatement (statement : Statement) : Array ContextPlan :=
     match statement with

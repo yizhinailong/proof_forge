@@ -23,8 +23,8 @@ object "Create2Factory" {
     function f_Create2Factory_deploy(salt) -> result {
       let deployed := __proof_forge_create2_69602a60005260206000f3600052600a6016f3(callvalue(), salt)
       {
-        mstore(0, 30936501176209415639600747326521353688298572880058963494346932220345049939968)
-        let _topic0 := keccak256(0, 24)
+        mstore(0, 30936501176209415639598829821747794836005707844039030221877151186564641980416)
+        let _topic0 := keccak256(0, 25)
         let _indexed_topic0 := deployed
         let _indexed_topic1 := salt
         log3(0, 0, _topic0, _indexed_topic0, _indexed_topic1)

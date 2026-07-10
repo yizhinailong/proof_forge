@@ -638,12 +638,9 @@ mutual
         let collector ← collectEventPlansFromExpr module env collector d
         collectEventPlansFromExpr module env collector e
 
-    | .checkErc1155BatchReceived a b c d e f g => do
-        let collector ← collectEventPlansFromExpr module env collector a
-        let collector ← collectEventPlansFromExpr module env collector b
-        let collector ← collectEventPlansFromExpr module env collector c
-        let collector ← collectEventPlansFromExpr module env collector d
-        collectEventPlansFromExpr module env collector e
+    | .checkErc1155BatchReceived a b c d e f g =>
+        #[a, b, c, d, e, f, g].foldlM (init := collector)
+          (collectEventPlansFromExpr module env)
 
   partial def collectEventPlansFromStatements
       (module : Module)
@@ -853,11 +850,8 @@ mutual
           (localArrayGetLengthsExpr env e)
 
     | .checkErc1155BatchReceived a b c d e f g =>
-        mergeNatSets
-          (mergeNatSets
-            (mergeNatSets (localArrayGetLengthsExpr env a) (localArrayGetLengthsExpr env b))
-            (mergeNatSets (localArrayGetLengthsExpr env c) (localArrayGetLengthsExpr env d)))
-          (mergeNatSets (mergeNatSets (localArrayGetLengthsExpr env e) (mergeNatSets (localArrayGetLengthsExpr env f) (localArrayGetLengthsExpr env g))) (mergeNatSets (localArrayGetLengthsExpr env f) (localArrayGetLengthsExpr env g)))
+        #[a, b, c, d, e, f, g].foldl (init := #[]) fun acc expr =>
+          mergeNatSets acc (localArrayGetLengthsExpr env expr)
 
   partial def localArrayGetLengthsStoragePathSegment (env : TypeEnv) : StoragePathSegment → Array Nat
     | .field _ => #[]
@@ -1050,11 +1044,8 @@ mutual
           (nestedLocalArrayGetShapesExpr env e)
 
     | .checkErc1155BatchReceived a b c d e f g =>
-        mergeNatArraySets
-          (mergeNatArraySets
-            (mergeNatArraySets (nestedLocalArrayGetShapesExpr env a) (nestedLocalArrayGetShapesExpr env b))
-            (mergeNatArraySets (nestedLocalArrayGetShapesExpr env c) (nestedLocalArrayGetShapesExpr env d)))
-          (mergeNatArraySets (mergeNatArraySets (nestedLocalArrayGetShapesExpr env e) (mergeNatArraySets (nestedLocalArrayGetShapesExpr env f) (nestedLocalArrayGetShapesExpr env g))) (mergeNatArraySets (nestedLocalArrayGetShapesExpr env f) (nestedLocalArrayGetShapesExpr env g)))
+        #[a, b, c, d, e, f, g].foldl (init := #[]) fun acc expr =>
+          mergeNatArraySets acc (nestedLocalArrayGetShapesExpr env expr)
 
   partial def nestedLocalArrayGetShapesStoragePathSegment (env : TypeEnv) :
       StoragePathSegment → Array (Array Nat)

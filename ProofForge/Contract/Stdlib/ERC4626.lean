@@ -16,7 +16,8 @@ parity; performance fees / full OZ rounding matrix.
 | Feature | Behavior |
 |---------|----------|
 | Exchange rate | **Pro-rata**: `shares = assets * totalSupply / totalAssets` when supply > 0;
-  empty vault (`totalSupply = 0`) is **1:1**. Floor division (OpenZeppelin-style). |
+  empty vault (`totalSupply = 0`) is **1:1**. `convert*`, deposit, and redeem round
+  down; the inverse `previewMint`/mint and `previewWithdraw`/withdraw paths round up. |
 | Underlying ERC-20 | `deposit`/`mint` **pull** via IERC20 `transferFrom(caller, vaultSelf, amount)`;
   `withdraw`/`redeem` **push** via IERC20 `transfer(receiver, amount)`.
   `vaultSelf` is init-set (portable `address(this)`). Method words are EVM
@@ -58,6 +59,23 @@ def convertToAssets (s : State) (shares : Nat) : Nat :=
   if s.totalSupply == 0 || s.totalAssets == 0 then shares
   else shares * s.totalAssets / s.totalSupply
 
+/-- Overflow-safe mathematical ceiling division. A zero denominator is kept
+    total for Spec use; live paths reject an inconsistent non-empty vault. -/
+def ceilDiv (numerator denominator : Nat) : Nat :=
+  if denominator == 0 then 0
+  else
+    numerator / denominator + if numerator % denominator == 0 then 0 else 1
+
+/-- Inverse share quote used by `previewWithdraw`/withdraw (round up). -/
+def convertToSharesUp (s : State) (assets : Nat) : Nat :=
+  if s.totalSupply == 0 || s.totalAssets == 0 then assets
+  else ceilDiv (assets * s.totalSupply) s.totalAssets
+
+/-- Inverse asset quote used by `previewMint`/mint (round up). -/
+def convertToAssetsUp (s : State) (shares : Nat) : Nat :=
+  if s.totalSupply == 0 || s.totalAssets == 0 then shares
+  else ceilDiv (shares * s.totalAssets) s.totalSupply
+
 /-- Entry/exit fee amount from gross (`feeBps` basis points, floor). -/
 def feeFromGross (gross feeBps : Nat) : Nat :=
   gross * feeBps / 10000
@@ -83,6 +101,16 @@ def grossSharesForNet (net feeBps : Nat) : Option Nat :=
     if gross == 0 || netAfterEntryFee gross feeBps == 0 then none
     else some gross
 
+/-- Assets quoted by `previewMint`: apply entry-fee grossing first, then round
+    the inverse pro-rata conversion up. -/
+def previewMintAssets? (s : State) (netShares feeBps : Nat := 0) : Option Nat :=
+  (grossSharesForNet netShares feeBps).map (convertToAssetsUp s)
+
+/-- Shares quoted by `previewWithdraw` (round up). Exit fees affect the asset
+    push in the current frozen subset, not the requested gross asset amount. -/
+def previewWithdrawShares (s : State) (assets : Nat) : Nat :=
+  convertToSharesUp s assets
+
 /-- Deposit; optional entry fee. Returns `(next, userShares)` where
 `totalSupply` grows by **gross** shares (user + fee). -/
 def deposit? (s : State) (assets : Nat) (feeBps : Nat := 0) : Option (State × Nat) :=
@@ -104,7 +132,7 @@ Returns `(next, sharesBurned)`. -/
 def withdraw? (s : State) (assets : Nat) (feeBps : Nat := 0) : Option (State × Nat) :=
   if assets == 0 || assets > s.totalAssets then none
   else
-    let shares := convertToShares s assets
+    let shares := convertToSharesUp s assets
     if shares == 0 || shares > s.totalSupply then none
     else
       let userAssets := netAfterExitFee assets feeBps
@@ -194,6 +222,11 @@ theorem convert_assets_donation_example :
     convertToAssets { totalAssets := 200, totalSupply := 100 } 50 = 100 := by
   native_decide
 
+theorem inverse_rounding_example :
+    convertToAssetsUp { totalAssets := 2, totalSupply := 3 } 1 = 1 ∧
+    convertToSharesUp { totalAssets := 2, totalSupply := 3 } 1 = 2 := by
+  native_decide
+
 end Spec
 
 def assetAddress : ScalarRef :=
@@ -253,6 +286,10 @@ def shareBalances : MapRef :=
 def shareAllowances : MapRef :=
   { id := "shareAllowances", keyType := .u64, valueType := .u64 }
 
+def requireU64Result (value : ProofForge.IR.Expr) (message : String) : EntryM Unit :=
+  ProofForge.Contract.Surface.requireGe
+    (ProofForge.Contract.Surface.u64 0xffffffffffffffff) value message
+
 /-- When `totalSupply > 0`, overwrite `convertScratch` with
     `amount * totalSupply / totalAssets` (floor). Caller must seed
     `convertScratch` with the empty-vault 1:1 fallback first. -/
@@ -276,31 +313,84 @@ def applyConvertToAssets (amount : ProofForge.IR.Expr) : EntryM Unit := do
       (ProofForge.Contract.Surface.div
         (ProofForge.Contract.Surface.mul amount ta) ts)
 
+/-- Inverse pro-rata share conversion for withdraw. Computes quotient and
+    remainder separately so rounding up cannot overflow via `n + d - 1`. -/
+def applyConvertToSharesUp (amount : ProofForge.IR.Expr) : EntryM Unit := do
+  let ts := ProofForge.Contract.Surface.read totalSupply
+  ProofForge.Contract.Surface.whenPositive ts do
+    let ta := ProofForge.Contract.Surface.read totalAssetsSlot
+    ProofForge.Contract.Surface.requireNonZero ta "zero totalAssets"
+    ProofForge.Contract.Builder.letBind "_pf_shares_up_numerator" .u64
+      (ProofForge.Contract.Surface.mul amount ts)
+    let numerator := ProofForge.Contract.Builder.localVar "_pf_shares_up_numerator"
+    ProofForge.Contract.Builder.letBind "_pf_shares_up_quotient" .u64
+      (ProofForge.Contract.Surface.div numerator ta)
+    let quotient := ProofForge.Contract.Builder.localVar "_pf_shares_up_quotient"
+    requireU64Result quotient "withdraw share quote overflow"
+    ProofForge.Contract.Surface.write convertScratch
+      quotient
+    ProofForge.Contract.Surface.whenPositive (ProofForge.Contract.Builder.mod numerator ta) do
+      ProofForge.Contract.Surface.requireNe quotient
+        (ProofForge.Contract.Surface.u64 0xffffffffffffffff)
+        "withdraw share quote overflow"
+      ProofForge.Contract.Surface.write convertScratch
+        (ProofForge.Contract.Surface.add
+          quotient
+          (ProofForge.Contract.Surface.u64 1))
+
+/-- Inverse pro-rata asset conversion for mint; see `applyConvertToSharesUp`. -/
+def applyConvertToAssetsUp (amount : ProofForge.IR.Expr) : EntryM Unit := do
+  let ts := ProofForge.Contract.Surface.read totalSupply
+  ProofForge.Contract.Surface.whenPositive ts do
+    let ta := ProofForge.Contract.Surface.read totalAssetsSlot
+    ProofForge.Contract.Surface.requireNonZero ta "zero totalAssets"
+    ProofForge.Contract.Builder.letBind "_pf_assets_up_numerator" .u64
+      (ProofForge.Contract.Surface.mul amount ta)
+    let numerator := ProofForge.Contract.Builder.localVar "_pf_assets_up_numerator"
+    ProofForge.Contract.Builder.letBind "_pf_assets_up_quotient" .u64
+      (ProofForge.Contract.Surface.div numerator ts)
+    let quotient := ProofForge.Contract.Builder.localVar "_pf_assets_up_quotient"
+    requireU64Result quotient "mint asset quote overflow"
+    ProofForge.Contract.Surface.write convertScratch
+      quotient
+    ProofForge.Contract.Surface.whenPositive (ProofForge.Contract.Builder.mod numerator ts) do
+      ProofForge.Contract.Surface.requireNe quotient
+        (ProofForge.Contract.Surface.u64 0xffffffffffffffff)
+        "mint asset quote overflow"
+      ProofForge.Contract.Surface.write convertScratch
+        (ProofForge.Contract.Surface.add
+          quotient
+          (ProofForge.Contract.Surface.u64 1))
+
 /-- `convertScratch` holds **gross** shares. Writes fee to `feeScratch` and
     net user shares back to `convertScratch`. -/
 def applyEntryFee : EntryM Unit := do
   let gross := ProofForge.Contract.Surface.read convertScratch
   let bps := ProofForge.Contract.Surface.read feeBps
-  ProofForge.Contract.Surface.write feeScratch
-    (ProofForge.Contract.Surface.div
-      (ProofForge.Contract.Surface.mul gross bps)
-      (ProofForge.Contract.Surface.u64 10000))
-  ProofForge.Contract.Surface.write convertScratch
-    (ProofForge.Contract.Surface.sub gross
-      (ProofForge.Contract.Surface.read feeScratch))
+  ProofForge.Contract.Surface.write feeScratch (ProofForge.Contract.Surface.u64 0)
+  ProofForge.Contract.Surface.whenPositive bps do
+    ProofForge.Contract.Surface.write feeScratch
+      (ProofForge.Contract.Surface.div
+        (ProofForge.Contract.Surface.mul gross bps)
+        (ProofForge.Contract.Surface.u64 10000))
+    ProofForge.Contract.Surface.write convertScratch
+      (ProofForge.Contract.Surface.sub gross
+        (ProofForge.Contract.Surface.read feeScratch))
 
 /-- `convertScratch` holds **gross** assets. Exit fee skim → `feeScratch`;
     net user assets remain in `convertScratch`. -/
 def applyExitFee : EntryM Unit := do
   let gross := ProofForge.Contract.Surface.read convertScratch
   let bps := ProofForge.Contract.Surface.read feeBps
-  ProofForge.Contract.Surface.write feeScratch
-    (ProofForge.Contract.Surface.div
-      (ProofForge.Contract.Surface.mul gross bps)
-      (ProofForge.Contract.Surface.u64 10000))
-  ProofForge.Contract.Surface.write convertScratch
-    (ProofForge.Contract.Surface.sub gross
-      (ProofForge.Contract.Surface.read feeScratch))
+  ProofForge.Contract.Surface.write feeScratch (ProofForge.Contract.Surface.u64 0)
+  ProofForge.Contract.Surface.whenPositive bps do
+    ProofForge.Contract.Surface.write feeScratch
+      (ProofForge.Contract.Surface.div
+        (ProofForge.Contract.Surface.mul gross bps)
+        (ProofForge.Contract.Surface.u64 10000))
+    ProofForge.Contract.Surface.write convertScratch
+      (ProofForge.Contract.Surface.sub gross
+        (ProofForge.Contract.Surface.read feeScratch))
 
 /-- `convertScratch` holds **net** shares desired. Overwrite with **gross** mint
     so that after entry fee the user receives approximately net
@@ -317,6 +407,118 @@ def applyGrossFromNetShares : EntryM Unit := do
       (ProofForge.Contract.Surface.div
         (ProofForge.Contract.Surface.mul net (ProofForge.Contract.Surface.u64 10000))
         denom)
+
+/-- Read-only conversion helper for ERC-4626 query entrypoints. The mutable
+    result is an IR local, so view calls never use the persistent scratch slot. -/
+def localConvertToShares (name : String) (amount : ProofForge.IR.Expr) :
+    EntryM ProofForge.IR.Expr := do
+  ProofForge.Contract.Builder.letMutBind name .u64 amount
+  let ts := ProofForge.Contract.Surface.read totalSupply
+  ProofForge.Contract.Surface.whenPositive ts do
+    let ta := ProofForge.Contract.Surface.read totalAssetsSlot
+    ProofForge.Contract.Surface.requireNonZero ta "zero totalAssets"
+    ProofForge.Contract.Builder.assign (.local name)
+      (ProofForge.Contract.Surface.div
+        (ProofForge.Contract.Surface.mul amount ts) ta)
+  pure (.local name)
+
+/-- Read-only inverse conversion; see `localConvertToShares`. -/
+def localConvertToAssets (name : String) (amount : ProofForge.IR.Expr) :
+    EntryM ProofForge.IR.Expr := do
+  ProofForge.Contract.Builder.letMutBind name .u64 amount
+  let ts := ProofForge.Contract.Surface.read totalSupply
+  ProofForge.Contract.Surface.whenPositive ts do
+    let ta := ProofForge.Contract.Surface.read totalAssetsSlot
+    ProofForge.Contract.Surface.requireNonZero ta "zero totalAssets"
+    ProofForge.Contract.Builder.assign (.local name)
+      (ProofForge.Contract.Surface.div
+        (ProofForge.Contract.Surface.mul amount ta) ts)
+  pure (.local name)
+
+/-- Read-only inverse share conversion with ceiling division. -/
+def localConvertToSharesUp (name : String) (amount : ProofForge.IR.Expr) :
+    EntryM ProofForge.IR.Expr := do
+  ProofForge.Contract.Builder.letMutBind name .u64 amount
+  let ts := ProofForge.Contract.Surface.read totalSupply
+  ProofForge.Contract.Surface.whenPositive ts do
+    let ta := ProofForge.Contract.Surface.read totalAssetsSlot
+    ProofForge.Contract.Surface.requireNonZero ta "zero totalAssets"
+    let numeratorName := name ++ "_numerator"
+    ProofForge.Contract.Builder.letBind numeratorName .u64
+      (ProofForge.Contract.Surface.mul amount ts)
+    let numerator := ProofForge.Contract.Builder.localVar numeratorName
+    let quotientName := name ++ "_quotient"
+    ProofForge.Contract.Builder.letBind quotientName .u64
+      (ProofForge.Contract.Surface.div numerator ta)
+    let quotient := ProofForge.Contract.Builder.localVar quotientName
+    requireU64Result quotient "withdraw share quote overflow"
+    ProofForge.Contract.Builder.assign (.local name)
+      quotient
+    ProofForge.Contract.Surface.whenPositive (ProofForge.Contract.Builder.mod numerator ta) do
+      ProofForge.Contract.Surface.requireNe quotient
+        (ProofForge.Contract.Surface.u64 0xffffffffffffffff)
+        "withdraw share quote overflow"
+      ProofForge.Contract.Builder.assign (.local name)
+        (ProofForge.Contract.Surface.add quotient (ProofForge.Contract.Surface.u64 1))
+  pure (.local name)
+
+/-- Read-only inverse asset conversion with ceiling division. -/
+def localConvertToAssetsUp (name : String) (amount : ProofForge.IR.Expr) :
+    EntryM ProofForge.IR.Expr := do
+  ProofForge.Contract.Builder.letMutBind name .u64 amount
+  let ts := ProofForge.Contract.Surface.read totalSupply
+  ProofForge.Contract.Surface.whenPositive ts do
+    let ta := ProofForge.Contract.Surface.read totalAssetsSlot
+    ProofForge.Contract.Surface.requireNonZero ta "zero totalAssets"
+    let numeratorName := name ++ "_numerator"
+    ProofForge.Contract.Builder.letBind numeratorName .u64
+      (ProofForge.Contract.Surface.mul amount ta)
+    let numerator := ProofForge.Contract.Builder.localVar numeratorName
+    let quotientName := name ++ "_quotient"
+    ProofForge.Contract.Builder.letBind quotientName .u64
+      (ProofForge.Contract.Surface.div numerator ts)
+    let quotient := ProofForge.Contract.Builder.localVar quotientName
+    requireU64Result quotient "mint asset quote overflow"
+    ProofForge.Contract.Builder.assign (.local name)
+      quotient
+    ProofForge.Contract.Surface.whenPositive (ProofForge.Contract.Builder.mod numerator ts) do
+      ProofForge.Contract.Surface.requireNe quotient
+        (ProofForge.Contract.Surface.u64 0xffffffffffffffff)
+        "mint asset quote overflow"
+      ProofForge.Contract.Builder.assign (.local name)
+        (ProofForge.Contract.Surface.add quotient (ProofForge.Contract.Surface.u64 1))
+  pure (.local name)
+
+/-- Read-only gross-share calculation for `previewMint`. -/
+def localGrossFromNetShares (name : String) (net : ProofForge.IR.Expr) :
+    EntryM ProofForge.IR.Expr := do
+  ProofForge.Contract.Builder.letMutBind name .u64 net
+  let bps := ProofForge.Contract.Surface.read feeBps
+  ProofForge.Contract.Surface.whenPositive bps do
+    ProofForge.Contract.Surface.requireNe bps (ProofForge.Contract.Surface.u64 10000)
+      "feeBps 10000 blocks mint"
+    let denom :=
+      ProofForge.Contract.Surface.sub (ProofForge.Contract.Surface.u64 10000) bps
+    ProofForge.Contract.Builder.assign (.local name)
+      (ProofForge.Contract.Surface.div
+        (ProofForge.Contract.Surface.mul net (ProofForge.Contract.Surface.u64 10000))
+        denom)
+  requireU64Result (.local name) "mint gross share quote overflow"
+  pure (.local name)
+
+/-- Read-only fee calculation. The explicit zero-fee branch avoids invoking a
+    checked multiplication with a zero RHS and preserves the identity quote. -/
+def localNetAfterFee (name : String) (gross : ProofForge.IR.Expr) :
+    EntryM ProofForge.IR.Expr := do
+  ProofForge.Contract.Builder.letMutBind name .u64 gross
+  let bps := ProofForge.Contract.Surface.read feeBps
+  ProofForge.Contract.Surface.whenPositive bps do
+    ProofForge.Contract.Builder.assign (.local name)
+      (ProofForge.Contract.Surface.sub gross
+        (ProofForge.Contract.Surface.div
+          (ProofForge.Contract.Surface.mul gross bps)
+          (ProofForge.Contract.Surface.u64 10000)))
+  pure (.local name)
 
 /-- Mint fee shares to `feeRecipient` when fee > 0. -/
 def mintFeeSharesIfAny : EntryM Unit := do
@@ -461,14 +663,12 @@ contract_mixin ERC4626Mixin do
 
   -- pro-rata: empty supply → identity; else assets * supply / totalAssets (floor)
   query convertToShares (assets : .u64) returns(.u64) do
-    convertScratch := assets;
-    do applyConvertToShares (ProofForge.Contract.Surface.ref assets);
-    return convertScratch;
+    do localConvertToShares "_pf_convert_shares" (ProofForge.Contract.Surface.ref assets) >>=
+      ProofForge.Contract.Builder.ret;
 
   query convertToAssets (shares : .u64) returns(.u64) do
-    convertScratch := shares;
-    do applyConvertToAssets (ProofForge.Contract.Surface.ref shares);
-    return convertScratch;
+    do localConvertToAssets "_pf_convert_assets" (ProofForge.Contract.Surface.ref shares) >>=
+      ProofForge.Contract.Builder.ret;
 
   query maxDeposit (who : .address) returns(.u64) do
     return u64 0xffffffffffffffff;
@@ -478,10 +678,10 @@ contract_mixin ERC4626Mixin do
 
   query maxWithdraw (holder : .address) returns(.u64) do
     -- max **net** assets redeemable after exit fee
-    convertScratch := mapRead shareBalances holder;
-    do applyConvertToAssets (ProofForge.Contract.Surface.read convertScratch);
-    do applyExitFee;
-    return convertScratch;
+    do localConvertToAssets "_pf_max_withdraw"
+      (ProofForge.Contract.Surface.mapGet shareBalances
+        (ProofForge.Contract.Surface.ref holder)) >>= fun gross =>
+      localNetAfterFee "_pf_max_withdraw_net" gross >>= ProofForge.Contract.Builder.ret;
 
   query maxRedeem (holder : .address) returns(.u64) do
     return mapRead shareBalances holder;
@@ -494,32 +694,27 @@ contract_mixin ERC4626Mixin do
 
   -- preview: net after entry fee (deposit/mint) or exit fee (withdraw/redeem)
   query previewDeposit (assets : .u64) returns(.u64) do
-    convertScratch := assets;
-    do applyConvertToShares (ProofForge.Contract.Surface.ref assets);
-    do applyEntryFee;
-    return convertScratch;
+    do localConvertToShares "_pf_preview_deposit" (ProofForge.Contract.Surface.ref assets) >>=
+      fun gross => localNetAfterFee "_pf_preview_deposit_net" gross >>=
+        ProofForge.Contract.Builder.ret;
 
   query previewMint (shares : .u64) returns(.u64) do
     -- assets required so user receives **net** `shares` after entry fee
-    convertScratch := shares;
-    do applyGrossFromNetShares;
-    let gross : .u64 := convertScratch;
-    convertScratch := gross;
-    do applyConvertToAssets (ProofForge.Contract.Surface.ref gross);
-    return convertScratch;
+    do localGrossFromNetShares "_pf_preview_mint_gross"
+      (ProofForge.Contract.Surface.ref shares) >>= fun gross =>
+      localConvertToAssetsUp "_pf_preview_mint_assets" gross >>=
+      ProofForge.Contract.Builder.ret;
 
   query previewWithdraw (assets : .u64) returns(.u64) do
     -- shares burned to withdraw `assets` from vault (user gets net after exit fee)
-    convertScratch := assets;
-    do applyConvertToShares (ProofForge.Contract.Surface.ref assets);
-    return convertScratch;
+    do localConvertToSharesUp "_pf_preview_withdraw" (ProofForge.Contract.Surface.ref assets) >>=
+      ProofForge.Contract.Builder.ret;
 
   query previewRedeem (shares : .u64) returns(.u64) do
     -- net assets user receives after exit fee
-    convertScratch := shares;
-    do applyConvertToAssets (ProofForge.Contract.Surface.ref shares);
-    do applyExitFee;
-    return convertScratch;
+    do localConvertToAssets "_pf_preview_redeem" (ProofForge.Contract.Surface.ref shares) >>=
+      fun gross => localNetAfterFee "_pf_preview_redeem_net" gross >>=
+        ProofForge.Contract.Builder.ret;
 
   entry deposit (assets : .u64, receiver : .address) returns(.u64) do
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref receiver)
@@ -573,7 +768,7 @@ contract_mixin ERC4626Mixin do
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref grossWanted)
       "zero gross shares";
     convertScratch := grossWanted;
-    do applyConvertToAssets (ProofForge.Contract.Surface.ref grossWanted);
+    do applyConvertToAssetsUp (ProofForge.Contract.Surface.ref grossWanted);
     let assetsWanted : .u64 := convertScratch;
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref assetsWanted)
       "zero assets";
@@ -619,7 +814,7 @@ contract_mixin ERC4626Mixin do
       "not holder";
     -- Plan shares / net user assets from requested `assets` (exit fee skim)
     convertScratch := assets;
-    do applyConvertToShares (ProofForge.Contract.Surface.ref assets);
+    do applyConvertToSharesUp (ProofForge.Contract.Surface.ref assets);
     let shares : .u64 := convertScratch;
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref shares)
       "zero shares";

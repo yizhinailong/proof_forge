@@ -26,7 +26,7 @@ object "Ierc20Client" {
     }
     function f_Ierc20Client_pushTokens(to, amount) {
       let _ok := __proof_forge_crosscall_2(0, 2835717307, to, amount)
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, amount)))
+      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(amount, 18446744073709551615))))
     }
     function f_Ierc20Client_readBalance(account) -> result {
       result := __proof_forge_crosscall_1(0, 1889567281, account)

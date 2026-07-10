@@ -13,7 +13,7 @@ object "Permit2Client" {
     }
     function f_Permit2Client_pull(from, to, amount, token) {
       let _r := __proof_forge_crosscall_4(0, 919045398, from, to, amount, token)
-      sstore(0, or(and(sload(0), not(shl(192, 18446744073709551615))), shl(192, amount)))
+      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(amount, 18446744073709551615))))
     }
     function __proof_forge_crosscall_4(target, selector, arg0, arg1, arg2, arg3) -> result {
       mstore(0, shl(224, selector))
