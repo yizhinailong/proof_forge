@@ -91,6 +91,8 @@ def usage : String :=
     "  proof-forge --emit-evm-fallback-ir-yul [-o output.yul]",
     "  proof-forge --emit-evm-fallback-ir-bytecode [--solc solc] [--yul-output output.yul] [--artifact-output file] [-o output.bin]",
     "  proof-forge --emit-counter-ir-psy [-o output.psy]",
+    "  proof-forge --emit-counter-ir-dpn-json [-o output.dpn.json]",
+    "  proof-forge emit --target psy-dpn --fixture counter --format dpn-json [-o output.dpn.json]",
     "  proof-forge --emit-event-ir-psy [-o output.psy]",
     "  proof-forge --emit-crosscall-ir-psy [-o output.psy]",
     "  proof-forge --emit-expression-predicate-ir-psy [-o output.psy]",

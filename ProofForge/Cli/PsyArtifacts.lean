@@ -1,5 +1,6 @@
 import Lean.Util.Path
 import ProofForge.Backend.Psy.IR
+import ProofForge.Backend.Psy.Dpn
 import ProofForge.Cli.FileUtil
 import ProofForge.Cli.Options
 import ProofForge.IR.Examples.AbiAggregateProbe
@@ -43,6 +44,15 @@ def compileCounterIrPsy (opts : CliOptions) : IO UInt32 := do
       return 0
   | .error err =>
       throw <| IO.userError err.render
+
+/-- Z1.4: emit Counter DPN bytecode JSON (direct lower path bootstrap). -/
+def compileCounterIrDpnJson (opts : CliOptions) : IO UInt32 := do
+  let output := opts.output?.getD (FilePath.mk "build/psy/Counter.dpn.json")
+  let doc := ProofForge.Backend.Psy.Dpn.Lower.lowerCounterFixture
+  let json := ProofForge.Backend.Psy.Dpn.Printer.renderDocument doc
+  writeTextFile output json
+  IO.println s!"wrote {output} (DPNFunctionCircuitDefinition[] via Z1.4 Counter lower)"
+  return 0
 
 def compileEventIrPsy (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/psy/EventProbe.psy")

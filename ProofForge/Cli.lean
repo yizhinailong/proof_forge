@@ -214,6 +214,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .evmFallbackIrYul => compileEvmFallbackIrYul opts
   | .evmFallbackIrBytecode => compileEvmFallbackIrBytecode opts
   | .counterIrPsy => compileCounterIrPsy opts
+  | .counterIrDpnJson => compileCounterIrDpnJson opts
   | .eventIrPsy => compileEventIrPsy opts
   | .crosscallIrPsy => compileCrosscallIrPsy opts
   | .expressionPredicateIrPsy => compileExpressionPredicateIrPsy opts

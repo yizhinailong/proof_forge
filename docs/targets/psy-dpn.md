@@ -242,6 +242,18 @@ Checked-in normalized circuit JSON:
 Normalize: `scripts/psy/normalize-dpn-json.py`  
 Gate: `just psy-dpn-goldens` (shape always; rebuild-diff when `build/psy/dargo-*/target/proof_forge_*.json` exists)
 
+### Direct DPN emit (Z1.4)
+
+```sh
+proof-forge emit --target psy-dpn --fixture counter --format dpn-json -o Counter.dpn.json
+# or: proof-forge --emit-counter-ir-dpn-json
+just psy-dpn-direct
+```
+
+Counter-only bootstrap lower: emits the pinned `CounterGolden.document` that
+matches dargo-compile goldens. General IR→DPN is **not** claimed (see
+`docs/superpowers/specs/2026-07-10-z1-fallback-policy.md`).
+
 ### Lean DPN AST (Z1.3)
 
 Lean modules:

@@ -89,6 +89,7 @@ inductive EmitMode where
   | evmFallbackIrYul
   | evmFallbackIrBytecode
   | counterIrPsy
+  | counterIrDpnJson
   | eventIrPsy
   | crosscallIrPsy
   | expressionPredicateIrPsy
@@ -271,6 +272,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .evmFallbackIrYul
   | .evmFallbackIrBytecode
   | .counterIrPsy
+  | .counterIrDpnJson
   | .eventIrPsy
   | .crosscallIrPsy
   | .expressionPredicateIrPsy

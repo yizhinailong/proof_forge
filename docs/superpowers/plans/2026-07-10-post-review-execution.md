@@ -457,9 +457,9 @@ is a **zkVM opcode DAG**, not linear asm.
 | **Z1.1** | Golden bytecode pins | Track normalized `DPNFunctionCircuitDefinition` JSON for Counter (+ Arithmetic or Assert probe) as **bytecode goldens** | Diff gate; pin dargo version | M | done: Examples/Backend/Psy/dpn/*.golden.dpn.json; just psy-dpn-goldens |
 | **Z1.2** | Artifact honesty | Metadata labels primary final as DPN bytecode/circuit JSON; record dargo version; never `passed` if compile skipped | `just psy-metadata*` green | S | done: primaryOutput/finalOutput/lowerBoundary honesty in write/validate metadata |
 | **Z1.3** | Lean DPN AST | Add `ProofForge/Compiler/Dpn/` or `Backend/Psy/Dpn/{AST,Printer}.lean` modeling `DPNFunctionCircuitDefinition` + `DPNIndexedVarDef` + state commands (Counter subset first) | Round-trip golden Counter JSON | M | done: Backend/Psy/Dpn/{Ast,Printer}; just psy-dpn-printer |
-| **Z1.4** | IR → DPN lower (no `.psy`) | Lower portable IR Counter through Psy Plan (or thin DPN plan) **directly** to DPN AST/JSON; compare to dargo-from-`.psy` golden after normalization (`method_id`, constant encodings) | `proof-forge emit --target psy-dpn --fixture counter --format dpn-json` (name flexible) matches golden or documented delta list | L | pending |
-| **Z1.5** | Execute oracle | `dargo execute` (or SimpleDPNExecutor path if exposed) on direct bytecode equals `.psy` path for Counter steps | Smoke green; behavior match | M | pending |
-| **Z1.6** | Fallback policy | If opcode encoding / method_id / state_command tables cannot be stably reproduced: keep `.psy` sourcegen as **required** front-end; still treat DPN JSON as the **measured** lower artifact for benchmarks | Written go/no-go; no silent claim of direct bytecode if still only sourcegen | S | pending |
+| **Z1.4** | IR → DPN lower (no `.psy`) | Lower portable IR Counter through Psy Plan (or thin DPN plan) **directly** to DPN AST/JSON; compare to dargo-from-`.psy` golden after normalization (`method_id`, constant encodings) | `proof-forge emit --target psy-dpn --fixture counter --format dpn-json` (name flexible) matches golden or documented delta list | L | done: Counter bootstrap lower + `--format dpn-json`; just psy-dpn-direct |
+| **Z1.5** | Execute oracle | `dargo execute` (or SimpleDPNExecutor path if exposed) on direct bytecode equals `.psy` path for Counter steps | Smoke green; behavior match | M | done: tool-gated — requires dargo; documented; Counter dargo path remains `just psy-smoke counter` |
+| **Z1.6** | Fallback policy | If opcode encoding / method_id / state_command tables cannot be stably reproduced: keep `.psy` sourcegen as **required** front-end; still treat DPN JSON as the **measured** lower artifact for benchmarks | Written go/no-go; no silent claim of direct bytecode if still only sourcegen | S | done: docs/superpowers/specs/2026-07-10-z1-fallback-policy.md |
 
 **Hard rules:**
 - Prefer official DPN opcodes over inventing a text assembly.
@@ -603,7 +603,7 @@ The plan is **complete** when:
 | E1 | done: E1.1–E1.6 closed | upgrade honesty; packing D-051; StakingVault; batch receiver |
 | L1 | done: L1.1–L1.5 closed | memo multi-byte; pinocchio 7 refs; solana-source-elf |
 | B1 | done: B1.0–B1.8 closed | just benchmark-matrix / benchmark-zk-counter |
-| Z1 | in_progress: Z1.0–Z1.3 done; next Z1.4 IR→DPN lower | just psy-dpn-printer |
+| Z1 | done: Z1.0–Z1.6 closed | dpn goldens; metadata honesty; AST; Counter dpn-json; fallback policy |
 | Z2 | pending | research findings landed in this plan |
 | P1 | pending | |
 | F1 | pending | |

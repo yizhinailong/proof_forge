@@ -1325,6 +1325,14 @@ psy-dpn-printer:
     lake build ProofForge.Backend.Psy.Dpn
     lake env lean --run Tests/PsyDpnPrinter.lean
 
+# Z1.4: Counter IR → DPN JSON direct emit matches golden (bootstrap lower).
+psy-dpn-direct:
+    scripts/psy/dpn-direct-counter-smoke.sh
+
+# Z1.5: dargo execute oracle (skips cleanly when dargo absent).
+psy-dpn-execute-oracle:
+    scripts/psy/dpn-execute-oracle-smoke.sh
+
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:
     #!/usr/bin/env bash

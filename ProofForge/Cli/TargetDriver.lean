@@ -273,7 +273,10 @@ def psyResolveBuild (req : BuildRequest) : Except String String :=
     fixtureOnlyBuild "psy-dpn" "--emit-counter-ir-psy" req
 
 def psyResolveEmit (req : EmitRequest) : Except String String :=
-  if ProofForge.Cli.Fixture.supportsFormat "psy-dpn" req.fixture .psy then
+  let fmt := req.format?.getD ""
+  if (fmt == "dpn-json" || fmt == "dpn" || fmt == "json") && req.fixture == "counter" then
+    Except.ok "--emit-counter-ir-dpn-json"
+  else if ProofForge.Cli.Fixture.supportsFormat "psy-dpn" req.fixture .psy then
     Except.ok s!"--emit-{req.fixture}-ir-psy"
   else
     Except.error s!"emit --target psy-dpn --fixture {req.fixture} is not yet mapped to a legacy flag"

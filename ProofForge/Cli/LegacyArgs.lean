@@ -239,6 +239,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .evmFallbackIrBytecode }
   | "--emit-counter-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .counterIrPsy }
+  | "--emit-counter-ir-dpn-json" :: rest, opts =>
+      parseArgs rest { opts with mode := .counterIrDpnJson }
   | "--emit-event-ir-psy" :: rest, opts =>
       parseArgs rest { opts with mode := .eventIrPsy }
   | "--emit-crosscall-ir-psy" :: rest, opts =>
