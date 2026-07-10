@@ -91,9 +91,8 @@ contract_mixin ERC1155Mixin do
       (ProofForge.Contract.Surface.ref id)
       (ProofForge.Contract.Surface.ref amount);
 
-  -- Size-2 batch transfer (PF-P2-02 MVP). Full dynamic-array batch ABI is
-  -- a later slice; this entry exercises multi-id accounting + dual receiver
-  -- checks on EVM.
+  -- Size-2 batch transfer (PF-P2-02 + E1.2 onERC1155BatchReceived). Full
+  -- dynamic-array batch ABI is a later slice.
   entry safeBatchTransferFrom2 (src : .address, dst : .address, id0 : .u64, amount0 : .u64, id1 : .u64, amount1 : .u64) do
     let operator : .address := caller;
     let approved : .u64 := pathRead2 operatorApprovals src operator;
@@ -118,12 +117,6 @@ contract_mixin ERC1155Mixin do
       fieldAsName "id" id0,
       fieldAsName "value" amount0
     ];
-    do ProofForge.Contract.Surface.checkErc1155Received
-      (ProofForge.Contract.Surface.ref operator)
-      (ProofForge.Contract.Surface.ref src)
-      (ProofForge.Contract.Surface.ref dst)
-      (ProofForge.Contract.Surface.ref id0)
-      (ProofForge.Contract.Surface.ref amount0);
     let fromBal1 : .u64 := pathRead2 balances src id1;
     do ProofForge.Contract.Surface.requireGe (ProofForge.Contract.Surface.ref fromBal1)
       (ProofForge.Contract.Surface.ref amount1) "insufficient balance";
@@ -138,10 +131,12 @@ contract_mixin ERC1155Mixin do
       fieldAsName "id" id1,
       fieldAsName "value" amount1
     ];
-    do ProofForge.Contract.Surface.checkErc1155Received
+    do ProofForge.Contract.Surface.checkErc1155BatchReceived
       (ProofForge.Contract.Surface.ref operator)
       (ProofForge.Contract.Surface.ref src)
       (ProofForge.Contract.Surface.ref dst)
+      (ProofForge.Contract.Surface.ref id0)
+      (ProofForge.Contract.Surface.ref amount0)
       (ProofForge.Contract.Surface.ref id1)
       (ProofForge.Contract.Surface.ref amount1);
 

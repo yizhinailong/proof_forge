@@ -238,6 +238,15 @@ mutual
         checkExprFuel fuel entrypoint env id
         checkExprFuel fuel entrypoint env amount
 
+    | fuel + 1, entrypoint, env, .checkErc1155BatchReceived operator fromAddr toAddr id0 amount0 id1 amount1 => do
+        checkExprFuel fuel entrypoint env operator
+        checkExprFuel fuel entrypoint env fromAddr
+        checkExprFuel fuel entrypoint env toAddr
+        checkExprFuel fuel entrypoint env id0
+        checkExprFuel fuel entrypoint env amount0
+        checkExprFuel fuel entrypoint env id1
+        checkExprFuel fuel entrypoint env amount1
+
   def checkStoragePathSegmentFuel : Nat → String → Env → StoragePathSegment →
       Except OwnershipError Unit
     | 0, _, _, _ => .ok ()

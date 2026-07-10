@@ -124,6 +124,17 @@ contract Good1155Receiver {
     {
         return this.onERC1155Received.selector;
     }
+
+    // E1.2: also accept batch receiver magic.
+    function onERC1155BatchReceived(
+        address,
+        address,
+        uint256[] calldata,
+        uint256[] calldata,
+        bytes calldata
+    ) external pure returns (bytes4) {
+        return this.onERC1155BatchReceived.selector;
+    }
 }
 
 /// PF-P2-02: IERC1155Receiver that returns the wrong selector.
@@ -133,6 +144,16 @@ contract Bad1155Receiver {
         pure
         returns (bytes4)
     {
+        return bytes4(0xdeadbeef);
+    }
+
+    function onERC1155BatchReceived(
+        address,
+        address,
+        uint256[] calldata,
+        uint256[] calldata,
+        bytes calldata
+    ) external pure returns (bytes4) {
         return bytes4(0xdeadbeef);
     }
 }
@@ -696,6 +717,60 @@ contract ProofForgeSmokeTest {
         (, bytes memory bob1) =
             token.call(abi.encodeWithSignature("balanceOf(address,uint256)", bob, uint256(2)));
         assertEq(abi.decode(bob1, (uint256)), 20);
+    }
+
+    // E1.2: batch transfer to contract receiver — accept / reject.
+    function testERC1155SafeBatchTransferToReceiver_accepts() public {
+        address token = address(0x11554);
+        address alice = address(0xA11CE);
+        address recv = address(new Good1155Receiver());
+        deployRuntime(hex"$(cat "$OUT_DIR/ERC1155.bin")", token);
+
+        vm.prank(alice);
+        (bool mint0Ok,) = token.call(abi.encodeWithSignature("mint(address,uint256,uint256)", alice, uint256(1), uint256(50)));
+        assertTrue(mint0Ok);
+        vm.prank(alice);
+        (bool mint1Ok,) = token.call(abi.encodeWithSignature("mint(address,uint256,uint256)", alice, uint256(2), uint256(40)));
+        assertTrue(mint1Ok);
+
+        vm.prank(alice);
+        (bool batchOk,) = token.call(
+            abi.encodeWithSignature(
+                "safeBatchTransferFrom2(address,address,uint256,uint256,uint256,uint256)",
+                alice, recv, uint256(1), uint256(10), uint256(2), uint256(5)
+            )
+        );
+        assertTrue(batchOk);
+
+        (, bytes memory r0) =
+            token.call(abi.encodeWithSignature("balanceOf(address,uint256)", recv, uint256(1)));
+        assertEq(abi.decode(r0, (uint256)), 10);
+        (, bytes memory r1) =
+            token.call(abi.encodeWithSignature("balanceOf(address,uint256)", recv, uint256(2)));
+        assertEq(abi.decode(r1, (uint256)), 5);
+    }
+
+    function testERC1155SafeBatchTransferToReceiver_rejects() public {
+        address token = address(0x11555);
+        address alice = address(0xA11CE);
+        address recv = address(new Bad1155Receiver());
+        deployRuntime(hex"$(cat "$OUT_DIR/ERC1155.bin")", token);
+
+        vm.prank(alice);
+        (bool mint0Ok,) = token.call(abi.encodeWithSignature("mint(address,uint256,uint256)", alice, uint256(1), uint256(50)));
+        assertTrue(mint0Ok);
+        vm.prank(alice);
+        (bool mint1Ok,) = token.call(abi.encodeWithSignature("mint(address,uint256,uint256)", alice, uint256(2), uint256(40)));
+        assertTrue(mint1Ok);
+
+        vm.prank(alice);
+        (bool batchOk,) = token.call(
+            abi.encodeWithSignature(
+                "safeBatchTransferFrom2(address,address,uint256,uint256,uint256,uint256)",
+                alice, recv, uint256(1), uint256(10), uint256(2), uint256(5)
+            )
+        );
+        assertFalse(batchOk);
     }
 
     function testUUPSProxyUpgradeLifecycle() public {

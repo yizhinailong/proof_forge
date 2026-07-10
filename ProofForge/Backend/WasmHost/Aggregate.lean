@@ -114,6 +114,9 @@ mutual
     | .checkErc1155Received a b c d e =>
         collectArrayLitsExpr a ++ collectArrayLitsExpr b ++ collectArrayLitsExpr c ++
           collectArrayLitsExpr d ++ collectArrayLitsExpr e
+    | .checkErc1155BatchReceived a b c d e f g =>
+        collectArrayLitsExpr a ++ collectArrayLitsExpr b ++ collectArrayLitsExpr c ++
+          collectArrayLitsExpr d ++ collectArrayLitsExpr e ++ collectArrayLitsExpr f ++ collectArrayLitsExpr g
     | .storageScalarRead _ => #[]
 
   partial def collectStructLitsExpr (e : Expr) : Array String :=
@@ -197,6 +200,9 @@ mutual
     | .checkErc1155Received a b c d e =>
         collectStructLitsExpr a ++ collectStructLitsExpr b ++ collectStructLitsExpr c ++
           collectStructLitsExpr d ++ collectStructLitsExpr e
+    | .checkErc1155BatchReceived a b c d e f g =>
+        collectStructLitsExpr a ++ collectStructLitsExpr b ++ collectStructLitsExpr c ++
+          collectStructLitsExpr d ++ collectStructLitsExpr e ++ collectStructLitsExpr f ++ collectStructLitsExpr g
     | .storageScalarRead _ => #[]
 end
 

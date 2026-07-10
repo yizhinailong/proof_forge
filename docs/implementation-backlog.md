@@ -3328,7 +3328,7 @@ so authors never drop to Builder for common EVM patterns. Cross-ref
 | CS-3.8 | ERC-721 core (ownerOf, transfer, safeTransferFrom, mint, burn) | P0 | ✅ stdlib mixin + **PF-P2-02** `onERC721Received` (Foundry accept/reject) |
 | CS-3.9 | CREATE2 factory template module | P1 | Deterministic deploy example + metadata |
 | CS-3.10 | Proxy/upgrade patterns (UUPS or transparent) aligned with Workstream 32 `upgradePolicy` | P1 | Honest lowering or explicit reject per policy |
-| CS-3.11 | ERC-1155 single-transfer core | P1 | ✅ `Stdlib/ERC1155.lean` + `onERC1155Received` + size-2 `safeBatchTransferFrom2` (PF-P2-02 Foundry); arbitrary-length batch / `onERC1155BatchReceived` remain open |
+| CS-3.11 | ERC-1155 single-transfer core | P1 | ✅ `Stdlib/ERC1155.lean` + `onERC1155Received` + size-2 `safeBatchTransferFrom2` with `onERC1155BatchReceived` (E1.2 Foundry accept/reject); arbitrary-length dynamic batch ABI remains open |
 
 ### Phase CS-4 — Project development experience
 

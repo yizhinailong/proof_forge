@@ -544,6 +544,19 @@ mutual
         return mergeContextExprPlans
           (mergeContextExprPlans (mergeContextExprPlans s1 s2) (mergeContextExprPlans s3 s4)) s5
 
+    | .checkErc1155BatchReceived a b c d e f g => do
+        let s1 ← contextOpsFromExpr a
+        let s2 ← contextOpsFromExpr b
+        let s3 ← contextOpsFromExpr c
+        let s4 ← contextOpsFromExpr d
+        let s5 ← contextOpsFromExpr e
+        let s6 ← contextOpsFromExpr f
+        let s7 ← contextOpsFromExpr g
+        return mergeContextExprPlans
+          (mergeContextExprPlans
+            (mergeContextExprPlans (mergeContextExprPlans s1 s2) (mergeContextExprPlans s3 s4))
+            (mergeContextExprPlans s5 s6)) s7
+
   partial def contextOpsFromPath (path : Array StoragePathSegment) :
       Except PlanError (Array ContextExprPlan) :=
     path.foldlM (init := #[]) fun acc segment =>
@@ -853,6 +866,19 @@ mutual
         let s5 ← surfaceFromExpr module env e
         return mergeModuleSurfaces
           (mergeModuleSurfaces (mergeModuleSurfaces s1 s2) (mergeModuleSurfaces s3 s4)) s5
+
+    | .checkErc1155BatchReceived a b c d e f g => do
+        let s1 ← surfaceFromExpr module env a
+        let s2 ← surfaceFromExpr module env b
+        let s3 ← surfaceFromExpr module env c
+        let s4 ← surfaceFromExpr module env d
+        let s5 ← surfaceFromExpr module env e
+        let s6 ← surfaceFromExpr module env f
+        let s7 ← surfaceFromExpr module env g
+        return mergeModuleSurfaces
+          (mergeModuleSurfaces
+            (mergeModuleSurfaces (mergeModuleSurfaces s1 s2) (mergeModuleSurfaces s3 s4))
+            (mergeModuleSurfaces s5 s6)) s7
 
   partial def surfaceFromPath (module : Module) (env : LocalTypeEnv) (path : Array StoragePathSegment) :
       Except PlanError ModuleSurface :=

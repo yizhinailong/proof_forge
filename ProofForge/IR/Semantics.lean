@@ -796,6 +796,15 @@ partial def evalEffect (state : State) (frame : Frame) : Effect → Except Strin
       let (s5, _) ← evalExpr s4 frame amount
       .ok (s5, .unit)
 
+  | .checkErc1155BatchReceived operator fromAddr toAddr id0 amount0 id1 amount1 => do
+      let (s1, _) ← evalExpr state frame operator
+      let (s2, _) ← evalExpr s1 frame fromAddr
+      let (s3, _) ← evalExpr s2 frame toAddr
+      let (s4, _) ← evalExpr s3 frame id0
+      let (s5, _) ← evalExpr s4 frame amount0
+      let (s6, _) ← evalExpr s5 frame id1
+      let (s7, _) ← evalExpr s6 frame amount1
+      .ok (s7, .unit)
 partial def evalEventFields (state : State) (frame : Frame) (fields : Array (String × Expr)) :
     Except String (State × Array Value) := do
   let mut nextState := state

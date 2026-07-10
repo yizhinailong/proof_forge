@@ -264,6 +264,15 @@ mutual
           let (s4, _) ← evalExprFuel fuel s3 frame id
           let (s5, _) ← evalExprFuel fuel s4 frame amount
           .ok (s5, .unit)
+      | .checkErc1155BatchReceived operator fromAddr toAddr id0 amount0 id1 amount1 => do
+          let (s1, _) ← evalExprFuel fuel state frame operator
+          let (s2, _) ← evalExprFuel fuel s1 frame fromAddr
+          let (s3, _) ← evalExprFuel fuel s2 frame toAddr
+          let (s4, _) ← evalExprFuel fuel s3 frame id0
+          let (s5, _) ← evalExprFuel fuel s4 frame amount0
+          let (s6, _) ← evalExprFuel fuel s5 frame id1
+          let (s7, _) ← evalExprFuel fuel s6 frame amount1
+          .ok (s7, .unit)
       | _ => unsupportedEffect effect
 
   /-- Total fuel-indexed evaluation of event field arrays. -/

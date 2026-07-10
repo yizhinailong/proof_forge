@@ -375,6 +375,16 @@ def checkErc1155Received
   ProofForge.Contract.Builder.effect
     (.checkErc1155Received operator fromAddr toAddr id amount)
 
+/-- EVM ERC-1155 size-2 batch receiver check (E1.2).
+If `to` has code, CALL
+`onERC1155BatchReceived(operator, from, [id0,id1], [amount0,amount1], "")`
+and require the magic `bytes4` return. EOAs skip. -/
+def checkErc1155BatchReceived
+    (operator fromAddr toAddr id0 amount0 id1 amount1 : ProofForge.IR.Expr) :
+    EntryM Unit :=
+  ProofForge.Contract.Builder.effect
+    (.checkErc1155BatchReceived operator fromAddr toAddr id0 amount0 id1 amount1)
+
 /-- Portable cross-contract intent (family-shared). Backends materialize as
 EVM CALL / Solana CPI / NEAR `promise_create` / Soroban `invoke_contract` —
 authors never write CPI metas or Promise chains here. Prefer `declareRemote`
