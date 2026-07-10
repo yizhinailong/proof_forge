@@ -308,6 +308,7 @@ def extensionKeyForTarget? : String → Option String
   | "solana-sbpf-asm" => some "solana"
   | "wasm-near" => some "near"
   | "wasm-stellar-soroban" => some "soroban"
+  | "wasm-cosmwasm" => some "cosmwasm"
   | "move-sui" => some "sui"
   | _ => none
 
@@ -359,6 +360,19 @@ def defaultExtension (targetId : String) : TargetExtension :=
           ("gas", Json.string "optional"),
           ("deposit", Json.string "optional")
         ])
+      ]
+    }
+  | "wasm-cosmwasm" => {
+      key := "cosmwasm"
+      targetId := targetId
+      fields := #[
+        ("wat", Json.string "counter.wat"),
+        ("wasm", Json.string "counter.wasm"),
+        ("deployManifest", Json.string "proof-forge-deploy.json"),
+        ("contractSpec", Json.string "Counter.contract-spec.json"),
+        ("typescriptWrapper", Json.string "proof-forge-cosmwasm.ts"),
+        ("offlineHost", Json.string "runtime/offline-host"),
+        ("executeMsg", Json.string "stub (PF-P3-02; full submessages follow-on)")
       ]
     }
   | "move-sui" => {

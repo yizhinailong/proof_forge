@@ -1230,31 +1230,19 @@ def renderCheckedModule (mod : ProofForge.IR.Module)
 
 /-- Unified Wasm-family render entry.
 
-* `.near` / `.soroban` — shared IR → WAT lowering.
-* `.cosmWasm` — full IR lower when the module uses portable peer remote
-  (`crosscall.invoke` → `execute_msg`); otherwise the Counter-spike WAT adapter
-  (`WasmHost.CosmWasm.EmitWat`) for `cosmwasm-check` golden exports.
+* `.near` / `.soroban` / `.cosmWasm` — shared IR → WAT lowering via
+  `HostBridge` (`storage_*` / `_get`/`_put` / `db_read`/`db_write`).
+* The legacy CosmWasm Counter **spike** adapter (`WasmHost.CosmWasm.EmitWat`,
+  region ABI + `interface_version_8`) remains available via CLI fixture emit
+  (`--emit-counter-ir-cosmwasm` / `just cosmwasm-counter-smoke`) for
+  `cosmwasm-check` goldens — not via product `contract_source` build.
 -/
 def renderModule (mod : ProofForge.IR.Module)
     (bridge : ProofForge.Target.HostBridge := .near)
     (peerMap : ProofForge.Target.PeerMap.Map := ProofForge.Target.PeerMap.identity) :
     Except EmitError String := do
-  match bridge with
-  | .cosmWasm =>
-      let mod := ProofForge.Target.PeerMap.applyToModule mod peerMap
-      let usesPortableRemote :=
-        mod.capabilities.any (fun c => c == .crosscallInvoke)
-      if usesPortableRemote then
-        -- General peer remote on CosmWasm host (not token-specific).
-        checkCapabilities mod
-        renderCheckedModule mod .cosmWasm ProofForge.Target.PeerMap.identity
-      else
-        match ProofForge.Backend.WasmHost.CosmWasm.EmitWat.renderModule mod with
-        | .ok wat => .ok wat
-        | .error e => err e.message
-  | .near | .soroban =>
-      checkCapabilities mod
-      renderCheckedModule mod bridge peerMap
+  checkCapabilities mod
+  renderCheckedModule mod bridge peerMap
 
 def renderModuleWithPlan
     (mod : ProofForge.IR.Module)
@@ -1262,12 +1250,8 @@ def renderModuleWithPlan
     (bridge : ProofForge.Target.HostBridge := .near)
     (peerMap : ProofForge.Target.PeerMap.Map := ProofForge.Target.PeerMap.identity) :
     Except EmitError String := do
-  match bridge with
-  | .cosmWasm =>
-      renderModule mod bridge peerMap
-  | .near | .soroban =>
-      checkTargetPlan plan
-      renderCheckedModule mod bridge peerMap
+  checkTargetPlan plan
+  renderCheckedModule mod bridge peerMap
 
 
 end ProofForge.Backend.WasmHost.EmitWat

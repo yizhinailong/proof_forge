@@ -39,11 +39,13 @@ def compilePureMathIrLeo (opts : CliOptions) : IO UInt32 := do
   | .error err =>
       throw <| IO.userError err.render
 
+/-- Fixture-only CosmWasm Counter **spike** adapter (region ABI + cosmwasm-check).
+Product `contract_source` builds use HostBridge.cosmWasm via
+`--contract-source-emitwat` instead (PF-P3-02). -/
 def compileCounterIrCosmWasm (opts : CliOptions) : IO UInt32 := do
   let output := opts.output?.getD (FilePath.mk "build/cosmwasm/Counter.wat")
-  match ProofForge.Backend.WasmHost.EmitWat.renderModule
-      ProofForge.IR.Examples.Counter.module
-      ProofForge.Target.HostBridge.cosmWasm with
+  match ProofForge.Backend.WasmHost.CosmWasm.EmitWat.renderModule
+      ProofForge.IR.Examples.Counter.module with
   | .ok source =>
       writeTextFile output source
       IO.println s!"wrote {output}"

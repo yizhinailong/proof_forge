@@ -12,6 +12,9 @@ def nearWrapperPath : String := "proof-forge-near.ts"
 /-- Spike-level Soroban TypeScript sidecar (not a NEAR wrapper path). -/
 def sorobanWrapperPath : String := "proof-forge-soroban.ts"
 
+/-- CosmWasm TypeScript sidecar (not a NEAR wrapper path). -/
+def cosmWasmWrapperPath : String := "proof-forge-cosmwasm.ts"
+
 def solanaClientPath : String := "proof-forge-client.ts"
 
 def solanaIdlPath : String := "proof-forge-idl.json"
@@ -302,6 +305,34 @@ def renderSorobanWrapper (spec : ContractSpec) : String :=
     "// Declared entrypoints: " ++ names,
     "export function getContractId(): string {",
     "  return contractId;",
+    "}",
+    ""
+  ]
+
+def renderCosmWasmWrapper (spec : ContractSpec) : String :=
+  let names := String.intercalate ", " (spec.module.entrypoints.map (fun e => e.name)).toList
+  let quoted := String.intercalate ", " (spec.module.entrypoints.map (fun e => "\"" ++ e.name ++ "\"")).toList
+  String.intercalate "\n" [
+    "/* ProofForge generated CosmWasm wrapper (Counter MVP / PF-P3-02). */",
+    "/* Target: wasm-cosmwasm — not a NEAR client. */",
+    "/* eslint-disable @typescript-eslint/no-explicit-any */",
+    "",
+    "export type CosmWasmCallOptions = {",
+    "  // Follow-on: CosmWasm RPC / funds / gas options.",
+    "  [key: string]: unknown;",
+    "};",
+    "",
+    "let contractAddress: string;",
+    "",
+    "export function connect(address: string) {",
+    "  contractAddress = address;",
+    "}",
+    "",
+    "export const entrypoints = [" ++ quoted ++ "] as const;",
+    "",
+    "// Declared entrypoints: " ++ names,
+    "export function getContractAddress(): string {",
+    "  return contractAddress;",
     "}",
     ""
   ]

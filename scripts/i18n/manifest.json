@@ -1,6 +1,6 @@
 {
   "README.md": {
-    "sha256": "001183b4e308739f81f202c826525b9e7a93c15463c41c42233f897f00117f64",
+    "sha256": "232e0b03b564b524836406c9a4182d453191dce90da3e9cc428b72abf41c4eb6",
     "zh": "docs/zh/README-root.zh.md",
     "model": "manual-zh",
     "note": "manually synced for PF-P1-02 (backend-status generated table pointer) — re-synced for aleo-leo ALU feature merge"
@@ -128,7 +128,7 @@
     "note": "synced after Product/Backend reorg path renames"
   },
   "docs/targets/wasm-family.md": {
-    "sha256": "0d8ad12a12330b444e6e3fae672ff2c315fcf0b3308af516531cd38c9390a3c5",
+    "sha256": "4ae08d940e67df659bb800578e116302a8d566c5cefb030a9272cfec04efe746",
     "zh": "docs/zh/targets/wasm-family.zh.md",
     "model": "manual-zh",
     "note": "manually synced through the 2026-07-10 audit integration"

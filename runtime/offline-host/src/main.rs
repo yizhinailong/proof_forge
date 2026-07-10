@@ -632,6 +632,87 @@ fn define_host_imports(linker: &mut Linker<HostState>) -> Result<()> {
         },
     )?;
 
+    // CosmWasm HostBridge (PF-P3-02): `db_read` / `db_write` share offline storage.
+    // EmitWat uses (ptr,len) and `db_read` returns **i64** (full LE scalar).
+    linker.func_wrap(
+        "env",
+        "db_read",
+        |mut caller: Caller<'_, HostState>, key_ptr: i32, key_len: i32| -> Result<i64> {
+            let key = read_memory(&mut caller, key_ptr as i64, key_len as i64)?;
+            match caller.data().storage.get(&key) {
+                Some(value) if !value.is_empty() => {
+                    let mut buf = [0u8; 8];
+                    let n = value.len().min(8);
+                    buf[..n].copy_from_slice(&value[..n]);
+                    Ok(i64::from_le_bytes(buf))
+                }
+                _ => Ok(0),
+            }
+        },
+    )?;
+
+    linker.func_wrap(
+        "env",
+        "db_write",
+        |mut caller: Caller<'_, HostState>,
+         key_ptr: i32,
+         key_len: i32,
+         value_ptr: i32,
+         value_len: i32|
+         -> Result<()> {
+            let key = read_memory(&mut caller, key_ptr as i64, key_len as i64)?;
+            let value = read_memory(&mut caller, value_ptr as i64, value_len as i64)?;
+            caller.data_mut().storage.insert(key, value);
+            Ok(())
+        },
+    )?;
+
+    linker.func_wrap(
+        "env",
+        "db_remove",
+        |mut caller: Caller<'_, HostState>, key_ptr: i32, key_len: i32| -> Result<()> {
+            let key = read_memory(&mut caller, key_ptr as i64, key_len as i64)?;
+            caller.data_mut().storage.remove(&key);
+            Ok(())
+        },
+    )?;
+
+    // CosmWasm EmitWat `set_return_data` is (ptr, len) — order differs from NEAR value_return (len, ptr).
+    linker.func_wrap(
+        "env",
+        "set_return_data",
+        |mut caller: Caller<'_, HostState>, ptr: i32, len: i32| -> Result<()> {
+            let bytes = read_memory(&mut caller, ptr as i64, len as i64)?;
+            caller.data_mut().return_value = bytes;
+            Ok(())
+        },
+    )?;
+
+    linker.func_wrap(
+        "env",
+        "log",
+        |mut caller: Caller<'_, HostState>, ptr: i32, len: i32| -> Result<()> {
+            let bytes = read_memory(&mut caller, ptr as i64, len as i64)?;
+            let log = String::from_utf8_lossy(&bytes).into_owned();
+            caller.data_mut().logs.push(log);
+            Ok(())
+        },
+    )?;
+
+    // Portable peer stub (records nothing extra in offline host; returns 0).
+    linker.func_wrap(
+        "env",
+        "execute_msg",
+        |_caller: Caller<'_, HostState>,
+         _c_len: i32,
+         _c_ptr: i32,
+         _m_len: i32,
+         _m_ptr: i32,
+         _a_len: i32,
+         _a_ptr: i32|
+         -> i32 { 0 },
+    )?;
+
     // Soroban HostBridge (PF-P3-02): `_get` / `_put` share the offline storage map.
     // `_get` returns the first 4 LE bytes as i32 (matches EmitWat `__pf_read_u64`
     // which zero-extends i32→i64 for Counter-scale scalars). Missing key → 0.

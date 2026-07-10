@@ -164,11 +164,18 @@ def wasmCosmWasm : TargetProfile := {
     .cryptoHash
   ]
   hostBridge? := some .cosmWasm
-  -- M1 spike uses a direct WAT emitter; the Zig route is deferred to Workstream 4.
-  requiredTools := #["wat2wasm", "cosmwasm-check"]
-  support := TargetSupport.fixtureSpike
-    "Counter fixture EmitWat spike; source input fail-closed"
-    #[{ tool := "wat2wasm", stage := "intermediate" }]
+  requiredTools := #["wat2wasm"]
+  support := {
+    maturity := .counterMvp
+    inputModes := #[.contractSource, .fixture]
+    commands := #[.build, .emit, .check]
+    outputStages := #[.intermediate, .finalDeployable]
+    validationLevel := .capability
+    supportedFragment :=
+      "Counter MVP (PF-P3-02 six-gate): contract_source via EmitWat + HostBridge.cosmWasm; " ++
+      "offline-host lifecycle; execute_msg remains stub; cosmwasm-check golden via fixture emit"
+    toolStages := #[{ tool := "wat2wasm", stage := "final-deployable" }]
+  }
 }
 
 def wasmCloudflareWorkers : TargetProfile := {
@@ -227,7 +234,7 @@ def wasmStellarSoroban : TargetProfile := {
   hostBridge? := some .soroban
   requiredTools := #["wat2wasm"]
   support := {
-    maturity := .spike
+    maturity := .counterMvp
     inputModes := #[.contractSource]
     commands := #[.build, .check]
     outputStages := #[.intermediate, .finalDeployable]
