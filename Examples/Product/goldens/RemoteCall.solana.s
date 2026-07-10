@@ -1,8 +1,8 @@
   ; ProofForge generated sBPF — RemoteCall (Phase 1)
   ; Target: solana-sbpf-asm (D-026)
 
-.equ INSTRUCTION_DATA_LEN, 31216
-.equ INSTRUCTION_DATA, 31224
+.equ INSTRUCTION_DATA_LEN, 51696
+.equ INSTRUCTION_DATA, 51704
 .equ MARKER_DATA, 96
 
 .globl entrypoint

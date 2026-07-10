@@ -94,7 +94,9 @@
       "kind": "auth-policy",
       "targets": ["evm", "solana-sbpf-asm", "wasm-near", "wasm-stellar-soroban"],
       "outputStage": "intermediate",
-      "gates": ["product-matrix"]
+      "gates": ["product-matrix", "portable-stdlib-core", "testkit:ownable"],
+      "runtimeTriad": true,
+      "note": "PF-P2-01 auth/policy family; testkit ownable triad runtime"
     },
     {
       "file": "OwnableHash.lean",

@@ -8,9 +8,9 @@ Status: **Active**
 Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
 
-Baseline: Waves 0–2 done. Wave 3: PF-P2-01 catalog + ExternalVault matrix +
-testkit --deny-skip + ArrayExample triad runtime (map/array); remaining triad
-families: auth/policy, remote calls (events covered via ValueVault).
+Baseline: Waves 0–2 done. Wave 3: PF-P2-01 catalog + ExternalVault + deny-skip +
+ArrayExample (map/array) + Ownable (auth/policy) triad runtime; remaining:
+remote-call triad scenario (events covered via ValueVault).
 
 ---
 
@@ -116,7 +116,7 @@ implementation SHA is only known after the implementation commit exists.
 | 1 | PF-P1-04 | done: verified@4cae7f88; just preflight-l2; just check-l2-parity; just product; just check | PF-P1-01 through PF-P1-03 done |
 | 2 | PF-P1-05 | done: verified@d3d2f3d8; just source-dsl-arity; just portable-default; just product; just check | Wave 1 done |
 | 2 | PF-P1-06 | done: verified@1f4c73e7; just leo-printer-fail-closed; just aleo-leo-codegen-smoke; just product; just check | Wave 1 done |
-| 3 | PF-P2-01 | in_progress: catalog + ExternalVault + deny-skip + ArrayExample triad runtime; next: auth/policy + remote triad scenarios | Waves 1 and 2 done |
+| 3 | PF-P2-01 | in_progress: catalog + ExternalVault + deny-skip + ArrayExample + Ownable triad; next: remote triad scenario | Waves 1 and 2 done |
 | 3 | PF-P2-02 | pending | Waves 1 and 2 done; complete one backend slice at a time |
 | 3 | PF-P2-03 | pending | Waves 1 and 2 done |
 | 5 | PF-P3-01 | pending | Wave 3 done |

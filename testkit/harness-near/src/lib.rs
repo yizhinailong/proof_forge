@@ -173,6 +173,22 @@ fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<NearFixtureArt
                 "ArrayExample.near-artifact.json",
             )
         }
+        "ownable" => {
+            let source_path = scenario_source(case, repo_root)?.ok_or_else(|| {
+                anyhow::anyhow!(
+                    "ownable requires scenario.source (Examples/Product/Ownable.lean)"
+                )
+            })?;
+            build_contract_source_wat(
+                case,
+                repo_root,
+                &source_path,
+                "Ownable",
+                "build/testkit/near/ownable",
+                "ownable.wat",
+                "Ownable.near-artifact.json",
+            )
+        }
         "alloc-release" => emit_wat_fixture(
             repo_root,
             "Tests/Backend/Wasm/EmitWatAlloc.lean",

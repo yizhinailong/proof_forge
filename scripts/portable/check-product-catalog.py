@@ -52,6 +52,7 @@ def main() -> int:
     required_runtime_kinds = {
         "scalar-state": "Counter / ValueVault scalar + events",
         "aggregate": "ArrayExample fixed-array map/array family",
+        "auth-policy": "Ownable caller.sender auth/policy family",
     }
     runtime_kinds = {
         e["kind"] for e in data["sources"] if e.get("runtimeTriad") and e.get("kind")
