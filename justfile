@@ -239,7 +239,7 @@ lean-invariants-smoke:
 
 # Check existing executable trace runners are wired through the shared TargetSemantics interface.
 target-semantics-instances-smoke:
-    lake build ProofForge.Backend.Evm.Refinement ProofForge.Backend.Solana.Refinement ProofForge.Backend.WasmHost.Refinement
+    lake build ProofForge.Backend.Evm.Refinement ProofForge.Backend.Evm.YulHostRefinement ProofForge.Backend.Solana.Refinement ProofForge.Backend.WasmHost.Refinement
     lake env lean --run Tests/TargetSemanticsInstances.lean
 
 # Generic Wasm stack/state helper lemmas - active WASM C-proof surface.
@@ -1176,7 +1176,7 @@ portable-error-catalog:
 
 # T3.2: Solana transfer/remote/nativeValue account auto-fill without Source.Solana.
 portable-solana-accounts:
-    lake build Examples.Product.AuthRemoteCall Examples.Product.Ownable Examples.Product.RemoteCall Examples.Product.RoleGatedToken Examples.Product.StakingVault ProofForge.Backend.Solana.Manifest ProofForge.Backend.Solana.Materialize ProofForge.Backend.Solana.SbpfAsm
+    lake build Examples.Product.AuthRemoteCall Examples.Product.ExternalTokenTransfer Examples.Product.ExternalVault Examples.Product.Ownable Examples.Product.RemoteCall Examples.Product.RoleGatedToken Examples.Product.StakingVault ProofForge.Backend.Solana.Manifest ProofForge.Backend.Solana.Materialize ProofForge.Backend.Solana.SbpfAsm
     lake env lean --run Tests/Product/Accounts.lean
 
 # Backend compiler probes (Solana / EmitWat / Evm unit tests). Not product API.
