@@ -8,6 +8,20 @@ default:
 build:
     lake build
 
+# Build modules imported only by Tests/ (not reachable from the proof-forge
+# exe, so `lake build` alone skips them). Several `check` recipes run
+# `lake env lean --run Tests/X.lean`, which needs these oleans pre-built.
+# This dynamically finds and builds whatever `lake build` left unbuilt, so it
+# auto-adapts as the test surface changes (no brittle static module list).
+build-test-deps:
+    #!/usr/bin/env bash
+    set -e
+    mods=$({ for src in $(find ProofForge Examples -name "*.lean" -not -path "*/.*"); do
+      olen=".lake/build/lib/lean/${src%.lean}.olean"
+      [ -f "$olen" ] || echo "${src%.lean}" | sed 's|/|.|g'
+    done; })
+    if [ -n "$mods" ]; then lake build $mods; fi
+
 # Check the target registry smoke.
 target-registry:
     lake env lean --run Tests/TargetRegistry.lean
@@ -237,9 +251,31 @@ wasm-soroban-host-smoke:
     lake env lean --run Tests/Backend/Wasm/WasmSorobanHost.lean
 
 # Phase 4 ZK lane: Aleo/Leo registry entry + Counter Leo codegen (Road 1 sourcegen).
+# Also covers map-storage + finalize-context + record (Road 2) lowering and metadata.
 aleo-leo-codegen-smoke:
-    lake build ProofForge.Backend.Aleo.IR
+    lake build ProofForge.Backend.Aleo.IR ProofForge.Backend.Aleo.Metadata ProofForge.Backend.Aleo.MetadataJson
     lake env lean --run Tests/AleoLeoCodegenSmoke.lean
+    lake env lean --run Tests/AleoLeoMapLoweringSmoke.lean
+    lake env lean --run Tests/AleoLeoContextLoweringSmoke.lean
+    lake env lean --run Tests/AleoLeoRecordLoweringSmoke.lean
+    lake env lean --run Tests/AleoLeoRecordTransferSmoke.lean
+    lake env lean --run Tests/AleoLeoCoverageSmoke.lean
+    lake env lean --run Tests/AleoLeoMixedReturnSmoke.lean
+    lake env lean --run Tests/AleoLeoHashLoweringSmoke.lean
+    lake env lean --run Tests/AleoLeoCrosscallSmoke.lean
+    lake env lean --run Tests/AleoLeoMetadataSmoke.lean
+
+# ZK lane portability: one portable module lowers on BOTH ZK sourcegen targets.
+zk-portability-smoke:
+    lake build ProofForge.Backend.Aleo.IR ProofForge.Backend.Psy.IR
+    lake env lean --run Tests/ZkPortabilitySmoke.lean
+
+# REAL Aleo compile gate: render every feature shape and `leo build` each.
+# Needs `leo` (4.0.2) on PATH; exits 127 if absent (optional, like the CI aleo-smoke job).
+aleo-leo-build-smoke:
+    lake build ProofForge.Backend.Aleo.IR
+    lake env lean --run RenderAleoFixtures.lean
+    bash scripts/aleo/leo-build-smoke.sh
 
 # WASM-5a contract axis: ValueVault universal IR↔Wasm core refinement.
 value-vault-wasm-refinement-smoke:
@@ -485,10 +521,222 @@ wasm-near-ft-transfer-call:
 wasm-near-ft-transfer-call-e2e:
     scripts/near/ft-transfer-call-smoke.sh
 
+# NEAR compare benchmarks (colocated under testkit/compare/).
+# Offline by default. Set PROOF_FORGE_NEAR_SDK_BUILD=1 (or --build-sdk) to also
+# cargo-build the near-sdk reference wasm for size comparison.
+near-compare:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near counter
+
+# Offline + NEAR Sandbox dual-deploy (ProofForge wasm vs near-sdk wasm).
+# Requires network once to download neard-sandbox via near-workspaces.
+# Skips (exit 0 offline, sandbox status=skipped) if sandbox cannot start.
+near-compare-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near counter --live
+
+# ValueVault offline compare (size/fuel); add --live via near-compare-value-vault-live.
+near-compare-value-vault:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near value-vault
+
+near-compare-value-vault-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near value-vault --live
+
+# FungibleToken (NEP-141 minimal) offline / live.
+near-compare-fungible-token:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near fungible-token
+
+near-compare-fungible-token-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near fungible-token --live
+
+# Ownable offline / live.
+near-compare-ownable:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near ownable
+
+near-compare-ownable-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near ownable --live
+
+# StakingVault offline / live.
+near-compare-staking-vault:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near staking-vault
+
+near-compare-staking-vault-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near staking-vault --live
+
+# RoleGatedToken offline / live.
+near-compare-role-gated-token:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near role-gated-token
+
+near-compare-role-gated-token-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near role-gated-token --live
+
+# FeeToken offline / live.
+near-compare-fee-token:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near fee-token
+
+near-compare-fee-token-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near fee-token --live
+
+# RemoteCall (promise_create cross-contract) offline / live.
+near-compare-remote-call:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near remote-call
+
+near-compare-remote-call-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near remote-call --live
+
+# StatusMessage (u64 status codes; tutorial-shaped map).
+near-compare-status-message:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near status-message
+
+near-compare-status-message-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near status-message --live
+
+# GuestBook (append message codes).
+near-compare-guestbook:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near guestbook
+
+near-compare-guestbook-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near guestbook --live
+
+# NEP-145-lite storage_deposit (U64 projected balances).
+near-compare-storage-deposit:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near storage-deposit
+
+near-compare-storage-deposit-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near storage-deposit --live
+
+# Pausable emergency-stop mixin (unauthenticated).
+near-compare-pausable:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near pausable
+
+near-compare-pausable-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near pausable --live
+
+# ReentrancyGuard lock-bit mixin.
+near-compare-reentrancy-guard:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near reentrancy-guard
+
+near-compare-reentrancy-guard-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near reentrancy-guard --live
+
+# Ownable + Pausable (owner-gated pause).
+near-compare-ownable-pausable:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near ownable-pausable
+
+near-compare-ownable-pausable-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near ownable-pausable --live
+
+# ArrayExample fixed u64x3 locals.
+near-compare-array-example:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near array-example
+
+near-compare-array-example-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near array-example --live
+
+# OwnableHash (32-byte sha256 owner).
+near-compare-ownable-hash:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near ownable-hash
+
+near-compare-ownable-hash-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near ownable-hash --live
+
+# HostEnvProbe triad snapshot.
+near-compare-host-env-probe:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near host-env-probe
+
+near-compare-host-env-probe-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near host-env-probe --live
+
+# AuthRemoteCall (debit + promise receive).
+near-compare-auth-remote-call:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near auth-remote-call
+
+near-compare-auth-remote-call-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near auth-remote-call --live
+
+# AccessControl role map.
+near-compare-access-control:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near access-control
+
+near-compare-access-control-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near access-control --live
+
+# ExternalTokenTransfer (NEP-141 peer client).
+near-compare-external-token-transfer:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near external-token-transfer
+
+near-compare-external-token-transfer-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near external-token-transfer --live
+
+# ExternalVault (vault peer client).
+near-compare-external-vault:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near external-vault
+
+near-compare-external-vault-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near external-vault --live
+
+# ProRataVault (ERC-4626-inspired internal shares).
+near-compare-pro-rata-vault:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near pro-rata-vault
+
+near-compare-pro-rata-vault-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near pro-rata-vault --live
+
+# SoulboundToken body (mint/burn, no transfer).
+near-compare-soulbound-token:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near soulbound-token
+
+near-compare-soulbound-token-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near soulbound-token --live
+
+# Backend FtPeerClient (protocol-layer NEP-141 client).
+near-compare-ft-peer-client:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near ft-peer-client
+
+near-compare-ft-peer-client-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near ft-peer-client --live
+
+# VestingVault (HostEnv timestamp linear vesting).
+near-compare-vesting-vault:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near vesting-vault
+
+near-compare-vesting-vault-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near vesting-vault --live
+
+# EscrowVault (two-party fund → release | refund).
+near-compare-escrow-vault:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near escrow-vault
+
+near-compare-escrow-vault-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near escrow-vault --live
+
+# TimelockVault (binary HostEnv unlock).
+near-compare-timelock-vault:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near timelock-vault
+
+near-compare-timelock-vault-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near timelock-vault --live
+
+# HeightLockVault (binary HostEnv block height unlock).
+near-compare-height-lock-vault:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near height-lock-vault
+
+near-compare-height-lock-vault-live:
+    cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit-compare -- near height-lock-vault --live
+
+# Regenerate MATRIX.md from sandbox-report.json files.
+near-compare-matrix:
+    python3 scripts/near/compare-matrix-snapshot.py
+
+# Full matrix.
+near-compare-all-live: near-compare-live near-compare-value-vault-live near-compare-fungible-token-live near-compare-ownable-live near-compare-staking-vault-live near-compare-role-gated-token-live near-compare-fee-token-live near-compare-remote-call-live near-compare-status-message-live near-compare-guestbook-live near-compare-storage-deposit-live near-compare-pausable-live near-compare-reentrancy-guard-live near-compare-ownable-pausable-live near-compare-array-example-live near-compare-ownable-hash-live near-compare-host-env-probe-live near-compare-auth-remote-call-live near-compare-access-control-live near-compare-external-token-transfer-live near-compare-external-vault-live near-compare-pro-rata-vault-live near-compare-soulbound-token-live near-compare-ft-peer-client-live near-compare-vesting-vault-live near-compare-escrow-vault-live near-compare-timelock-vault-live near-compare-height-lock-vault-live
+
+near-compare-counter: near-compare
+near-benchmark-counter: near-compare
+
 # PF-P2-02/P2-03: near-sandbox real peer RemoteCall.call_with_args → 49 + storage_usage.
 # Requires `near-sandbox` on PATH (or ~/.near/near-sandbox-*/near-sandbox).
 near-sandbox-peer:
     scripts/near/sandbox-peer-smoke.sh
+
 
 # Build the shared portable Counter to EVM, Solana sBPF, and NEAR/Wasm from one source file.
 portable-counter-multi-target:
@@ -963,7 +1211,7 @@ testkit-remote-call:
 
 # Run the fast local baseline used before broader target smokes.
 # Product gate runs early so business multi-target failures surface first.
-check: build product target-registry target-backend target-support artifact-bundle preflight-l2 source-dsl-arity leo-printer-fail-closed contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke diagnostic-smoke ir-step-semantics-smoke ir-counter-semantics-smoke ir-portability-smoke semantics-fuel-smoke constructor-coverage-smoke counter-universal-refinement-smoke supported-fragment-smoke track14-fragment-theorems-smoke evm-counter-shape-name-totality lean-invariants-smoke target-semantics-instances-smoke wasm-exec-smoke wasm-near-host-smoke wasm-cosmwasm-host-smoke wasm-soroban-host-smoke aleo-leo-codegen-smoke wasm-cosmwasm-refinement-smoke value-vault-wasm-refinement-smoke evm-bytecode-semantics-smoke ir-exec-result-smoke fv5-overflow-smoke solana-light portable-counter-multi-target cli-target-first source-identity registry-command solana-source-elf soroban-profile wat2wasm-fail-closed check-l2-parity hosted-isolation rebuild-hash worker-limits worker-cgroup contract-source-diagnostics near-target-first wasm-near-plan near-plan-smoke wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli quint-mbt-gate quint-ir-model-gate aleo-leo-codegen-smoke
+check: build build-test-deps product target-registry target-backend target-support artifact-bundle preflight-l2 source-dsl-arity leo-printer-fail-closed contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke diagnostic-smoke ir-step-semantics-smoke ir-counter-semantics-smoke ir-portability-smoke semantics-fuel-smoke constructor-coverage-smoke counter-universal-refinement-smoke supported-fragment-smoke track14-fragment-theorems-smoke evm-counter-shape-name-totality lean-invariants-smoke target-semantics-instances-smoke wasm-exec-smoke wasm-near-host-smoke wasm-cosmwasm-host-smoke wasm-soroban-host-smoke zk-portability-smoke aleo-leo-codegen-smoke wasm-cosmwasm-refinement-smoke value-vault-wasm-refinement-smoke evm-bytecode-semantics-smoke ir-exec-result-smoke fv5-overflow-smoke solana-light portable-counter-multi-target cli-target-first source-identity registry-command solana-source-elf soroban-profile wat2wasm-fail-closed check-l2-parity hosted-isolation rebuild-hash worker-limits worker-cgroup contract-source-diagnostics near-target-first wasm-near-plan near-plan-smoke wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-test-naming psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli quint-mbt-gate quint-ir-model-gate
 
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:
@@ -1008,6 +1256,10 @@ psy-golden-sources:
 # Run Psy unsupported-shape diagnostic smoke.
 psy-diagnostics:
     scripts/psy/diagnostic-smoke.sh
+
+# Unit test the generalized Psy test-function naming (snake_case derivation).
+psy-test-naming:
+    lake env lean --run Tests/PsyTestNaming.lean
 
 # Check the Psy portable IR coverage manifest.
 psy-coverage:

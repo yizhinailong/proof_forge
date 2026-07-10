@@ -13,15 +13,23 @@ validates the Leo source-generation boundary before any code registry changes.
 
 Primary deliverables:
 
-- `ProofForge.Backend.Aleo.IR` lowers the portable IR `Counter` fixture to Leo.
+- `ProofForge.Backend.Aleo.IR` lowers the portable IR to Leo via a generic
+  IR→AST→source pipeline (`IR/Common` + `IR/Validate` + `IR`), mirroring
+  `ProofForge.Backend.Psy.IR`; it is no longer a Counter-only spike.
 - `proof-forge emit --target aleo-leo --fixture counter --format leo` emits
   `Counter.leo`.
 - `Examples/Backend/Aleo/Counter.golden.leo` is the tracked golden fixture.
 - `scripts/aleo/counter-smoke.sh` generates a Leo package, runs `leo build` and
   `leo test`, writes `proof-forge-artifact.json`, and validates the metadata.
-- `ProofForge.Compiler.Leo.Emit` additionally supports pure entrypoints with
-  parameters/return values and control-flow statements (`assert`, `if/else`,
-  `boundedFor`, `assign`, `assignOp`).
+- `ProofForge.Backend.Aleo.IR` additionally supports pure entrypoints with
+  parameters/return values and control-flow statements (`assert`, `assertEq`,
+  `if/else`, `boundedFor`, `assign`, `assignOp`, `revert`), plus **scalar and
+  map storage** (scalar states rewrite to a single-slot Leo `mapping u64 => T`).
+- `ProofForge.Backend.Aleo.Metadata` (+ `MetadataJson`) emit plan-free artifact
+  metadata (entrypoint ABI, on-chain `mapping` state surface, capabilities) for
+  `proof-forge-artifact.json`, matching the Psy/EVM metadata layer.
+- `Tests/AleoLeoMapLoweringSmoke.lean` and `Tests/AleoLeoMetadataSmoke.lean`
+  witness the generic map-storage lowering and the metadata layer in `just check`.
 - `proof-forge emit --target aleo-leo --fixture pure-math --format leo` emits
   `PureMath.leo`.
 - `Examples/Backend/Aleo/PureMath.golden.leo` is the tracked golden fixture.
@@ -331,6 +339,97 @@ lane in the roadmap) for Aleo would require an external Lean 4 Aleo VM
 semantics, which is not yet available; Cairo (`starkware-libs/formal-proofs`)
 and Noir (`reilabs/lampe`) are the ZK targets with ready Lean semantics and
 are prioritised for FV-import once the codegen lane lands.
+
+## Phase 4 Update (2026-07-10): generic lowering + metadata
+
+The Road 1 Counter-spike emitter (`ProofForge.Compiler.Leo.Emit`, which
+hardcoded `initialize`/`get`/`increment`) is replaced by a **generic IR→Leo
+lowering** that mirrors `ProofForge.Backend.Psy.IR`:
+
+- `Backend/Aleo/IR/Common.lean` — LowerError, BuildContext, portable→Leo type
+  map, `hasEffect` (drives the async/finalize split), Leo identifier
+  validation, type-check helpers, scalar→mapping rewrite.
+- `Backend/Aleo/IR/Validate.lean` — `validateCapabilities`/`Identifiers`/
+  `Structs`/`State`/`Entrypoints`/`EntrypointBodies` with full type inference.
+- `Backend/Aleo/IR.lean` — generic `buildExpr`/`buildStmt`/`buildFunction`/
+  `buildModule`/`renderModule` (validate→build→print).
+- `Backend/Aleo/Metadata.lean` + `MetadataJson.lean` — plan-free artifact
+  metadata (entrypoint ABI, on-chain `mapping` state surface, capabilities),
+  matching the Psy/EVM metadata layer.
+
+Coverage now lowered: all arithmetic/bitwise/comparison/boolean ops, `cast`,
+struct literals/field access, array literals/get, `assert`/`assertEq`/`revert`,
+`if/else`, `boundedFor`, `return`, **scalar + map storage**, and **finalize
+context reads** (`contextRead .userId/.userIdHash/.origin → self.caller`,
+`.checkpointId → block.height`). Entrypoints lower (verified against the
+INSTALLED `leo` 4.0.2 — `view fn` and the `..base` struct spread are newer
+than 4.0.2, so they are NOT used): **write + pure return value** →
+`fn … -> (T, Final)`; **any other storage effect** (write with stateful return,
+or read-only) → `fn … -> Final { return final { … }; }` (mapping reads must
+run in `final` in 4.0.2); **pure** → `fn … -> T`. Struct-field storage writes
+use a 4.0.2-compatible read-modify-write (temp local + full struct rebuild,
+NOT `..base`). The profile honestly declares `storage.scalar` (Aleo rewrites
+scalars to a single-slot Leo `mapping u64 => T`).
+`Tests/AleoLeoMapLoweringSmoke.lean`, `Tests/AleoLeoContextLoweringSmoke.lean`,
+and `Tests/AleoLeoMetadataSmoke.lean` extend the `just aleo-leo-codegen-smoke`
+gate. PureMath golden is byte-identical; Counter `get` is a `fn … -> Final`
+finalize read (4.0.2-correct).
+
+**Real compile gate:** every generated feature shape has been verified against
+`leo build` (4.0.2) — see the `aleo-leo-build-smoke` gate (renders all shapes
+via `RenderAleoFixtures.lean` and compiles each). Counter/PureMath/records/hash/
+map/context/mixed-return/struct all compile; crosscall compiles to Aleo
+instructions against a local `credits.aleo` stub (leo 4.0.2 has a downstream
+bytecode-serialization bug for external calls that fires after instruction
+generation — a toolchain defect, not a source defect — so the gate treats
+instruction generation as the crosscall success criterion). The Lean marker-smokes
+only check substrings, so this `leo build` gate is the real correctness witness.
+
+**`crypto.hash` LANDED (RFC 0015 Decisions 1+2):** Aleo resolves the portable
+`Hash` digest to `field` and lowers hash ops to the native ZK hash
+`Poseidon2::hash_to_field` (verified against ProvableHQ/leo operators/crypto).
+`.hash preimage` → `Poseidon2::hash_to_field(preimage)`; `.hashTwoToOne`/
+`.hashValue` fold pairwise (Leo hashes a single primitive). `hash4` literals
+are rejected (EVM 4×u64 digest shape). Hashing is capability-portable, NOT
+value-portable (keccak ≠ Poseidon) — see RFC 0015.
+`Tests/AleoLeoHashLoweringSmoke.lean` covers it.
+
+**Cross-circuit calls LANDED (RFC 0015 Decision 4):** a portable
+`crosscallNamed(programId, method, args, returnType)` (new `Expr` constructor +
+`crosscall.named` capability, declared on the aleo-leo profile) lowers to a
+static qualified call `programId::method(args)` plus an `import programId;`
+declaration (verified against `data_types/external_consumer`). Account-chain
+targets reject it. `Tests/AleoLeoCrosscallSmoke.lean` covers it.
+
+**Remaining honest reject:** **Events** — Aleo/Leo has no event mechanism
+(records + finalize instead); the profile intentionally omits `eventsEmit`.
+(RFC 0015 Decision 3 — an opt-in hash-algorithm tag for value-portable keccak —
+remains deferred.)
+
+**Mixed `(value, Final)` return LANDED:** a stateful function whose return
+value is pure lowers as `fn f(…) -> (T, Final) { …; return (value, final { … }); }`
+(verified against `functions/transfer_inline`). Pure (non-storage) statements
++ the pure return run off-chain; storage read/write statements run in `final {}`
+in source order. Functions whose return value reads state keep the plain
+`fn -> Final` shape. `Tests/AleoLeoMixedReturnSmoke.lean` covers a
+`transfer_public_to_private`-style withdraw.
+
+**Coverage breadth:** `Tests/AleoLeoCoverageSmoke.lean` runs 9 pre-existing IR
+probes (arithmetic, bitwise, assertions, conditionals, bounded loops, structs,
+U32 arithmetic, U64/U32/Bool scalar storage) through `renderModule`; all lower.
+
+**Struct-field storage writes LANDED:** `storageStructFieldWrite` now lowers via
+a read-modify-write using Leo's struct-update form `Name { f: v, ..read }` (new
+`Expression.compositeUpdate` + Printer case; `defaultExpr` builds a field-wise
+default struct literal so the `get_or_use` read has a fallback). This was the
+last gap for the common IR subset (e.g. `StructProbe` now lowers fully).
+
+Road 2 slice 1 LANDED: record DECLARATION + CREATION. An opt-in
+`StructDecl.isRecord` flag (mirroring `deriveStorage`) lowers a struct as a
+Leo `record`; a pure `fn … -> Record` that builds a record literal (e.g.
+`Token { owner: self.caller, amount }`) lowers directly. `Tests/AleoLeoRecordLoweringSmoke.lean`
+witnesses a `mint`-style record creation (verified against `migration/transitions_to_fn`).
+Record consume/spend remains future work.
 
 ## Research Exit Plan
 
