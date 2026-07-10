@@ -1,9 +1,9 @@
 {
   "README.md": {
-    "sha256": "337f09f63c535807724c88618e596e3b8a8355a86c747eeeed3645382e66a46e",
+    "sha256": "c69ee281064a9c3591fbdc2335be0c7671755bc1809d3e68b3090cf2a1c90317",
     "zh": "docs/zh/README-root.zh.md",
     "model": "manual-zh",
-    "note": "synced for strict secondary-target promotion claims after review"
+    "note": "synced for strict secondary-target promotion claims and honest EVM maturity wording"
   },
   "CONTRIBUTING.md": {
     "sha256": "b47c1fcaf0d003718e5487575f74486b403ed4bbfb88dc7fc1891cbe23cc7b64",
