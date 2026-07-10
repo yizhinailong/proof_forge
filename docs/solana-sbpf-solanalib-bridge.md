@@ -58,6 +58,7 @@ BpfState
 | Direct lift ResolvedInst→BpfInstruction | `SolanaRefinement/LabeledToSolanalib.lean` | same |
 | Host bridge (Counter core-tail) | `SolanaRefinement/HostBridge.lean` | same |
 | Full EmitSBPF Counter host | `SolanaRefinement/FullProgramHost.lean` | same |
+| IR ↔ full-host paired simulation | `SolanaRefinement/CounterHostRefinement.lean` | same |
 | CompileCorrect sketch | `SolanaRefinement/CompileCorrect.lean` | same |
 | Smoke entry | `SolanaRefinement/CompileCorrectSmoke.lean` | same |
 | IR semantics anchor note | `docs/portable-ir-semantics-anchor.md` | docs |
@@ -96,11 +97,16 @@ Use the tiers in [formal-verification.md](formal-verification.md):
   `FullProgramHost` with zero-default loads + PF `stackBase`/`initialMemory`;
   scenario observables match PF `SbpfInterpreter.runTrace`
   (`counter_full_program_host_ok`, `counter_full_program_diff_ok`).
+- **Tier C-diff / C-proof bridge (IR↔host):** pointwise
+  `executableSimulationTraceOk` between `IR.Semantics` and
+  `FullProgramHost.traceStep` over init→get→inc→get, plus
+  `executableSimulationTraceOk_sound` kernel wrappers and a
+  `CounterCall`-vocabulary variant (`CounterHostRefinement`).
 - **Structural re-export:** `verified_instr_step_ne_err` names solanalib
   Lemma 6.4 (`step_ne_err`) for ProofForge-facing proofs.
-- **Not claimed:** universal `IR.Semantics ⇝ host` for all inputs; broad
-  syscall fidelity beyond the Counter fragment. Product path still emits
-  text via EmitSBPF; Mollusk/Pinocchio remain the external differential gate.
+- **Not claimed:** universal all-input `IR ⇝ host` refinement (still
+  pointwise on the fixed Counter scenario); ValueVault full host; broad
+  syscall fidelity. Product path still emits text via EmitSBPF.
 
 ## Build / CI
 
@@ -121,9 +127,11 @@ just solana-solanalib-adapter
 2. ~~`get` + `sol_set_return_data` stub + sequential init→get→inc→get~~ ✅.
 3. ~~Full EmitSBPF Counter + PF interpreter differential~~ ✅
    (`FullProgramHost.lean`).
-4. Lift through `traceSimulation_lift` for the Counter supported fragment
-   (IR → full host / core-tail → solanalib), still pointwise then universal.
-5. Optional: ValueVault full-program host + broader syscall stubs.
+4. ~~IR ↔ full-host paired simulation (pointwise)~~ ✅
+   (`CounterHostRefinement.lean` via `executableSimulationTraceOk_sound`).
+5. Universal per-entrypoint simulation for full host (all related states),
+   then `traceSimulation_lift` without fixed scenarios.
+6. ValueVault full-program host + broader syscall stubs.
 
 Scheme 2 Phase C (assembler-in-Lean replacing external `sbpf`) remains
 future work; product text emission is unchanged.

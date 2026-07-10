@@ -58,6 +58,7 @@ lean_lib SolanaRefinement where
     `SolanaRefinement.LabeledToSolanalib,
     `SolanaRefinement.HostBridge,
     `SolanaRefinement.FullProgramHost,
+    `SolanaRefinement.CounterHostRefinement,
     `SolanaRefinement.CompileCorrect,
     `SolanaRefinement.CompileCorrectSmoke
   ]

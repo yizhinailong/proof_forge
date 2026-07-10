@@ -47,6 +47,7 @@ import SolanaRefinement.SolanalibAdapter
 import SolanaRefinement.LabeledToSolanalib
 import SolanaRefinement.HostBridge
 import SolanaRefinement.FullProgramHost
+import SolanaRefinement.CounterHostRefinement
 import ProofForge.Backend.Solana.BpfEncode
 import ProofForge.Backend.Solana.LabeledSbpf
 import ProofForge.IR.Examples.Counter
@@ -61,6 +62,7 @@ open ProofForge.Backend.Solana.SolanalibAdapter
 open ProofForge.Backend.Solana.LabeledToSolanalib
 open ProofForge.Backend.Solana.HostBridge
 open ProofForge.Backend.Solana.FullProgramHost
+open ProofForge.Backend.Solana.CounterHostRefinement
 open Solanalib.SBPF
 
 /-! ### Default-path encode anchor (also buildable without solanalib) -/
@@ -159,5 +161,19 @@ theorem counter_full_program_host_bridge_ok :
 theorem counter_full_program_diff_bridge_ok :
     counterFullDiffOk = true := by
   native_decide
+
+/-! ### IR ↔ FullProgramHost paired simulation (pointwise) -/
+
+theorem counter_host_ir_trace_simulation_ok :
+    counterHostTraceSimulationOk = true := by
+  native_decide
+
+theorem counter_host_counter_call_trace_bridge_ok :
+    counterHostCounterCallTraceOk = true := by
+  native_decide
+
+#check counter_host_trace_simulation_sound_checked
+#check counter_host_counter_call_trace_sound_checked
+#check counter_host_initialize_step_sound_checked
 
 end ProofForge.Backend.Solana.CompileCorrect

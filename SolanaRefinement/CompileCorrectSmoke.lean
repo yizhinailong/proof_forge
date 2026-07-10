@@ -6,10 +6,12 @@ Smoke entry for the opt-in solanalib CompileCorrect surface.
 -/
 
 import SolanaRefinement.CompileCorrect
+import SolanaRefinement.CounterHostRefinement
 
 namespace ProofForge.Backend.Solana.CompileCorrectSmoke
 
 open ProofForge.Backend.Solana.CompileCorrect
+open ProofForge.Backend.Solana.CounterHostRefinement
 open ProofForge.Backend.Solana.SolanalibAdapter
 
 #check counter_bpf_encode_ok
@@ -22,9 +24,13 @@ open ProofForge.Backend.Solana.SolanalibAdapter
 #check counter_core_tail_host_bridge_ok
 #check counter_full_program_host_bridge_ok
 #check counter_full_program_diff_bridge_ok
+#check counter_host_ir_trace_simulation_ok
+#check counter_host_counter_call_trace_bridge_ok
+#check counter_host_trace_simulation_sound_checked
+#check counter_host_counter_call_trace_sound_checked
 
 end ProofForge.Backend.Solana.CompileCorrectSmoke
 
 def main : IO UInt32 := do
-  IO.println "solana-solanalib-compile-correct-smoke: Counter encode + labeled lift + core-tail + full-program host + step_ne_err re-export checked"
+  IO.println "solana-solanalib-compile-correct-smoke: encode + host + IR↔full-host paired simulation + step_ne_err checked"
   pure 0
