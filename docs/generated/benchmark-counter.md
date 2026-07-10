@@ -1,6 +1,6 @@
 # Benchmark matrix (generated)
 
-Generated: `2026-07-10T11:26:37Z`
+Generated: `2026-07-10T11:27:36Z`
 
 Source rows: `build/benchmarks/bm-*_*_{proofforge,native}.json`
 
@@ -9,6 +9,19 @@ Rules:
 - No cross-chain score (gas ≠ CU ≠ fuel).
 - Behavior parity is gated separately (`just benchmark-behavior-gate`).
 - Empty costs mean the runner deferred that dimension (honest `—`).
+
+## `bm-aleo-counter`
+
+| Target | PF ok | Native ok | PF artifact | Native artifact | PF/native size | PF costs | Native costs |
+|--------|------:|----------:|------------:|----------------:|---------------:|----------|--------------|
+| `aleo-leo` | yes | yes | 519 | 519 | 1.00× | — | — |
+
+<details><summary>Row notes</summary>
+
+- **aleo-leo/proofforge**: PF .leo source + leo toolchain present (leo 4.0.2 (unknown unknown) features=[]); full prove deferred (experimental)
+- **aleo-leo/native**: hand-written golden Examples/Backend/Aleo/Counter.golden.leo (source size baseline)
+
+</details>
 
 ## `bm-counter`
 
@@ -45,6 +58,19 @@ Rules:
 - **solana-sbpf-asm/native**: skipped: no Pinocchio Ownable corpus (B1.7 EVM/NEAR focus)
 - **wasm-near/proofforge**: wasm size; PF owner is u64 projection vs near-sdk AccountId (parity is structural)
 - **wasm-near/native**: near-sdk host tests (testkit/compare/near/ownable)
+
+</details>
+
+## `bm-psy-counter`
+
+| Target | PF ok | Native ok | PF artifact | Native artifact | PF/native size | PF costs | Native costs |
+|--------|------:|----------:|------------:|----------------:|---------------:|----------|--------------|
+| `psy-dpn` | yes | yes | 1065 | 1065 | 1.00× | — | — |
+
+<details><summary>Row notes</summary>
+
+- **psy-dpn/proofforge**: PF .psy source emit (fixture counter); DPN bytecode metrics require dargo
+- **psy-dpn/native**: hand-written golden Examples/Backend/Psy/Counter.golden.psy (source size baseline)
 
 </details>
 

@@ -1270,6 +1270,15 @@ benchmark-matrix: benchmark-counter benchmark-value-vault benchmark-ownable
     just benchmark-behavior-gate
     just benchmark-cost-table
 
+# B1.8: optional Psy/Aleo Counter experimental rows (dargo/leo tool-gated).
+benchmark-zk-counter:
+    scripts/benchmarks/zk-counter-runner.sh
+
+# Full matrix including experimental ZK rows (still no cross-chain score).
+benchmark-matrix-all: benchmark-matrix benchmark-zk-counter
+    just benchmark-behavior-gate
+    just benchmark-cost-table
+
 # Run the unified RFC 0007 testkit scenario suite.
 testkit:
     CAST="${CAST:-$HOME/.foundry/bin/cast}" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run

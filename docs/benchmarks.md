@@ -1,6 +1,6 @@
 # ProofForge vs Native Benchmark Matrix
 
-Status: **Active (B1.7 ValueVault + Ownable matrix landed)**  
+Status: **Active (B1 wave core complete through B1.8)**  
 Plan: [post-review execution plan](superpowers/plans/2026-07-10-post-review-execution.md) wave **B1**
 
 ## Why
@@ -137,7 +137,9 @@ just benchmark-cost-table       # B1.6 — docs/generated/benchmark-counter.md
 just benchmark-value-vault      # B1.7
 just benchmark-ownable          # B1.7
 just benchmark-matrix           # Counter + ValueVault + Ownable + gates
-# → build/benchmarks/bm-{counter,value-vault,ownable}_*_{proofforge,native}.json
+just benchmark-zk-counter       # B1.8 experimental Psy/Aleo Counter rows
+just benchmark-matrix-all       # matrix + ZK + gates
+# → build/benchmarks/bm-{counter,value-vault,ownable,psy-counter,aleo-counter}_*
 ```
 
 Seeds still useful for budgets outside the matrix:
@@ -159,7 +161,7 @@ just product             # multi-target compile matrix
 | B1.5 Behavior gate | **done** (`just benchmark-behavior-gate`; step name/return parity) |
 | B1.6 Cost table snapshot | **done** (`just benchmark-cost-table` → `docs/generated/benchmark-counter.md`) |
 | B1.7 Expand scenarios | **done** (ValueVault + Ownable; `just benchmark-matrix`) |
-| B1.8 ZK optional rows | pending |
+| B1.8 ZK optional rows | **done** (`just benchmark-zk-counter`; dargo/leo tool-gated) |
 
 ## Related
 

@@ -16,13 +16,15 @@ ProofForge vs native comparison corpus and runners.
 - **B1.5** behavior gate: done (`just benchmark-behavior-gate`).
 - **B1.6** cost table: done (`just benchmark-cost-table` → `docs/generated/benchmark-counter.md`).
 - **B1.7** expand scenarios: done (ValueVault + Ownable; `just benchmark-matrix`).
-- **B1.8** ZK optional rows: pending.
+- **B1.8** ZK optional rows: done (`just benchmark-zk-counter`).
 
 ```sh
 just benchmark-counter          # Counter PF + native
 just benchmark-value-vault      # ValueVault PF + native
 just benchmark-ownable          # Ownable PF + native
-just benchmark-matrix           # all three + behavior gate + cost table
+just benchmark-matrix           # triad scenarios + behavior gate + cost table
+just benchmark-zk-counter       # experimental Psy/Aleo Counter rows
+just benchmark-matrix-all       # matrix + ZK
 ```
 
 ## Schema
