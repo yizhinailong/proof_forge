@@ -1,6 +1,6 @@
 {
   "README.md": {
-    "sha256": "00271ed72acddb251f74743efdadff9fcd75eb45c71e0c504a57de400e449cd7",
+    "sha256": "61898f286c477a10c9ce7ab776cc53b1704264b58841ddd354c13d6c149fb9e8",
     "zh": "docs/zh/README-root.zh.md",
     "model": "manual-zh",
     "note": "manually synced for PF-P1-02 (backend-status generated table pointer) — re-synced for aleo-leo ALU feature merge"

@@ -347,6 +347,14 @@ sui-promotion:
 cloudflare-promotion:
     scripts/cli/cloudflare-promotion-smoke.sh
 
+# PF-P3-02: six-gate promotion smoke for psy-dpn (Counter fixture; dargo optional).
+psy-promotion:
+    scripts/cli/psy-promotion-smoke.sh
+
+# PF-P3-02: six-gate promotion smoke for aleo-leo (Counter fixture + leo).
+aleo-promotion:
+    scripts/cli/aleo-promotion-smoke.sh
+
 # PF-P0-08: default Wasm build fails without wat2wasm; --format wat is intermediate.
 wat2wasm-fail-closed:
     scripts/cli/wat2wasm-fail-closed-smoke.sh
