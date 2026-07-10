@@ -22,7 +22,7 @@ def paramIsDynamic (abiType : String) : Bool :=
   abiType == "string" || abiType == "bytes" || abiType == "uint256[]"
 
 def paramWithIndex? (params : Array EvmConstructorParam) (name : String) : Option (Nat × EvmConstructorParam) :=
-  params.zipIdx.toList.find? (fun (param, idx) => param.name == name) |>.map (fun (param, idx) => (idx, param))
+  params.zipIdx.toList.find? (fun (param, _idx) => param.name == name) |>.map (fun (param, idx) => (idx, param))
 
 def findStorageState (layout : StorageLayout) (stateId : String) : Option StorageStatePlan :=
   layout.states.find? (fun state => state.id == stateId)

@@ -90,7 +90,7 @@ mutual
   that may miss violations but never raises false positives). -/
   def checkExprFuel : Nat → String → Env → Expr → Except OwnershipError Unit
     | 0, _, _, _ => .ok ()
-    | _ + 1, entrypoint, env, .literal _ => .ok ()
+    | _ + 1, _, _, .literal _ => .ok ()
     | _ + 1, entrypoint, env, .local name => ensureNotReleased entrypoint env name
     | fuel + 1, entrypoint, env, .arrayLit _ values =>
         values.foldlM (init := ()) fun _ value => checkExprFuel fuel entrypoint env value
@@ -155,7 +155,7 @@ mutual
         checkExprFuel fuel entrypoint env c
         checkExprFuel fuel entrypoint env d
     | fuel + 1, entrypoint, env, .hash preimage => checkExprFuel fuel entrypoint env preimage
-    | fuel + 1, entrypoint, env, .nativeValue => .ok ()
+    | _ + 1, _, _, .nativeValue => .ok ()
     | fuel + 1, entrypoint, env, .crosscallInvoke target methodId args => do
         checkExprFuel fuel entrypoint env target
         checkExprFuel fuel entrypoint env methodId
@@ -182,7 +182,7 @@ mutual
         checkExprFuel fuel entrypoint env callbackMethod
         checkExprFuel fuel entrypoint env deposit
         args.foldlM (init := ()) fun _ arg => checkExprFuel fuel entrypoint env arg
-    | fuel + 1, entrypoint, env, .nearPromiseResultsCount => pure ()
+    | _ + 1, _, _, .nearPromiseResultsCount => pure ()
     | fuel + 1, entrypoint, env, .nearPromiseResultStatus index => checkExprFuel fuel entrypoint env index
     | fuel + 1, entrypoint, env, .nearPromiseResultU64 index => checkExprFuel fuel entrypoint env index
     | fuel + 1, entrypoint, env, .nearCrosscallInvokePool accountIndex methodId args deposit => do
@@ -209,18 +209,18 @@ mutual
         checkExprFuel fuel entrypoint env key
         checkExprFuel fuel entrypoint env value
     | fuel + 1, entrypoint, env, .storageDynamicArrayPush _ value => checkExprFuel fuel entrypoint env value
-    | fuel + 1, _, _, .storageDynamicArrayPop _ => .ok ()
+    | _ + 1, _, _, .storageDynamicArrayPop _ => .ok ()
     | fuel + 1, entrypoint, env, .memoryArraySet _ index value => do
         checkExprFuel fuel entrypoint env index
         checkExprFuel fuel entrypoint env value
-    | fuel + 1, _, _, .storageStructFieldRead _ _ => .ok ()
+    | _ + 1, _, _, .storageStructFieldRead _ _ => .ok ()
     | fuel + 1, entrypoint, env, .storagePathRead _ path =>
         path.foldlM (init := ()) fun _ segment => checkStoragePathSegmentFuel fuel entrypoint env segment
     | fuel + 1, entrypoint, env, .storagePathWrite _ path value
     | fuel + 1, entrypoint, env, .storagePathAssignOp _ path _ value => do
         path.foldlM (init := ()) fun _ segment => checkStoragePathSegmentFuel fuel entrypoint env segment
         checkExprFuel fuel entrypoint env value
-    | fuel + 1, _, _, .contextRead _ => .ok ()
+    | _ + 1, _, _, .contextRead _ => .ok ()
     | fuel + 1, entrypoint, env, .eventEmit _ fields =>
         fields.foldlM (init := ()) fun _ field => checkExprFuel fuel entrypoint env field.snd
     | fuel + 1, entrypoint, env, .eventEmitIndexed _ indexedFields dataFields => do

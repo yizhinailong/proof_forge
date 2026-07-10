@@ -164,7 +164,7 @@ def findConstructorValue? (values : Array ConstructorValueSpec) (name : String) 
       | none => if value.name == name then some value.value else none)
     none
 
-def validateConstructorValues (params : Array ConstructorParamSpec) (values : Array ConstructorValueSpec) : Except String Unit := do
+def validateConstructorValues (_params : Array ConstructorParamSpec) (values : Array ConstructorValueSpec) : Except String Unit := do
   for value in values do
     if constructorValueCount values value.name > 1 then
       .error s!"duplicate --evm-constructor-arg for `{value.name}`"

@@ -638,7 +638,7 @@ mutual
         let collector ← collectEventPlansFromExpr module env collector d
         collectEventPlansFromExpr module env collector e
 
-    | .checkErc1155BatchReceived a b c d e f g => do
+    | .checkErc1155BatchReceived a b c d e _f _g => do
         let collector ← collectEventPlansFromExpr module env collector a
         let collector ← collectEventPlansFromExpr module env collector b
         let collector ← collectEventPlansFromExpr module env collector c
