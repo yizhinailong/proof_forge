@@ -296,6 +296,11 @@ evm-bytecode-semantics-smoke:
     lake build ProofForge.Backend.Evm.EvmBytecodeSemantics
     lake env lean --run Tests/Backend/Evm/EvmBytecodeSemantics.lean
 
+# Mathlib-free IR ↔ EVM Yul-subset paired simulation (Portable-IR host lane).
+evm-yul-host-refinement-smoke:
+    lake build ProofForge.Backend.Evm.YulHostRefinement
+    lake env lean --run Tests/Backend/Evm/EvmYulHostRefinement.lean
+
 # Check the opt-in powdr/mathlib EVM refinement adapter target.
 evm-powdr-adapter:
     lake build EvmRefinement
