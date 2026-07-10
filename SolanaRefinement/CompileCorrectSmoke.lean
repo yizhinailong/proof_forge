@@ -20,9 +20,11 @@ open ProofForge.Backend.Solana.SolanalibAdapter
 #check counter_direct_lift_verify_ok
 #check counter_direct_lift_eq_decode
 #check counter_core_tail_host_bridge_ok
+#check counter_full_program_host_bridge_ok
+#check counter_full_program_diff_bridge_ok
 
 end ProofForge.Backend.Solana.CompileCorrectSmoke
 
 def main : IO UInt32 := do
-  IO.println "solana-solanalib-compile-correct-smoke: Counter encode + labeled lift + host-bridge core-tail + step_ne_err re-export checked"
+  IO.println "solana-solanalib-compile-correct-smoke: Counter encode + labeled lift + core-tail + full-program host + step_ne_err re-export checked"
   pure 0

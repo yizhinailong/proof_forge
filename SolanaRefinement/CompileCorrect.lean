@@ -46,6 +46,7 @@ See `docs/solana-sbpf-solanalib-bridge.md`.
 import SolanaRefinement.SolanalibAdapter
 import SolanaRefinement.LabeledToSolanalib
 import SolanaRefinement.HostBridge
+import SolanaRefinement.FullProgramHost
 import ProofForge.Backend.Solana.BpfEncode
 import ProofForge.Backend.Solana.LabeledSbpf
 import ProofForge.IR.Examples.Counter
@@ -59,6 +60,7 @@ open ProofForge.Backend.Solana.LabeledSbpf
 open ProofForge.Backend.Solana.SolanalibAdapter
 open ProofForge.Backend.Solana.LabeledToSolanalib
 open ProofForge.Backend.Solana.HostBridge
+open ProofForge.Backend.Solana.FullProgramHost
 open Solanalib.SBPF
 
 /-! ### Default-path encode anchor (also buildable without solanalib) -/
@@ -146,6 +148,16 @@ theorem counter_direct_lift_eq_decode :
 
 theorem counter_core_tail_host_bridge_ok :
     counterCoreTailBridgeOk = true := by
+  native_decide
+
+/-! ### Full EmitSBPF Counter on host driver -/
+
+theorem counter_full_program_host_bridge_ok :
+    counterFullTraceOk = true := by
+  native_decide
+
+theorem counter_full_program_diff_bridge_ok :
+    counterFullDiffOk = true := by
   native_decide
 
 end ProofForge.Backend.Solana.CompileCorrect
