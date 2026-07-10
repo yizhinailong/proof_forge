@@ -47,7 +47,7 @@ to attribute a claim to the correct tier.
 | Tier | What it is | What it proves | What it does **not** prove | Where it lives |
 |------|-----------|----------------|----------------------------|----------------|
 | **A — Design validation** | Quint state-machine model + Apalache model checking + ITF trace replay against `IR.Semantics` | For bounded nondet parameters and a finite caller set, the **contract's stated invariants** hold under the Quint abstraction, and the Quint abstraction agrees with the IR scalar interpreter on the replayed traces | It does **not** prove the Quint lowering equals the IR (the IR→Quint lowering is an unproven abstraction), does not cover the full IR node set (whileLoop is statically unrolled, crosscall is a stub), and has **no relationship to any chain-native artifact** | `ProofForge/Backend/Quint/*`, `Tests/Quint/*`, `just quint-*` |
-| **C-diff — Differential testing** | IR reference trace replayed against the EVM Yul-subset interpreter, the Counter + ValueVault scalar/event slices of the in-Lean Wasm/NEAR and Solana sBPF interpreters, the focused Wasm and Solana fixed-array/u64-map storage slices, the NEAR offline host, and capability routing soundness at the `resolveSpec` boundary | For the **fixed Counter/ValueVault/probe scenarios**, the observable return values and event logs produced by the target artifact match those produced by the IR reference semantics; FV-1 confirms that any spec that resolves to `.ok plan` on a profile yields a plan whose capabilities are all supported | It does **not** prove anything for inputs outside the fixed scenarios (`native_decide` is pointwise, not universal); EVM coverage stops at the Yul subset (solc is not in the trusted path but not proven); the Wasm and Solana executable traces cover Counter + ValueVault scalar/event plus focused fixed-array/u64-map storage probes, while CPI/PDA, broad host/syscall semantics, hash maps, nested paths, dynamic arrays, and aggregate array elements stay outside these in-Lean target interpreters | `ProofForge/Backend/Evm/Refinement.lean`, `ProofForge/Backend/WasmHost/Refinement.lean`, `ProofForge/Backend/Solana/Refinement.lean`, `ProofForge/Target/Formal.lean` |
+| **C-diff — Differential testing** | IR reference trace replayed against the EVM Yul-subset interpreter (including mathlib-free IR↔Yul host paired simulation), the Counter + ValueVault scalar/event slices of the in-Lean Wasm/NEAR and Solana sBPF interpreters, the focused Wasm and Solana fixed-array/u64-map storage slices, the NEAR offline host, and capability routing soundness at the `resolveSpec` boundary | For the **fixed Counter/ValueVault/probe scenarios**, the observable return values and event logs produced by the target artifact match those produced by the IR reference semantics; FV-1 confirms that any spec that resolves to `.ok plan` on a profile yields a plan whose capabilities are all supported | It does **not** prove anything for inputs outside the fixed scenarios (`native_decide` is pointwise, not universal); EVM coverage stops at the Yul subset (solc is not in the trusted path but not proven); the Wasm and Solana executable traces cover Counter + ValueVault scalar/event plus focused fixed-array/u64-map storage probes, while CPI/PDA, broad host/syscall semantics, hash maps, nested paths, dynamic arrays, and aggregate array elements stay outside these in-Lean target interpreters | `ProofForge/Backend/Evm/Refinement.lean`, `ProofForge/Backend/Evm/YulHostRefinement.lean`, `ProofForge/Backend/WasmHost/Refinement.lean`, `ProofForge/Backend/Solana/Refinement.lean`, `ProofForge/Target/Formal.lean` |
 | **C-proof — Refinement theorems** | Universally-quantified Lean theorems relating IR semantics to target semantics for all inputs in a declared supported fragment | Today: structural FV-1 routing theorems are universal; `runTraceListGen_sound` is universal over arbitrary machine states and is smoke-instantiated for IR plus the EVM/Yul, Solana sBPF, and Wasm/NEAR target runners; `traceSimulation_lift` is the shared induction lemma that lifts per-entrypoint IR/target simulation into whole-trace observable equality; the Counter proof-fragment path instantiates it against a tiny `counter-model` target semantics, gated by `TargetSemantics.supportedFragment`; the real Solana/Wasm target runners now have Counter entrypoint-level paired-step soundness anchors (`counter_sbpf_*_step_simulation_sound_checked`, `counter_wasm_*_step_simulation_sound_checked`) plus whole fixed-trace soundness theorems proving matching observable arrays and final storage relation for the fixed Counter trace; the EVM bytecode lane now has an opt-in `EvmRefinement` Lake target pinned to `powdr-labs/evm-semantics` and mathlib, with a real powdr-backed `State`/`Step`/`stepF`/`runBytecode` wrapper, a successful-run bridge to powdr `Steps`, a Counter storage relation mapping IR `count` to powdr account storage slot 0, and a selected Counter delivery boundary that discharges powdr `stepF` obligations with `native_decide` before lifting through the shared trace machinery; the default build still avoids powdr/mathlib imports | It does **not** remove powdr `stepF` or Lean's native evaluator from the EVM TCB, and it does not prove ProofForge's Yul→bytecode `solc` hop (the pinned powdr tree has no Yul-level relation). The Counter target model remains a proof skeleton, not a chain VM. The Solana/Wasm step and trace paired-step soundness is still pointwise over concrete Counter states/prefixes, not all-input/full-fragment refinement. Full Solana/NEAR refinement still needs universally quantified per-entrypoint simulation lemmas over their target interpreters plus the supported-fragment boundary. Deep EVM bytecode reduction is deferred until a genuinely contract-agnostic automation layer exists; more Counter-specific selector/body/return hand proofs are not part of the current C-proof plan | `ProofForge/IR/StepSemantics.lean`, `ProofForge/IR/CounterSemantics.lean`, `ProofForge/Backend/Refinement/Core.lean`, `ProofForge/Backend/Refinement/CounterUniversal.lean`, `ProofForge/Backend/Evm/EvmBytecodeSemantics.lean`, `EvmRefinement/PowdrAdapter.lean`, `EvmRefinement/CounterRefinement.lean`, `ProofForge/Target/Formal.lean` |
 
 **How to talk about this externally:** "ProofForge validates contract designs
@@ -71,6 +71,16 @@ stub** (not a peer VM). That is intentional and documented in
 - **C-proof fragment** must not silently include stub crosscall as “real peer
   semantics” until an oracle path exists (roadmap U2.4 / U5.3).
 
+**F1.4 boundary lock (separate gates — do not merge):**
+
+| Gate | What it proves | What it does **not** prove |
+|------|----------------|----------------------------|
+| `just ir-crosscall-stub` | IR executable path is a deterministic sum stub | Peer CALL / CPI / Promise semantics |
+| `just crosscall-materialize` | Portable `crosscall.invoke` materializes to EVM CALL · Solana CPI · NEAR Promise (plus related portable auth/error/remote smokes) | That the IR stub return equals any chain peer return |
+
+Any new remote work must keep these two surfaces separate: IR tests stay on the
+stub; product remote correctness stays on materialize + multi-target smokes.
+
 ## Trusted Computing Base (Track 1.6 audit)
 
 The `native_decide` vs `decide` distinction is the main axis of the Lean FV
@@ -81,17 +91,23 @@ TCB. Both discharge a `Bool` proposition, but they trust different evaluators:
 | `decide` | Lean kernel only (no compiler). The `Decidable` instance must reduce in the kernel. | Small, structurally-recursive `def`s; `DecidableEq` instances on datatypes; theorems whose RHS is a closed kernel-reducible computation. | `partial def`s (not kernel-reducible); fuel-indexed `def`s with a fuel counter large enough to make kernel reduction infeasible (e.g. `Ownership.defaultFuel = 256`); functions that call external/compiled code. |
 | `native_decide` | Lean's native (compiled) evaluator. Faster and works on more functions, but trusts the compiler. | All of the above plus `partial def`s (when the compiled code terminates) and deep fuel-indexed computations. | Does not exist when the kernel must check (e.g. inside a proof that cannot rely on compiled evaluation); cannot be used in environments where native evaluation is disabled. |
 
-**Track 1.6 audit conclusion (2026-07-08):**
+**Track 1.6 audit conclusion (2026-07-08; F1.5 refresh 2026-07-10):**
 
 1. **EVM bytecode lane** trusts **powdr `stepF`** + `native_decide` (the pinned
    `evm-semantics` tree and Lean's native evaluator are in the EVM TCB). The
    Yul→bytecode `solc` hop is **not** proven.
-2. **Self-built target traces** (Solana sBPF, Wasm/NEAR in-Lean interpreters)
+2. **EVM Yul-subset host lane (default, mathlib-free)** trusts the in-tree
+   `YulSemantics` interpreter + `native_decide` paired-step checks in
+   `YulHostRefinement` (Counter storage rel + ValueVault return lockstep). This
+   is **not** a powdr TCB expansion: it does not import powdr/mathlib and does
+   not claim solc or bytecode equivalence. Gate:
+   `just evm-yul-host-refinement-smoke`.
+3. **Self-built target traces** (Solana sBPF, Wasm/NEAR in-Lean interpreters)
    trust the **in-Lean interpreter** (reviewed, not compiler-trusted for the
    structural lemmas) + the **external differential gate** (Mollusk/Surfpool for
    Solana, NEAR sandbox for Wasm) for CPI/PDA/syscall/Promise coverage that
    stays outside the in-Lean slice.
-3. **`decide`-downgradeable candidates (Track 1.6):** theorems whose RHS is a
+4. **`decide`-downgradeable candidates (Track 1.6):** theorems whose RHS is a
    closed computation over structurally-recursive, kernel-reducible `def`s.
    The `Ownership` checker was **total-ized in Track 1.5** (fuel-indexed,
    kernel-reducible in principle), but its `defaultFuel = 256` makes kernel
@@ -100,18 +116,21 @@ TCB. Both discharge a `Bool` proposition, but they trust different evaluators:
    Lowering `defaultFuel` to a kernel-reducible depth, or restructuring the
    checker to recurse on expression depth rather than a flat fuel counter, is
    future work that would let those theorems move to `decide`.
-4. **Structural (universal) theorems** that use `induction`/structural lemmas
+5. **Structural (universal) theorems** that use `induction`/structural lemmas
    (e.g. `runTraceListGen_sound`, `traceSimulation_lift`,
-   `requireCapabilityPlan_sound`, `invariants_hold_after_scenario`) are
-   **kernel-checked** (no `native_decide` on the proof itself; any
-   `native_decide` is only on the concrete premise, not the bridge).
+   `requireCapabilityPlan_sound`, `invariants_hold_after_scenario`,
+   `valueVault_step_simulates`) are **kernel-checked** (no `native_decide` on
+   the proof itself; any `native_decide` is only on the concrete premise, not
+   the bridge). ValueVault **fuel-coverage** witnesses
+   (`valueVault_all_entrypoints_in_fuel_coverage`) remain `native_decide`.
 
 The practical TCB statement for external communication:
 
 > "ProofForge's structural refinement theorems are kernel-checked. Pointwise
 > trace-matching theorems over fixed fixtures are `native_decide`-checked
 > (trusting Lean's native evaluator). EVM bytecode reduction trusts the pinned
-> powdr `stepF`. Self-built target traces (Solana sBPF, Wasm/NEAR) trust the
+> powdr `stepF`. The default EVM Yul host lane trusts in-tree `YulSemantics`
+> only (no powdr). Self-built target traces (Solana sBPF, Wasm/NEAR) trust the
 > in-Lean interpreter for the covered slice and an external differential gate
 > for the rest."
 
@@ -255,32 +274,41 @@ N1/E1) and F1.3 (push simulation lemmas).
 
 | Product source | Key IR constructs | C-proof fragment | C-diff traces | Outside both |
 |---|---|---|---|---|
-| `Counter` | scalar u64 state, `entry`/`query`, `let`, `+!` | ✅ `.counter` (all inputs, `counter-model`) | ✅ Counter scalar/event (EVM Yul, Wasm, sBPF) | — |
-| `ValueVault` | 6× scalar u64 state, `entry`/`query`, `let`, `+!`/`-!`/`*!`/`/!`, `emit`, `checkpointId` | ❌ | ✅ scalar/event slice (Wasm, sBPF) | `checkpointId` context read; full arithmetic chain |
+| `Counter` | scalar u64 state, `entry`/`query`, `let`, `+!` | ✅ `.counter` (all inputs, `counter-model`) | ✅ Counter scalar/event (EVM Yul host, Wasm, sBPF) | — |
+| `ValueVault` | 6× scalar u64 state, `entry`/`query`, `let`, `+!`/`-!`/`*!`/`/!`, `emit`, `checkpointId` | partial: shallow ∀-call `valueVault_step_simulates` + full entrypoint fuel-coverage (not supportedFragment) | ✅ scalar/event slice (EVM Yul host, Wasm, sBPF) | full IR↔target universal refinement; multi-field Yul storage rel |
 | `Ownable` | scalar u64 (owner), `entry`/`query`, caller auth (`signer_account_id`) | ❌ | ❌ | caller-auth host import; ownership transfer |
-| `RemoteCall` | scalar u64 state, `entry`, `crosscall.invoke`, `remoteCallRef` | ❌ | ❌ (IR stub, not peer) | crosscall materialize (CALL/CPI/Promise) |
+| `RemoteCall` | scalar u64 state, `entry`, `crosscall.invoke`, `remoteCallRef` | ❌ | ❌ (IR stub, not peer) | crosscall materialize (CALL/CPI/Promise) — F1.4 gates separate |
 | `ArrayExample` | `array` state, `query`, `for`, u64 indexing | ❌ | ✅ fixed-array storage probe (Wasm, sBPF) | dynamic array bounds; full `for` loop |
 | `StakingVault` | `map` state, scalar state, `entry`/`query`, `emit`, `require`, `let` | ❌ | ❌ | map iteration; `require` assertion lowering |
 | `RoleGatedToken` | `map` state, `bool` state, `entry`/`query`, `guard`, `emit`, `require` | ❌ | ✅ u64-map storage probe (Wasm, sBPF) | `guard` DSL lowering; bool state; role map |
 
 **Summary:**
 
-- **C-proof:** only `Counter` (1/7 product sources).
-- **C-diff:** `Counter` + `ValueVault` scalar/event + focused `ArrayExample`/
-  `RoleGatedToken` storage probes (4/7 partially covered).
+- **C-proof:** only `Counter` in `supportedFragment` (1/7 product sources).
+  ValueVault has shallow universal step + fuel-coverage lemmas (F1.3) but is
+  **not** yet a supported C-proof fragment.
+- **C-diff:** `Counter` + `ValueVault` scalar/event (EVM Yul host + Wasm + sBPF)
+  + focused `ArrayExample`/`RoleGatedToken` storage probes (4/7 partially covered).
 - **Outside both:** `Ownable` (caller auth), `RemoteCall` (crosscall), and
   richer constructs from `StakingVault`/`RoleGatedToken` (map iteration, `guard`,
   `require` assertion lowering).
 
-**F1.2 growth targets** (add C-diff trace obligations as new lowering paths land):
-- `Ownable` caller-auth trace (after N1/E1 signer surface stabilizes).
-- `StakingVault` map + `require` assertion trace.
-- `RoleGatedToken` `guard` + bool state trace.
+**F1.2 landed (2026-07-10)** — host-surface pins for N1/E1-adjacent lower paths:
+- EVM: `just evm-yul-host-refinement-smoke` — IR↔Yul Counter + ValueVault
+  paired simulation (`YulHostRefinement`; see [evm-yul-host-bridge.md](evm-yul-host-bridge.md)).
+- NEAR/Wasm + Solana: existing Counter/ValueVault executable-trace anchors remain
+  the triad C-diff pins (`just value-vault-wasm-refinement-smoke`, Solana sBPF
+  refinement smokes).
+- **Still open (not F1 blockers):** `Ownable` caller-auth trace; `StakingVault`
+  map + `require`; `RoleGatedToken` `guard` + bool state.
 
-**F1.3 growth targets** (push universal/fuel-indexed lemmas on existing fragment):
-- Extend `CounterUniversal` toward `ValueVault` arithmetic chain (next closest
-  to a proof fragment, already has C-diff traces).
-- Keep crosscall as IR stub in C-proof; do not include materialize paths.
+**F1.3 landed (2026-07-10)** — ValueVault simulation / fuel growth on existing fragment:
+- `valueVault_all_entrypoints_in_fuel_coverage` — every product entrypoint body
+  is inside the shared fueled interpreter coverage set.
+- `valueVault_step_simulates_all_calls` — re-export of the universal shallow
+  step existence lemma for all `ValueVaultCall` over related states.
+- Gates: `just semantics-fuel-smoke` (pins the new `#check`s).
+- Keep crosscall as IR stub in C-proof; do not include materialize paths (F1.4).
 
 ## Non-goals
 

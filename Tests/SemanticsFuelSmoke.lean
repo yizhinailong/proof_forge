@@ -33,9 +33,11 @@ open ProofForge.IR.Examples.ValueVault
 #check increment_total_ok_of_count
 #check counter_trace_matches_legacy
 
--- 3. ValueVault is bridged: its `getNetValue` entrypoint body is within the
--- shared fueled interpreter's covered fragment (the M5 bridge theorem).
+-- 3. ValueVault is bridged: every product entrypoint body is within the
+-- shared fueled interpreter's covered fragment (M5 + F1.3 full surface).
 #check valueVault_getNetValue_in_fuel_coverage
+#check valueVault_all_entrypoints_in_fuel_coverage
+#check valueVault_step_simulates_all_calls
 
 -- 4. Executable witness: the shared fueled interpreter runs the Counter
 -- trace (initialize → increment → get) and returns 1, matching the legacy
