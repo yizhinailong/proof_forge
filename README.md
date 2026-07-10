@@ -100,7 +100,7 @@ lake build
 Compile the EVM Counter example to runtime bytecode:
 
 ```sh
-lake env proof-forge build --target evm --root . --module contract \
+lake env proof-forge build --target evm --root . --module Counter \
   -o build/evm/Counter.bin Examples/Backend/Evm/Contracts/Counter.lean
 ```
 

@@ -152,7 +152,7 @@ python3 scripts/near/validate-emitwat-metadata.py \
   "$STORAGE_DIR/proof-forge-artifact.json" \
   --expected-fixture nearstoragedeposit \
   --expected-module NearStorageDeposit \
-  --expected-entrypoints init,storage_balance_bounds,storage_balance_of,storage_deposit \
+  --expected-entrypoints init,storage_balance_bounds,storage_balance_of,storage_deposit,storage_withdraw \
   --expected-source-kind contract-sdk
 python3 scripts/sdk/validate-sdk-schema.py \
   "$STORAGE_DIR/proof-forge-sdk.json" \
@@ -165,13 +165,15 @@ python3 scripts/sdk/validate-sdk-artifact-refs.py \
   "$STORAGE_DIR/proof-forge-sdk.json"
 
 ACCOUNT_HASH="000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+WITHDRAW_INPUT="${ACCOUNT_HASH}0300000000000000"
 out="$("${HOST[@]}" "$STORAGE_DIR/nearstoragedeposit.wat" \
-  init storage_balance_bounds storage_balance_of storage_deposit storage_balance_of \
+  init storage_balance_bounds storage_balance_of storage_deposit storage_balance_of storage_withdraw storage_balance_of \
   --attached-deposit 7 \
-  --inputs-hex ",,$ACCOUNT_HASH,$ACCOUNT_HASH,$ACCOUNT_HASH")"
+  --inputs-hex ",,$ACCOUNT_HASH,$ACCOUNT_HASH,$ACCOUNT_HASH,$WITHDRAW_INPUT,$ACCOUNT_HASH")"
 echo "$out"
 assert_contains "$out" "call 1:storage_balance_bounds: return_hex=0100000000000000 return_u64=1" "storage bounds"
 assert_contains "$out" "call 1:storage_balance_of: return_hex=0000000000000000 return_u64=0" "initial storage balance"
 assert_contains "$out" "call 1:storage_balance_of: return_hex=0700000000000000 return_u64=7" "updated storage balance"
+assert_contains "$out" "call 1:storage_balance_of: return_hex=0400000000000000 return_u64=4" "balance after withdraw"
 
 echo "near-target-first: ok"
