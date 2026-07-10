@@ -28,7 +28,10 @@ import ProofForge.Backend.Solana.CounterSbpfExec
 import ProofForge.Backend.Solana.LabeledSbpf
 import ProofForge.Backend.Solana.SbpfAsm
 import ProofForge.Backend.Solana.SbpfInterpreter
+import ProofForge.Backend.Solana.StateLayout
+import ProofForge.Backend.Solana.Refinement
 import ProofForge.IR.Examples.Counter
+import ProofForge.Contract.Examples.ValueVaultInvariant
 import SolanaRefinement.HostBridge
 import SolanaRefinement.LabeledToSolanalib
 import SolanaRefinement.SolanalibAdapter
@@ -48,6 +51,7 @@ open ProofForge.Backend.Solana.BpfEncode
 open ProofForge.Backend.Solana.CounterSbpfExec
 open ProofForge.Backend.Solana.LabeledSbpf
 open ProofForge.Backend.Solana.SbpfInterpreter
+open ProofForge.Backend.Solana.StateLayout
 open ProofForge.Backend.Solana.HostBridge
 open ProofForge.Backend.Solana.LabeledToSolanalib
 open ProofForge.Backend.Solana.SolanalibAdapter
@@ -174,12 +178,19 @@ where
 
 /-- Project host memory back to a ProofForge word-sparse `Memory` for chaining.
 
-We only need the `count` scalar for Counter; keep any previously written
-base memory words by re-reading `countOff` after the run. -/
-def memoryAfter (base : Memory) (hs : HostState) : Memory :=
-  match hs.countWord? with
-  | some c => base.write countOff c
+Copies every scalar state-field offset from the module layout (and any
+pre-existing base words). Counter only needs `count`; ValueVault needs the
+full multi-field state. -/
+def memoryAfter (module : Module) (base : Memory) (hs : HostState) : Memory :=
+  let schema := ProofForge.Backend.Solana.SbpfAsm.buildModuleInputSchema module {}
+  match schema.inputLayout.accounts[0]? with
   | none => base
+  | some accountLayout =>
+      let fields := buildStateOffsetsAtBase module accountLayout.dataStart
+      fields.foldl (init := base) fun mem field =>
+        match loadWordLE? hs.lastMem field.absOff with
+        | some w => mem.write field.absOff w
+        | none => mem
 
 /-- Run one full entrypoint; on success return updated sparse memory + host. -/
 def runFullEntrypoint (p : FullProgram) (module : Module) (baseMemory : Memory)
@@ -191,7 +202,7 @@ def runFullEntrypoint (p : FullProgram) (module : Module) (baseMemory : Memory)
       if v.toNat != 0 then
         .error s!"full entrypoint `{call.entrypoint.name}` r0={v.toNat}"
       else
-        .ok (memoryAfter baseMemory hs, hs)
+        .ok (memoryAfter module baseMemory hs, hs)
   | _ => .error s!"full entrypoint `{call.entrypoint.name}` did not succeed"
 
 def observeHost (entrypoint : Entrypoint) (hs : HostState) :
@@ -273,6 +284,39 @@ theorem counter_full_program_host_ok :
 
 theorem counter_full_program_diff_ok :
     counterFullDiffOk = true := by
+  native_decide
+
+/-! ### ValueVault default scenario on full host -/
+
+def valueVaultFullTraceOk : Bool :=
+  match lowerFullModule ProofForge.Contract.Examples.ValueVaultInvariant.module with
+  | .error _ => false
+  | .ok p =>
+      match runFullTraceList p ProofForge.Contract.Examples.ValueVaultInvariant.module
+          ProofForge.Backend.Solana.Refinement.valueVaultTraceCalls.toList #[] with
+      | .error _ => false
+      | .ok (_, steps) =>
+          steps == ProofForge.Backend.Solana.Refinement.valueVaultExpectedTrace
+
+/-- Differential: host matches PF interpreter on the ValueVault default scenario. -/
+def valueVaultFullDiffOk : Bool :=
+  valueVaultFullTraceOk &&
+    (match ProofForge.Backend.Solana.SbpfAsm.lowerModule
+        ProofForge.Contract.Examples.ValueVaultInvariant.module with
+     | .error _ => false
+     | .ok nodes =>
+         let obligation : TraceObligation :=
+           ProofForge.Backend.Solana.Refinement.valueVaultTraceObligation
+         match ProofForge.Backend.Solana.SbpfInterpreter.runTrace nodes obligation with
+         | .ok actual => actual == obligation.expected
+         | .error _ => false)
+
+theorem value_vault_full_program_host_ok :
+    valueVaultFullTraceOk = true := by
+  native_decide
+
+theorem value_vault_full_program_diff_ok :
+    valueVaultFullDiffOk = true := by
   native_decide
 
 end ProofForge.Backend.Solana.FullProgramHost

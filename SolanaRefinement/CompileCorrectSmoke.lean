@@ -24,6 +24,8 @@ open ProofForge.Backend.Solana.SolanalibAdapter
 #check counter_core_tail_host_bridge_ok
 #check counter_full_program_host_bridge_ok
 #check counter_full_program_diff_bridge_ok
+#check value_vault_full_program_host_bridge_ok
+#check value_vault_full_program_diff_bridge_ok
 #check counter_host_ir_trace_simulation_ok
 #check counter_host_counter_call_trace_bridge_ok
 #check counter_host_trace_simulation_sound_checked

@@ -162,6 +162,14 @@ theorem counter_full_program_diff_bridge_ok :
     counterFullDiffOk = true := by
   native_decide
 
+theorem value_vault_full_program_host_bridge_ok :
+    valueVaultFullTraceOk = true := by
+  native_decide
+
+theorem value_vault_full_program_diff_bridge_ok :
+    valueVaultFullDiffOk = true := by
+  native_decide
+
 /-! ### IR ↔ FullProgramHost paired simulation (pointwise) -/
 
 theorem counter_host_ir_trace_simulation_ok :

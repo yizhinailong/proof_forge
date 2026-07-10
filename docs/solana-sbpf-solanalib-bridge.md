@@ -104,9 +104,11 @@ Use the tiers in [formal-verification.md](formal-verification.md):
   `CounterCall`-vocabulary variant (`CounterHostRefinement`).
 - **Structural re-export:** `verified_instr_step_ne_err` names solanalib
   Lemma 6.4 (`step_ne_err`) for ProofForge-facing proofs.
+- **Tier C-diff (ValueVault full program):** default ValueVault scenario on
+  full host matches PF interpreter (`value_vault_full_program_*`).
 - **Not claimed:** universal all-input `IR ⇝ host` refinement (still
-  pointwise on the fixed Counter scenario); ValueVault full host; broad
-  syscall fidelity. Product path still emits text via EmitSBPF.
+  pointwise on fixed scenarios); broad syscall fidelity. Product path still
+  emits text via EmitSBPF.
 
 ## Build / CI
 
@@ -129,9 +131,10 @@ just solana-solanalib-adapter
    (`FullProgramHost.lean`).
 4. ~~IR ↔ full-host paired simulation (pointwise)~~ ✅
    (`CounterHostRefinement.lean` via `executableSimulationTraceOk_sound`).
-5. Universal per-entrypoint simulation for full host (all related states),
+5. ~~ValueVault full-program host + PF differential~~ ✅
+   (`valueVaultFullTraceOk` / `valueVaultFullDiffOk`).
+6. Universal per-entrypoint simulation for full host (all related states),
    then `traceSimulation_lift` without fixed scenarios.
-6. ValueVault full-program host + broader syscall stubs.
 
 Scheme 2 Phase C (assembler-in-Lean replacing external `sbpf`) remains
 future work; product text emission is unchanged.
