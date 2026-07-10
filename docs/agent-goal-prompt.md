@@ -3,7 +3,7 @@
 Copy this entire document into one long-running goal or agent session. It is a
 continuous execution charter, not a request for another audit or plan.
 
-Status: **Complete: verified@9a2ec055**
+Status: **Complete: verified@213534eb**
 
 Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
