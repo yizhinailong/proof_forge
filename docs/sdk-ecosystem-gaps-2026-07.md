@@ -58,7 +58,7 @@ gaps.
 |---|---|---|---|
 | AMM / swap | Missing | No pool/swap example | P1 |
 | Flash loan | Missing | No flash/loan callback pattern | P2 |
-| Staking | Missing | No staking example | P2 |
+| Staking | Covered (E1.6) | Product `Examples/Product/StakingVault.lean` (1:1 shares, `nativeValue` deposit); triad multi-target `just portable-staking-vault-multi-target`; EVM testkit `staking-vault` scenario; NEAR compare `just near-compare-staking-vault`. Yield/rebase/reward rates deferred | — |
 | Vault primitive | Covered (v1) | VerifiedVault + ValueVault + **ERC-4626 stdlib** (pro-rata, fees, FOT); see product v1 freeze | — |
 | Oracle integration | Missing | No Chainlink/oracle example | P2 |
 
