@@ -59,6 +59,29 @@ structure ToolProvenance where
   version? : Option String := none
   deriving Repr, Inhabited, BEq
 
+/-- PF-P3-03: Lean frontend provenance for contract_source elaboration.
+
+Records the pin from `lean-toolchain` (e.g. `leanprover/lean4:v4.31.0`) so
+artifact metadata explains the trusted-local elaboration environment. This is
+not a hosted isolation boundary. -/
+def leanElaborationTool (version? : Option String) : ToolProvenance := {
+  tool := "lean"
+  stage := "source-elaboration"
+  available := version?.isSome
+  version? := version?
+}
+
+/-- Read the first non-empty `lean-toolchain` pin under `searchRoots`. -/
+def readLeanToolchainPin (searchRoots : Array System.FilePath := #[System.FilePath.mk "."]) :
+    IO (Option String) := do
+  for root in searchRoots do
+    let p := root / "lean-toolchain"
+    if ← p.pathExists then
+      let raw := (← IO.FS.readFile p).trimAscii.toString
+      if raw.length > 0 then
+        return some raw
+  return none
+
 /-- Named validation entry. -/
 structure ValidationEntry where
   name : String

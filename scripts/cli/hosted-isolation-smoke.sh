@@ -53,4 +53,38 @@ echo "hosted-isolation: gate2 trusted local Counter build ok"
 lake env lean --run Tests/HostedIsolation.lean >/dev/null
 echo "hosted-isolation: gate3 HostedIsolation pins ok"
 
-echo "hosted-isolation: ok (PF-P3-03 fail-closed gate)"
+# Gate 4: artifact metadata records the lean-toolchain pin (PF-P3-03 provenance).
+pin="$(tr -d '[:space:]' < lean-toolchain)"
+[[ -n "$pin" ]] || fail "lean-toolchain pin empty"
+art="$OUT/local-ok/proof-forge-artifact.json"
+[[ -f "$art" ]] || fail "missing artifact metadata $art"
+python3 - "$art" "$pin" <<'PY'
+import json, sys
+art, pin = sys.argv[1], sys.argv[2]
+data = json.load(open(art))
+# Prefer nested artifactBundle.toolchain; fall back to flat toolchain object.
+tools = []
+bundle = data.get("artifactBundle") or {}
+if isinstance(bundle, dict):
+    tools = bundle.get("toolchain") or []
+if not tools:
+    tools = data.get("toolchain") or []
+# toolchain may be list of objects or a map
+found = False
+if isinstance(tools, list):
+    for t in tools:
+        if isinstance(t, dict) and t.get("tool") == "lean":
+            ver = t.get("version") or t.get("version?")
+            if ver and pin in str(ver):
+                found = True
+                break
+elif isinstance(tools, dict):
+    lean = tools.get("lean") or tools.get("Lean")
+    if lean and pin in str(lean):
+        found = True
+if not found:
+    raise SystemExit(f"lean pin {pin!r} not found in artifact toolchain: {tools!r}")
+print(f"hosted-isolation: gate4 lean pin recorded ({pin})")
+PY
+
+echo "hosted-isolation: ok (PF-P3-03 fail-closed gate + lean pin provenance)"
