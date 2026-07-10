@@ -266,6 +266,7 @@ export ProofForge.Backend.WasmHost.Types (
 def stringInfoEnd (base : Nat) (strings : Array StringInfo) : Nat :=
   strings.foldl (init := base) fun acc s => max acc (s.ptr + s.len + 1)
 
+/-- Flat Borsh width for param buffer sizing (struct uses worst-case until layout known). -/
 def borshFlatWidth (ty : ProofForge.IR.ValueType) : Nat :=
   match ty with
   | .u32 => 4
@@ -275,6 +276,30 @@ def borshFlatWidth (ty : ProofForge.IR.ValueType) : Nat :=
   | .fixedArray elem n => scalarWidth elem * n
   | .structType _ => 512
   | _ => 0
+
+/-- Exact Borsh payload size for supported aggregate return types (N1.2). -/
+def borshReturnPayloadBytes (structs : Array ProofForge.IR.StructDecl) (ty : ProofForge.IR.ValueType)
+    : Except EmitError (Option Nat) :=
+  match ty with
+  | .u32 | .u64 | .bool | .hash | .unit => .ok none
+  | .fixedArray elem n =>
+    if !(isScalarBorshType elem) then
+      err s!"EmitWat: return fixedArray element type `{elem.name}` is not a scalar Borsh type"
+    else
+      .ok (some (scalarWidth elem * n))
+  | .structType typeName =>
+    match structs.find? (fun s => s.name == typeName) with
+    | none => err s!"EmitWat: return type references unknown struct `{typeName}`"
+    | some sd =>
+      if !structStorageFieldsSupported sd then
+        err s!"EmitWat: return struct `{typeName}` has non-scalar fields \
+(only u32/u64/bool/hash supported in Borsh returns)"
+      else
+        .ok (some (structTotalSize sd))
+  | .bytes | .string =>
+    err s!"EmitWat: return type `{ty.name}` is not supported on Borsh value_return \
+(dynamic bytes/string); use scalar, hash, fixedArray, or flat struct"
+  | _ => err s!"EmitWat: return type `{ty.name}` is not supported"
 
 def entrypointInputBytes (_structs : Array ProofForge.IR.StructDecl) (ep : ProofForge.IR.Entrypoint) : Nat :=
   ep.params.foldl (fun acc param => acc + borshFlatWidth param.snd) 0
@@ -1047,7 +1072,8 @@ end
 def lowerReturn (ctx : Ctx) (env : LocalTypes) (expected : ValueType) (e : Expr)
     : Except EmitError (Array Insn) := do
   let (is, t) ← lowerExpr ctx env e
-  returnInsnsForLoweredExpr expected e is t ctx.bridge ctx.packScalars
+  let aggBytes? ← borshReturnPayloadBytes ctx.structs expected
+  returnInsnsForLoweredExpr expected e is t ctx.bridge ctx.packScalars aggBytes?
 
 partial def lowerEventEmit (ctx : Ctx) (env : LocalTypes) (name : String) (fields : Array (String × Expr))
     : Except EmitError (Array Insn) := do
