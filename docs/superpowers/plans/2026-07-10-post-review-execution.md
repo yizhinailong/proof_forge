@@ -598,7 +598,7 @@ The plan is **complete** when:
 
 | Wave | State | Evidence |
 |------|-------|----------|
-| S0 | pending | trunk still ahead 36 / behind 2 on origin — do before large merges |
+| S0 | in_progress: S0.1+S0.2 done; next S0.3 claim audit | merge@14573f5a + product green @ c771cf1c; origin integrated (0 behind) |
 | N1 | pending | |
 | E1 | pending | |
 | L1 | pending | |
