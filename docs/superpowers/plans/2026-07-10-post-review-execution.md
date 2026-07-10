@@ -133,10 +133,10 @@ S0 → N1 (core) → E1 (parallelizable after S0) → L1 selective
 | **N1.1** | Aggregate ABI inventory | Document current Borsh/param surface vs product sources that fail or degrade on NEAR. File gaps under `docs/sdk-ecosystem-gaps-2026-07.md` NEAR section with evidence commands. | Gap table updated with concrete failing modules + expected ABI shapes | S | pending |
 | **N1.2** | Scalar+struct ABI completeness | Extend EmitWat/NEAR lowering for product-needed aggregate params/returns used by ValueVault/RemoteCall/token examples. Fail-closed for unsupported shapes. | `just product` NEAR rows green; new diagnostic smoke for one unsupported aggregate | L | pending |
 | **N1.3** | NEP-141 FT stdlib path | Land or harden NEP-141 plan + product example (mint/transfer/balance) through target-first build + offline-host smoke. Prefer TokenSpec route if already partial. | `just` recipe documents FT smoke; metadata + offline-host lifecycle green | L | pending |
-| **N1.4** | Promise / remote peer | Ensure portable `declareRemote` / crosscall materialize uses real Promise encoding; sandbox or offline-host peer returns match chain semantics for RemoteCall scenario. IR stub remains IR-only. | `just testkit-remote-call` includes NEAR peer observation; docs state IR stub ≠ peer | L | pending |
-| **N1.5** | Storage deposit / economics | Close NEP-145 partial gaps needed for FT (storage_deposit bounds, withdraw/refund as scoped). | Offline-host + optional sandbox; gap doc P0 rows closed or reclassified | M | pending |
+| **N1.4** | Promise / remote peer | Ensure portable `declareRemote` / crosscall materialize uses real Promise encoding; sandbox or offline-host peer returns match chain semantics for RemoteCall scenario. IR stub remains IR-only. | `just testkit-remote-call` includes NEAR peer observation; docs state IR stub ≠ peer | L | done: verified@785f40c5; `just testkit-remote-call` (3 targets incl. NEAR peer → 49); `just near-remote-call-offline-peer`; docs § Crosscall honesty |
+| **N1.5** | Storage deposit / economics | Close NEP-145 partial gaps needed for FT (storage_deposit bounds, withdraw/refund as scoped). | Offline-host + optional sandbox; gap doc P0 rows closed or reclassified | M | done: verified@785f40c5; `just near-storage-deposit-offline` (7→4); `just near-compare-storage-deposit`; gap doc NEP-145 Partial (P1 remain: JSON StorageBalance, full unregister/refund) |
 | **N1.6** | Budget honesty | Keep `wasmtimeFuel*` fields; add sandbox-derived `nearGas` only when harness exists; never rename fuel back to NEAR gas. | testkit scenarios + docs consistent; `just testkit` counter/value-vault budgets green | M | pending |
-| **N1.7** | Deploy metadata honesty | Offline vs broadcast deploy modes clearly labeled in `proof-forge-deploy.json` for NEAR. | Deploy smoke asserts mode fields; no “broadcast passed” without tool | S | pending |
+| **N1.7** | Deploy metadata honesty | Offline vs broadcast deploy modes clearly labeled in `proof-forge-deploy.json` for NEAR. | Deploy smoke asserts mode fields; no “broadcast passed” without tool | S | done: `just near-deploy-honesty`; broadcast/networkDeploy=not-generated |
 
 ### Suggested order inside N1
 
@@ -599,7 +599,7 @@ The plan is **complete** when:
 | Wave | State | Evidence |
 |------|-------|----------|
 | S0 | done: verified@81b4c373; S0.1 merge + S0.2 product green + S0.3 claim + S0.4 INDEX + S0.5 inventory | just product green; origin 0 behind; branch inventory written |
-| N1 | in_progress: N1.1–N1.6 done; next N1.7 deploy metadata | near-budget-honesty; sandbox nearGas; storage_withdraw |
+| N1 | done: N1.1–N1.7 closed | near-deploy-honesty; budget honesty; storage_withdraw; FT offline |
 | E1 | pending | |
 | L1 | pending | |
 | B1 | in_progress: B1.0 skeleton done; next B1.1 schema | `docs/benchmarks.md`, `benchmarks/README.md` |

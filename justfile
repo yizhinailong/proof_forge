@@ -755,6 +755,10 @@ near-storage-deposit-offline:
 near-budget-honesty:
     scripts/near/budget-honesty-smoke.sh
 
+# N1.7: deploy metadata honesty (offline-only; broadcast/networkDeploy not-generated).
+near-deploy-honesty:
+    scripts/near/deploy-honesty-smoke.sh
+
 # Build the shared portable Counter to EVM, Solana sBPF, and NEAR/Wasm from one source file.
 portable-counter-multi-target:
     scripts/portable/counter-multi-target.sh
