@@ -229,6 +229,31 @@ bytecode**. Current PF code reaches it via `.psy` → `dargo compile`. Z1 work
 aims at `IR → DPN` direct emit with dargo execute as oracle; `.psy` remains
 fallback.
 
+### DPN bytecode goldens (Z1.1)
+
+Checked-in normalized circuit JSON:
+
+| Golden | Fixture |
+|--------|---------|
+| `Examples/Backend/Psy/dpn/Counter.golden.dpn.json` | counter |
+| `Examples/Backend/Psy/dpn/ArithmeticProbe.golden.dpn.json` | arithmetic |
+| `Examples/Backend/Psy/dpn/AssertProbe.golden.dpn.json` | assert |
+
+Normalize: `scripts/psy/normalize-dpn-json.py`  
+Gate: `just psy-dpn-goldens` (shape always; rebuild-diff when `build/psy/dargo-*/target/proof_forge_*.json` exists)
+
+### Artifact honesty (Z1.2)
+
+`proof-forge-artifact.json` fields:
+
+| Field | When `dargoCompile=passed` | When compile skipped |
+|-------|----------------------------|----------------------|
+| `primaryOutput` | `dpn-bytecode-json` | `psy-source` |
+| `finalOutput` | `dpn-bytecode-json` | `null` |
+| `lowerBoundary` | `DPNFunctionCircuitDefinition` | `psy-sourcegen-pending-dargo` |
+
+`toolchain.dargo.version` is recorded when `dargo --version` works. Validation statuses must not be `passed` unless the corresponding dargo stage ran.
+
 ### DPN bytecode (official + observed)
 
 **Container:** `DPNFunctionCircuitDefinition` (JSON array of methods from
