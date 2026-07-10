@@ -878,6 +878,10 @@ quint-ir-model-gate:
 testkit:
     CAST="${CAST:-$HOME/.foundry/bin/cast}" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run
 
+# PF-P2-01 CI policy: skips and single-target "parity" are failures.
+testkit-deny-skip:
+    CAST="${CAST:-$HOME/.foundry/bin/cast}" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run --deny-skip
+
 # List RFC 0007 testkit scenarios.
 testkit-list:
     CAST="${CAST:-$HOME/.foundry/bin/cast}" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- list
