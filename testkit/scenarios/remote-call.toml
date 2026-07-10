@@ -300,11 +300,12 @@ contains = [
 [[step]]
 call = "initialize"
 
-# PF-P2-03: real Solana CPI peer — PeerOracleSum ELF returns u64 49; RemoteCall
-# call_with_args (42+7 fixed args) observes peer return via sol_get_return_data.
+# PF-P2-03: real peer on EVM (revm PeerOracle at 0xb0b0) and Solana (Mollusk
+# PeerOracleSum ELF). call_with_args (42+7) must return u64 49. NEAR sandbox
+# peer is still blocked (no near CLI / sandbox tools).
 [[step]]
 call = "call_with_args"
-targets = ["solana-sbpf-asm"]
+targets = ["evm", "solana-sbpf-asm"]
 
 [step.expect.return]
 u64 = 49
