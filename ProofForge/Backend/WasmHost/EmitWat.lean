@@ -176,9 +176,10 @@ export ProofForge.Backend.WasmHost.Imports (
 )
 
 export ProofForge.Backend.WasmHost.Layout (
-  StateInfo stateLayout findScalarState? MapInfo mapLayout findMapState?
-  findArrayState? StringInfo stringPool panicMessage panicPool findString?
-  crosscallStringInfos
+  StateInfo isPackableScalarType moduleScalarsPackable stateLayout
+  stateLayoutPacked findScalarState? MapInfo mapLayout findMapState?
+  findArrayState? StringInfo eventHeaderPoolString eventFieldPoolString
+  stringPool panicMessage panicPool findString? crosscallStringInfos
 )
 
 export ProofForge.Backend.WasmHost.LoweringEnv (
@@ -467,7 +468,8 @@ mutual
   partial def lowerCrosscallArgsJson (ctx : Ctx) (env : LocalTypes) (args : Array Expr) :
       Except EmitError (Array Insn × Nat × Nat) := do
     if args.isEmpty then
-      .ok (#[], CROSSCALL_ARGS_EMPTY_PTR, CROSSCALL_ARGS_EMPTY_LEN)
+      -- near-sdk zero-arg methods expect empty input (not JSON `[]`).
+      .ok (#[], CROSSCALL_ARGS_EMPTY_PTR, 0)
     else
       let (body, _) ← args.foldlM (fun (accInsns, isFirst) arg => do
         let (vis, putInsn) ← lowerCrosscallArgValue ctx env arg
@@ -477,13 +479,25 @@ mutual
       let body := body ++ #[.i32Const 93, .call crosscallArgsPutcName]
       .ok (body, CROSSCALL_BUF, 0)
 
+  /-- near-sys `promise_create` / `promise_then` take `amount_ptr` (u128 LE), not a
+  raw yocto value. Encode U64 deposit as low 64 bits at `RET_BUF`, zero high 64,
+  and push `RET_BUF` as the pointer. Constant-zero deposit reuses `ZERO_HASH_BUF`. -/
   partial def lowerNearDeposit (ctx : Ctx) (env : LocalTypes) (label : String) (deposit : Expr) :
       Except EmitError (Array Insn) := do
-    let (depositInsns, depositType) ← lowerExpr ctx env deposit
-    if depositType != .u64 then
-      err s!"EmitWat: {label} deposit expected `U64`, got `{depositType.name}`"
-    else
-      .ok depositInsns
+    match deposit with
+    | .literal (.u64 0) =>
+        .ok #[.i64Const ZERO_HASH_BUF]
+    | _ =>
+      let (depositInsns, depositType) ← lowerExpr ctx env deposit
+      if depositType != .u64 then
+        err s!"EmitWat: {label} deposit expected `U64`, got `{depositType.name}`"
+      else
+        -- stack after depositInsns: value; store [addr,value]; zero hi; push ptr
+        .ok (#[.i32Const RET_BUF] ++ depositInsns ++ #[
+          .store "i64.store" 0,
+          .i32Const (RET_BUF + 8), .i64Const 0, .store "i64.store" 0,
+          .i64Const RET_BUF
+        ])
 
   partial def lowerU32OrU64AsI64 (ctx : Ctx) (env : LocalTypes) (label : String) (value : Expr) :
       Except EmitError (Array Insn) := do
@@ -654,15 +668,14 @@ mutual
       else .ok (is ++ #[.plain "i32.eqz"], .bool)
     | .cast value target => lowerCast ctx env value target
     | .nativeValue =>
-      -- NEAR attached_deposit returns U128, but IR v0 treats nativeValue as U64.
-      -- For deposits within U64 range (< 2^64), the low 64 bits are the amount.
-      -- Call attached_deposit (returns i64 = low 64 bits) and use directly.
-      .ok (#[.call "attached_deposit"], .u64)
+      -- NEAR `attached_deposit(balance_ptr)` writes u128 LE at ptr (near-sys).
+      -- IR v0 models nativeValue as U64: use the low 64 bits (scenario deposits
+      -- stay well below 2^64).
+      .ok (#[.i64Const RET_BUF, .call "attached_deposit",
+             .i32Const RET_BUF, .load "i64.load" 0], .u64)
     | .effect (.storageScalarRead id) =>
       match findScalarState? ctx.scalars id with
-      | some s =>
-        let callName := if s.type == .hash then readHashName else readName s.type
-        .ok (#[.i32Const s.keyPtr, .i32Const s.keyLen, .call callName], s.type)
+      | some s => .ok (storageScalarReadInsns s)
       | none => err s!"EmitWat: unknown scalar state `{id}`"
     | .effect (.storageMapGet id key) => lowerMapGet ctx env id key
     | .effect (.storageMapContains id key) => lowerMapContains ctx env id key
@@ -1032,15 +1045,19 @@ end
 def lowerReturn (ctx : Ctx) (env : LocalTypes) (expected : ValueType) (e : Expr)
     : Except EmitError (Array Insn) := do
   let (is, t) ← lowerExpr ctx env e
-  returnInsnsForLoweredExpr expected e is t ctx.bridge
+  returnInsnsForLoweredExpr expected e is t ctx.bridge ctx.packScalars
 
 partial def lowerEventEmit (ctx : Ctx) (env : LocalTypes) (name : String) (fields : Array (String × Expr))
     : Except EmitError (Array Insn) := do
-  let some nameSi ← pure (findString? ctx.strings name) | err s!"EmitWat: event name `{name}` not in string pool"
+  let headerKey := eventHeaderPoolString name
+  let some nameSi ← pure (findString? ctx.strings headerKey)
+    | err s!"EmitWat: event header `{headerKey}` not in string pool"
   let header := evtHeaderInsns nameSi
   let fieldInsns ← appendInsnChunksM fields fun f => do
     let (fname, vexpr) := f
-    let some fsi ← pure (findString? ctx.strings fname) | err s!"EmitWat: field name `{fname}` not in string pool"
+    let fieldKey := eventFieldPoolString fname
+    let some fsi ← pure (findString? ctx.strings fieldKey)
+      | err s!"EmitWat: event field key `{fieldKey}` not in string pool"
     let (vis, vt) ← lowerExpr ctx env vexpr
     evtFieldInsns fname fsi vis vt
   .ok (header ++ fieldInsns ++ evtFooterInsns)
@@ -1149,10 +1166,17 @@ def lowerEntrypoint (ctx : Ctx) (ep : Entrypoint) : Except EmitError Func := do
       sorobanAuthPrologue ctx ep
     else
       #[]
+  let packPrefix :=
+    if !ctx.packScalars then #[]
+    else if entrypointReadsPackedScalar ctx.scalars ep then packBeginInsns
+    else packBeginFreshInsns
+  let packSuffix := if ctx.packScalars then packFlushInsns else #[]
   .ok {
     name := ep.name
     locals := locals
-    body := { insns := resetPrefix ++ authPrefix ++ paramPrologue ++ bodyInsns }
+    body := {
+      insns := resetPrefix ++ authPrefix ++ packPrefix ++ paramPrologue ++ bodyInsns ++ packSuffix
+    }
     exportName := ep.name
   }
 
@@ -1168,7 +1192,7 @@ def lowerModuleCoreWithCtx (mod : ProofForge.IR.Module) (modulePlan : ModulePlan
   let hasPanic := !ctx.panics.isEmpty
   let imports := importsForModulePlan modulePlan mod.allocator hasPanic ctx.bridge
   let funcs := helperFuncsForModulePlan modulePlan mod ctx entryFuncs
-  let globals := globalsForModulePlan modulePlan mod.allocator
+  let globals := globalsForModulePlan modulePlan mod.allocator ctx.packScalars
   .ok { imports := imports, globals := globals, funcs := funcs,
         memory := some { min := 1 },
         dataSegments := dataSegmentsForModulePlan modulePlan ctx }

@@ -457,7 +457,7 @@ def nearHostBufferMemoryRegions : Array WasmMemoryRegionExpectation := #[
   { name := "KEY_BUF", offset := emitWatKeyBuf, byteLength := 32 },
   { name := "RET_BUF", offset := emitWatRetBuf, byteLength := 32 },
   { name := "EVENT_BUF", offset := emitWatEventBuf, byteLength := 256 },
-  { name := "EVT_KEY_PTR", offset := emitWatEvtKeyPtr, byteLength := 5 },
+  { name := "EVT_PUNCT", offset := emitWatEvtKeyPtr, byteLength := 16 },
   { name := "INPUT_BUF", offset := emitWatInputBuf, byteLength := 1024 }
 ]
 
@@ -587,24 +587,19 @@ def nearU64HostFrameExpectations : Array WasmHostFrameExpectation := #[
   }
 ]
 
-def nearInputHostFrameExpectations : Array WasmHostFrameExpectation := #[
-  { functionName := "initialize", expectedOps := nearInputRegisterFrame },
-  { functionName := "increment", expectedOps := nearInputRegisterFrame },
-  { functionName := "get", expectedOps := nearInputRegisterFrame }
-]
+/-- Counter entrypoints are zero-arg: no `input` / `read_register` prologue. -/
+def nearInputHostFrameExpectations : Array WasmHostFrameExpectation := #[]
 
+/-- Only entrypoints with Borsh params keep the input prologue. -/
 def nearValueVaultInputHostFrameExpectations : Array WasmHostFrameExpectation := #[
   { functionName := "initialize", expectedOps := nearU64InputParamFrame "initial" 0 },
-  { functionName := "get_balance", expectedOps := nearInputRegisterFrame },
   { functionName := "deposit", expectedOps := nearU64InputParamFrame "amount" 0 },
   { functionName := "charge_fee", expectedOps := nearU64InputParamFrame "gross" 0 },
   {
     functionName := "charge_fee"
     expectedOps := nearU64ParamLoadFrame "fee_bps" 8
   },
-  { functionName := "get_net_value", expectedOps := nearInputRegisterFrame },
-  { functionName := "release", expectedOps := nearU64InputParamFrame "amount" 0 },
-  { functionName := "snapshot", expectedOps := nearInputRegisterFrame }
+  { functionName := "release", expectedOps := nearU64InputParamFrame "amount" 0 }
 ]
 
 def nearValueVaultContextHostFrameExpectations : Array WasmHostFrameExpectation := #[
@@ -625,41 +620,38 @@ def counterStorageWriteKeyValueFrameExpectations : Array WasmHostFrameExpectatio
   }
 ]
 
+/-- Packed scalar path: storage_read/write only happen inside pack ensure/flush
+with the shared `__pf_s` key (PACK_KEY_PTR = 42600, len 5). -/
+def valueVaultPackKeyPtr : Nat := ProofForge.Backend.WasmHost.Memory.PACK_KEY_PTR
+def valueVaultPackKeyLen : Nat := ProofForge.Backend.WasmHost.Memory.PACK_KEY_LEN
+def valueVaultPackBuf : Nat := ProofForge.Backend.WasmHost.Memory.PACK_BUF
+/-- ValueVault has 6 × U64 fields → 48-byte packed blob. -/
+def valueVaultPackSize : Nat := 48
+
 def valueVaultStorageReadKeyFrameExpectations : Array WasmHostFrameExpectation := #[
-  { functionName := "deposit", expectedOps := nearU64StorageReadKeyFrame 0 7 },
-  { functionName := "charge_fee", expectedOps := nearU64StorageReadKeyFrame 0 7 },
-  { functionName := "charge_fee", expectedOps := nearU64StorageReadKeyFrame 17 4 },
-  { functionName := "charge_fee", expectedOps := nearU64StorageReadKeyFrame 49 10 },
-  { functionName := "release", expectedOps := nearU64StorageReadKeyFrame 0 7 },
-  { functionName := "release", expectedOps := nearU64StorageReadKeyFrame 8 8 },
-  { functionName := "release", expectedOps := nearU64StorageReadKeyFrame 49 10 },
-  { functionName := "snapshot", expectedOps := nearU64StorageReadKeyFrame 0 7 },
-  { functionName := "snapshot", expectedOps := nearU64StorageReadKeyFrame 8 8 },
-  { functionName := "snapshot", expectedOps := nearU64StorageReadKeyFrame 17 4 },
-  { functionName := "get_balance", expectedOps := nearU64StorageReadKeyFrame 0 7 },
-  { functionName := "get_net_value", expectedOps := nearU64StorageReadKeyFrame 0 7 },
-  { functionName := "get_net_value", expectedOps := nearU64StorageReadKeyFrame 17 4 }
+  {
+    functionName := "__pf_pack_ensure"
+    expectedOps := #[
+      .i64Const valueVaultPackKeyLen,
+      .i64Const valueVaultPackKeyPtr,
+      .i64Const 0,
+      .call "storage_read"
+    ]
+  }
 ]
 
 def valueVaultStorageWriteKeyValueFrameExpectations : Array WasmHostFrameExpectation := #[
-  { functionName := "initialize", expectedOps := nearU64StorageWriteLocalFrame 0 7 "initial" },
-  { functionName := "initialize", expectedOps := nearU64StorageWriteLiteralFrame 8 8 0 },
-  { functionName := "initialize", expectedOps := nearU64StorageWriteLiteralFrame 17 4 0 },
-  { functionName := "initialize", expectedOps := nearU64StorageWriteLocalFrame 22 10 "initial" },
-  { functionName := "initialize", expectedOps := nearU64StorageWriteLocalFrame 33 15 "checkpoint" },
-  { functionName := "initialize", expectedOps := nearU64StorageWriteLiteralFrame 49 10 1 },
-  { functionName := "deposit", expectedOps := nearU64StorageWriteLocalFrame 0 7 "next" },
-  { functionName := "deposit", expectedOps := nearU64StorageWriteLocalFrame 22 10 "amount" },
-  { functionName := "deposit", expectedOps := nearU64StorageWriteLocalFrame 49 10 "next_ops" },
-  { functionName := "charge_fee", expectedOps := nearU64StorageWriteLocalFrame 0 7 "next" },
-  { functionName := "charge_fee", expectedOps := nearU64StorageWriteLocalFrame 17 4 "next_fees" },
-  { functionName := "charge_fee", expectedOps := nearU64StorageWriteLocalFrame 22 10 "net" },
-  { functionName := "charge_fee", expectedOps := nearU64StorageWriteLocalFrame 49 10 "next_ops" },
-  { functionName := "release", expectedOps := nearU64StorageWriteLocalFrame 0 7 "next" },
-  { functionName := "release", expectedOps := nearU64StorageWriteLocalFrame 8 8 "released_next" },
-  { functionName := "release", expectedOps := nearU64StorageWriteLocalFrame 22 10 "amount" },
-  { functionName := "release", expectedOps := nearU64StorageWriteLocalFrame 49 10 "next_ops" },
-  { functionName := "snapshot", expectedOps := nearU64StorageWriteLocalFrame 33 15 "checkpoint" }
+  {
+    functionName := "__pf_pack_flush"
+    expectedOps := #[
+      .i64Const valueVaultPackKeyLen,
+      .i64Const valueVaultPackKeyPtr,
+      .i64Const valueVaultPackSize,
+      .i64Const valueVaultPackBuf,
+      .i64Const 0,
+      .call "storage_write"
+    ]
+  }
 ]
 
 def wasmHostFramesOk
@@ -706,14 +698,12 @@ def counterArtifactSurfaceObligation : ArtifactSurfaceObligation := {
   name := "Counter.EmitWat.artifact-surface"
   module := ProofForge.IR.Examples.Counter.module
   requiredImports := #[
-    "input",
     "read_register",
     "storage_read",
     "storage_write",
     "value_return"
   ]
   requiredImportSignatures := #[
-    { functionName := "input", params := #[.i64] },
     { functionName := "read_register", params := #[.i64, .i64] },
     { functionName := "storage_read", params := #[.i64, .i64, .i64], results := #[.i64] },
     {
@@ -724,9 +714,9 @@ def counterArtifactSurfaceObligation : ArtifactSurfaceObligation := {
     { functionName := "value_return", params := #[.i64, .i64] }
   ]
   requiredExports := #[
-    { exportName := "initialize", expectedCalls := #["input", "read_register", "__pf_write_u64"] },
-    { exportName := "increment", expectedCalls := #["input", "read_register", "__pf_read_u64", "__pf_write_u64"] },
-    { exportName := "get", expectedCalls := #["input", "read_register", "__pf_read_u64", "__pf_return_u64"] }
+    { exportName := "initialize", expectedCalls := #["__pf_write_u64"] },
+    { exportName := "increment", expectedCalls := #["__pf_read_u64", "__pf_write_u64"] },
+    { exportName := "get", expectedCalls := #["__pf_read_u64", "__pf_return_u64"] }
   ]
   requiredFunctions := #[
     { functionName := "__pf_read_u64", expectedCalls := #["storage_read", "read_register"] },
@@ -828,83 +818,89 @@ def valueVaultArtifactSurfaceObligation : ArtifactSurfaceObligation := {
   requiredExports := #[
     {
       exportName := "initialize"
+      -- Write-only body → `__pf_pack_begin_fresh` (no cold storage_read).
       expectedCalls := #[
-        "input", "read_register", "block_index", "__pf_write_u64",
-        "__pf_write_u64", "__pf_write_u64", "__pf_write_u64",
-        "__pf_write_u64", "__pf_write_u64", "__pf_evt_log"
+        "__pf_pack_begin_fresh", "input", "read_register", "block_index",
+        "__pf_pack_write_u64", "__pf_evt_log", "__pf_pack_flush"
       ]
     },
     {
       exportName := "deposit"
       expectedCalls := #[
-        "input", "read_register", "__pf_read_u64", "__pf_read_u64",
-        "__pf_write_u64", "__pf_write_u64", "__pf_write_u64",
-        "__pf_evt_log"
+        "__pf_pack_begin", "input", "read_register",
+        "__pf_pack_read_u64", "__pf_pack_write_u64",
+        "__pf_evt_log", "__pf_pack_flush"
       ]
     },
     {
       exportName := "charge_fee"
       expectedCalls := #[
-        "input", "read_register", "__pf_read_u64", "__pf_read_u64",
-        "__pf_read_u64", "__pf_write_u64", "__pf_write_u64",
-        "__pf_write_u64", "__pf_write_u64", "__pf_evt_log"
+        "__pf_pack_begin", "input", "read_register",
+        "__pf_pack_read_u64", "__pf_pack_write_u64",
+        "__pf_evt_log", "__pf_pack_flush"
       ]
     },
     {
       exportName := "release"
       expectedCalls := #[
-        "input", "read_register", "__pf_read_u64", "__pf_read_u64",
-        "__pf_read_u64", "__pf_write_u64", "__pf_write_u64",
-        "__pf_write_u64", "__pf_write_u64", "__pf_evt_log"
+        "__pf_pack_begin", "input", "read_register",
+        "__pf_pack_read_u64", "__pf_pack_write_u64",
+        "__pf_evt_log", "__pf_pack_flush"
       ]
     },
     {
       exportName := "snapshot"
+      -- Zero-arg query: no input prologue.
       expectedCalls := #[
-        "input", "read_register", "block_index", "__pf_read_u64",
-        "__pf_read_u64", "__pf_read_u64", "__pf_write_u64",
-        "__pf_evt_log", "__pf_return_u64"
+        "__pf_pack_begin", "block_index",
+        "__pf_pack_read_u64", "__pf_pack_write_u64",
+        "__pf_evt_log", "__pf_return_u64", "__pf_pack_flush"
       ]
     },
     {
       exportName := "get_balance"
-      expectedCalls := #["input", "read_register", "__pf_read_u64", "__pf_return_u64"]
+      expectedCalls := #[
+        "__pf_pack_begin",
+        "__pf_pack_read_u64", "__pf_return_u64", "__pf_pack_flush"
+      ]
     },
     {
       exportName := "get_net_value"
       expectedCalls := #[
-        "input", "read_register", "__pf_read_u64", "__pf_read_u64",
-        "__pf_return_u64"
+        "__pf_pack_begin",
+        "__pf_pack_read_u64", "__pf_return_u64", "__pf_pack_flush"
       ]
     }
   ]
   requiredFunctions := #[
-    { functionName := "__pf_read_u64", expectedCalls := #["storage_read", "read_register"] },
-    { functionName := "__pf_write_u64", expectedCalls := #["storage_write"] },
+    { functionName := "__pf_pack_ensure", expectedCalls := #["storage_read"] },
+    { functionName := "__pf_pack_flush", expectedCalls := #["storage_write"] },
+    { functionName := "__pf_pack_write_u64", expectedCalls := #["__pf_pack_ensure"] },
+    { functionName := "__pf_pack_read_u64", expectedCalls := #["__pf_pack_ensure"] },
     { functionName := "__pf_return_u64", expectedCalls := #["value_return"] },
     { functionName := "__pf_evt_log", expectedCalls := #["log_utf8"] }
   ]
   requiredHostFrames :=
-    nearU64HostFrameExpectations ++
-      nearValueVaultInputHostFrameExpectations ++
+    nearValueVaultInputHostFrameExpectations ++
       nearValueVaultContextHostFrameExpectations ++
       valueVaultStorageReadKeyFrameExpectations ++
-      valueVaultStorageWriteKeyValueFrameExpectations |>.push {
-      functionName := ProofForge.Backend.WasmHost.EmitWat.evtLogName
-      expectedOps := nearEventLogUtf8Frame
-    }
+      valueVaultStorageWriteKeyValueFrameExpectations ++
+      #[{
+          functionName := ProofForge.Backend.WasmHost.Types.returnU64Name
+          expectedOps := nearU64ValueReturnFrame
+        },
+        {
+          functionName := ProofForge.Backend.WasmHost.EmitWat.evtLogName
+          expectedOps := nearEventLogUtf8Frame
+        }]
   requiredDataSegments := #[
-    (0, "balance"),
-    (8, "released"),
-    (17, "fees"),
-    (22, "last_value"),
-    (33, "last_checkpoint"),
-    (49, "operations"),
-    (43000, "VaultInitialized"),
-    (43036, "ValueDeposited"),
-    (43077, "ValueCharged"),
-    (43104, "ValueReleased"),
-    (43127, "ValueSnapshot")
+    (42600, "__pf_s"),
+    -- Composite JSON event headers (one putstr per event; see Layout.eventHeaderPoolString)
+    (43000, "{\"event\":\"VaultInitialized\""),
+    (43055, "{\"event\":\"ValueDeposited\""),
+    (43119, "{\"event\":\"ValueCharged\""),
+    (43169, "{\"event\":\"ValueReleased\""),
+    (43207, "{\"event\":\"ValueSnapshot\"")
   ]
   requiredMemoryRegions := nearHostBufferMemoryRegions
 }
