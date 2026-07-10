@@ -1228,6 +1228,20 @@ benchmark-schema:
 benchmark-native-counter:
     scripts/benchmarks/native-counter-smoke.sh
 
+# B1.3: ProofForge Counter triad runner → build/benchmarks/bm-counter_*_proofforge.json
+benchmark-counter-pf:
+    scripts/benchmarks/counter-pf-runner.sh
+
+# Alias target for the PF side of the Counter matrix (native side lands in B1.4).
+benchmark-counter: benchmark-counter-pf
+
+# B1.3: ProofForge Counter benchmark runner (NEAR fuel + EVM/Solana artifact sizes).
+benchmark-counter-pf:
+    scripts/benchmarks/counter-pf-runner.sh
+
+# B1.2+B1.3: native corpus validation + PF runner.
+benchmark-counter: benchmark-native-counter benchmark-counter-pf
+
 # Run the unified RFC 0007 testkit scenario suite.
 testkit:
     CAST="${CAST:-$HOME/.foundry/bin/cast}" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run

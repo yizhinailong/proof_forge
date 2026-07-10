@@ -11,7 +11,8 @@ ProofForge vs native comparison corpus and runners.
 - **B1.0** layout + spec doc: done.
 - **B1.1** result schema + checker: done (`schema/`, `just benchmark-schema`).
 - **B1.2** native Counter corpus: done (`native/`, `just benchmark-native-counter`).
-- **B1.3+** `just benchmark-counter` runners: pending.
+- **B1.3** PF Counter runner: done (`just benchmark-counter`).
+- **B1.4+** native runner + behavior gate: pending.
 
 ## Schema
 
