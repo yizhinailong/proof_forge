@@ -599,7 +599,7 @@ The plan is **complete** when:
 | Wave | State | Evidence |
 |------|-------|----------|
 | S0 | done: verified@81b4c373; S0.1 merge + S0.2 product green + S0.3 claim + S0.4 INDEX + S0.5 inventory | just product green; origin 0 behind; branch inventory written |
-| N1 | pending (next after S0 commit) | |
+| N1 | in_progress: N1.1 inventory done; next N1.2 aggregate ABI / N1.3 TokenSpec path | product×wasm-near probe + sdk-ecosystem-gaps NEAR section |
 | E1 | pending | |
 | L1 | pending | |
 | B1 | in_progress: B1.0 skeleton done; next B1.1 schema | `docs/benchmarks.md`, `benchmarks/README.md` |
