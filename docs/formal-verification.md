@@ -244,6 +244,42 @@ Next, turn that concrete module into an authoring pattern:
   artifacts cannot drift from the proved scenario without a theorem/gate
   failure.
 
+## Fragment inventory (F1.1)
+
+This table lists the IR constructs used by each Product matrix source and
+whether they are inside the **supported fragment** (C-proof), the **covered
+C-diff traces**, or **outside both**. It is the SOT for F1.2 (grow C-diff with
+N1/E1) and F1.3 (push simulation lemmas).
+
+| Product source | Key IR constructs | C-proof fragment | C-diff traces | Outside both |
+|---|---|---|---|---|
+| `Counter` | scalar u64 state, `entry`/`query`, `let`, `+!` | ✅ `.counter` (all inputs, `counter-model`) | ✅ Counter scalar/event (EVM Yul, Wasm, sBPF) | — |
+| `ValueVault` | 6× scalar u64 state, `entry`/`query`, `let`, `+!`/`-!`/`*!`/`/!`, `emit`, `checkpointId` | ❌ | ✅ scalar/event slice (Wasm, sBPF) | `checkpointId` context read; full arithmetic chain |
+| `Ownable` | scalar u64 (owner), `entry`/`query`, caller auth (`signer_account_id`) | ❌ | ❌ | caller-auth host import; ownership transfer |
+| `RemoteCall` | scalar u64 state, `entry`, `crosscall.invoke`, `remoteCallRef` | ❌ | ❌ (IR stub, not peer) | crosscall materialize (CALL/CPI/Promise) |
+| `ArrayExample` | `array` state, `query`, `for`, u64 indexing | ❌ | ✅ fixed-array storage probe (Wasm, sBPF) | dynamic array bounds; full `for` loop |
+| `StakingVault` | `map` state, scalar state, `entry`/`query`, `emit`, `require`, `let` | ❌ | ❌ | map iteration; `require` assertion lowering |
+| `RoleGatedToken` | `map` state, `bool` state, `entry`/`query`, `guard`, `emit`, `require` | ❌ | ✅ u64-map storage probe (Wasm, sBPF) | `guard` DSL lowering; bool state; role map |
+
+**Summary:**
+
+- **C-proof:** only `Counter` (1/7 product sources).
+- **C-diff:** `Counter` + `ValueVault` scalar/event + focused `ArrayExample`/
+  `RoleGatedToken` storage probes (4/7 partially covered).
+- **Outside both:** `Ownable` (caller auth), `RemoteCall` (crosscall), and
+  richer constructs from `StakingVault`/`RoleGatedToken` (map iteration, `guard`,
+  `require` assertion lowering).
+
+**F1.2 growth targets** (add C-diff trace obligations as new lowering paths land):
+- `Ownable` caller-auth trace (after N1/E1 signer surface stabilizes).
+- `StakingVault` map + `require` assertion trace.
+- `RoleGatedToken` `guard` + bool state trace.
+
+**F1.3 growth targets** (push universal/fuel-indexed lemmas on existing fragment):
+- Extend `CounterUniversal` toward `ValueVault` arithmetic chain (next closest
+  to a proof fragment, already has C-diff traces).
+- Keep crosscall as IR stub in C-proof; do not include materialize paths.
+
 ## Non-goals
 
 - No proofs about `solc`, `wat2wasm`, `sbpf`, `leo`, or chain runtimes; those

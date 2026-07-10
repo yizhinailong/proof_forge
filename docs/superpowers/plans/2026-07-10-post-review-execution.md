@@ -515,7 +515,7 @@ rejects direct path and Leo Road 1 is reinforced with clear reasons.
 
 | ID | Task | Work | Acceptance | Size | Status |
 |----|------|------|------------|------|--------|
-| **F1.1** | Fragment inventory | List IR nodes used by Product matrix but outside `supportedFragment` / covered traces | Table in `docs/formal-verification.md` or Tests | S | pending |
+| **F1.1** | Fragment inventory | List IR nodes used by Product matrix but outside `supportedFragment` / covered traces | Table in `docs/formal-verification.md` or Tests | S | done: fragment inventory table in formal-verification.md § Fragment inventory; 1/7 in C-proof, 4/7 partial C-diff |
 | **F1.2** | Grow C-diff with N1/E1 | For each new lower path, add fixture trace obligation (pointwise OK) | New `*_ir_observable_trace_ok` or host surface pin | M each | pending |
 | **F1.3** | Counter/ValueVault simulation lemmas | Push one more universal or fuel-indexed lemma on existing fragment — not new chains | `just` FV smokes green; formal-verification.md tier table updated | L | pending |
 | **F1.4** | Crosscall boundary lock | Keep IR stub tests + materialize tests separate; document U2 in any new remote work | `just ir-crosscall-stub` + `just crosscall-materialize` green | S | pending |
