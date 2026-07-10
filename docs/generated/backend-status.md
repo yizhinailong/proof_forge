@@ -8,13 +8,13 @@ registry membership only (PF-P0-02).
 |---|---|---|---|---|---|---|
 | `evm` | `experimental` | `contract-source`, `fixture`, `learn`, `token-spec` | `build`, `emit`, `check` | `intermediate`, `final-deployable` | `package` | portable IR Counter/ValueVault + TokenSpec; Yul intermediate, solc bytecode final |
 | `wasm-near` | `experimental` | `contract-source`, `fixture`, `learn`, `token-spec` | `build`, `emit`, `check` | `intermediate`, `final-deployable` | `package` | portable IR → EmitWat WAT intermediate → wat2wasm Wasm final; NEP-141 stdlib |
-| `wasm-cosmwasm` | `spike` | `fixture` | `build`, `emit`, `check` | `intermediate`, `sourcegen` | `capability` | Counter fixture EmitWat spike; source input fail-closed |
+| `wasm-cosmwasm` | `counter-mvp` | `contract-source`, `fixture` | `build`, `emit`, `check` | `intermediate`, `final-deployable` | `capability` | Counter MVP (PF-P3-02 six-gate): contract_source via EmitWat + HostBridge.cosmWasm; offline-host lifecycle; execute_msg remains stub; cosmwasm-check golden via fixture emit |
 | `solana-sbpf-asm` | `experimental` | `contract-source`, `fixture`, `learn`, `token-spec` | `build`, `emit`, `check` | `intermediate`, `final-deployable` | `package` | portable IR → sBPF assembly intermediate → sbpf ELF final; CPI/PDA extensions |
-| `wasm-cloudflare-workers` | `research` | `fixture` | `emit` | `sourcegen` | `none` | Counter fixture TypeScript Worker sourcegen; not Wasm despite artifactKind |
-| `wasm-stellar-soroban` | `spike` | `contract-source` | `build`, `check` | `intermediate`, `final-deployable` | `capability` | Counter MVP (PF-P3-02 six-gate): contract_source via EmitWat + HostBridge.soroban; offline-host lifecycle; TokenSpec unsupported; auth/TTL/Stellar CLI follow-on |
-| `move-aptos` | `spike` | `fixture` | `build`, `emit`, `check` | `intermediate`, `sourcegen` | `capability` | Counter Move package sourcegen spike; source input fail-closed |
+| `wasm-cloudflare-workers` | `counter-mvp` | `fixture` | `emit` | `sourcegen` | `capability` | Counter MVP (PF-P3-02 six-gate): fixture counter → TypeScript Worker; wrangler toolchain; product contract_source fail-closed; not Wasm binary |
+| `wasm-stellar-soroban` | `counter-mvp` | `contract-source` | `build`, `check` | `intermediate`, `final-deployable` | `capability` | Counter MVP (PF-P3-02 six-gate): contract_source via EmitWat + HostBridge.soroban; offline-host lifecycle; TokenSpec unsupported; auth/TTL/Stellar CLI follow-on |
+| `move-aptos` | `counter-mvp` | `fixture` | `build`, `emit`, `check` | `sourcegen`, `final-deployable` | `package` | Counter MVP (PF-P3-02 six-gate): fixture counter → Move package; aptos move compile/test; product contract_source fail-closed |
 | `move-sui` | `counter-mvp` | `fixture` | `build`, `emit`, `check` | `sourcegen` | `capability` | Counter MVP Move package; scalar storage + assertions only |
-| `psy-dpn` | `spike` | `fixture` | `build`, `emit`, `check` | `intermediate`, `sourcegen` | `capability` | restricted IR → .psy intermediate → dargo circuit JSON; fixture/sourcegen lane |
-| `aleo-leo` | `research` | `fixture` | `emit` | `sourcegen` | `none` | Counter/PureMath Leo sourcegen research spike; fixture emit |
+| `psy-dpn` | `spike` | `fixture` | `build`, `emit`, `check` | `intermediate`, `sourcegen` | `capability` | PF-P3-02: fixture Counter .psy + diagnostics; dargo final execute when installed; product source fail-closed |
+| `aleo-leo` | `counter-mvp` | `fixture` | `emit`, `check` | `sourcegen`, `final-deployable` | `package` | Counter MVP (PF-P3-02 six-gate): fixture counter → Leo package; leo build/test; product source fail-closed |
 
 _schemaVersion: 1_

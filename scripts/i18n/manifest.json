@@ -3,7 +3,7 @@
     "sha256": "61898f286c477a10c9ce7ab776cc53b1704264b58841ddd354c13d6c149fb9e8",
     "zh": "docs/zh/README-root.zh.md",
     "model": "manual-zh",
-    "note": "manually synced for PF-P1-02 (backend-status generated table pointer) — re-synced for aleo-leo ALU feature merge"
+    "note": "synced for contiguous Cloudflare status and Aleo ALU merge"
   },
   "CONTRIBUTING.md": {
     "sha256": "b47c1fcaf0d003718e5487575f74486b403ed4bbfb88dc7fc1891cbe23cc7b64",

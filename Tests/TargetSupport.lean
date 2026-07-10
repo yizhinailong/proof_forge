@@ -34,7 +34,7 @@ def main : IO UInt32 := do
     require (profile.support.outputStages.contains .finalDeployable)
       s!"`{id}` must advertise final-deployable output"
 
-  for id in #["wasm-cosmwasm", "move-aptos", "psy-dpn", "aleo-leo", "wasm-cloudflare-workers"] do
+  for id in #["move-aptos", "psy-dpn", "aleo-leo", "wasm-cloudflare-workers"] do
     let profile ← requireSome (find? id) s!"missing secondary target `{id}`"
     require (!profile.support.allowsInput .contractSource)
       s!"`{id}` must not advertise contract-source (fixture/research lane)"
@@ -44,6 +44,17 @@ def main : IO UInt32 := do
   let sui ← requireSome (find? "move-sui") "missing move-sui"
   require (sui.support.maturity == .counterMvp) "move-sui maturity is counter-mvp"
   require (!sui.support.allowsInput .contractSource) "move-sui Counter MVP is fixture lane"
+
+  -- PF-P3-02: CosmWasm Counter MVP advertises contract_source (HostBridge.cosmWasm),
+  -- same product surface class as Soroban EmitWat adapter (not fixture-only).
+  let cosmwasm ← requireSome (find? "wasm-cosmwasm") "missing wasm-cosmwasm"
+  require (cosmwasm.support.maturity == .counterMvp) "wasm-cosmwasm maturity is counter-mvp"
+  require (cosmwasm.support.allowsInput .contractSource)
+    "wasm-cosmwasm advertises contract_source (EmitWat host adapter)"
+  require (cosmwasm.support.allowsCommand .build)
+    "wasm-cosmwasm Counter MVP advertises build"
+  require (!cosmwasm.support.isFixtureOnly)
+    "wasm-cosmwasm is not fixture-only after PF-P3-02"
 
   let soroban ← requireSome (find? "wasm-stellar-soroban") "missing soroban"
   require (soroban.support.allowsInput .contractSource)
