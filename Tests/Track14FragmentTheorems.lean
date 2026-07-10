@@ -74,8 +74,13 @@ open ProofForge.Backend.Refinement
 #check wasm_near_renamed_witness_canonicalizes_to_proved
 #check wasm_near_renamed_witness_canonical_lowering_total
 
+-- PF-P3-01: finite name-family lowering-total (beyond single Counter constant).
+#check evm_counter_shape_name_family_lowerable_total
+#check evmCounterShapeNameFamily
+#check evm_shape_name_VaultCounter_lowerable_total
+
 end ProofForge.Tests.Track14FragmentTheorems
 
 def main : IO UInt32 := do
-  IO.println "track14-fragment-theorems-smoke: triad proven⊂lowerable + renamed/canonical-name witnesses + capability⇒lowerable"
+  IO.println "track14-fragment-theorems-smoke: triad proven⊂lowerable + renamed/canonical + finite name-family lowering-total"
   return 0
