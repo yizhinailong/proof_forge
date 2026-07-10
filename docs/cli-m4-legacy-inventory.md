@@ -1,7 +1,7 @@
 # CLI M4 legacy inventory (U6.2)
 
-Status: **Inventory only — do not delete aliases yet**  
-Date: 2026-07-09  
+Status: **Inventory refreshed 2026-07-10 (P1.1) — do not delete aliases yet**  
+Date: 2026-07-10  
 Related: RFC 0009 / D-039, [platform-gaps](platform-gaps-2026-07.md) Gap 1,
 `just cli-target-first`, `ProofForge/Cli/EmitMode.lean`,
 `ProofForge/Cli/LegacyArgs.lean`, `ProofForge/Cli/TargetFirst.lean`.
@@ -22,8 +22,8 @@ executable callers and fails on direct legacy flags.
 
 | Surface | Count / note |
 |---------|----------------|
-| `EmitMode` constructors | **157** (`ProofForge/Cli/EmitMode.lean`) |
-| `LegacyArgs` flag string literals | **~172** distinct `--…` tokens |
+| `EmitMode` constructors | **155** (`ProofForge/Cli/EmitMode.lean`) |
+| `LegacyArgs` flag string literals | **175** distinct `--…` tokens |
 | Target-first core | `ProofForge/Cli/TargetFirst.lean` (~414 lines) |
 | Migration gate | `scripts/cli/check-target-first-migration.py` + `Tests/CliTargetFirst.lean` |
 

@@ -498,7 +498,7 @@ rejects direct path and Leo Road 1 is reinforced with clear reasons.
 
 | ID | Task | Work | Acceptance | Size | Status |
 |----|------|------|------------|------|--------|
-| **P1.1** | CLI M4 inventory refresh | Update `docs/cli-m4-legacy-inventory.md` + deletion checklist against current `EmitMode` / aliases | Inventory matches code; no stale flags | S | pending |
+| **P1.1** | CLI M4 inventory refresh | Update `docs/cli-m4-legacy-inventory.md` + deletion checklist against current `EmitMode` / aliases | Inventory matches code; no stale flags | S | done: refreshed 2026-07-10; 155 EmitMode constructors, 175 LegacyArgs flags |
 | **P1.2** | CLI M4 deletion (compat window) | Remove legacy aliases only after checklist + `just cli-target-first` + docs/i18n | `EmitMode` surface reduced or gone; target-first only in scripts | L | pending |
 | **P1.3** | Versioning RFC (WS30) | Short RFC: IR semver rules, artifact schema tolerance, capability-id append-only, SDK deprecation | RFC merged under `docs/rfcs/`; decisions entry | M | done: RFC 0012 Accepted (D-042); M1+M2 done; just versioning-policy green |
 | **P1.4** | Upgrade/signing RFC slice (WS32) | Minimal `upgradePolicy` model for EVM immutability/proxy, Solana upgrade authority, NEAR redeploy | Product examples either comply or fail closed with policy id in diagnostic | M | pending |
