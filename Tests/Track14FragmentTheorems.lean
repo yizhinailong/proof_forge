@@ -55,6 +55,9 @@ open ProofForge.Backend.Refinement
 
 -- PF-P3-01: structural proved ⇒ lowerable is not limited to Counter.module.
 #check isCounterModule_implies_shape_lowerable
+#check isCounterShapeLowerable_implies_isCounterModule_with_canonical_name
+#check isCounterShapeLowerable_independent_of_name
+#check withCanonicalCounterName
 
 -- PF-P3-01: checked lowerable ∧ ¬proved witnesses (renamed Counter shape).
 #check evm_renamed_counter_lowerable_not_proved
@@ -64,9 +67,11 @@ open ProofForge.Backend.Refinement
 #check solana_renamed_counter_lowering_total
 #check wasm_near_renamed_counter_lowering_total
 #check evm_lowerable_implies_lowering_total_witnesses
+#check evm_renamed_witness_canonicalizes_to_proved
+#check evm_renamed_witness_canonical_lowering_total
 
 end ProofForge.Tests.Track14FragmentTheorems
 
 def main : IO UInt32 := do
-  IO.println "track14-fragment-theorems-smoke: EVM/Solana/Wasm proven⊂lowerable (structural), Counter+renamed witnesses, capability⇒lowerable"
+  IO.println "track14-fragment-theorems-smoke: EVM/Solana/Wasm proven⊂lowerable (structural), Counter+renamed+canonical-name witnesses, capability⇒lowerable"
   return 0
