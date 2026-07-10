@@ -598,8 +598,8 @@ The plan is **complete** when:
 
 | Wave | State | Evidence |
 |------|-------|----------|
-| S0 | in_progress: S0.1+S0.2 done; next S0.3 claim audit | merge@14573f5a + product green @ c771cf1c; origin integrated (0 behind) |
-| N1 | pending | |
+| S0 | done: verified@pending-s0-commit; S0.1 merge + S0.2 product green + S0.3 claim + S0.4 INDEX + S0.5 inventory | just product green; origin 0 behind; branch inventory written |
+| N1 | pending (next after S0 commit) | |
 | E1 | pending | |
 | L1 | pending | |
 | B1 | in_progress: B1.0 skeleton done; next B1.1 schema | `docs/benchmarks.md`, `benchmarks/README.md` |
