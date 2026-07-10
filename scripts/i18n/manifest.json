@@ -1,9 +1,9 @@
 {
   "README.md": {
-    "sha256": "65f7119d9da55ed499077efd65f7fc8d5ef263e4997c9d32ad31df2139ea8267",
+    "sha256": "ff7377a0163c00968b9793659f27ba30509e473f709c6d9f9053789ccc22ff03",
     "zh": "docs/zh/README-root.zh.md",
     "model": "manual-zh",
-    "note": "manually synced for PF-P1-02 (backend-status generated table pointer)"
+    "note": "synced after Backend Status contiguous cloudflare row (doc-sync P1)"
   },
   "CONTRIBUTING.md": {
     "sha256": "b47c1fcaf0d003718e5487575f74486b403ed4bbfb88dc7fc1891cbe23cc7b64",
