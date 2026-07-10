@@ -136,16 +136,16 @@ object "EvmPackedStorageProbe" {
     }
     function f_EvmPackedStorageProbe_packed_assign_op() -> result {
       sstore(0, or(and(sload(0), not(shl(240, 255))), shl(240, 10)))
-      sstore(0, or(and(sload(0), not(shl(240, 255))), shl(240, __pf_checked_add(and(shr(240, sload(0)), 255), 5))))
+      sstore(0, or(and(sload(0), not(shl(240, 255))), shl(240, add(and(shr(240, sload(0)), 255), 5))))
       if iszero(eq(and(shr(240, sload(0)), 255), 15)) {
         revert(0, 0)
       }
-      sstore(0, or(and(sload(0), not(shl(240, 255))), shl(240, __pf_checked_mul(and(shr(240, sload(0)), 255), 2))))
+      sstore(0, or(and(sload(0), not(shl(240, 255))), shl(240, mul(and(shr(240, sload(0)), 255), 2))))
       if iszero(eq(and(shr(240, sload(0)), 255), 30)) {
         revert(0, 0)
       }
       sstore(0, or(and(sload(0), not(shl(208, 4294967295))), shl(208, 42)))
-      sstore(0, or(and(sload(0), not(shl(208, 4294967295))), shl(208, __pf_checked_add(and(shr(208, sload(0)), 4294967295), 8))))
+      sstore(0, or(and(sload(0), not(shl(208, 4294967295))), shl(208, add(and(shr(208, sload(0)), 4294967295), 8))))
       if iszero(eq(and(shr(208, sload(0)), 4294967295), 50)) {
         revert(0, 0)
       }
