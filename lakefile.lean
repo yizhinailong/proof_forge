@@ -7,6 +7,12 @@ package «proof-forge» where
 require evm_semantics from git
   "https://github.com/powdr-labs/evm-semantics.git"@"ae13dbc506158f9d0c7e05634636b17e2bccf850"
 
+/-- Opt-in Solana formal lane dependency (used by `SolanaRefinement` only).
+Mirrors the powdr pin: always declared so Lake can resolve the target, while
+default `ProofForge` roots do not import it. -/
+require solanalib from git
+  "https://github.com/solana-foundation/leanprover-solanalib.git" @ "6c115ef1ef6a0cde8dbd6fd875b7dc87d60939ec"
+
 lean_lib ProofForge where
   roots := #[
     `Examples,
@@ -22,6 +28,8 @@ lean_lib ProofForge where
     `ProofForge.Backend.Solana.ValueVaultSbpfExec,
     `ProofForge.Backend.Solana.CounterSbpfExec,
     `ProofForge.Backend.Solana.CounterSbpfRefinement,
+    `ProofForge.Backend.Solana.BpfEncode,
+    `ProofForge.Backend.Solana.LabeledSbpf,
     `ProofForge.Compiler.Yul.AST,
     `ProofForge.Compiler.Yul.Printer,
     `ProofForge.Compiler.Wasm.AST,
@@ -39,6 +47,18 @@ lean_lib EvmRefinement where
     `EvmRefinement.PowdrExec,
     `EvmRefinement.PowdrExecSmoke,
     `EvmRefinement.CounterRefinement
+  ]
+
+/-- Opt-in Solana formal lane: solanalib sBPF ISA + CompileCorrect pipeline.
+Imports solanalib the same way `EvmRefinement` imports powdr. Default
+`ProofForge` / CLI roots do not import these modules. -/
+lean_lib SolanaRefinement where
+  roots := #[
+    `SolanaRefinement.SolanalibAdapter,
+    `SolanaRefinement.LabeledToSolanalib,
+    `SolanaRefinement.HostBridge,
+    `SolanaRefinement.CompileCorrect,
+    `SolanaRefinement.CompileCorrectSmoke
   ]
 
 @[default_target]
