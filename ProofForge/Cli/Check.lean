@@ -201,9 +201,11 @@ def checkFixtureCapabilities (profile : ProofForge.Target.TargetProfile) (fixtur
         validation := pushValidation report.validation "capabilities" "failed"
       }
 
-/-- Fixture-only Spike/Research targets: source check must fail closed (PF-P0-01/02). -/
+/-- Fixture-only Spike/Research targets: source check must fail closed (PF-P0-01/02).
+
+PF-P3-02: `wasm-cosmwasm` is Counter MVP with contract_source (same class as
+Soroban EmitWat adapter) and is intentionally *not* fixture-only. -/
 def isFixtureOnlySourceTarget (targetId : String) : Bool :=
-  targetId == "wasm-cosmwasm" ||
   targetId == "wasm-cloudflare-workers" ||
   targetId == "psy-dpn" ||
   targetId == "aleo-leo" ||
