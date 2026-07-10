@@ -1375,6 +1375,13 @@ mutual
           (← buildExprPlan module env fromAddr)
           (← buildExprPlan module env toAddr)
           (← buildExprPlan module env tokenId))
+    | .checkErc1155Received operator fromAddr toAddr id amount => do
+        .ok (.checkErc1155Received
+          (← buildExprPlan module env operator)
+          (← buildExprPlan module env fromAddr)
+          (← buildExprPlan module env toAddr)
+          (← buildExprPlan module env id)
+          (← buildExprPlan module env amount))
 
   partial def buildStatementPlan
       (module : Module)

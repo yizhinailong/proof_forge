@@ -206,6 +206,8 @@ mutual
         .error { message := "event.emit.indexed is a statement effect, not an expression" }
     | .checkErc721Received _ _ _ _ =>
         .error { message := "checkErc721Received is EVM-only (PF-P2-02); not an expression on Psy" }
+    | .checkErc1155Received _ _ _ _ _ =>
+        .error { message := "checkErc1155Received is EVM-only (PF-P2-02); not an expression on Psy" }
 
   /-- Build `Lean.Compiler.Psy.StoragePathSegment` array from portable IR path segments. -/
   partial def buildStoragePath (ctx : BuildContext) : Array IR.StoragePathSegment → Except LowerError (Array Lean.Compiler.Psy.StoragePathSegment)
@@ -328,6 +330,8 @@ def buildEffectStmt (ctx : BuildContext) : IR.Effect → Except LowerError Lean.
   | .eventEmitIndexed name _ _ => .error { message := s!"event `{name}` uses indexed fields, which are not supported by Psy IR v0" }
   | .checkErc721Received _ _ _ _ =>
       .error { message := "checkErc721Received is EVM-only (PF-P2-02); not supported by Psy IR v0" }
+  | .checkErc1155Received _ _ _ _ _ =>
+      .error { message := "checkErc1155Received is EVM-only (PF-P2-02); not supported by Psy IR v0" }
 
 mutual
   /-- Collect else-if chain from a nested if/else body.

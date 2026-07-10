@@ -366,6 +366,15 @@ def checkErc721Received (operator fromAddr toAddr tokenId : ProofForge.IR.Expr) 
   ProofForge.Contract.Builder.effect
     (.checkErc721Received operator fromAddr toAddr tokenId)
 
+/-- EVM ERC-1155 safe-transfer receiver check (PF-P2-02).
+
+If `to` has code, CALL `onERC1155Received(operator, from, id, value, "")`
+and require the magic `bytes4` return. EOAs skip the callback. -/
+def checkErc1155Received
+    (operator fromAddr toAddr id amount : ProofForge.IR.Expr) : EntryM Unit :=
+  ProofForge.Contract.Builder.effect
+    (.checkErc1155Received operator fromAddr toAddr id amount)
+
 /-- Portable cross-contract intent (family-shared). Backends materialize as
 EVM CALL / Solana CPI / NEAR `promise_create` / Soroban `invoke_contract` —
 authors never write CPI metas or Promise chains here. Prefer `declareRemote`

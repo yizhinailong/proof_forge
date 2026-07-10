@@ -342,6 +342,8 @@ mutual
         .error { message := "event.emit.indexed is a statement effect, not an expression" }
     | .checkErc721Received _ _ _ _ =>
         .error { message := "checkErc721Received is a statement effect, not an expression" }
+    | .checkErc1155Received _ _ _ _ _ =>
+        .error { message := "checkErc1155Received is a statement effect, not an expression" }
 end
 
 partial def inferEventFieldExprType (module : Module) (env : TypeEnv) : ProofForge.IR.Expr → Except LowerError ValueType
@@ -478,6 +480,12 @@ def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Excep
       discard <| inferExprType module env fromAddr
       discard <| inferExprType module env toAddr
       discard <| inferExprType module env tokenId
+  | .checkErc1155Received operator fromAddr toAddr id amount => do
+      discard <| inferExprType module env operator
+      discard <| inferExprType module env fromAddr
+      discard <| inferExprType module env toAddr
+      discard <| inferExprType module env id
+      discard <| inferExprType module env amount
 
 def requireMutableLocal (env : TypeEnv) (context name : String) : Except LowerError LocalBinding := do
   let some binding := findLocal? env name
@@ -870,6 +878,9 @@ mutual
     | .checkErc721Received a b c d =>
         exprUsesCheckedArithmetic a || exprUsesCheckedArithmetic b ||
           exprUsesCheckedArithmetic c || exprUsesCheckedArithmetic d
+    | .checkErc1155Received a b c d e =>
+        exprUsesCheckedArithmetic a || exprUsesCheckedArithmetic b ||
+          exprUsesCheckedArithmetic c || exprUsesCheckedArithmetic d || exprUsesCheckedArithmetic e
 
   partial def exprUsesCheckedArithmetic : Expr → Bool
     | .add _ _ _ | .sub _ _ _ | .mul _ _ _ => true

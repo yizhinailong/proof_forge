@@ -787,6 +787,14 @@ partial def evalEffect (state : State) (frame : Frame) : Effect → Except Strin
       let (s3, _) ← evalExpr s2 frame toAddr
       let (s4, _) ← evalExpr s3 frame tokenId
       .ok (s4, .unit)
+  | .checkErc1155Received operator fromAddr toAddr id amount => do
+      -- Abstract IR semantics: evaluate args for purity; receiver CALL is host-level.
+      let (s1, _) ← evalExpr state frame operator
+      let (s2, _) ← evalExpr s1 frame fromAddr
+      let (s3, _) ← evalExpr s2 frame toAddr
+      let (s4, _) ← evalExpr s3 frame id
+      let (s5, _) ← evalExpr s4 frame amount
+      .ok (s5, .unit)
 
 partial def evalEventFields (state : State) (frame : Frame) (fields : Array (String × Expr)) :
     Except String (State × Array Value) := do

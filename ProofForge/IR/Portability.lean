@@ -200,6 +200,14 @@ mutual
           classifyExpr s!"{path}.from" b ++
           classifyExpr s!"{path}.to" c ++
           classifyExpr s!"{path}.tokenId" d
+    | .checkErc1155Received a b c d e =>
+        -- EVM-only IERC1155Receiver check (PF-P2-02); not triad-portable.
+        #[finding path "checkErc1155Received" (.targetFamilyOnly .evm)] ++
+          classifyExpr s!"{path}.operator" a ++
+          classifyExpr s!"{path}.from" b ++
+          classifyExpr s!"{path}.to" c ++
+          classifyExpr s!"{path}.id" d ++
+          classifyExpr s!"{path}.amount" e
 
   partial def classifyPathSegment (path : String) : StoragePathSegment → Array PortabilityFinding
     | .field _ => #[]

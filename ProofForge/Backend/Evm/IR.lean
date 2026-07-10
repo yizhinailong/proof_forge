@@ -408,6 +408,9 @@ mutual
     | .checkErc721Received a b c d =>
         exprUsesCheckedArithmetic a || exprUsesCheckedArithmetic b ||
           exprUsesCheckedArithmetic c || exprUsesCheckedArithmetic d
+    | .checkErc1155Received a b c d e =>
+        exprUsesCheckedArithmetic a || exprUsesCheckedArithmetic b ||
+          exprUsesCheckedArithmetic c || exprUsesCheckedArithmetic d || exprUsesCheckedArithmetic e
 
   partial def exprUsesCheckedArithmetic : Expr → Bool
     | .add _ _ _ | .sub _ _ _ | .mul _ _ _ => true

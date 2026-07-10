@@ -273,6 +273,10 @@ mutual
     `onERC721Received(operator,from,tokenId,"")` and require magic return.
     Non-EVM targets must reject this effect honestly. -/
     | checkErc721Received (operator fromAddr toAddr tokenId : Expr)
+    /-- EVM ERC-1155 single-transfer receiver check (PF-P2-02): if `to` has
+    code, CALL `onERC1155Received(operator,from,id,value,"")` and require
+    magic return. Non-EVM targets must reject honestly. -/
+    | checkErc1155Received (operator fromAddr toAddr id amount : Expr)
     deriving Repr
 
   inductive StoragePathSegment where
@@ -474,6 +478,7 @@ def Effect.capability : Effect → ProofForge.Target.Capability
   | .eventEmit _ _ => .eventsEmit
   | .eventEmitIndexed _ _ _ => .eventsEmit
   | .checkErc721Received _ _ _ _ => .crosscallInvoke
+  | .checkErc1155Received _ _ _ _ _ => .crosscallInvoke
 
 mutual
   partial def Expr.capabilities : Expr → Array ProofForge.Target.Capability
@@ -589,6 +594,9 @@ mutual
           (dataFields.foldl (fun acc field => acc ++ field.snd.capabilities) #[])
     | .checkErc721Received operator fromAddr toAddr tokenId =>
         operator.capabilities ++ fromAddr.capabilities ++ toAddr.capabilities ++ tokenId.capabilities
+    | .checkErc1155Received operator fromAddr toAddr id amount =>
+        operator.capabilities ++ fromAddr.capabilities ++ toAddr.capabilities ++
+          id.capabilities ++ amount.capabilities
 
   partial def StoragePathSegment.capabilities : StoragePathSegment → Array ProofForge.Target.Capability
     | .field _ => #[.dataStruct]

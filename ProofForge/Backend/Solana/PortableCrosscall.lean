@@ -443,6 +443,11 @@ where
         collectFromExpr entrypoint
           (collectFromExpr entrypoint
             (collectFromExpr entrypoint (collectFromExpr entrypoint acc a) b) c) d
+    | .checkErc1155Received a b c d e =>
+        collectFromExpr entrypoint
+          (collectFromExpr entrypoint
+            (collectFromExpr entrypoint
+              (collectFromExpr entrypoint (collectFromExpr entrypoint acc a) b) c) d) e
     | .storageScalarRead _ | .storageStructFieldRead _ _ | .storageDynamicArrayPop _
     | .storageArrayStructFieldRead _ _ _ | .contextRead _ => acc
   collectFromPath (entrypoint : String) (acc : Array PortableCrosscallSite) :

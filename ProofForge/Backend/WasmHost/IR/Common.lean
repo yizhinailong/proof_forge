@@ -492,6 +492,8 @@ mutual
         .error { message := "event.emit.indexed is a statement effect, not an expression" }
     | .checkErc721Received _ _ _ _ =>
         .error { message := "checkErc721Received is EVM-only (PF-P2-02); not an expression on wasm-near" }
+    | .checkErc1155Received _ _ _ _ _ =>
+        .error { message := "checkErc1155Received is EVM-only (PF-P2-02); not an expression on wasm-near" }
 
   partial def inferStoragePathType (module : Module) (env : TypeEnv) (stateId : String) (path : Array StoragePathSegment) : Except LowerError ValueType := do
     let state ← stateDeclOf module stateId "storage path"
@@ -633,6 +635,8 @@ mutual
         .error { message := "indexed events are not supported by wasm-near Rust sourcegen v0" }
     | .checkErc721Received _ _ _ _ =>
         .error { message := "checkErc721Received is EVM-only (PF-P2-02); not supported by wasm-near" }
+    | .checkErc1155Received _ _ _ _ _ =>
+        .error { message := "checkErc1155Received is EVM-only (PF-P2-02); not supported by wasm-near" }
   partial def validateStatements (module : Module) (entrypoint : Entrypoint) (env : TypeEnv) (statements : Array Statement) : Except LowerError TypeEnv :=
     statements.foldlM (init := env) fun acc stmt =>
       validateStatementTypes module entrypoint acc stmt

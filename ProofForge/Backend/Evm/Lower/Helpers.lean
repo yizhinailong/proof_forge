@@ -238,6 +238,13 @@ mutual
         let s3 ← crosscallHelperSpecsFromExpr module env c
         let s4 ← crosscallHelperSpecsFromExpr module env d
         .ok (mergeCrosscallHelperSpecs (mergeCrosscallHelperSpecs s1 s2) (mergeCrosscallHelperSpecs s3 s4))
+    | .checkErc1155Received a b c d e => do
+        let s1 ← crosscallHelperSpecsFromExpr module env a
+        let s2 ← crosscallHelperSpecsFromExpr module env b
+        let s3 ← crosscallHelperSpecsFromExpr module env c
+        let s4 ← crosscallHelperSpecsFromExpr module env d
+        let s5 ← crosscallHelperSpecsFromExpr module env e
+        .ok (mergeCrosscallHelperSpecs (mergeCrosscallHelperSpecs s1 s2) (mergeCrosscallHelperSpecs (mergeCrosscallHelperSpecs s3 s4) s5))
 
   partial def crosscallHelperSpecsFromStoragePathSegment
       (module : Module)
@@ -559,6 +566,13 @@ mutual
         let s3 ← crosscallHelperSpecsFromExprPlan module c
         let s4 ← crosscallHelperSpecsFromExprPlan module d
         .ok (mergeCrosscallHelperSpecs (mergeCrosscallHelperSpecs s1 s2) (mergeCrosscallHelperSpecs s3 s4))
+    | .checkErc1155Received a b c d e => do
+        let s1 ← crosscallHelperSpecsFromExprPlan module a
+        let s2 ← crosscallHelperSpecsFromExprPlan module b
+        let s3 ← crosscallHelperSpecsFromExprPlan module c
+        let s4 ← crosscallHelperSpecsFromExprPlan module d
+        let s5 ← crosscallHelperSpecsFromExprPlan module e
+        .ok (mergeCrosscallHelperSpecs (mergeCrosscallHelperSpecs s1 s2) (mergeCrosscallHelperSpecs (mergeCrosscallHelperSpecs s3 s4) s5))
 
   partial def crosscallHelperSpecsFromStmtPlan
       (module : Module) : StmtPlan → Except LowerError (Array CrosscallHelperSpec)
@@ -717,6 +731,10 @@ mutual
         mergeCreateHelperSpecs
           (mergeCreateHelperSpecs (createHelperSpecsFromExpr a) (createHelperSpecsFromExpr b))
           (mergeCreateHelperSpecs (createHelperSpecsFromExpr c) (createHelperSpecsFromExpr d))
+    | .checkErc1155Received a b c d e =>
+        mergeCreateHelperSpecs
+          (mergeCreateHelperSpecs (createHelperSpecsFromExpr a) (createHelperSpecsFromExpr b))
+          (mergeCreateHelperSpecs (createHelperSpecsFromExpr c) (mergeCreateHelperSpecs (createHelperSpecsFromExpr d) (createHelperSpecsFromExpr e)))
 
   partial def createHelperSpecsFromStoragePathSegment : StoragePathSegment → Array CreateHelperSpec
     | .field _ => #[]
@@ -880,6 +898,10 @@ mutual
         mergeAbiPackedHelperSpecs
           (mergeAbiPackedHelperSpecs (abiPackedHelperSpecsFromExpr a) (abiPackedHelperSpecsFromExpr b))
           (mergeAbiPackedHelperSpecs (abiPackedHelperSpecsFromExpr c) (abiPackedHelperSpecsFromExpr d))
+    | .checkErc1155Received a b c d e =>
+        mergeAbiPackedHelperSpecs
+          (mergeAbiPackedHelperSpecs (abiPackedHelperSpecsFromExpr a) (abiPackedHelperSpecsFromExpr b))
+          (mergeAbiPackedHelperSpecs (abiPackedHelperSpecsFromExpr c) (mergeAbiPackedHelperSpecs (abiPackedHelperSpecsFromExpr d) (abiPackedHelperSpecsFromExpr e)))
 
   partial def abiPackedHelperSpecsFromStatement : Statement → Array AbiPackedHelperSpec
     | .letBind _ _ value | .letMutBind _ _ value | .return value =>
@@ -1133,6 +1155,10 @@ mutual
         mergeCreateHelperSpecs
           (mergeCreateHelperSpecs (createHelperSpecsFromExprPlan a) (createHelperSpecsFromExprPlan b))
           (mergeCreateHelperSpecs (createHelperSpecsFromExprPlan c) (createHelperSpecsFromExprPlan d))
+    | .checkErc1155Received a b c d e =>
+        mergeCreateHelperSpecs
+          (mergeCreateHelperSpecs (createHelperSpecsFromExprPlan a) (createHelperSpecsFromExprPlan b))
+          (mergeCreateHelperSpecs (createHelperSpecsFromExprPlan c) (mergeCreateHelperSpecs (createHelperSpecsFromExprPlan d) (createHelperSpecsFromExprPlan e)))
 
   partial def createHelperSpecsFromStmtPlan : StmtPlan → Array CreateHelperSpec
     | .letBind _ _ value

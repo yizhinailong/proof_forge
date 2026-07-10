@@ -184,6 +184,8 @@ mutual
     | .eventEmitIndexed _ _ _
     | .checkErc721Received _ _ _ _ =>
         err "wasm-near plan cannot treat statement-only effects as expression values"
+    | .checkErc1155Received _ _ _ _ _ =>
+        err "wasm-near plan cannot treat statement-only effects as expression values"
 
   partial def inferExprType
       (module : Module)

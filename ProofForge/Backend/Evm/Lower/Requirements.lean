@@ -223,6 +223,10 @@ mutual
     | .checkErc721Received a b c d =>
         exprPlanUsesCheckedArithmetic a || exprPlanUsesCheckedArithmetic b ||
           exprPlanUsesCheckedArithmetic c || exprPlanUsesCheckedArithmetic d
+    | .checkErc1155Received a b c d e =>
+        exprPlanUsesCheckedArithmetic a || exprPlanUsesCheckedArithmetic b ||
+          exprPlanUsesCheckedArithmetic c || exprPlanUsesCheckedArithmetic d ||
+          exprPlanUsesCheckedArithmetic e
 
   partial def stmtPlanUsesCheckedArithmetic : StmtPlan → Bool
     | .letBind _ _ value
@@ -535,6 +539,16 @@ mutual
           (mergeLocalArrayHelperRequirements
             (localArrayHelperRequirementsFromExprPlan c)
             (localArrayHelperRequirementsFromExprPlan d))
+    | .checkErc1155Received a b c d e =>
+        mergeLocalArrayHelperRequirements
+          (mergeLocalArrayHelperRequirements
+            (mergeLocalArrayHelperRequirements
+              (localArrayHelperRequirementsFromExprPlan a)
+              (localArrayHelperRequirementsFromExprPlan b))
+            (mergeLocalArrayHelperRequirements
+              (localArrayHelperRequirementsFromExprPlan c)
+              (localArrayHelperRequirementsFromExprPlan d)))
+          (localArrayHelperRequirementsFromExprPlan e)
 
   partial def localArrayHelperRequirementsFromStmtPlan :
       StmtPlan → LocalArrayHelperRequirements
@@ -898,6 +912,12 @@ mutual
         mergeHelperSets
           (mergeHelperSets (plannedHelpersFromExprPlan a) (plannedHelpersFromExprPlan b))
           (mergeHelperSets (plannedHelpersFromExprPlan c) (plannedHelpersFromExprPlan d))
+    | .checkErc1155Received a b c d e =>
+        mergeHelperSets
+          (mergeHelperSets
+            (mergeHelperSets (plannedHelpersFromExprPlan a) (plannedHelpersFromExprPlan b))
+            (mergeHelperSets (plannedHelpersFromExprPlan c) (plannedHelpersFromExprPlan d)))
+          (plannedHelpersFromExprPlan e)
 
   partial def plannedHelpersFromStmtPlan : StmtPlan → HelperSet
     | .letBind _ _ value
@@ -1170,6 +1190,10 @@ mutual
     | .checkErc721Received a b c d =>
         contextOpsFromExprPlan a ++ contextOpsFromExprPlan b ++
           contextOpsFromExprPlan c ++ contextOpsFromExprPlan d
+    | .checkErc1155Received a b c d e =>
+        contextOpsFromExprPlan a ++ contextOpsFromExprPlan b ++
+          contextOpsFromExprPlan c ++ contextOpsFromExprPlan d ++
+          contextOpsFromExprPlan e
 
   partial def contextOpsFromStmtPlan : StmtPlan → Array ContextPlan
     | .letBind _ _ value

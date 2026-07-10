@@ -110,6 +110,9 @@ mutual
         dataFields.foldl (fun acc f => acc ++ collectArrayLitsExpr f.snd) indexed
     | .checkErc721Received a b c d =>
         collectArrayLitsExpr a ++ collectArrayLitsExpr b ++ collectArrayLitsExpr c ++ collectArrayLitsExpr d
+    | .checkErc1155Received a b c d e =>
+        collectArrayLitsExpr a ++ collectArrayLitsExpr b ++ collectArrayLitsExpr c ++
+          collectArrayLitsExpr d ++ collectArrayLitsExpr e
     | .storageScalarRead _ => #[]
 
   partial def collectStructLitsExpr (e : Expr) : Array String :=
@@ -189,6 +192,9 @@ mutual
         dataFields.foldl (fun acc f => acc ++ collectStructLitsExpr f.snd) indexed
     | .checkErc721Received a b c d =>
         collectStructLitsExpr a ++ collectStructLitsExpr b ++ collectStructLitsExpr c ++ collectStructLitsExpr d
+    | .checkErc1155Received a b c d e =>
+        collectStructLitsExpr a ++ collectStructLitsExpr b ++ collectStructLitsExpr c ++
+          collectStructLitsExpr d ++ collectStructLitsExpr e
     | .storageScalarRead _ => #[]
 end
 

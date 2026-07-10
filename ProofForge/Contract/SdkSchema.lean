@@ -238,6 +238,11 @@ mutual
         collectExprEvents
           (collectExprEvents
             (collectExprEvents (collectExprEvents events operator) fromAddr) toAddr) tokenId
+    | .checkErc1155Received operator fromAddr toAddr id amount =>
+        collectExprEvents
+          (collectExprEvents
+            (collectExprEvents
+              (collectExprEvents (collectExprEvents events operator) fromAddr) toAddr) id) amount
     | .storageScalarRead _
     | .storageDynamicArrayPop _
     | .storageStructFieldRead _ _

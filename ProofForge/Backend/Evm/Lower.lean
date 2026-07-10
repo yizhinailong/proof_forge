@@ -630,6 +630,12 @@ mutual
         let collector ← collectEventPlansFromExpr module env collector b
         let collector ← collectEventPlansFromExpr module env collector c
         collectEventPlansFromExpr module env collector d
+    | .checkErc1155Received a b c d e => do
+        let collector ← collectEventPlansFromExpr module env collector a
+        let collector ← collectEventPlansFromExpr module env collector b
+        let collector ← collectEventPlansFromExpr module env collector c
+        let collector ← collectEventPlansFromExpr module env collector d
+        collectEventPlansFromExpr module env collector e
 
   partial def collectEventPlansFromStatements
       (module : Module)
@@ -830,6 +836,12 @@ mutual
         mergeNatSets
           (mergeNatSets (localArrayGetLengthsExpr env a) (localArrayGetLengthsExpr env b))
           (mergeNatSets (localArrayGetLengthsExpr env c) (localArrayGetLengthsExpr env d))
+    | .checkErc1155Received a b c d e =>
+        mergeNatSets
+          (mergeNatSets
+            (mergeNatSets (localArrayGetLengthsExpr env a) (localArrayGetLengthsExpr env b))
+            (mergeNatSets (localArrayGetLengthsExpr env c) (localArrayGetLengthsExpr env d)))
+          (localArrayGetLengthsExpr env e)
 
   partial def localArrayGetLengthsStoragePathSegment (env : TypeEnv) : StoragePathSegment → Array Nat
     | .field _ => #[]
@@ -1013,6 +1025,12 @@ mutual
         mergeNatArraySets
           (mergeNatArraySets (nestedLocalArrayGetShapesExpr env a) (nestedLocalArrayGetShapesExpr env b))
           (mergeNatArraySets (nestedLocalArrayGetShapesExpr env c) (nestedLocalArrayGetShapesExpr env d))
+    | .checkErc1155Received a b c d e =>
+        mergeNatArraySets
+          (mergeNatArraySets
+            (mergeNatArraySets (nestedLocalArrayGetShapesExpr env a) (nestedLocalArrayGetShapesExpr env b))
+            (mergeNatArraySets (nestedLocalArrayGetShapesExpr env c) (nestedLocalArrayGetShapesExpr env d)))
+          (nestedLocalArrayGetShapesExpr env e)
 
   partial def nestedLocalArrayGetShapesStoragePathSegment (env : TypeEnv) :
       StoragePathSegment → Array (Array Nat)
