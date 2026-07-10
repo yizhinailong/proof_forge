@@ -50,7 +50,7 @@ gaps.
 | Transparent proxy | Missing | Same rejection | P1 |
 | Beacon proxy | Missing | Same rejection | P2 |
 | Diamonds (EIP-2535) | Missing | No facet/loupe storage pattern | P2 |
-| CREATE2 factory | Covered (limited) | `ProofForge/Contract/Stdlib/Create2Factory.lean` + IR `create2` lowering; Foundry proves deterministic deploy. **Limitation:** advanced factory templates / salt bookkeeping remain product follow-ups | P1 |
+| CREATE2 factory | Covered (limited, E1.5) | `Stdlib/Create2Factory` + IR `create2` + Foundry `testCreate2FactoryProbeLifecycle` / `crosscall-ir-smoke` create2. **Explicit defer:** multi-template factories, salt registries, CREATE3 | P2 |
 
 ### DeFi primitives
 
