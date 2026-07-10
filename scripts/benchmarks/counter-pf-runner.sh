@@ -81,14 +81,18 @@ get1=$(echo "$out" | grep 'call 1:get:' | grep -o 'return_u64=[0-9]*' | sed -n '
 if [ -z "${get1:-}" ]; then
   get1=$(echo "$out" | grep 'return_u64=' | tail -n1 | grep -o 'return_u64=[0-9]*' | cut -d= -f2)
 fi
-init_fuel=$(parse_field 'call 1:initialize:' wasmtimeFuelDelta)
-# second get after increment — use delta lines in order
-mapfile -t deltas < <(echo "$out" | grep -o 'wasmtimeFuelDelta=[0-9]*' | cut -d= -f2)
-# expected order: initialize, get, increment, get
-init_fuel="${deltas[0]:-0}"
-get0_fuel="${deltas[1]:-0}"
-incr_fuel="${deltas[2]:-0}"
-get1_fuel="${deltas[3]:-0}"
+# Parse fuel deltas in call order: initialize, get, increment, get
+deltas="$(echo "$out" | grep -o 'wasmtimeFuelDelta=[0-9]*' | cut -d= -f2)"
+init_fuel="$(echo "$deltas" | sed -n '1p')"
+get0_fuel="$(echo "$deltas" | sed -n '2p')"
+incr_fuel="$(echo "$deltas" | sed -n '3p')"
+get1_fuel="$(echo "$deltas" | sed -n '4p')"
+init_fuel="${init_fuel:-0}"
+get0_fuel="${get0_fuel:-0}"
+incr_fuel="${incr_fuel:-0}"
+get1_fuel="${get1_fuel:-0}"
+# silence unused intermediate (kept for debugging)
+: "$get0_fuel"
 
 [ "${get0:-}" = "0" ] || fail "expected get after initialize = 0, got ${get0:-}"
 [ "${get1:-}" = "1" ] || fail "expected get after increment = 1, got ${get1:-}"

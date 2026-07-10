@@ -1232,15 +1232,8 @@ benchmark-native-counter:
 benchmark-counter-pf:
     scripts/benchmarks/counter-pf-runner.sh
 
-# Alias target for the PF side of the Counter matrix (native side lands in B1.4).
+# B1.3 entrypoint (native rows land in B1.4; native corpus remains benchmark-native-counter).
 benchmark-counter: benchmark-counter-pf
-
-# B1.3: ProofForge Counter benchmark runner (NEAR fuel + EVM/Solana artifact sizes).
-benchmark-counter-pf:
-    scripts/benchmarks/counter-pf-runner.sh
-
-# B1.2+B1.3: native corpus validation + PF runner.
-benchmark-counter: benchmark-native-counter benchmark-counter-pf
 
 # Run the unified RFC 0007 testkit scenario suite.
 testkit:
