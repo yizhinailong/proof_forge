@@ -1,6 +1,6 @@
 # ProofForge vs Native Benchmark Matrix
 
-Status: **Active (B1.1 schema landed)**  
+Status: **Active (B1.2 native Counter corpus landed)**  
 Plan: [post-review execution plan](superpowers/plans/2026-07-10-post-review-execution.md) wave **B1**
 
 ## Why
@@ -146,7 +146,7 @@ just product             # multi-target compile matrix
 |------|--------|
 | B1.0 Spec + layout (this doc) | **done** |
 | B1.1 Schema checker | **done** (`just benchmark-schema`) |
-| B1.2 Native Counter corpus | pending |
+| B1.2 Native Counter corpus | **done** (`benchmarks/native/`, `just benchmark-native-counter`) |
 | B1.3 PF Counter runner | pending |
 | B1.4 Native Counter runner | pending |
 | B1.5 Behavior gate | pending |

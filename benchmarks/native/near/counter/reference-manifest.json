@@ -1,0 +1,11 @@
+{
+  "schema": "proof-forge.benchmark.native-reference.v0",
+  "scenario": "bm-counter",
+  "target": "wasm-near",
+  "implementation": "native",
+  "framework": "near-sdk-rs",
+  "sourcePath": "testkit/compare/near/counter",
+  "proofForgeSource": "Examples/Product/Counter.lean",
+  "entrypoints": ["initialize", "increment", "get"],
+  "notes": "Reuses testkit/compare/near/counter rather than vendoring a second near-sdk crate."
+}

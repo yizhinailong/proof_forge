@@ -1224,6 +1224,10 @@ quint-ir-model-gate:
 benchmark-schema:
     scripts/benchmarks/schema-smoke.sh
 
+# B1.2: compile/typecheck native Counter corpus (solc/cargo when present).
+benchmark-native-counter:
+    scripts/benchmarks/native-counter-smoke.sh
+
 # Run the unified RFC 0007 testkit scenario suite.
 testkit:
     CAST="${CAST:-$HOME/.foundry/bin/cast}" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run

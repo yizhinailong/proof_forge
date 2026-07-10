@@ -1,0 +1,14 @@
+{
+  "name": "native-counter",
+  "version": "0.1.0",
+  "description": "Native NEAR Counter — hand-written near-sdk reference for benchmark comparison.",
+  "main": "index.js",
+  "scripts": {
+    "build": "near-sdk-js build",
+    "test": "near-sdk-js test"
+  },
+  "dependencies": {
+    "near-sdk-js": "^1.0.0"
+  },
+  "license": "Apache-2.0"
+}
