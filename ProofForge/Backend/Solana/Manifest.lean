@@ -112,16 +112,22 @@ def tomlString (value : String) : String :=
     | ch => ch.toString
   "\"" ++ String.intercalate "" (value.toList.map escapeChar) ++ "\""
 
+/-- L1.3: instruction ABI scalar + fixed raw-byte buffers (memo payloads).
+    `fixedArray .u8 n` is packed as contiguous LE bytes (no length prefix). -/
 def instructionParamByteSize? : ValueType → Option Nat
   | .u64 => some 8
   | .u32 => some 4
   | .bool => some 1
+  | .fixedArray .u8 n =>
+      -- CPI instruction-data stack window is 128 bytes (384..512).
+      if n > 0 && n <= 128 then some n else none
   | _ => none
 
 def instructionParamEncoding : ValueType → String
   | .u64 => "le-u64"
   | .u32 => "le-u32"
   | .bool => "u8-bool"
+  | .fixedArray .u8 _ => "raw-bytes"
   | _ => "unsupported"
 
 def buildInstructionParams (ep : Entrypoint) : Array InstructionParamEntry := Id.run do

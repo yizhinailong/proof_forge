@@ -24,6 +24,7 @@ import ProofForge.Solana.Examples.EpochRewards
 import ProofForge.Solana.Examples.EpochSchedule
 import ProofForge.Solana.Examples.LastRestartSlot
 import ProofForge.Solana.Examples.LogEvent
+import ProofForge.Solana.Examples.MemoCpi
 import ProofForge.Solana.Examples.Memory
 import ProofForge.Solana.Examples.Rent
 import ProofForge.Solana.Examples.ReturnDataCompute
@@ -491,6 +492,13 @@ def compileSolanaAssociatedTokenCpiElf (opts : CliOptions) : IO UInt32 :=
     "associated-token-cpi"
     "solana-associated-token-cpi-elf"
     ProofForge.Solana.Examples.AssociatedTokenCpi.spec
+
+def compileSolanaMemoCpiElf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecElf opts
+    (FilePath.mk "build/solana/MemoCpi.so")
+    "solana-memo-cpi"
+    "solana-memo-cpi-elf"
+    ProofForge.Solana.Examples.MemoCpi.spec
 
 def compileSolanaSplToken2022CpiElf (opts : CliOptions) : IO UInt32 :=
   compileSolanaSpecElf opts

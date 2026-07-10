@@ -220,16 +220,37 @@ def lowerEntrypointParamDecoding (ctx : LowerCtx) (ep : IR.Entrypoint) :
     let (name, ty) := param
     let some byteSize := scalarParamSize? ty
       | .error { message := s!"unsupported Solana entrypoint parameter type for `{name}`: {ty.name}" }
-    let some opcode := scalarParamLoadOpcode? ty
-      | .error { message := s!"unsupported Solana entrypoint parameter load for `{name}`: {ty.name}" }
     let localOff := ctx.nextLocalOffset
     ctx := ctx.addLocal name ty
-    nodes := nodes ++ #[
-      .comment s!"entrypoint.param[{ep.name}.{name}]: {ty.name} @ instruction_data+{payloadOff}"
-    ] ++ loadSavedInstructionDataPtr .r3 ++ #[
-      .instruction { opcode := opcode, dst := some .r2, src := some .r3, off := some (.num payloadOff) },
-      .instruction { opcode := .stxdw, dst := some .r10, off := some (.num localOff), src := some .r2 }
-    ]
+    if isRawBytesParam ty then
+      -- L1.3: fixed raw-byte params stay addressable via instruction-data
+      -- bindings for CPI (memo); also mirror bytes into the local frame.
+      let copy :=
+        (List.range byteSize).foldl
+          (fun acc idx =>
+            acc ++ #[
+              .instruction {
+                opcode := .ldxb, dst := some .r2, src := some .r3,
+                off := some (.num (payloadOff + idx))
+              },
+              .instruction {
+                opcode := .stxb, dst := some .r10, off := some (.num (localOff + idx)),
+                src := some .r2
+              }
+            ])
+          #[]
+      nodes := nodes ++ #[
+        .comment s!"entrypoint.param[{ep.name}.{name}]: raw-bytes {ty.name} @ instruction_data+{payloadOff} (len={byteSize})"
+      ] ++ loadSavedInstructionDataPtr .r3 ++ copy
+    else
+      let some opcode := scalarParamLoadOpcode? ty
+        | .error { message := s!"unsupported Solana entrypoint parameter load for `{name}`: {ty.name}" }
+      nodes := nodes ++ #[
+        .comment s!"entrypoint.param[{ep.name}.{name}]: {ty.name} @ instruction_data+{payloadOff}"
+      ] ++ loadSavedInstructionDataPtr .r3 ++ #[
+        .instruction { opcode := opcode, dst := some .r2, src := some .r3, off := some (.num payloadOff) },
+        .instruction { opcode := .stxdw, dst := some .r10, off := some (.num localOff), src := some .r2 }
+      ]
     payloadOff := payloadOff + byteSize
   .ok (ctx, nodes)
 

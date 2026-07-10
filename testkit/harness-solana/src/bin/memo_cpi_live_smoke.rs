@@ -32,9 +32,10 @@ fn run() -> Result<()> {
     let memo_program = Address::from_str(MEMO_PROGRAM_ID).context("invalid memo program id")?;
     let state = create_program_state(&rpc, &payer, program_id, 8)
         .context("failed to create program state account")?;
+    // Classic 8-byte (u64) memo path (tag 0 / log_memo).
     let memo_text = env::var("PROOF_FORGE_SOLANA_MEMO_TEXT").unwrap_or_else(|_| "pfmemo!!".into());
-    let memo_payload = memo_payload_from_text(&memo_text)?;
-    let memo_word = u64::from_le_bytes(memo_payload);
+    let memo_payload = memo_payload_from_text(&memo_text, 8)?;
+    let memo_word = u64::from_le_bytes(memo_payload.as_slice().try_into().unwrap());
 
     let signature = rpc
         .send_and_confirm(
@@ -42,7 +43,8 @@ fn run() -> Result<()> {
                 program_id,
                 state.pubkey(),
                 memo_program,
-                memo_payload,
+                0,
+                &memo_payload,
             )],
             &[&payer],
         )
@@ -71,6 +73,34 @@ fn run() -> Result<()> {
         "logs missing memo text {memo_text}: {logs:?}"
     );
 
+    // L1.3: multi-byte fixedArray .u8 16 path (tag 1 / log_memo_bytes).
+    let multi_text =
+        env::var("PROOF_FORGE_SOLANA_MEMO_BYTES_TEXT").unwrap_or_else(|_| "hello-pf-memo!!".into());
+    let multi_payload = memo_payload_from_text(&multi_text, 16)?;
+    let multi_sig = rpc
+        .send_and_confirm(
+            &[memo_instruction(
+                program_id,
+                state.pubkey(),
+                memo_program,
+                1,
+                &multi_payload,
+            )],
+            &[&payer],
+        )
+        .context("multi-byte memo CPI transaction failed")?;
+    let multi_logs = rpc.transaction_logs(&multi_sig)?;
+    ensure!(
+        multi_logs
+            .iter()
+            .any(|line| line.contains(&memo_program_text)),
+        "multi-byte logs missing Memo program id: {multi_logs:?}"
+    );
+    ensure!(
+        multi_logs.iter().any(|line| line.contains(&multi_text)),
+        "multi-byte logs missing memo text {multi_text}: {multi_logs:?}"
+    );
+
     println!(
         "{}",
         json!({
@@ -78,23 +108,26 @@ fn run() -> Result<()> {
             "state": state.pubkey().to_string(),
             "payer": payer.pubkey().to_string(),
             "signature": signature,
+            "multiByteSignature": multi_sig,
             "memoProgram": memo_program_text,
             "memoText": memo_text,
+            "multiByteMemoText": multi_text,
             "memoWord": memo_word.to_string(),
             "recordedWord": recorded_word.to_string(),
             "logs": logs,
+            "multiByteLogs": multi_logs,
         })
     );
 
     Ok(())
 }
 
-fn memo_payload_from_text(text: &str) -> Result<[u8; 8]> {
+fn memo_payload_from_text(text: &str, size: usize) -> Result<Vec<u8>> {
     let input = text.as_bytes();
-    if input.len() > 8 {
-        bail!("memo text must fit in 8 bytes for this fixture: {text}");
+    if input.len() > size {
+        bail!("memo text must fit in {size} bytes for this fixture: {text}");
     }
-    let mut payload = [0u8; 8];
+    let mut payload = vec![0u8; size];
     payload[..input.len()].copy_from_slice(input);
     Ok(payload)
 }
@@ -103,11 +136,12 @@ fn memo_instruction(
     program_id: Address,
     state: Address,
     memo_program: Address,
-    memo_payload: [u8; 8],
+    tag: u8,
+    memo_payload: &[u8],
 ) -> Instruction {
-    let mut data = Vec::with_capacity(9);
-    data.push(0);
-    data.extend_from_slice(&memo_payload);
+    let mut data = Vec::with_capacity(1 + memo_payload.len());
+    data.push(tag);
+    data.extend_from_slice(memo_payload);
     Instruction {
         program_id,
         accounts: vec![

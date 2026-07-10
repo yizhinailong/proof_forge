@@ -139,6 +139,7 @@ def usage : String :=
     "  proof-forge --solana-spl-token-close-account-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-spl-token-authority-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-associated-token-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
+    "  proof-forge --solana-memo-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-spl-token-2022-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-spl-token-2022-pausable-cpi-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",
     "  proof-forge --solana-spl-token-2022-transfer-hook-elf [-o output.so] [--artifact-output file] [--solana-sbpf-arch v0|v3]",

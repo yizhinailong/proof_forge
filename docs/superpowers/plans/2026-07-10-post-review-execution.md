@@ -197,9 +197,9 @@ just near-target-first   # or dedicated just near-nep141-smoke
 
 | ID | Task | Work | Acceptance | Size | Status |
 |----|------|------|------------|------|--------|
-| **L1.1** | Prioritize ecosystem surface | Choose **one**: Metaplex token metadata **or** higher-frequency CPI gap (not confidential_transfer first). Record choice in gap doc. | Written choice + success criteria | S | pending |
-| **L1.2** | Implement chosen surface | Surface helpers + sBPF lowering + metadata/IDL + smoke (`just solana-*`) | Live or Mollusk gate green; fail-closed unsupported | L | pending |
-| **L1.3** | Memo arbitrary-length | Extend memo CPI beyond single u64 payload if still open | Surfpool/web3 smoke with multi-byte memo | M | pending |
+| **L1.1** | Prioritize ecosystem surface | Choose **one**: Metaplex token metadata **or** higher-frequency CPI gap (not confidential_transfer first). Record choice in gap doc. | Written choice + success criteria | S | done: chose memo multi-byte (not Metaplex); gap doc L1.1 |
+| **L1.2** | Implement chosen surface | Surface helpers + sBPF lowering + metadata/IDL + smoke (`just solana-*`) | Live or Mollusk gate green; fail-closed unsupported | L | done: fixedArray u8 params + lowerMemoData multi-byte + CLI memo-cpi-elf |
+| **L1.3** | Memo arbitrary-length | Extend memo CPI beyond single u64 payload if still open | Surfpool/web3 smoke with multi-byte memo | M | done: just solana-memo-cpi-live (8B+16B); packing test |
 | **L1.4** | Pinocchio breadth | Add ≥2 reference programs toward ≥10 goal | `just solana-light` / pinocchio suite counts increase | M | pending |
 | **L1.5** | Source→ELF regression lock | Ensure PF-P0-03 acceptance stays green under product matrix (Counter + ValueVault ELF) | `just solana-source-elf` + product Solana rows | S | pending |
 
@@ -601,7 +601,7 @@ The plan is **complete** when:
 | S0 | done: verified@81b4c373; S0.1 merge + S0.2 product green + S0.3 claim + S0.4 INDEX + S0.5 inventory | just product green; origin 0 behind; branch inventory written |
 | N1 | done: N1.1–N1.7 closed | near-deploy-honesty; budget honesty; storage_withdraw; FT offline |
 | E1 | done: E1.1–E1.6 closed | upgrade honesty; packing D-051; StakingVault; batch receiver |
-| L1 | pending | |
+| L1 | in_progress: L1.1–L1.3 done; next L1.4 Pinocchio breadth | solana-memo-cpi-live multi-byte |
 | B1 | in_progress: B1.0 skeleton done; next B1.1 schema | `docs/benchmarks.md`, `benchmarks/README.md` |
 | Z1 | in_progress: Z1.0 catalog lock done; next Z1.1 goldens | `docs/targets/psy-dpn.md` DPN bytecode section + official links |
 | Z2 | pending | research findings landed in this plan |

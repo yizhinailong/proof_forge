@@ -263,6 +263,7 @@ unsafe def compileFile (opts : CliOptions) : IO UInt32 := do
   | .solanaSplTokenCloseAccountCpiElf => compileSolanaSplTokenCloseAccountCpiElf opts
   | .solanaSplTokenAuthorityCpiElf => compileSolanaSplTokenAuthorityCpiElf opts
   | .solanaAssociatedTokenCpiElf => compileSolanaAssociatedTokenCpiElf opts
+  | .solanaMemoCpiElf => compileSolanaMemoCpiElf opts
   | .solanaSplToken2022CpiElf => compileSolanaSplToken2022CpiElf opts
   | .solanaSplToken2022PausableCpiElf => compileSolanaSplToken2022PausableCpiElf opts
   | .solanaSplToken2022TransferHookElf => compileSolanaSplToken2022TransferHookElf opts

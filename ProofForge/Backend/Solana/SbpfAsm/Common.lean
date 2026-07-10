@@ -436,4 +436,9 @@ def scalarParamLoadOpcode? : ValueType → Option Opcode
   | .bool => some .ldxb
   | _ => none
 
+/-- True when the param is a fixed raw-byte buffer (not a scalar register load). -/
+def isRawBytesParam : ValueType → Bool
+  | .fixedArray .u8 n => n > 0 && n <= 128
+  | _ => false
+
 end ProofForge.Backend.Solana.SbpfAsm

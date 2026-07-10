@@ -82,34 +82,53 @@ for capability in ["crosscall.cpi", "storage.scalar"]:
     if capability not in capabilities:
         raise SystemExit(f"artifact missing {capability}: {capabilities}")
 instructions = artifact.get("solanaInstructions", [])
-if len(instructions) != 1 or instructions[0].get("name") != "log_memo":
-    raise SystemExit(f"instruction schema mismatch: {instructions}")
-accounts = [account.get("name") for account in instructions[0].get("accounts", [])]
+names = [ix.get("name") for ix in instructions]
+if names != ["log_memo", "log_memo_bytes"]:
+    raise SystemExit(f"instruction schema mismatch: {names}")
+log_memo = instructions[0]
+accounts = [account.get("name") for account in log_memo.get("accounts", [])]
 if accounts != ["last_memo_word", "memo"]:
     raise SystemExit(f"account schema mismatch: {accounts}")
-params = instructions[0].get("params", [])
+params = log_memo.get("params", [])
 expected_params = [
     {"name": "memoArg", "type": "U64", "offset": 1, "byteSize": 8, "encoding": "le-u64"},
 ]
 if params != expected_params:
     raise SystemExit(f"parameter schema mismatch: {params}")
+log_bytes = instructions[1]
+bytes_params = log_bytes.get("params", [])
+expected_bytes_params = [
+    {
+        "name": "memoBytes",
+        "type": "Array<U8,16>",
+        "offset": 1,
+        "byteSize": 16,
+        "encoding": "raw-bytes",
+    },
+]
+if bytes_params != expected_bytes_params:
+    raise SystemExit(f"multi-byte parameter schema mismatch: {bytes_params}")
 cpis = artifact.get("solanaExtensions", {}).get("cpis", [])
-if len(cpis) != 1:
+if len(cpis) != 2:
     raise SystemExit(f"CPI schema count mismatch: {cpis}")
-cpi = cpis[0]
-expected = {
-    "name": "memo_call",
-    "program": "memo",
-    "instruction": "memo",
-    "protocol": "memo",
-    "dataLayout": "memo.memo",
-    "memoSource": "memoArg",
-}
-for key, value in expected.items():
-    if cpi.get(key) != value:
-        raise SystemExit(f"CPI field {key} mismatch: {cpi}")
-if cpi.get("accounts") != []:
-    raise SystemExit(f"Memo CPI should not declare CPI account metas: {cpi}")
+by_name = {c.get("name"): c for c in cpis}
+for name, source in (("memo_call", "memoArg"), ("memo_bytes_call", "memoBytes")):
+    cpi = by_name.get(name)
+    if cpi is None:
+        raise SystemExit(f"missing CPI {name}: {cpis}")
+    expected = {
+        "name": name,
+        "program": "memo",
+        "instruction": "memo",
+        "protocol": "memo",
+        "dataLayout": "memo.memo",
+        "memoSource": source,
+    }
+    for key, value in expected.items():
+        if cpi.get(key) != value:
+            raise SystemExit(f"CPI field {key} mismatch for {name}: {cpi}")
+    if cpi.get("accounts") != []:
+        raise SystemExit(f"Memo CPI should not declare CPI account metas: {cpi}")
 print("artifact validation: ok")
 PY
 
