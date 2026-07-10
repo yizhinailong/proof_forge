@@ -1447,4 +1447,35 @@ theorem evm_lowerable_implies_lowering_total_of_name_indep
   rw [hindep]
   exact evm_lowerable_implies_canonical_lowering_total m h
 
+/-- `counterShapeModule name` is the Counter fixture renamed. -/
+theorem counterShapeModule_eq_evmCounterShapeWithName (name : String) :
+    counterShapeModule name = evmCounterShapeWithName name := by
+  simp only [counterShapeModule, evmCounterShapeWithName,
+    ProofForge.IR.Examples.Counter.module,
+    ProofForge.IR.Examples.Counter.stateCount,
+    ProofForge.IR.Examples.Counter.initializeEntrypoint,
+    ProofForge.IR.Examples.Counter.increment,
+    ProofForge.IR.Examples.Counter.get,
+    counterInitializeEntrypoint, counterIncrementEntrypoint, counterGetEntrypoint,
+    ProofForge.IR.defaultAllocator]
+
+/-- PF-P3-01: free-name lowering-total for any lowerable module whose name is in
+the discharged finite family. Uses structural identity `m = counterShapeModule
+m.name` plus per-name `native_decide` bridges — not a general `∀ String`. -/
+theorem evm_lowerable_implies_lowering_total_of_family_name
+    (m : ProofForge.IR.Module)
+    (h : evmYulTargetSemantics.lowerableAccepts m = true)
+    (hn :
+      m.name = "Counter" ∨ m.name = "CounterRenamed" ∨ m.name = "C" ∨
+        m.name = "shape" ∨ m.name = "VaultCounter") :
+    (ProofForge.Backend.Evm.IR.lowerModule m).isOk = true := by
+  have heq := evm_lowerable_eq_counterShapeModule m h
+  rw [heq, counterShapeModule_eq_evmCounterShapeWithName]
+  rcases hn with h1 | h1 | h1 | h1 | h1
+  · simp only [h1]; exact (evm_shape_name_Counter_lowerable_total).2
+  · simp only [h1]; exact (evm_shape_name_CounterRenamed_lowerable_total).2
+  · simp only [h1]; exact (evm_shape_name_C_lowerable_total).2
+  · simp only [h1]; exact (evm_shape_name_shape_lowerable_total).2
+  · simp only [h1]; exact (evm_shape_name_VaultCounter_lowerable_total).2
+
 end ProofForge.Backend.Evm.Refinement
