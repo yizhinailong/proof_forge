@@ -100,6 +100,10 @@ structure StructDecl where
   fields : Array StructField
   deriveStorage : Bool := false
   isPublic : Bool := true
+  /-- Aleo/ZK opt-in: lower this struct as a Leo `record` (private UTXO-like
+  state with an `owner: address` field). Chain-neutral flag in the spirit of
+  `deriveStorage`; non-Aleo backends ignore it. -/
+  isRecord : Bool := false
   deriving Repr
 
 inductive StateKind where
@@ -230,6 +234,11 @@ mutual
     | crosscallInvokeDelegateTyped (targetContractId : Expr) (methodId : Expr) (args : Array Expr) (returnType : ValueType)
     | crosscallCreate (callValue : Expr) (initCodeHex : String)
     | crosscallCreate2 (callValue salt : Expr) (initCodeHex : String)
+    /-- Named-callee cross-program call for app-chain targets (RFC 0015 D4):
+    `crosscallNamed(programId, method, args, returnType)` addresses the callee
+    by compile-time program/method identifiers (Aleo `_dynamic_call`), unlike the
+    runtime-address `crosscallInvoke`. Account-chain targets reject it. -/
+    | crosscallNamed (programId method : String) (args : Array Expr) (returnType : ValueType)
     /-- NEAR host-extension only (not portable product path): `promise_create`
         with runtime index into `module.nearCrosscallStrings`. Prefer portable
         `crosscallInvoke` for authoring; this is a lower-level host form. -/
@@ -528,6 +537,9 @@ mutual
         #[.cryptoEcrecover, .cryptoHash] ++ owner.capabilities ++ spender.capabilities ++
           value.capabilities ++ nonce.capabilities ++ deadline.capabilities ++ domainSep.capabilities
     | .nativeValue => #[.valueNative]
+    | .crosscallNamed _ _ args returnType =>
+        #[.crosscallNamed] ++ returnType.capabilities ++
+          args.foldl (fun acc arg => acc ++ arg.capabilities) #[]
     | .crosscallAbiPacked target _selector _stores _argsSize _outSize _dynOff dynLen?
         _dynTgtOffs dynTargets =>
         let caps := #[.crosscallInvoke] ++ target.capabilities

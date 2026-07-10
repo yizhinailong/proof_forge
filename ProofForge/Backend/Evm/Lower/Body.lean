@@ -1138,6 +1138,8 @@ mutual
           (← buildExprPlan module env callValue)
           (some (← buildExprPlan module env salt))
           initCodeHex)
+    | .crosscallNamed _ _ _ _ =>
+        .error { message := "crosscallNamed (named-callee cross-program call) is a ZK-lane construct (RFC 0015); not lowered on EVM — use crosscallInvoke* for EVM cross-program calls" }
     | .nearPromiseThen _ _ _ _
     | .nearPromiseResultsCount
     | .nearPromiseResultStatus _

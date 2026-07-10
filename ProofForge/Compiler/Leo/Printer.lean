@@ -20,20 +20,24 @@ partial def printType : LeoType → Except LowerError String
   | .integer t => .ok (printIntegerType t)
   | .boolean => .ok "bool"
   | .unit => .ok "()"
-  | .address => unsupported "address type"
-  | .array _ _ => unsupported "array type"
+  | .address => .ok "address"
+  | .array element length => do
+      let es ← printType element
+      .ok s!"[{es}; {length}]"
   | .composite name => .ok name
-  | .field => unsupported "field type"
+  | .field => .ok "field"
   | .future _ _ => .ok "Final"  -- downgrade Future<Fn(...)> to Final for Leo 4.0.2
-  | .group => unsupported "group type"
+  | .group => .ok "group"
   | .mapping k v => do
       let ks ← printType k
       let vs ← printType v
       .ok s!"mapping[{ks}, {vs}]"
-  | .scalar => unsupported "scalar type"
-  | .signature => unsupported "signature type"
+  | .scalar => .ok "scalar"
+  | .signature => .ok "signature"
   | .string => .ok "string"
-  | .tuple _ => unsupported "tuple type"
+  | .tuple ts => do
+      let parts ← ts.mapM printType
+      .ok s!"({String.intercalate ", " parts.toList})"
   | .err => unsupported "error type"
 
 def printLiteral : Literal → String
@@ -198,7 +202,14 @@ def printAnnotation (a : Annotation) : String := s!"@{a.name}"
 
 def printInput (i : Input) : Except LowerError String := do
   let ty ← printType i.ty
-  .ok s!"{i.name}: {ty}"
+  -- Leo's no-keyword default is `private` (proof-context); only `public` and
+  -- `constant` inputs get a prefix. Verified against ProvableHQ/leo
+  -- functions/transfer_inline (`public amount: u64`).
+  let mode := match i.mode with
+    | .public_ => "public "
+    | .constant_ => "constant "
+    | .private_ => ""
+  .ok s!"{mode}{i.name}: {ty}"
 
 def printFunction (indentLevel : Nat) (f : Function) : Except LowerError String := do
   let keyword := match f.variant with
@@ -227,6 +238,20 @@ def printMapping (indentLevel : Nat) (m : Mapping) : Except LowerError String :=
   let v ← printType m.valueType
   .ok (indent indentLevel s!"mapping {m.identifier}: {k} => {v};")
 
+/-- Print a composite as a Leo `record` (when `isRecord`) or `struct`.
+Verified against ProvableHQ/leo migration/transitions_to_fn (`record Token {…}`)
+and data_types/struct_update (`struct Point {…}`). Records carry their fields
+(`owner: address`, …) inline. -/
+def printComposite (indentLevel : Nat) (c : Composite) : Except LowerError String := do
+  let keyword := if c.isRecord then "record" else "struct"
+  let fieldStrs ← c.members.mapM fun mem => do
+    let ty ← printType mem.ty
+    .ok (indent (indentLevel + 1) s!"{mem.name}: {ty}")
+  let fields := String.intercalate ",\n" fieldStrs.toList
+  let header := indent indentLevel (keyword ++ " " ++ c.identifier ++ " {")
+  let footer := indent indentLevel "}"
+  .ok (header ++ "\n" ++ fields ++ "\n" ++ footer)
+
 def printConstructor (indentLevel : Nat) (c : Constructor) : Except LowerError String := do
   let annoLines := c.annotations.map printAnnotation
   let annos := if annoLines.isEmpty then "" else String.intercalate "\n" (annoLines.map (indent indentLevel)).toList ++ "\n"
@@ -239,13 +264,14 @@ def printConstructor (indentLevel : Nat) (c : Constructor) : Except LowerError S
     .ok (annos ++ indent indentLevel header ++ "\n" ++ body ++ "\n" ++ footer)
 
 def printProgramScope (indentLevel : Nat) (scope : ProgramScope) : Except LowerError String := do
+  let compositeLines ← scope.composites.mapM (fun (_, c) => printComposite (indentLevel + 1) c)
   let mappingLines ← scope.mappings.mapM (fun (_, m) => printMapping (indentLevel + 1) m)
   let functionLines ← scope.functions.mapM (fun (_, f) => printFunction (indentLevel + 1) f)
   let constructorLines ← match scope.constructor with
     | none => .ok #[]
     | some c => do let s ← printConstructor (indentLevel + 1) c; .ok #[s]
   let blank := "\n" ++ indent (indentLevel + 1) "" ++ "\n"
-  let decls := mappingLines ++ constructorLines
+  let decls := compositeLines ++ mappingLines ++ constructorLines
   let declsStr := String.intercalate blank decls.toList
   let functionsStr := String.intercalate "\n" functionLines.toList
   let body :=
@@ -257,9 +283,16 @@ def printProgramScope (indentLevel : Nat) (scope : ProgramScope) : Except LowerE
       declsStr ++ blank ++ functionsStr
   .ok ("program " ++ scope.programId ++ " {\n" ++ body ++ "\n" ++ indent indentLevel "}")
 
-def printProgram (p : Program) : Except LowerError String :=
+def printImport (i : Import) : String :=
+  "import " ++ i.programId ++ ";"
+
+def printProgram (p : Program) : Except LowerError String := do
   match p.scopes with
-  | #[(_, scope)] => printProgramScope 0 scope
+  | #[(_, scope)] =>
+      let importLines := p.imports.map printImport
+      let header := String.intercalate "\n" importLines.toList
+      let body ← printProgramScope 0 scope
+      .ok (if importLines.isEmpty then body else header ++ "\n\n" ++ body)
   | _ => .error { message := "Leo printer currently supports exactly one program scope" }
 
 def printProgramToString (p : Program) : Except LowerError String := printProgram p
