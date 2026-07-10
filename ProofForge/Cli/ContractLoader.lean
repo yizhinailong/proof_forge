@@ -8,6 +8,30 @@ namespace ProofForge.Cli.ContractLoader
 
 open Lean
 
+/-- PF-P3-03: opt-in flag for a future hosted/cloud compiler path.
+
+When set to a truthy value (`1`, `true`, `yes`, case-insensitive),
+`loadSpec` refuses to elaborate. Local `enableInitializersExecution` +
+frontend evaluation is a **trusted local** path only — it is not an isolation
+boundary for hostile source. -/
+def hostedIsolationEnvVar : String := "PROOF_FORGE_HOSTED_ISOLATION"
+
+def hostedIsolationRefusedMessage : String :=
+  "proof-forge: hosted isolation is not ready; ContractLoader local elaboration " ++
+  "(initializers enabled) is a trusted local path only, not a cloud worker " ++
+  "boundary (PF-P3-03). Unset PROOF_FORGE_HOSTED_ISOLATION for trusted local builds."
+
+/-- Truthy env values that request the hosted isolation gate. -/
+def isHostedIsolationRequested (value : String) : Bool :=
+  let v := value.trimAscii.toString.toLower
+  v == "1" || v == "true" || v == "yes" || v == "on"
+
+/-- Read the hosted-isolation gate from the process environment. -/
+def hostedIsolationRequested : IO Bool := do
+  match ← IO.getEnv hostedIsolationEnvVar with
+  | none => pure false
+  | some v => pure (isHostedIsolationRequested v)
+
 private def specConstName (modName : Name) : Name :=
   modName ++ `spec
 
@@ -41,6 +65,9 @@ unsafe def loadSpecFromEnv (env : Environment) (modName : Name) : IO ProofForge.
 unsafe def loadSpec
     (input : System.FilePath) (root? : Option System.FilePath) (moduleName? : Option Name) :
     IO ProofForge.Contract.ContractSpec := do
+  -- PF-P3-03 honesty: do not expose trusted local elaboration as hosted isolation.
+  if ← hostedIsolationRequested then
+    throw <| IO.userError hostedIsolationRefusedMessage
   enableInitializersExecution
   initSearchPath (← findSysroot "lean")
   let source ← IO.FS.readFile input

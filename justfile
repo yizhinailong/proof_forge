@@ -327,6 +327,10 @@ wat2wasm-fail-closed:
 check-l2-parity:
     scripts/cli/check-l2-parity-smoke.sh
 
+# PF-P3-03: hosted isolation flag refuses trusted-local ContractLoader elaboration.
+hosted-isolation:
+    scripts/cli/hosted-isolation-smoke.sh
+
 # Generic sBPF step lemmas — active C-proof surface (PRs touch SbpfExec here).
 solana-sbpf-exec-smoke:
     lake build ProofForge.Backend.Solana.SbpfExec
@@ -942,7 +946,7 @@ testkit-remote-call:
 
 # Run the fast local baseline used before broader target smokes.
 # Product gate runs early so business multi-target failures surface first.
-check: build product target-registry target-backend target-support artifact-bundle preflight-l2 source-dsl-arity leo-printer-fail-closed contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke diagnostic-smoke ir-step-semantics-smoke ir-counter-semantics-smoke ir-portability-smoke semantics-fuel-smoke constructor-coverage-smoke counter-universal-refinement-smoke supported-fragment-smoke track14-fragment-theorems-smoke lean-invariants-smoke target-semantics-instances-smoke wasm-exec-smoke wasm-near-host-smoke wasm-cosmwasm-host-smoke wasm-soroban-host-smoke aleo-leo-codegen-smoke wasm-cosmwasm-refinement-smoke value-vault-wasm-refinement-smoke evm-bytecode-semantics-smoke ir-exec-result-smoke fv5-overflow-smoke solana-light portable-counter-multi-target cli-target-first source-identity registry-command solana-source-elf soroban-profile wat2wasm-fail-closed check-l2-parity contract-source-diagnostics near-target-first wasm-near-plan near-plan-smoke wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli quint-mbt-gate quint-ir-model-gate aleo-leo-codegen-smoke
+check: build product target-registry target-backend target-support artifact-bundle preflight-l2 source-dsl-arity leo-printer-fail-closed contract-spec-json contract-client sdk-schema cli-deploy cli-check evm-plan evm-semantic-plan shared-validate-smoke diagnostic-smoke ir-step-semantics-smoke ir-counter-semantics-smoke ir-portability-smoke semantics-fuel-smoke constructor-coverage-smoke counter-universal-refinement-smoke supported-fragment-smoke track14-fragment-theorems-smoke lean-invariants-smoke target-semantics-instances-smoke wasm-exec-smoke wasm-near-host-smoke wasm-cosmwasm-host-smoke wasm-soroban-host-smoke aleo-leo-codegen-smoke wasm-cosmwasm-refinement-smoke value-vault-wasm-refinement-smoke evm-bytecode-semantics-smoke ir-exec-result-smoke fv5-overflow-smoke solana-light portable-counter-multi-target cli-target-first source-identity registry-command solana-source-elf soroban-profile wat2wasm-fail-closed check-l2-parity hosted-isolation contract-source-diagnostics near-target-first wasm-near-plan near-plan-smoke wasm-near-ft-transfer-call wasm-near-ft-transfer-call-e2e docs-check testkit evm-diagnostics evm-coverage psy-diagnostics psy-coverage psy-metadata psy-metadata-validation psy-metadata-cli quint-mbt-gate quint-ir-model-gate aleo-leo-codegen-smoke
 
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:
