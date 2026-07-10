@@ -74,6 +74,7 @@ contract-spec-json:
 
 # Check generated target wrapper sketches from ContractSpec.
 contract-client: entrypoint-mutability
+    lake build ProofForge.Contract.Stdlib.NearFungibleToken
     lake env lean --run Tests/ContractClient.lean
     bash scripts/ts/evm-contract-client-smoke.sh
 
