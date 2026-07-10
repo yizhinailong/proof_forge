@@ -335,6 +335,10 @@ soroban-promotion:
 cosmwasm-promotion:
     scripts/cli/cosmwasm-promotion-smoke.sh
 
+# PF-P3-02: six-gate promotion smoke for move-aptos (Counter fixture fragment).
+aptos-promotion:
+    scripts/cli/aptos-promotion-smoke.sh
+
 # PF-P0-08: default Wasm build fails without wat2wasm; --format wat is intermediate.
 wat2wasm-fail-closed:
     scripts/cli/wat2wasm-fail-closed-smoke.sh

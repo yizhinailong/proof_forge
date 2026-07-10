@@ -339,9 +339,17 @@ def moveAptos : TargetProfile := {
     .accountExplicit
   ]
   requiredTools := #["aptos"]
-  support := TargetSupport.fixtureSpike
-    "Counter Move package sourcegen spike; source input fail-closed"
-    #[{ tool := "aptos", stage := "sourcegen" }]
+  support := {
+    maturity := .counterMvp
+    inputModes := #[.fixture]
+    commands := #[.build, .emit, .check]
+    outputStages := #[.sourcegen, .finalDeployable]
+    validationLevel := .package
+    supportedFragment :=
+      "Counter MVP (PF-P3-02 six-gate): fixture counter → Move package; " ++
+      "aptos move compile/test; product contract_source fail-closed"
+    toolStages := #[{ tool := "aptos", stage := "sourcegen" }]
+  }
 }
 
 def moveSui : TargetProfile := {
