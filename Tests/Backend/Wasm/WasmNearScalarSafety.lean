@@ -5,6 +5,7 @@ namespace ProofForge.Tests.WasmNearScalarSafety
 open ProofForge.IR
 open ProofForge.Backend.WasmHost.EmitWat
 open ProofForge.Backend.WasmHost.Layout
+open ProofForge.Backend.WasmHost.Memory
 open ProofForge.Backend.WasmHost.ModuleAssembly
 open ProofForge.Backend.WasmHost.Scalar
 
@@ -31,6 +32,10 @@ def testNamedCrosscallScan : IO Unit := do
     #[.effect (.storageScalarRead "b")] .u64
   require (exprReadsPackedScalar packed named)
     "crosscallNamed arguments must participate in packed-state read analysis"
+
+def testPackedKeyLengthMatchesDataSegment : IO Unit := do
+  require (PACK_KEY_LEN == "__pf_s".length)
+    "packed scalar storage-key length must match its emitted data segment"
 
 def testPartialWriteUsesConservativeLoad : IO Unit := do
   let (packed, packSize) := stateLayoutPacked twoScalarModule
@@ -61,6 +66,7 @@ def testImplicitPackingDisabled : IO Unit := do
 
 def main : IO UInt32 := do
   testNamedCrosscallScan
+  testPackedKeyLengthMatchesDataSegment
   testPartialWriteUsesConservativeLoad
   testImplicitPackingDisabled
   IO.println "wasm-near-scalar-safety: ok"
