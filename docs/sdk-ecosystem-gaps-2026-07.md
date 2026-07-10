@@ -172,7 +172,7 @@ Probe: `proof-forge build --target wasm-near` on Product sources after S0 merge.
 
 | Feature | Status | Evidence | Priority |
 |---|---|---|---|
-| Entrypoint ABI (Borsh params + returns) | Partial | Multi-u64 params work on product WAT (ValueVault/RoleGatedToken); structured aggregate ABI (structs/bytes/string) still incomplete | P0 → N1.2 |
+| Entrypoint ABI (Borsh params + returns) | Partial (N1.2) | Multi-u64 + **flat struct / fixedArray** params+returns via EmitWat Borsh (`just emitwat-aggregate-abi`); dynamic `bytes`/`string` still fail-closed | P1 remain: dynamic bytes/string |
 | State storage (scalar/map/hash) | Covered | storage_read/write/has_key lowered; product maps OK | — |
 | Generic events via log_utf8 | Covered | EmitWat event lowering + offline host | — |
 | Cross-contract calls (Promise API) | Partial | Host imports + EmitWat materialize; RemoteCall builds; full async peer still N1.4 | P1 |

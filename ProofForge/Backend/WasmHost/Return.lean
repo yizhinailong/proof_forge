@@ -21,10 +21,17 @@ open ProofForge.Backend.WasmHost.Types
 
 /-! Return-value encoding helpers for EmitWat. -/
 
+/-- Encode a memory pointer on the stack as `value_return(len, ptr)` (Borsh blob).
+    `insns` must leave an `i32` pointer as the top-of-stack result. -/
+def returnBytesFromPtrInsns (byteLen : Nat) (insns : Array Insn) : Array Insn :=
+  #[.i64Const byteLen] ++ insns ++
+    #[.plain "i64.extend_i32_u", .call "value_return"]
+
 def returnInsnsForLoweredExpr (expected : ValueType) (expr : Expr)
     (insns : Array Insn) (actual : ValueType)
     (bridge : ProofForge.Target.HostBridge := .near)
-    (_packScalars : Bool := false) : Except EmitError (Array Insn) := do
+    (_packScalars : Bool := false)
+    (aggregateReturnBytes : Option Nat := none) : Except EmitError (Array Insn) := do
   -- Packed-scalar flush is applied once as the entrypoint body suffix in EmitWat
   -- (`packFlushInsns` after the lowered body). Do not flush here or void/return
   -- paths double-call `__pf_pack_flush`.
@@ -39,8 +46,20 @@ def returnInsnsForLoweredExpr (expected : ValueType) (expr : Expr)
     | .u32 => .ok (insns ++ #[.call returnU32Name])
     | .bool => .ok (insns ++ #[.call returnBoolName])
     | .hash =>
-      .ok (#[.i64Const 32] ++ insns ++
-        #[.plain "i64.extend_i32_u", .call "value_return"])
+      .ok (returnBytesFromPtrInsns 32 insns)
+    | .structType _ | .fixedArray _ _ =>
+      match aggregateReturnBytes with
+      | some n =>
+        if n == 0 then
+          err s!"EmitWat: return type `{actual.name}` has zero Borsh size"
+        else
+          .ok (returnBytesFromPtrInsns n insns)
+      | none =>
+        err s!"EmitWat: return type `{actual.name}` requires aggregate layout size \
+(struct/fixedArray); pass layout size from EmitWat"
+    | .bytes | .string =>
+      err s!"EmitWat: return type `{actual.name}` is not supported on Borsh value_return \
+(dynamic bytes/string); use scalar, hash, fixedArray, or flat struct"
     | _ => err s!"EmitWat: return type `{actual.name}` is not supported"
 
 end ProofForge.Backend.WasmHost.Return

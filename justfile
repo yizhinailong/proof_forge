@@ -241,6 +241,10 @@ wasm-near-host-smoke:
     lake build ProofForge.Backend.WasmHost.NearHost
     lake env lean --run Tests/Backend/Wasm/WasmNearHost.lean
 
+# N1.2: EmitWat Borsh aggregate ABI (struct/fixedArray param+return; bytes fail-closed).
+emitwat-aggregate-abi:
+    lake env lean --run Tests/Backend/Wasm/EmitWatAggregateAbi.lean
+
 wasm-cosmwasm-host-smoke:
     lake build ProofForge.Backend.WasmHost.CosmWasmHost
     lake env lean --run Tests/Backend/Wasm/WasmCosmWasmHost.lean
