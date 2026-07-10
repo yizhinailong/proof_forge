@@ -1245,4 +1245,18 @@ theorem evm_lowerable_implies_lowering_total_witnesses :
           evmRenamedCounterWitness).isOk = true) :=
   ⟨fun _ => evm_counter_lowering_total, fun _ => evm_renamed_counter_lowering_total⟩
 
+/-- PF-P3-01: renaming a lowerable Counter shape to the proved name yields a
+proved module (structural; not limited to the Counter.module constant). -/
+theorem evm_renamed_witness_canonicalizes_to_proved :
+    isCounterModule (withCanonicalCounterName evmRenamedCounterWitness) = true :=
+  isCounterShapeLowerable_implies_isCounterModule_with_canonical_name
+    evmRenamedCounterWitness (by native_decide)
+
+/-- PF-P3-01: EVM lowering-total holds for the canonicalized renamed witness
+(name pin only; IR shape unchanged). -/
+theorem evm_renamed_witness_canonical_lowering_total :
+    (ProofForge.Backend.Evm.IR.lowerModule
+      (withCanonicalCounterName evmRenamedCounterWitness)).isOk = true := by
+  native_decide
+
 end ProofForge.Backend.Evm.Refinement

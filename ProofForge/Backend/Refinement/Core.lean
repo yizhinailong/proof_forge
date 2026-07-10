@@ -382,6 +382,24 @@ theorem isCounterModule_implies_shape_lowerable
   simp only [isCounterModule, Bool.and_eq_true] at h
   exact h.2
 
+/-- PF-P3-01: pin the proved-fragment name without changing IR shape. -/
+def withCanonicalCounterName (module : Module) : Module :=
+  { module with name := "Counter" }
+
+/-- Shape-lowerability ignores module name (only IR layout / overflow pin). -/
+theorem isCounterShapeLowerable_independent_of_name
+    (module : Module) (name' : String) :
+    isCounterShapeLowerable module =
+      isCounterShapeLowerable { module with name := name' } := by
+  simp only [isCounterShapeLowerable]
+
+/-- Every shape-lowerable module becomes a proved Counter after name pin. -/
+theorem isCounterShapeLowerable_implies_isCounterModule_with_canonical_name
+    (module : Module) (h : isCounterShapeLowerable module = true) :
+    isCounterModule (withCanonicalCounterName module) = true := by
+  simp only [withCanonicalCounterName, isCounterModule, Bool.and_eq_true]
+  exact ⟨rfl, h⟩
+
 /-- From `isCounterModuleShape`, recover the three entrypoints and their predicates. -/
 theorem isCounterModuleShape_entrypoints
     (state : List StateDecl) (entrypoints : List Entrypoint)

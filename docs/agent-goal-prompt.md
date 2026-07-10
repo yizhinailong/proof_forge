@@ -9,9 +9,9 @@ Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
 
 Baseline: Waves 0–4 done (PF-P3-02 @8d4dd0c4 / fdbdf1ff). Wave 5: PF-P3-01 formal
-fragment (structural proved⊂lowerable + renamed witnesses landed; full
-∀-lowerable⇒ok bridge open) + PF-P3-03 hosted isolation (fail-closed gate
-landed; worker limits + reproducible hashes remain).
+fragment (proved⊂lowerable + renamed/canonical-name witnesses; structural
+∀-lowerable⇒ok still open) + PF-P3-03 (HOSTED_ISOLATION + lean pin + rebuild
+hash smoke; worker resource limits remain).
 
 ---
 
@@ -120,8 +120,8 @@ implementation SHA is only known after the implementation commit exists.
 | 3 | PF-P2-01 | done: verified@72c5789e; just product-catalog; just product; just testkit; just testkit-array-example; just testkit-ownable; just testkit-remote-call; just check | Waves 1 and 2 done |
 | 3 | PF-P2-02 | done: verified@7c4def9c; Foundry ERC721/1155/custom-error; Solana ELF; `just near-sandbox-peer` (storage_usage + promise peer); `just product`; `just check` | Waves 1 and 2 done; complete one backend slice at a time |
 | 3 | PF-P2-03 | done: verified@7c4def9c; `just testkit-remote-call` (evm+solana); Foundry peer; Mollusk CPI; `just near-sandbox-peer` (call_with_args→49); `just product` | Waves 1 and 2 done |
-| 5 | PF-P3-01 | in_progress: structural isCounterShapeLowerable ⊃ isCounterModule + triad renamed lowerable∧¬proved witnesses; next: ∀ m lowerable m → lowerModule m = .ok structural bridge | Wave 3 done; after PF-P3-02 |
-| 5 | PF-P3-03 | in_progress: HOSTED_ISOLATION refuse + lean-toolchain pin in EVM/EmitWat ArtifactBundle; next: worker CPU/mem/time limits + rebuild hash equivalence | Wave 3 done |
+| 5 | PF-P3-01 | in_progress: shape lowerable ⊃ proved + renamed witnesses + withCanonicalCounterName bridge; next: structural ∀ m, lowerable m → lowerModule m = .ok | Wave 3 done; after PF-P3-02 |
+| 5 | PF-P3-03 | in_progress: HOSTED_ISOLATION + lean pin + `just rebuild-hash` (EVM Counter bin/yul reproduce); next: worker CPU/mem/time limits | Wave 3 done |
 | 4 | PF-P3-02 | done: verified@8d4dd0c4; `just soroban-promotion` `cosmwasm-promotion` `aptos-promotion` `sui-promotion` `cloudflare-promotion` `psy-promotion` `aleo-promotion` | Wave 3 done; promote only one target at a time, and do not block Wave 5 |
 
 PF-P3-02 promotion order is fixed unless the human changes it: Soroban,
