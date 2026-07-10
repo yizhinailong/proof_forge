@@ -1232,8 +1232,12 @@ benchmark-native-counter:
 benchmark-counter-pf:
     scripts/benchmarks/counter-pf-runner.sh
 
-# B1.3 entrypoint (native rows land in B1.4; native corpus remains benchmark-native-counter).
-benchmark-counter: benchmark-counter-pf
+# B1.4: native Counter triad runner → build/benchmarks/bm-counter_*_native.json
+benchmark-counter-native:
+    scripts/benchmarks/counter-native-runner.sh
+
+# Counter matrix entrypoint: PF rows (B1.3) + native rows (B1.4).
+benchmark-counter: benchmark-counter-pf benchmark-counter-native
 
 # Run the unified RFC 0007 testkit scenario suite.
 testkit:

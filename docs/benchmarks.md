@@ -1,6 +1,6 @@
 # ProofForge vs Native Benchmark Matrix
 
-Status: **Active (B1.3 PF Counter runner landed)**  
+Status: **Active (B1.4 native Counter runner landed)**  
 Plan: [post-review execution plan](superpowers/plans/2026-07-10-post-review-execution.md) wave **B1**
 
 ## Why
@@ -129,12 +129,14 @@ benchmarks/
 ```sh
 just benchmark-schema           # B1.1 — schema fixtures accept/reject
 just benchmark-native-counter   # B1.2 — native corpus compile/typecheck
-just benchmark-counter          # B1.3 — PF Counter rows under build/benchmarks/
-# → build/benchmarks/bm-counter_{evm,solana-sbpf-asm,wasm-near}_proofforge.json
-# native rows + gas/CU (B1.4); optional docs/generated/benchmark-counter.md (B1.6)
+just benchmark-counter-pf       # B1.3 — PF Counter rows
+just benchmark-counter-native   # B1.4 — native Counter rows (EVM gas when Anvil present)
+just benchmark-counter          # B1.3 + B1.4
+# → build/benchmarks/bm-counter_{evm,solana-sbpf-asm,wasm-near}_{proofforge,native}.json
+# behavior gate (B1.5); optional docs/generated/benchmark-counter.md (B1.6)
 ```
 
-Until native runners exist, reuse seeds:
+Seeds still useful for budgets outside the matrix:
 
 ```sh
 just testkit             # Counter/ValueVault budgets (not full native matrix)
@@ -149,7 +151,7 @@ just product             # multi-target compile matrix
 | B1.1 Schema checker | **done** (`just benchmark-schema`) |
 | B1.2 Native Counter corpus | **done** (`benchmarks/native/`, `just benchmark-native-counter`) |
 | B1.3 PF Counter runner | **done** (`just benchmark-counter` / `benchmark-counter-pf`) |
-| B1.4 Native Counter runner | pending |
+| B1.4 Native Counter runner | **done** (`just benchmark-counter-native`; EVM gas via Anvil/cast) |
 | B1.5 Behavior gate | pending |
 | B1.6 Cost table snapshot | pending |
 | B1.7 Expand scenarios | pending |
