@@ -165,12 +165,13 @@ python3 scripts/sdk/validate-sdk-artifact-refs.py \
   "$STORAGE_DIR/proof-forge-sdk.json"
 
 ACCOUNT_HASH="9a7068ee6434852cdaff3acb2f7d0f002fdad589c8e388b299e8a48a831ca3e4"
+WITHDRAW_INPUT="${ACCOUNT_HASH}0300000000000000"
 out="$("${HOST[@]}" "$STORAGE_DIR/nearstoragedeposit.wat" \
   init storage_balance_bounds storage_balance_of storage_deposit storage_balance_of \
   storage_withdraw storage_balance_of \
   --predecessor-account-id alice.testnet \
   --attached-deposit 7 \
-  --inputs-hex ",,$ACCOUNT_HASH,$ACCOUNT_HASH,$ACCOUNT_HASH,${ACCOUNT_HASH}0300000000000000,$ACCOUNT_HASH")"
+  --inputs-hex ",,$ACCOUNT_HASH,$ACCOUNT_HASH,$ACCOUNT_HASH,$WITHDRAW_INPUT,$ACCOUNT_HASH")"
 echo "$out"
 assert_contains "$out" "call 1:storage_balance_bounds: return_hex=0100000000000000 return_u64=1" "storage bounds"
 assert_contains "$out" "call 1:storage_balance_of: return_hex=0000000000000000 return_u64=0" "initial storage balance"

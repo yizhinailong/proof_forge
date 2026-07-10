@@ -1,9 +1,9 @@
 {
   "README.md": {
-    "sha256": "c69ee281064a9c3591fbdc2335be0c7671755bc1809d3e68b3090cf2a1c90317",
+    "sha256": "973660cfc9675c07508453f9d4b15d08e1c65f46632c016fa15c03bfed0f529f",
     "zh": "docs/zh/README-root.zh.md",
     "model": "manual-zh",
-    "note": "synced for strict secondary-target promotion claims and honest EVM maturity wording"
+    "note": "manually synced through the 2026-07-10 audit integration and Counter module CLI correction"
   },
   "CONTRIBUTING.md": {
     "sha256": "b47c1fcaf0d003718e5487575f74486b403ed4bbfb88dc7fc1891cbe23cc7b64",
@@ -78,10 +78,10 @@
     "note": "manually synced through the 2026-07-10 audit integration"
   },
   "docs/validation-gates.md": {
-    "sha256": "ab447797e4b211379c9cf73a29cc57ef1bb217c663c089dccfe20849dc8fbb3a",
+    "sha256": "0ada7ceab327eb3c00dee6e16884a7a95f2add971ac25d4a18139f91ff433b96",
     "zh": "docs/zh/validation-gates.zh.md",
     "model": "manual-zh",
-    "note": "synced after Product/Backend reorg path renames"
+    "note": "manually synced after Product/Backend reorg and Counter module CLI correction"
   },
   "docs/rfcs/README.md": {
     "sha256": "9ad1054225c1661b2f9dbe5cdaaf81fb6fdaa412276b56461ce52edf503e7aa5",
