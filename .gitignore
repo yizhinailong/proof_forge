@@ -17,3 +17,4 @@ scripts/__pycache__/
 
 # NEAR sandbox peer smoke build
 scripts/near/sandbox-peer-smoke/target/
+.gstack/

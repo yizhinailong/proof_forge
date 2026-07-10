@@ -31,11 +31,23 @@ checker, interpreter/lowering flow, ABI generation, Dargo CLI, browser/Node
 Wasm bindings, and precompiled contract examples.
 
 The important distinction for ProofForge is that Psy compiles contract methods
-to DPN circuit function definitions. The target artifact is closer to a ZK VM
-circuit artifact than to EVM bytecode or a Wasm module.
+to **DPN opcodes / bytecode**, packaged as `DPNFunctionCircuitDefinition`, then
+to ZK circuits. Official docs
+([Contract Deployment](https://docs.psy-protocol.xyz/language/contract_deployment.html),
+[VM Bytecode](https://docs.psy-protocol.xyz/vm/bytecode.html)):
 
-Initial ProofForge integration should therefore treat Psy as a **ZK circuit
-source-generation target**:
+```text
+.psy Source Code
+  → DPN Opcodes / bytecode
+  → ZK Circuit
+  → Verifier Data
+```
+
+That lower layer is **not** EVM Yul text, Solana sBPF linear asm, or Wasm stack
+bytecode. It is a **zkVM opcode DAG** (symbolic execution): inputs are leaves,
+operations are nodes, control flow is flattened to `Select` / boolean arithmetic.
+
+**Current ProofForge path (sourcegen bootstrap):**
 
 ```text
 Lean portable contract
@@ -45,11 +57,11 @@ Lean portable contract
   -> Psy AST (ProofForge.Compiler.Psy.AST)
   -> generated .psy package (ProofForge.Compiler.Psy.Printer)
   -> dargo compile
-  -> DPNFunctionCircuitDefinition JSON + ABI
+  -> DPNFunctionCircuitDefinition JSON + ABI   ← official lower layer
   -> Psy deploy/test tooling
 ```
 
-The lowering is now three-stage, mirroring the EVM
+The sourcegen lowering is three-stage, mirroring the EVM
 (`Lower.lean` → `Plan.lean` → `IR.lean` → `Compiler/Yul/AST.lean` + `Printer.lean`)
 and Wasm-family backend pattern:
 
@@ -68,8 +80,11 @@ emits; it does not model the upstream `psy-ast::Program` interner/arena/checker
 layers. The plan decouples shape resolution from source formatting and gives a
 stable inspection point for artifact/deploy metadata.
 
-Do not start by directly emitting Psy DPN internals. The public repo does not
-expose a stable Yul-like textual intermediate language.
+**Preferred next boundary (Z1):** emit `DPNFunctionCircuitDefinition` / DPN
+opcodes **directly** from portable IR (skipping the `.psy` pretty-printer as the
+semantic source of truth), while keeping `.psy`+`dargo` as bootstrap and oracle.
+Do **not** invent a private text assembly, and do **not** skip DPN into raw
+constraint systems.
 
 ## Why This Is A New Target Family
 
@@ -86,12 +101,13 @@ Psy is different:
 - the compiler output is a set of circuit function definitions
 - the deployable object is Psy-specific contract code/deploy JSON
 - storage and call semantics are not EVM slot storage
-- the usable public integration boundary is `.psy` source plus Dargo tooling
+- the developer language is `.psy`; the **stable lower boundary** is DPN bytecode
+  (`DPNFunctionCircuitDefinition` / DPN opcodes) via Dargo or future direct emit
 
-This should become a fifth family:
+This is a fifth family:
 
 ```text
-ZK circuit sourcegen: Portable IR -> target source -> circuit artifact
+ZK DPN bytecode: Portable IR -> (.psy optional) -> DPN opcodes -> circuit / verifier
 ```
 
 ## Toolchain Shape
@@ -186,39 +202,111 @@ with capability diagnostics.
 
 ## Yul-Like IR Assessment
 
-Psy currently has several intermediate layers, but none are equivalent to Yul
-for ProofForge's purposes.
+Psy has a real lower layer under `.psy`, but it is **not** a Yul-like *textual*
+IR for hand authoring. Official VM docs define DPN bytecode as the post-language
+target.
 
 | Layer | Public? | Stable integration boundary? | Notes |
 |---|---:|---:|---|
-| `.psy` source | Yes | Yes | Source text boundary; rendered by `ProofForge.Compiler.Psy.Printer` |
-| `psy-ast` / checked AST | Yes | Yes (surface mirror) | ProofForge maintains a target-side surface AST (`ProofForge.Compiler.Psy.AST`) mirroring the `.psy` source forms, **not** the upstream `psy-ast::Program` interner/arena/checker layers |
-| `QExecContext` / DPN ops | Partly | No | Symbolic execution/circuit lowering layer; core types come from `psy-node` |
-| `DPNFunctionCircuitDefinition` JSON | Yes | Artifact, not IR | Good output artifact, too target-specific and opaque for ProofForge IR |
-| ABI / contract code JSON | Yes | Output metadata | Useful for deployment and cloud metadata |
+| `.psy` source | Yes | Yes (HLL / bootstrap) | Developer language; current PF printer target |
+| ProofForge `Psy.AST` | Yes (ours) | Yes | Surface mirror of `.psy`, not upstream arena AST |
+| Upstream `psy-ast` / checker | Yes (crate) | No | Compiler internals (interner/def-id/checked `Program`) |
+| **DPN opcodes / `DPNFunctionCircuitDefinition`** | **Yes** | **Yes — preferred lower boundary** | Official catalog: [vm/bytecode.html](https://docs.psy-protocol.xyz/vm/bytecode.html); executor: [vm/execution.html](https://docs.psy-protocol.xyz/vm/execution.html) |
+| Constraint / verifier data | Protocol | Final on-chain form | After DPN; not the first PF emit target |
+| ABI / deploy JSON | Yes | Metadata | Deployment and cloud metadata |
 
-The upstream `psy-ast` crate (`psy-compiler/psy-ast/src`) defines a full
-compiler AST with interners, arenas, def-ids, locations, and a checked
-`Program<F>` tree. ProofForge does not target that internal representation
-directly — it is tied to Psy compiler internals and carries type-checking
-state that belongs upstream. Instead, ProofForge defines its own
-`ProofForge.Compiler.Psy.AST` module-side AST that captures exactly the
-`.psy` surface forms the printer emits (modules, structs, state, methods,
-statements, expressions, effects, storage targets, operators, literals, and
-context fields). This mirrors the in-repo pattern used by the EVM backend
-(`Compiler/Yul/AST.lean` + `Printer.lean`) and the Wasm-family backends
-(`Compiler/Wasm/AST.lean` + `Printer.lean`): a small target AST plus a pure
-structural printer.
+Analogy fit:
 
-Conclusion: **ProofForge uses its own portable contract IR as the stable
-middle layer, resolves Psy-specific shapes into a semantic plan, lowers the
-IR + plan to a target-side `Psy.Module` AST, and renders that AST to `.psy`
-source**. The three-stage lowering (IR → Plan → AST → source) decouples shape
-resolution (plan) from AST construction from source formatting (printer),
-mirroring the EVM `Lower → Plan → ToYul → Printer` split, and leaves clear
-extension points for future Psy plan-level passes (artifact metadata,
-canonicalization) and AST-level passes (formatting control, upstream-AST
-emission if the compiler internals stabilize).
+| Analogy | Fit | Why |
+|---------|-----|-----|
+| Yul | Partial | Post-HLL IR, but not a public hand-written text dialect |
+| sBPF asm | Weak | Not a linear register/jump machine |
+| Wasm | Partial | Fixed opcode set, but DAG/constraint oriented, not a stack machine |
+
+**Conclusion (2026-07-10, Z1.0):** portable IR remains the multi-target middle
+layer. For Psy specifically, the **target-native lower boundary is DPN
+bytecode**. Current PF code reaches it via `.psy` → `dargo compile`. Z1 work
+aims at `IR → DPN` direct emit with dargo execute as oracle; `.psy` remains
+fallback.
+
+### DPN bytecode (official + observed)
+
+**Container:** `DPNFunctionCircuitDefinition` (JSON array of methods from
+`dargo compile`). Fields:
+
+| Field | Role |
+|-------|------|
+| `name` | Function name |
+| `method_id` | Deterministic method id |
+| `circuit_inputs` / `circuit_outputs` | Input/output variable refs |
+| `definitions[]` | Opcode DAG: `{ data_type, index, op_type, inputs }` |
+| `state_commands[]` | Storage / chain / invoke commands |
+| `state_command_resolution_indices` | Map state cmds to definition results |
+| `assertions[]` | Equality constraints (`left`, `right`, `message`) |
+| `events[]` | Event emissions |
+
+**`data_type` (official `DPNBuiltInDataType`):** `0=Target(Felt)`, `1=Bool`,
+`2=U32Target`, `3=HashOut`, `5=TargetArray`, …
+
+**`op_type` catalog (official names; codes from docs + local dargo corpus):**
+
+| Code | Official name | Observed in PF fixtures? |
+|-----:|---------------|--------------------------:|
+| 0 | InputTarget | yes |
+| 1 | Constant | yes |
+| 2 | ConstantTrue | yes |
+| 3 | ConstantFalse | yes |
+| 4 | Add | yes |
+| 5 | Sub | yes |
+| 6 | Mul | yes |
+| 7 | Div | yes |
+| 8 | BoolNot | yes |
+| 9 | BoolAnd | (catalog) |
+| 10 | BoolOr | (catalog) |
+| 11 | Xor | (catalog) |
+| 12 | Nor | (catalog) |
+| 13 | Eq | yes |
+| 14–16 | Lte / Gte / Gt | (catalog) |
+| 17 | Lt | yes |
+| 18–19 | SplitBits / SumBits | (catalog) |
+| 20 | TargetAt | yes |
+| 21 | HashNoPad | yes |
+| 22 | HashPad | (catalog) |
+| 23 | Select | yes |
+| 24–30 | Exp / Mod / DivRem4 family | Mod=27 yes |
+| 31 | CastU32 | yes |
+| 32–44 | U32 bitwise / shifts | 32,34,36,38,40,42,43 yes |
+| 45 | CalculateMerkleRoot | (catalog) |
+| 46 | GetUserId | yes |
+| 47 | GetContractId | yes |
+| 48 | GetCheckpointId | yes |
+| 49–52 | GetNonce / pubkey / state query family | (catalog) |
+| 53 | GetStateCommandResultHash | yes |
+| 54 | GetStateCommandResultSingle | yes |
+| 55 | GetStateCommandResultArray | yes |
+| 64–65 | UnaryInverse / UnaryNegative | (catalog) |
+| 66 | U32InputTarget | yes |
+| 67 | ConstantU32 | yes |
+| 68–71 | U32Add / Sub / Mul / Div | yes |
+| 72 | CastFelt | yes |
+| 73 | CastBool | yes |
+| 74 | BoolInputTarget | (catalog) |
+| 75–76 | U32Mod / U32Exp | yes |
+| 77 | Secp256k1Verify | (catalog) |
+| 78 | HashTwoToOne | yes |
+| 79 | GetCallerContractId | (catalog) |
+
+Local corpus snapshot (all `build/psy/**/proof_forge_*.json` at inventory time):
+**810** definition ops, **40** distinct `op_type` values.
+
+**Frequent `state_commands.type` values observed:**
+`GetSelfUserCurrentContractStateSlotSingle`, `SetContractStateSlotSingle`,
+IMT map helpers, `SetContractStateSlotRange` /
+`GetSelfUserCurrentContractStateSlotRange`,
+`InvokeExternalContractFunctionSync`.
+
+Assertions are **not** `DPNOpType` entries; they are separate
+`DPNAssertEqInfoIndexed` records (official bytecode page).
 
 ## Proposed Target Profile
 
@@ -300,8 +388,9 @@ Rejected first:
 - unbounded recursion
 - dynamic heap-heavy data structures
 - target-native operations not represented as capabilities
-- direct emission of DPN internals
+- inventing a private text assembly or skipping DPN into raw constraints
 - automatic translation of arbitrary EVM storage layouts
+- (until Z1 lands) claiming IR→DPN direct emit while only `.psy` sourcegen exists
 
 The target should fail before source generation when an unsupported IR node or
 capability appears.
