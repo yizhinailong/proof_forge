@@ -1,6 +1,6 @@
 # RFC 0012: Versioning and Compatibility Policy
 
-Status: **Draft**
+Status: **Accepted** (D-042; P1.3 closed 2026-07-10)
 Date: 2026-07-03
 
 ## Problem
