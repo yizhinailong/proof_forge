@@ -353,13 +353,34 @@ def isCounterModuleShape (state : List StateDecl) (entrypoints : List Entrypoint
         isCounterGetEntrypoint entry2
   | _, _ => false
 
-def isCounterModule (module : Module) : Bool :=
-  module.name == "Counter" &&
-    module.structs.size == 0 &&
+/-- Broad Counter-shape *lowerable* predicate (PF-P3-01).
+
+Same IR shape and host/scalar constraints as the proved Counter fragment,
+but without pinning `module.name == "Counter"`. Primary triad lowerers treat
+the name as a label and succeed on this class. Overflow-checked variants
+remain outside the class (they break Solana/NEAR lowering).
+
+This is the structural superset of `isCounterModule` used for
+`TargetSemantics.lowerableAccepts` so that `proven ⊂ lowerable` is a real
+inclusion with checked witnesses (`lowerable ∧ ¬proven`), not a reflexive
+equality on the canonical Counter constant alone. -/
+def isCounterShapeLowerable (module : Module) : Bool :=
+  module.structs.size == 0 &&
     module.proxyPattern?.isNone &&
     module.nearCrosscallStrings.size == 0 &&
     !module.overflowChecked &&
     isCounterModuleShape module.state.toList module.entrypoints.toList
+
+/-- Narrow proved Counter fragment: canonical name plus lowerable shape. -/
+def isCounterModule (module : Module) : Bool :=
+  module.name == "Counter" && isCounterShapeLowerable module
+
+/-- Every proved Counter module is lowerable under the shape predicate. -/
+theorem isCounterModule_implies_shape_lowerable
+    (module : Module) (h : isCounterModule module = true) :
+    isCounterShapeLowerable module = true := by
+  simp only [isCounterModule, Bool.and_eq_true] at h
+  exact h.2
 
 /-- From `isCounterModuleShape`, recover the three entrypoints and their predicates. -/
 theorem isCounterModuleShape_entrypoints
@@ -400,8 +421,10 @@ theorem isCounterModule_entrypoints {m : Module} (hm : isCounterModule m = true)
       isCounterInitializeEntrypoint e0 = true ∧
       isCounterIncrementEntrypoint e1 = true ∧
       isCounterGetEntrypoint e2 = true := by
-  simp only [isCounterModule, Bool.and_eq_true] at hm
-  exact isCounterModuleShape_entrypoints m.state.toList m.entrypoints.toList hm.2
+  have hshape : isCounterShapeLowerable m = true :=
+    isCounterModule_implies_shape_lowerable m hm
+  simp only [isCounterShapeLowerable, Bool.and_eq_true] at hshape
+  exact isCounterModuleShape_entrypoints m.state.toList m.entrypoints.toList hshape.2
 
 def FormalFragment.acceptsModule : FormalFragment → Module → Bool
   | .counter, module => isCounterModule module

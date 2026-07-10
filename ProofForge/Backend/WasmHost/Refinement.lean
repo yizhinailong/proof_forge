@@ -194,7 +194,7 @@ def wasmNearTargetSemantics : TargetSemantics := {
   id := "wasm-near"
   supportedFragments := #[.counter]
   fragmentAccepts := isCounterModule
-  lowerableAccepts := isCounterModule
+  lowerableAccepts := isCounterShapeLowerable
   MachineState := WasmHostMachineState
   Call := TraceCall
   Obs := ObservableStep
@@ -1303,13 +1303,19 @@ theorem wasm_near_counter_lowering_total :
       ProofForge.IR.Examples.Counter.module).isOk = true := by
   native_decide
 
+/-- PF-P3-01 structural inclusion: every proved Counter module is NEAR-lowerable. -/
+theorem wasm_near_proven_subset_lowerable
+    (m : ProofForge.IR.Module)
+    (h : wasmNearTargetSemantics.fragmentAccepts m = true) :
+    wasmNearTargetSemantics.lowerableAccepts m = true :=
+  isCounterModule_implies_shape_lowerable m h
+
 theorem wasm_near_proven_subset_lowerable_counter :
     wasmNearTargetSemantics.fragmentAccepts
       ProofForge.IR.Examples.Counter.module = true →
     wasmNearTargetSemantics.lowerableAccepts
-      ProofForge.IR.Examples.Counter.module = true := by
-  intros
-  rfl
+      ProofForge.IR.Examples.Counter.module = true :=
+  wasm_near_proven_subset_lowerable ProofForge.IR.Examples.Counter.module
 
 theorem wasm_near_lowerable_implies_lowering_total_counter
     (_h : wasmNearTargetSemantics.lowerableAccepts
@@ -1333,6 +1339,19 @@ theorem wasm_near_capability_accept_implies_lowerable_counter
         ProofForge.IR.Examples.Counter.module).isOk = true) :
     wasmNearTargetSemantics.lowerableAccepts
       ProofForge.IR.Examples.Counter.module = true := by
+  native_decide
+
+def wasmNearRenamedCounterWitness : ProofForge.IR.Module :=
+  { ProofForge.IR.Examples.Counter.module with name := "CounterRenamed" }
+
+theorem wasm_near_renamed_counter_lowerable_not_proved :
+    wasmNearTargetSemantics.lowerableAccepts wasmNearRenamedCounterWitness = true ∧
+      wasmNearTargetSemantics.fragmentAccepts wasmNearRenamedCounterWitness = false := by
+  native_decide
+
+theorem wasm_near_renamed_counter_lowering_total :
+    (ProofForge.Backend.WasmHost.EmitWat.lowerModule
+      wasmNearRenamedCounterWitness).isOk = true := by
   native_decide
 
 end ProofForge.Backend.WasmHost.Refinement
