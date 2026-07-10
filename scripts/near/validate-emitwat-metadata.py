@@ -134,7 +134,42 @@ def main() -> int:
     deployment = expect_object(deploy_manifest.get("deployment"), "deployment")
     expect(deployment.get("mode") == "local-offline-host", "deployment.mode must be local-offline-host")
     expect(deployment.get("status") == "not-broadcast", "deployment.status must be not-broadcast")
+    # N1.7: explicit offline vs broadcast labeling (EVM-aligned honesty).
+    # Never accept "broadcast passed" / live deploy claims from build-time manifests.
+    expect(
+        deployment.get("broadcast") == "not-generated",
+        "deployment.broadcast must be not-generated (no live NEAR broadcast from build)",
+    )
+    expect(
+        deployment.get("broadcastArtifact") is None,
+        "deployment.broadcastArtifact must be null (no signed/broadcast tx artifact)",
+    )
+    expect(
+        deployment.get("networkDeploy") == "not-generated",
+        "deployment.networkDeploy must be not-generated",
+    )
     expect(deployment.get("localExecutor") == "runtime/offline-host", "deployment.localExecutor mismatch")
+    expect(deployment.get("nearAccountId") is None, "deployment.nearAccountId must be null")
+    expect(
+        deployment.get("nearSandbox") == "not-generated",
+        "deployment.nearSandbox must be not-generated",
+    )
+    note = deployment.get("note")
+    expect(isinstance(note, str) and note, "deployment.note must be a non-empty string")
+    for forbidden in ("broadcast:passed", "broadcasted", "network-deployed"):
+        expect(
+            forbidden not in note.lower().replace(" ", ""),
+            f"deployment.note must not claim live deploy ({forbidden})",
+        )
+    # validation.deployManifest=passed means the JSON was written, not that a
+    # transaction was broadcast. offlineHost stays pending until a host smoke runs.
+    expect(
+        validation.get("offlineHost") in {None, "pending", "passed", "skipped", "unavailable"},
+        "validation.offlineHost must not invent a broadcast status",
+    )
+    for key, value in validation.items():
+        if "broadcast" in key.lower() and value == "passed":
+            fail(f"validation.{key}=passed is forbidden without a broadcast tool")
 
     print("near-emitwat-metadata: ok")
     return 0

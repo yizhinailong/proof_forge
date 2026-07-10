@@ -166,7 +166,7 @@ Probe: `proof-forge build --target wasm-near` on Product sources after S0 merge.
 2. **Aggregate Borsh** — multi-param scalar i64 works; struct/bytes/string ABI still limited (N1.2).
 3. **Promise peer correctness** — materialize exists; sandbox/offline peer returns need N1.4.
 4. **NEP-141/145 product depth** — plan+WAT exist; full FT lifecycle + storage deposit economics still shallow (N1.3/N1.5).
-5. **Budget honesty** — wasmtime fuel vs near gas (N1.6).
+5. **Budget honesty** — offline `wasmtimeFuel*` only; real `nearGas` from sandbox (N1.6).
 
 ### Contract model
 
@@ -175,7 +175,7 @@ Probe: `proof-forge build --target wasm-near` on Product sources after S0 merge.
 | Entrypoint ABI (Borsh params + returns) | Partial (N1.2) | Multi-u64 + **flat struct / fixedArray** params+returns via EmitWat Borsh (`just emitwat-aggregate-abi`); dynamic `bytes`/`string` still fail-closed | P1 remain: dynamic bytes/string |
 | State storage (scalar/map/hash) | Covered | storage_read/write/has_key lowered; product maps OK | — |
 | Generic events via log_utf8 | Covered | EmitWat event lowering + offline host | — |
-| Cross-contract calls (Promise API) | Partial (N1.4) | Host imports + materialize; **offline** `just near-remote-call-offline-peer` (`call_with_args → 49`); **sandbox** `just near-sandbox-peer` real PeerOracle; IR semantics remain sum stub | P1 remain: richer multi-hop peer simulation |
+| Cross-contract calls (Promise API) | Partial (N1.4) | Host imports + materialize; **offline** `just near-remote-call-offline-peer` (`call_with_args → 49`); **testkit** `just testkit-remote-call` includes NEAR peer observation (N1.4 closed: offline-host materializes promise_create/return → 49 alongside EVM/Solana peers); **sandbox** `just near-sandbox-peer` real PeerOracle; IR semantics remain sum stub (not a peer VM; see `docs/formal-verification.md` § Crosscall honesty) | P1 remain: richer multi-hop peer simulation |
 | Callback handling | Partial | `promise_result` host import exists; offline host returns `2` (Failed). Full callback dispatch deferred | P1 |
 
 ### Token standards
@@ -183,7 +183,7 @@ Probe: `proof-forge build --target wasm-near` on Product sources after S0 merge.
 | Feature | Status | Evidence | Priority |
 |---|---|---|---|
 | NEP-141 (fungible token) | Partial (N1.3) | `just product-token-near`: Product TokenSpec plan + generic stdlib body WAT + Backend-wrapper offline mint/transfer conformance; these are not yet one parameterized Product runtime artifact. `just wasm-near-ft-transfer-call-e2e` covers transfer_call/resolve; bare TokenSpec `build` needs `--token` | P0 remain: TokenSpec → parameterized runtime artifact; P1: NEP-148 metadata, optional live sandbox dual deploy |
-| NEP-145 (storage management) | Partial | `Tests/ContractSource/NearStorageDeposit.lean` + Product `StorageDeposit.lean` build; full JSON `StorageBalance`, withdraw/refund, byte accounting remain open | P1 |
+| NEP-145 (storage management) | Partial (N1.5) | Product `storage_deposit` plus caller-bound `storage_withdraw` **ledger debit**; `just near-storage-deposit-offline` checks 7→4 and rejects cross-account debit; sandbox compare runs the same projected balance sequence | P0 remain: 1-yocto guard and predecessor refund Promise; P1: JSON `StorageBalance`, unregister |
 | NEP-148 (metadata) | Missing | No metadata fixture | P1 |
 | NEP-171 (NFT) | Missing | No NFT example | P1 |
 | NEP-178 (NFT enumeration) | Missing | No enumeration example | P2 |
@@ -204,7 +204,8 @@ Probe: `proof-forge build --target wasm-near` on Product sources after S0 merge.
 |---|---|---|---|
 | attached_deposit (native value) | Covered | `attached_deposit` host import + `.nativeValue` EmitWat lowering (U64 truncation of U128); `StoragePathWrite` supports nested `mapKey+mapKey` paths | — |
 | balance_of / balance_change | Missing | No balance host APIs | P1 |
-| prepaid_gas / used_gas / GAS_PRICE | Missing | Only external fuel reporting; no in-contract gas APIs | P1 |
+| prepaid_gas / used_gas / GAS_PRICE | Missing | No in-contract host imports or portable IR operations | P1 |
+| Execution budget reporting (N1.6) | Partial | Offline host reports `wasmtimeFuelCumulative`/`wasmtimeFuelDelta` only (`just near-budget-honesty`); sandbox reports real `nearGas` via `just near-sandbox-peer` | P1 remain: required sandbox budget regression bands |
 
 ### Crypto / misc
 
@@ -223,7 +224,8 @@ Probe: `proof-forge build --target wasm-near` on Product sources after S0 merge.
 
 | Feature | Status | Evidence | Priority |
 |---|---|---|---|
-| Real NEAR broadcast smoke | Missing | Deploy metadata is offline-only | P1 |
+| Deploy metadata honesty (N1.7) | Covered | Build-time `proof-forge-deploy.json` labels `mode=local-offline-host`, `status=not-broadcast`, `broadcast=not-generated`, `networkDeploy=not-generated`, `nearSandbox=not-generated`, `nearAccountId=null`. `validation.deployManifest=passed` only means the manifest JSON was written — not a live deploy. `just near-deploy-honesty` + `scripts/near/validate-emitwat-metadata.py` | — |
+| Real NEAR broadcast smoke | Missing | No network broadcast tool for wasm-near; sandbox dual-deploy is compare/live only | P1 |
 | near-api-js client wrapper | Covered | Generated `proof-forge-near.ts` exposes `NearViewOptions` for view calls and `NearCallOptions` for gas/attached-deposit mutating calls | — |
 
 ---

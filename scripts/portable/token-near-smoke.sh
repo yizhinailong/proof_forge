@@ -36,6 +36,7 @@ command -v lake >/dev/null 2>&1 || fail "lake not on PATH"
 
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"
+lake build proof-forge >/dev/null
 
 echo "=== product-token-near step 1: TokenSpec → wasm-near NEP-141 plan ==="
 lake env proof-forge build --target wasm-near --token --root . \

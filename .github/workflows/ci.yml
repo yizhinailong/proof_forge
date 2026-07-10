@@ -183,6 +183,12 @@ jobs:
       - name: Run Wasm-NEAR target-first smoke
         run: just near-target-first
 
+      - name: Run Wasm-NEAR aggregate and honesty gates
+        run: |
+          just emitwat-aggregate-abi
+          just near-budget-honesty
+          just near-deploy-honesty
+
       - name: Check contract_source target diagnostics
         run: just contract-source-diagnostics
 

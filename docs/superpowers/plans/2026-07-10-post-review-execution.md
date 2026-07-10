@@ -130,13 +130,13 @@ S0 → N1 (core) → E1 (parallelizable after S0) → L1 selective
 
 | ID | Task | Work | Acceptance | Size | Status |
 |----|------|------|------------|------|--------|
-| **N1.1** | Aggregate ABI inventory | Document current Borsh/param surface vs product sources that fail or degrade on NEAR. File gaps under `docs/sdk-ecosystem-gaps-2026-07.md` NEAR section with evidence commands. | Gap table updated with concrete failing modules + expected ABI shapes | S | pending |
-| **N1.2** | Scalar+struct ABI completeness | Extend EmitWat/NEAR lowering for product-needed aggregate params/returns used by ValueVault/RemoteCall/token examples. Fail-closed for unsupported shapes. | `just product` NEAR rows green; new diagnostic smoke for one unsupported aggregate | L | pending |
-| **N1.3** | NEP-141 FT stdlib path | Land or harden NEP-141 plan + product example (mint/transfer/balance) through target-first build + offline-host smoke. Prefer TokenSpec route if already partial. | `just` recipe documents FT smoke; metadata + offline-host lifecycle green | L | pending |
-| **N1.4** | Promise / remote peer | Ensure portable `declareRemote` / crosscall materialize uses real Promise encoding; sandbox or offline-host peer returns match chain semantics for RemoteCall scenario. IR stub remains IR-only. | `just testkit-remote-call` includes NEAR peer observation; docs state IR stub ≠ peer | L | pending |
-| **N1.5** | Storage deposit / economics | Close NEP-145 partial gaps needed for FT (storage_deposit bounds, withdraw/refund as scoped). | Offline-host + optional sandbox; gap doc P0 rows closed or reclassified | M | pending |
-| **N1.6** | Budget honesty | Keep `wasmtimeFuel*` fields; add sandbox-derived `nearGas` only when harness exists; never rename fuel back to NEAR gas. | testkit scenarios + docs consistent; `just testkit` counter/value-vault budgets green | M | pending |
-| **N1.7** | Deploy metadata honesty | Offline vs broadcast deploy modes clearly labeled in `proof-forge-deploy.json` for NEAR. | Deploy smoke asserts mode fields; no “broadcast passed” without tool | S | pending |
+| **N1.1** | Aggregate ABI inventory | Document current Borsh/param surface vs product sources that fail or degrade on NEAR. File gaps under `docs/sdk-ecosystem-gaps-2026-07.md` NEAR section with evidence commands. | Gap table updated with concrete failing modules + expected ABI shapes | S | done: verified@f934df51; NEAR ABI inventory |
+| **N1.2** | Scalar+struct ABI completeness | Extend EmitWat/NEAR lowering for product-needed aggregate params/returns used by ValueVault/RemoteCall/token examples. Fail-closed for unsupported shapes. | `just product` NEAR rows green; new diagnostic smoke for one unsupported aggregate | L | in_progress: executable aggregate gate landed; fresh merged verification pending |
+| **N1.3** | NEP-141 FT stdlib path | Land or harden NEP-141 plan + product example (mint/transfer/balance) through target-first build + offline-host smoke. Prefer TokenSpec route if already partial. | `just` recipe documents FT smoke; metadata + offline-host lifecycle green | L | in_progress: Product TokenSpec plan and generic stdlib/Backend lifecycle are still distinct artifacts |
+| **N1.4** | Promise / remote peer | Ensure portable `declareRemote` / crosscall materialize uses real Promise encoding; sandbox or offline-host peer returns match chain semantics for RemoteCall scenario. IR stub remains IR-only. | `just testkit-remote-call` includes NEAR peer observation; docs state IR stub ≠ peer | L | in_progress: testkit NEAR peer → 49 landed; fresh merged verification pending |
+| **N1.5** | Storage deposit / economics | Close NEP-145 partial gaps needed for FT (storage_deposit bounds, withdraw/refund as scoped). | Offline-host + optional sandbox; gap doc P0 rows closed or reclassified | M | in_progress: caller-bound projected-balance debit landed; 1-yocto guard and predecessor refund Promise remain |
+| **N1.6** | Budget honesty | Keep `wasmtimeFuel*` fields; add sandbox-derived `nearGas` only when harness exists; never rename fuel back to NEAR gas. | testkit scenarios + docs consistent; `just testkit` counter/value-vault budgets green | M | in_progress: reporting gate landed; fresh merged verification pending |
+| **N1.7** | Deploy metadata honesty | Offline vs broadcast deploy modes clearly labeled in `proof-forge-deploy.json` for NEAR. | Deploy smoke asserts mode fields; no “broadcast passed” without tool | S | in_progress: metadata gate landed; fresh merged verification pending |
 
 ### Suggested order inside N1
 
@@ -599,7 +599,7 @@ The plan is **complete** when:
 | Wave | State | Evidence |
 |------|-------|----------|
 | S0 | done: verified@81b4c373; S0.1 merge + S0.2 product green + S0.3 claim + S0.4 INDEX + S0.5 inventory | just product green; origin 0 behind; branch inventory written |
-| N1 | in_progress: N1.1 done; N1.2 executable aggregate slice landed; N1.3/N1.4 remain partial | aggregate Borsh runtime gate; TokenSpec plan and Backend FT lifecycle are distinct; standalone offline peer 49 is not yet testkit peer integration |
+| N1 | in_progress: N1.1 complete; N1.2/N1.4/N1.6/N1.7 implementation landed; N1.3/N1.5 remain partial; fresh merged-revision verification pending | executable aggregate Borsh; testkit peer 49; caller-bound storage ledger debit; budget/deploy honesty; Product TokenSpec runtime and NEP-145 refund remain open |
 | E1 | pending | |
 | L1 | pending | |
 | B1 | in_progress: B1.0 skeleton done; next B1.1 schema | `docs/benchmarks.md`, `benchmarks/README.md` |

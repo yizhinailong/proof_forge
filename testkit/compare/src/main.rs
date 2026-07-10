@@ -1848,9 +1848,9 @@ fn run_near_guestbook(repo_root: &Path, args: &Args) -> Result<()> {
 }
 
 fn run_near_storage_deposit(repo_root: &Path, args: &Args) -> Result<()> {
-    // Fixed 32-byte account hash (matches scripts/near/target-first-smoke.sh).
+    // sha256("alice.testnet"), matching the offline predecessor/caller hash.
     let account_hash =
-        "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+        "9a7068ee6434852cdaff3acb2f7d0f002fdad589c8e388b299e8a48a831ca3e4";
     let inputs = format!(",,{account_hash},{account_hash},{account_hash}");
     run_near_compare_generic(
         repo_root,
@@ -1866,8 +1866,16 @@ fn run_near_storage_deposit(repo_root: &Path, args: &Args) -> Result<()> {
             "storage_balance_bounds",
             "storage_balance_of",
             "storage_deposit",
+            "storage_withdraw",
         ],
         |repo, wat| {
+            // sha256("alice.testnet") × caller-bound deposit/withdraw sequence.
+            let account =
+                "9a7068ee6434852cdaff3acb2f7d0f002fdad589c8e388b299e8a48a831ca3e4";
+            let withdraw_amt = "0300000000000000"; // 3u64 LE
+            let lifecycle_inputs = format!(
+                ",,{account},{account},{account},{account}{withdraw_amt},{account}"
+            );
             let out = run_offline_host_opts(
                 repo,
                 wat,
@@ -1877,9 +1885,11 @@ fn run_near_storage_deposit(repo_root: &Path, args: &Args) -> Result<()> {
                     "storage_balance_of",
                     "storage_deposit",
                     "storage_balance_of",
+                    "storage_withdraw",
+                    "storage_balance_of",
                 ],
                 OfflineHostOpts {
-                    inputs_hex_csv: &inputs,
+                    inputs_hex_csv: &lifecycle_inputs,
                     predecessor: Some("alice.testnet"),
                     attached_deposit: Some(7),
                     block_timestamp: None,
@@ -1899,8 +1909,12 @@ fn run_near_storage_deposit(repo_root: &Path, args: &Args) -> Result<()> {
                 out.contains("return_u64=7"),
                 "expected balance 7 after deposit\n{out}"
             );
+            ensure!(
+                out.contains("return_u64=4"),
+                "expected balance 4 after withdraw 3\n{out}"
+            );
             Ok((
-                "init→bounds 1→bal 0→deposit(7)→bal 7".into(),
+                "init→bounds 1→bal 0→deposit(7)→bal 7→withdraw(3)→bal 4".into(),
                 out,
             ))
         },

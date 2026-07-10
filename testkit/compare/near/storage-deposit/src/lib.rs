@@ -1,8 +1,8 @@
 //! near-sdk NEP-145-lite storage reference for dual-deploy compare.
 //!
 //! Mirrors `Examples/Product/StorageDeposit.lean`: min bounds + cumulative
-//! deposit balance keyed by account. Full NEP-145 JSON objects / withdraw /
-//! refund are intentionally out of scope for a fair EmitWat surface.
+//! deposit balance + partial withdraw. Full NEP-145 JSON `StorageBalance`
+//! objects remain out of scope for a fair EmitWat surface.
 
 #![allow(clippy::needless_pass_by_value)]
 
@@ -54,6 +54,22 @@ impl StorageDeposit {
             .unwrap_or_else(|| env::panic_str("balance overflow"));
         self.storage_deposits.insert(account_id, next);
     }
+
+    pub fn storage_withdraw(&mut self, account_id: AccountId, amount: u64) {
+        if env::predecessor_account_id() != account_id {
+            env::panic_str("storage withdraw caller mismatch");
+        }
+        let previous = self
+            .storage_deposits
+            .get(&account_id)
+            .copied()
+            .unwrap_or(0);
+        if previous < amount {
+            env::panic_str("insufficient storage deposit");
+        }
+        self.storage_deposits
+            .insert(account_id, previous - amount);
+    }
 }
 
 #[cfg(test)]
@@ -77,6 +93,19 @@ mod tests {
         assert_eq!(c.storage_balance_bounds(), 1);
         assert_eq!(c.storage_balance_of(alice.clone()), 0);
         c.storage_deposit(alice.clone());
-        assert_eq!(c.storage_balance_of(alice), 7);
+        assert_eq!(c.storage_balance_of(alice.clone()), 7);
+        c.storage_withdraw(alice.clone(), 3);
+        assert_eq!(c.storage_balance_of(alice), 4);
+    }
+
+    #[test]
+    #[should_panic(expected = "storage withdraw caller mismatch")]
+    fn cannot_withdraw_another_account() {
+        ctx("alice.testnet", 7);
+        let mut c = StorageDeposit::init();
+        let alice: AccountId = "alice.testnet".parse().unwrap();
+        c.storage_deposit(alice.clone());
+        ctx("mallory.testnet", 0);
+        c.storage_withdraw(alice, 1);
     }
 }
