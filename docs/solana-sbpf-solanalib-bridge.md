@@ -85,16 +85,17 @@ Use the tiers in [formal-verification.md](formal-verification.md):
 - **Tier C-diff (direct lift):** `liftResolved` instruction list equals
   `decodeAll ∘ encode` and verifies (`counter_lift_matches_decode`).
 - **Tier C-diff (host bridge):** Counter core-tail programs
-  (`initialize` / `increment` without account prologue or syscalls) run on a
-  solanalib `step` driver with word↔byte memory bridge; success `r0` and
-  `countOff` word match ProofForge core-tail finals
-  (`counter_core_tail_bridge_ok`).
+  (`initialize` / `increment` / `get`) run on a syscall-aware solanalib step
+  driver with word↔byte memory + `sol_set_return_data` stub; success `r0`,
+  `countOff`, and return-data match ProofForge core-tail finals; sequential
+  init→get→inc→get yields observables `none, 0, none, 1`
+  (`counter_core_tail_bridge_ok`, `sequential_core_tail_trace_ok`).
 - **Structural re-export:** `verified_instr_step_ne_err` names solanalib
   Lemma 6.4 (`step_ne_err`) for ProofForge-facing proofs.
 - **Not claimed:** full `IR.Semantics ⇝ bpfInterp` simulation on the complete
-  EmitSBPF program; Solana account-input layout; syscall host
-  (`sol_set_return_data`, …). Those remain on `SbpfInterpreter` +
-  Mollusk/Pinocchio. Product path still emits text via EmitSBPF.
+  EmitSBPF program; Solana account-input layout / dispatch prologue; broad
+  syscall fidelity. Those remain on `SbpfInterpreter` + Mollusk/Pinocchio.
+  Product path still emits text via EmitSBPF.
 
 ## Build / CI
 
@@ -111,12 +112,13 @@ just solana-solanalib-adapter
 
 ## Next work (still from Portable IR)
 
-1. ~~Host bridge for Counter core-tail~~ ✅ (`HostBridge.lean`).
-2. Extend host bridge to full EmitSBPF Counter entrypoints (account prologue +
-   `sol_set_return_data` registry stubs).
-3. Differential gate on full traces: `SbpfInterpreter.executableTraceOk` vs
-   solanalib step driver observables.
-4. Lift through `traceSimulation_lift` for the Counter supported fragment
+1. ~~Host bridge for Counter core-tail (init/inc)~~ ✅.
+2. ~~`get` + `sol_set_return_data` stub + sequential init→get→inc→get~~ ✅.
+3. Extend host bridge to full EmitSBPF Counter entrypoints (account prologue /
+   discriminator dispatch).
+4. Differential gate on full traces: `SbpfInterpreter.executableTraceOk` vs
+   solanalib host-driver observables.
+5. Lift through `traceSimulation_lift` for the Counter supported fragment
    (IR → core-tail → solanalib).
 
 Scheme 2 Phase C (assembler-in-Lean replacing external `sbpf`) remains

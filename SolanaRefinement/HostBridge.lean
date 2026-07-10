@@ -5,32 +5,33 @@ Released under Apache 2.0 license as described in the file LICENSE.
 # Host bridge: ProofForge sBPF memory/regs ↔ solanalib machine state
 
 Maps the mathlib-free `SbpfInterpreter` word-sparse `Memory` into solanalib's
-byte-addressable `Mem`, and drives `bpfInterp` on **Counter core-tail**
-programs (no Solana account prologue, no syscalls).
+byte-addressable `Mem`, and drives a **syscall-aware** step driver on Counter
+core-tail programs (account prologue still omitted).
 
 ## Scope (honest)
 
 | In scope | Out of scope (still on SbpfInterpreter / Mollusk) |
 |----------|-----------------------------------------------------|
-| `mov64` / `add64` / `ldxdw` / `stxdw` / `exit` | Full account-input layout |
-| Word at `countOff = 96` | `call` syscalls (`sol_set_return_data`, …) |
-| `r1 = inputBase = 0` | PDA / CPI / clock / log |
-| Fuel-bounded `bpfInterp` success | Full EmitSBPF program end-to-end |
+| `mov64` / `add64` / `ldxdw` / `stxdw` / `exit` | Full account-input layout / dispatch |
+| Word at `countOff = 96` | PDA / CPI / full account model |
+| `r1 = inputBase = 0` | Broad syscall surface |
+| `sol_set_return_data` stub | `sol_log_64_` event payload fidelity |
+| `sol_log_64_` / `sol_get_clock_sysvar` no-op stubs | Full EmitSBPF program end-to-end |
+| Sequential init→get→inc→get core-tail | IR↔solanalib universal simulation |
 
 Portable IR remains the multi-chain source. This bridge only deepens the
 **Solana target** leg so CompileCorrect can eventually state:
 
 ```
-IR.Semantics  ⇝  SbpfInterpreter  ⇝  solanalib.bpfInterp
+IR.Semantics  ⇝  SbpfInterpreter  ⇝  solanalib.step (+ host stubs)
 ```
 
-on the Counter core-tail fragment.
+on the Counter core-tail fragment (including `get`'s return-data syscall).
 -/
 
 import ProofForge.Backend.Solana.Asm
 import ProofForge.Backend.Solana.BpfEncode
 import ProofForge.Backend.Solana.CounterSbpfExec
-import ProofForge.Backend.Solana.LabeledSbpf
 import ProofForge.Backend.Solana.SbpfInterpreter
 import SolanaRefinement.LabeledToSolanalib
 import SolanaRefinement.SolanalibAdapter
@@ -51,6 +52,12 @@ open ProofForge.Backend.Solana.SbpfInterpreter
 open ProofForge.Backend.Solana.LabeledToSolanalib
 open ProofForge.Backend.Solana.SolanalibAdapter
 open Solanalib.SBPF
+
+/-! ### Syscall ids (must match `BpfEncode.syscallId?`) -/
+
+def solSetReturnDataId : Nat := 0xa226d3eb
+def solLog64Id : Nat := 0x5c2a3178
+def solGetClockSysvarId : Nat := 0xb7e96933
 
 /-! ### Word-sparse Memory ↔ byte Mem -/
 
@@ -80,38 +87,138 @@ def loadWordLE? (m : Mem) (addr : Nat) : Option Nat :=
           shift := shift * 256
     some acc
 
-/-- Convert ProofForge word-sparse memory into solanalib byte memory.
-Each `(addr, word)` entry expands to 8 LE bytes at `addr..addr+7`. -/
+/-- Convert ProofForge word-sparse memory into solanalib byte memory. -/
 def memOfPfMemory (memory : Memory) : Mem :=
   memory.foldl (init := initMem) fun m entry =>
     storeWordLE m entry.fst entry.snd
 
-/-- Project a solanalib word back into ProofForge sparse memory at `addr`. -/
-def pfMemoryWriteWord (memory : Memory) (addr value : Nat) : Memory :=
-  memory.write addr value
+/-! ### Host machine state (bpf + return-data + last memory) -/
 
-/-- Read ProofForge-style word (0 if missing). -/
-def pfMemoryRead (memory : Memory) (addr : Nat) : Nat :=
-  memory.read addr
+/-- Extended machine: solanalib `BpfState` plus ProofForge-style return-data
+and a memory snapshot that survives `.success` (so sequential entrypoints can
+chain). -/
+structure HostState where
+  bpf : BpfState
+  returnData : Option Nat := none
+  lastMem : Mem := initMem
 
-/-! ### Register file bridge -/
+def HostState.ok? (hs : HostState) : Bool :=
+  match hs.bpf with
+  | .success _ | .ok .. => true
+  | .eflag | .err => false
 
-def regMapOfPfRegs (regs : Array Nat) : RegMap :=
-  fun r => BitVec.ofNat 64 (regs.getD r.toU4.toNat 0)
+def HostState.r0? (hs : HostState) : Option Nat :=
+  match hs.bpf with
+  | .success v => some v.toNat
+  | .ok _pc rs _m _ss _sv _fm _cur _remain => some (rs .br0).toNat
+  | _ => none
 
-/-- Build a solanalib initial `ok` state for core-tail programs.
+def HostState.countWord? (hs : HostState) : Option Nat :=
+  loadWordLE? hs.lastMem countOff
 
-- PC = 0 (core-tail programs are flat, no entrypoint label dispatch)
-- `r1` = `inputBase` (0), matching Counter core-tail conventions
-- `r10` = solanalib stack top (via `initBpfState`)
+/-- Build a solanalib-backed host state for core-tail programs.
+
+- PC = 0, `r1` = `inputBase` (0), `r10` via `initBpfState`
 - Memory = word-sparse ProofForge memory expanded to bytes
-- Version = v1 (matches EmitSBPF / verify table)
-- Fuel = `remainCu` -/
-def initCoreTailState (memory : Memory) (fuel : Nat := 256) : BpfState :=
-  let rs0 := initRegMap
-  let rs1 := setReg rs0 .br1 (BitVec.ofNat 64 inputBase)
+- Version = v1 -/
+def initHost (memory : Memory) (fuel : Nat := 256)
+    (returnData : Option Nat := none) : HostState :=
+  let rs1 := setReg initRegMap .br1 (BitVec.ofNat 64 inputBase)
   let m := memOfPfMemory memory
-  initBpfState rs1 m (BitVec.ofNat 64 fuel) .v1
+  let bpf := initBpfState rs1 m (BitVec.ofNat 64 fuel) .v1
+  { bpf, returnData, lastMem := m }
+
+/-- Advance PC by 1 and compute-unit counters (syscall stub convention). -/
+def advanceOk (pc : U64) (rs : RegMap) (m : Mem) (ss : StackState)
+    (sv : SBPFV) (fm : FuncMap) (curCu remainCu : U64) : BpfState :=
+  .ok (pc + 1) rs m ss sv fm (curCu + 1) remainCu
+
+/-- Model a covered Solana helper call without solanalib's call-frame jump.
+
+Mirrors `SbpfInterpreter.stepInstCall` for the Counter core-tail fragment. -/
+def stepSyscall
+    (imm : U32) (pc : U64) (rs : RegMap) (m : Mem) (ss : StackState)
+    (sv : SBPFV) (fm : FuncMap) (curCu remainCu : U64)
+    (returnData : Option Nat) : Option (BpfState × Option Nat) :=
+  let id := imm.toNat
+  if id == solSetReturnDataId then
+    let ptr := (rs .br1).toNat
+    match loadWordLE? m ptr with
+    | none => none
+    | some value =>
+        let rs' := setReg rs .br0 0
+        some (advanceOk pc rs' m ss sv fm curCu remainCu, some value)
+  else if id == solLog64Id then
+    let rs' := setReg rs .br0 0
+    some (advanceOk pc rs' m ss sv fm curCu remainCu, returnData)
+  else if id == solGetClockSysvarId then
+    let ptr := (rs .br1).toNat
+    let m' := storeWordLE m ptr 0
+    let rs' := setReg rs .br0 0
+    some (advanceOk pc rs' m' ss sv fm curCu remainCu, returnData)
+  else
+    none
+
+/-- Single host step: intercept known `callImm` syscalls; otherwise solanalib
+`step`. On program `exit` at depth 0, freeze `lastMem` into the host state. -/
+def stepHost (bin : BpfBin) (hs : HostState) : HostState :=
+  match hs.bpf with
+  | .eflag => hs
+  | .err => hs
+  | .success _ => hs
+  | .ok pc rs m ss sv fm curCu remainCu =>
+      if insnSize * pc.toNat ≥ bin.length then
+        { hs with bpf := .eflag }
+      else if curCu.toNat ≥ remainCu.toNat then
+        { hs with bpf := .eflag }
+      else
+        match findInstr pc.toNat bin with
+        | none => { hs with bpf := .eflag }
+        | some (.callImm _src imm) =>
+            match stepSyscall imm pc rs m ss sv fm curCu remainCu hs.returnData with
+            | some (bpf', rd) =>
+                let last :=
+                  match bpf' with
+                  | .ok _ _ m' _ _ _ _ _ => m'
+                  | _ => m
+                { bpf := bpf', returnData := rd, lastMem := last }
+            | none =>
+                -- Unknown helper: fall through to solanalib (typically eflag).
+                let bpf' := step pc (.callImm _src imm) rs m ss sv fm false 0 curCu remainCu
+                { hs with bpf := bpf', lastMem := m }
+        | some .exit =>
+            if ss.callDepth = 0 then
+              -- Capture memory before solanalib drops it into `.success`.
+              { bpf := .success (rs .br0), returnData := hs.returnData, lastMem := m }
+            else
+              let bpf' := step pc .exit rs m ss sv fm false 0 curCu remainCu
+              { hs with bpf := bpf', lastMem := m }
+        | some ins =>
+            let bpf' := step pc ins rs m ss sv fm false 0 curCu remainCu
+            match bpf' with
+            | .ok _ _ m' _ _ _ _ _ =>
+                { hs with bpf := bpf', lastMem := m' }
+            | .success v =>
+                { bpf := .success v, returnData := hs.returnData, lastMem := m }
+            | other =>
+                { hs with bpf := other, lastMem := m }
+
+def runStepsHost : Nat → BpfBin → HostState → HostState
+  | 0, _, hs => hs
+  | n + 1, bin, hs =>
+      match hs.bpf with
+      | .ok .. => runStepsHost n bin (stepHost bin hs)
+      | _ => hs
+
+def runToHaltHost (bin : BpfBin) (hs : HostState) (fuel : Nat := 256) : HostState :=
+  go fuel hs
+where
+  go : Nat → HostState → HostState
+    | 0, hs => hs
+    | n + 1, hs =>
+        match hs.bpf with
+        | .ok .. => go n (stepHost bin hs)
+        | _ => hs
 
 /-! ### Encode a flat core-tail `SbpfProgram` to solanalib bytes -/
 
@@ -122,8 +229,6 @@ def encodeCoreProgram (program : SbpfProgram) : Except String BpfBin := do
       if !bpfBinWellFormed bytes then
         .error "core-tail encode: ill-formed bytecode"
       else
-        -- Prefer direct lift for instruction-level checks; still return bytes
-        -- for bpfInterp (which drives findInstr on the byte stream).
         match liftSlots slots with
         | .error e => .error e
         | .ok insns =>
@@ -132,115 +237,41 @@ def encodeCoreProgram (program : SbpfProgram) : Except String BpfBin := do
             else
               .ok (toBpfBin bytes)
 
-/-! ### Observable projection after bpfInterp -/
-
-structure CoreTailResult where
-  /-- `r0` on success, else none. -/
-  r0 : Option Nat := none
-  /-- Word at `countOff` if fully mapped. -/
-  countWord : Option Nat := none
-  /-- Raw solanalib terminal state tag. -/
-  ok : Bool := false
-  deriving Repr, Inhabited
-
-def projectResult (st : BpfState) : CoreTailResult :=
-  match st with
-  | .success v =>
-      { r0 := some v.toNat, ok := true }
-  | .ok _pc rs m _ss _sv _fm _cur _remain =>
-      { r0 := some (rs .br0).toNat
-        countWord := loadWordLE? m countOff
-        ok := true }
-  | .eflag | .err => { ok := false }
-
-/-- Single-step the solanalib machine on a binary program.
-
-Unlike `bpfInterp`, this returns the post-state of the step even when the
-caller will stop mid-program. (`bpfInterp fuel` returns `.eflag` when fuel
-hits 0, discarding the last `.ok` — unusable for pre-exit memory reads.) -/
-def stepBin (bin : BpfBin) (st : BpfState) (gaps : Bool := false)
-    (vmAddr : U64 := 0) : BpfState :=
-  match st with
-  | .eflag => .eflag
-  | .err => .err
-  | .success v => .success v
-  | .ok pc rs m ss sv fm curCu remainCu =>
-      if insnSize * pc.toNat < bin.length then
-        if curCu.toNat ≥ remainCu.toNat then .eflag
-        else
-          match findInstr pc.toNat bin with
-          | none => .eflag
-          | some ins => step pc ins rs m ss sv fm gaps vmAddr curCu remainCu
-      else
-        .eflag
-
-/-- Run exactly `n` steps, returning the state after the n-th step (or an
-earlier terminal state). -/
-def runStepsBin : Nat → BpfBin → BpfState → BpfState
-  | 0, _, st => st
-  | n + 1, bin, st =>
-      match st with
-      | .ok .. => runStepsBin n bin (stepBin bin st)
-      | other => other
-
-/-- Run until success/fault or fuel exhaustion, using `stepBin`. -/
-def runToHalt (bin : BpfBin) (memory : Memory) (fuel : Nat := 256) : BpfState :=
-  go fuel (initCoreTailState memory fuel)
-where
-  go : Nat → BpfState → BpfState
-    | 0, st => st
-    | n + 1, st =>
-        match st with
-        | .ok .. => go n (stepBin bin st)
-        | other => other
-
-/-- Pre-exit observation: take `steps` steps from the core-tail initial state
-(for initialize: 3 steps leave memory after `stxdw`/`mov r0` and before `exit`). -/
-def runBeforeExit (bin : BpfBin) (memory : Memory) (steps : Nat)
-    (fuelBudget : Nat := 256) : BpfState :=
-  runStepsBin steps bin (initCoreTailState memory fuelBudget)
-
-def runToSuccess (bin : BpfBin) (memory : Memory) (fuel : Nat := 256) : BpfState :=
-  runToHalt bin memory fuel
-
 /-! ### Counter core-tail differentials -/
 
-/-- initialize: empty memory → success r0=0, and pre-exit memory count=0. -/
+/-- initialize: empty memory → success r0=0, count=0. -/
 def initializeSolanalibOk : Bool :=
   match encodeCoreProgram initializeProgram with
   | .error _ => false
   | .ok bin =>
-      let success := runToSuccess bin #[] 32
-      let preExit := runBeforeExit bin #[] 3 32
-      match success, preExit with
-      | .success v, .ok _pc _rs m _ss _sv _fm _cur _remain =>
-          v.toNat == 0 &&
-            match loadWordLE? m countOff with
-            | some w => w == 0
-            | none => false
+      let hs := runToHaltHost bin (initHost #[]) 32
+      match hs.bpf, hs.countWord? with
+      | .success v, some c => v.toNat == 0 && c == 0
       | _, _ => false
 
-/-- increment from count=n: success r0=0, pre-exit memory count=n+1. -/
+/-- increment from count=n: success r0=0, count=n+1. -/
 def incrementSolanalibOk (n : Nat) : Bool :=
   match encodeCoreProgram incrementProgram with
   | .error _ => false
   | .ok bin =>
-      let mem : Memory := #[(countOff, n)]
-      let success := runToSuccess bin mem 32
-      -- increment core: ldxdw; mov64 1; add64; stxdw; mov64 r0,0; exit
-      -- → 6 insns; pre-exit fuel = 5 leaves memory after stxdw / mov r0.
-      let preExit := runBeforeExit bin mem 5 32
-      match success, preExit with
-      | .success v, .ok _pc _rs m _ss _sv _fm _cur _remain =>
-          v.toNat == 0 &&
-            match loadWordLE? m countOff with
-            | some w => w == n + 1
-            | none => false
+      let hs := runToHaltHost bin (initHost #[(countOff, n)]) 32
+      match hs.bpf, hs.countWord? with
+      | .success v, some c => v.toNat == 0 && c == n + 1
       | _, _ => false
 
-/-- Differential vs ProofForge core-tail final states (r0 + count word). -/
+/-- get from count=n: success r0=0, returnData=n, count unchanged. -/
+def getSolanalibOk (n : Nat) : Bool :=
+  match encodeCoreProgram getProgram with
+  | .error _ => false
+  | .ok bin =>
+      let hs := runToHaltHost bin (initHost #[(countOff, n)]) 32
+      match hs.bpf, hs.returnData, hs.countWord? with
+      | .success v, some rd, some c =>
+          v.toNat == 0 && rd == n && c == n
+      | _, _, _ => false
+
+/-- Differential vs ProofForge core-tail finals. -/
 def initializeDiffOk : Bool :=
-  -- ProofForge lemmas pin final count=0 and r0=0 after initialize.
   initializeSolanalibOk &&
     (initializeFinalState.entryR0 == 0) &&
     (initializeFinalState.memory.read countOff == 0)
@@ -250,12 +281,57 @@ def incrementDiffOk (n : Nat) : Bool :=
     ((incrementFinalState n).entryR0 == 0) &&
     ((incrementFinalState n).memory.read countOff == n + 1)
 
-/-- Fixed-point smokes used by CompileCorrect. -/
+def getDiffOk (n : Nat) : Bool :=
+  getSolanalibOk n &&
+    ((getFinalState n).entryR0 == 0) &&
+    ((getFinalState n).returnData == some n) &&
+    ((getFinalState n).memory.read countOff == n)
+
+/-- Sequential core-tail trace: initialize → get → increment → get.
+
+Memory and return-data chain across entrypoints via `HostState.lastMem` /
+`returnData`. Mirrors the Counter IR scenario observables
+`none, u64 0, none, u64 1` at the core-tail level. -/
+def sequentialTraceOk : Bool :=
+  match encodeCoreProgram initializeProgram,
+        encodeCoreProgram getProgram,
+        encodeCoreProgram incrementProgram with
+  | .ok initBin, .ok getBin, .ok incBin =>
+      let afterInit := runToHaltHost initBin (initHost #[]) 32
+      let mem1 : Memory :=
+        match afterInit.countWord? with
+        | some c => #[(countOff, c)]
+        | none => #[]
+      let afterGet0 :=
+        runToHaltHost getBin (initHost mem1 32 afterInit.returnData) 32
+      let mem2 : Memory :=
+        match afterGet0.countWord? with
+        | some c => #[(countOff, c)]
+        | none => #[]
+      let afterInc :=
+        runToHaltHost incBin (initHost mem2 32 afterGet0.returnData) 32
+      let mem3 : Memory :=
+        match afterInc.countWord? with
+        | some c => #[(countOff, c)]
+        | none => #[]
+      let afterGet1 :=
+        runToHaltHost getBin (initHost mem3 32 afterInc.returnData) 32
+      match afterInit.bpf, afterGet0.returnData, afterInc.bpf, afterGet1.returnData,
+            afterGet1.countWord? with
+      | .success r0i, some g0, .success r0inc, some g1, some cFinal =>
+          r0i.toNat == 0 && g0 == 0 && r0inc.toNat == 0 && g1 == 1 && cFinal == 1
+      | _, _, _, _, _ => false
+  | _, _, _ => false
+
 def counterCoreTailBridgeOk : Bool :=
   initializeDiffOk &&
     incrementDiffOk 0 &&
     incrementDiffOk 1 &&
-    incrementDiffOk 41
+    incrementDiffOk 41 &&
+    getDiffOk 0 &&
+    getDiffOk 1 &&
+    getDiffOk 41 &&
+    sequentialTraceOk
 
 theorem counter_core_tail_bridge_ok :
     counterCoreTailBridgeOk = true := by
@@ -269,8 +345,16 @@ theorem increment_solanalib_zero_ok :
     incrementSolanalibOk 0 = true := by
   native_decide
 
-theorem increment_solanalib_one_ok :
-    incrementSolanalibOk 1 = true := by
+theorem get_solanalib_zero_ok :
+    getSolanalibOk 0 = true := by
+  native_decide
+
+theorem get_solanalib_one_ok :
+    getSolanalibOk 1 = true := by
+  native_decide
+
+theorem sequential_core_tail_trace_ok :
+    sequentialTraceOk = true := by
   native_decide
 
 end ProofForge.Backend.Solana.HostBridge
