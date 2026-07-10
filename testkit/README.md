@@ -10,9 +10,9 @@ Current scope:
 - scenario manifest validation that rejects empty or duplicate target ids and
   artifact checks for targets not declared by the scenario
 - optional scenario `source = "Examples/Product/*.lean"` inputs. Counter,
-  ValueVault, ArrayExample (map/array), and Ownable (auth/policy) build from the
-  same chain-neutral `.lean contract_source` modules through
-  `proof-forge build --target ... --root .` before each harness executes
+  ValueVault, ArrayExample (map/array), Ownable (auth/policy), and RemoteCall
+  (crosscall) build from the same chain-neutral `.lean contract_source` modules
+  through `proof-forge build --target ... --root .` before each harness executes
   target-native artifacts; fixture-only emission remains for focused
   compiler/runtime cases such as diagnostics and allocator probes
 - typed scalar scenario args (`u64`, `u32`, `bool`) that each harness encodes

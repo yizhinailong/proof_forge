@@ -25,11 +25,14 @@ const VALUE_VAULT_PROJECT_NAME: &str = "proofforge-value-vault";
 const ERROR_REF_PROJECT_NAME: &str = "proofforge-error-ref";
 const ARRAY_EXAMPLE_PROJECT_NAME: &str = "proofforge-array-example";
 const OWNABLE_PROJECT_NAME: &str = "proofforge-ownable";
+const REMOTE_CALL_PROJECT_NAME: &str = "proofforge-remote-call";
 const COUNTER_DATA_LEN: usize = 8;
 const VALUE_VAULT_DATA_LEN: usize = 48;
 const ERROR_REF_DATA_LEN: usize = 8;
 /// Ownable stores a single portable u64 owner handle.
 const OWNABLE_DATA_LEN: usize = 8;
+/// RemoteCall marker is a single u64 on account[0].
+const REMOTE_CALL_MARKER_LEN: usize = 8;
 
 pub struct SolanaHarness;
 
@@ -71,6 +74,7 @@ impl ChainHarness for SolanaHarness {
             "error-ref" => run_error_ref_scenario(case, repo_root, &sbpf, &keygen),
             "array-example" => run_array_example_scenario(case, repo_root, &sbpf, &keygen),
             "ownable" => run_ownable_scenario(case, repo_root, &sbpf, &keygen),
+            "remote-call" => run_remote_call_scenario(case, repo_root, &sbpf, &keygen),
             fixture => {
                 bail!("solana-sbpf-asm testkit harness does not support fixture `{fixture}` yet")
             }
@@ -188,6 +192,138 @@ fn run_ownable_scenario(
 ) -> Result<HarnessRun> {
     let artifact = build_ownable_fixture(case, repo_root, sbpf, keygen)?;
     run_authority_state_scenario(case, repo_root, artifact, OWNABLE_DATA_LEN)
+}
+
+fn run_remote_call_scenario(
+    case: &ScenarioCase,
+    repo_root: &Path,
+    sbpf: &str,
+    keygen: &str,
+) -> Result<HarnessRun> {
+    let artifact = build_remote_call_fixture(case, repo_root, sbpf, keygen)?;
+    run_remote_call_accounts_scenario(case, repo_root, artifact, REMOTE_CALL_MARKER_LEN)
+}
+
+/// RemoteCall account layout: marker, payer, peer_program, system_program, callee_program.
+fn run_remote_call_accounts_scenario(
+    case: &ScenarioCase,
+    repo_root: &Path,
+    artifact: SolanaFixtureArtifact,
+    marker_data_len: usize,
+) -> Result<HarnessRun> {
+    let mut outputs = vec![
+        ArtifactOutput {
+            name: "sbpf-asm",
+            path: &artifact.asm_path,
+        },
+        ArtifactOutput {
+            name: "manifest",
+            path: &artifact.manifest_path,
+        },
+        ArtifactOutput {
+            name: "metadata",
+            path: &artifact.metadata_path,
+        },
+    ];
+    if let Some(idl_path) = &artifact.idl_path {
+        outputs.push(ArtifactOutput {
+            name: "idl",
+            path: idl_path,
+        });
+    }
+    if let Some(client_path) = &artifact.client_path {
+        outputs.push(ArtifactOutput {
+            name: "client",
+            path: client_path,
+        });
+    }
+    if let Some(contract_spec_path) = &artifact.contract_spec_path {
+        outputs.push(ArtifactOutput {
+            name: "contract-spec",
+            path: contract_spec_path,
+        });
+    }
+    if let Some(source_path) = &artifact.source_path {
+        outputs.push(ArtifactOutput {
+            name: "source",
+            path: source_path,
+        });
+    }
+    assert_artifact_expectations(case, "solana-sbpf-asm", repo_root, &outputs)?;
+
+    let tags = load_instruction_tags(&artifact.manifest_path)?;
+    let pid = program_id(&artifact.keypair_path)?;
+    let mollusk = mollusk(pid, &artifact.program_path)?;
+    let marker = Address::new_unique();
+    let payer = Address::new_unique();
+    let peer_program = Address::new_unique();
+    let system_program = solana_system_program_id();
+    let callee_program = Address::new_unique();
+    let mut marker_account = Account::new(0, marker_data_len, &pid);
+    let mut peer_account = Account::new(0, 0, &Address::new_unique());
+    peer_account.executable = true;
+    let mut system_account = Account::new(1, 0, &system_program);
+    system_account.executable = true;
+    let mut callee_account = Account::new(0, 0, &Address::new_unique());
+    callee_account.executable = true;
+
+    let mut outcomes = Vec::new();
+    let mut sequence = 1u32;
+    for step in &case.manifest.steps {
+        let tag = tags
+            .get(&step.call)
+            .with_context(|| format!("Solana manifest does not contain call `{}`", step.call))?;
+        let mut instruction_data = vec![*tag];
+        instruction_data.extend(step.portable_input_bytes_le().with_context(|| {
+            format!(
+                "failed to encode solana-sbpf-asm instruction data for call `{}`",
+                step.call
+            )
+        })?);
+        for _ in 0..step.repeat.unwrap_or(1) {
+            let instruction = Instruction::new_with_bytes(
+                pid,
+                &instruction_data,
+                vec![
+                    AccountMeta::new(marker, false),
+                    AccountMeta::new(payer, true),
+                    AccountMeta::new_readonly(peer_program, false),
+                    AccountMeta::new_readonly(system_program, false),
+                    AccountMeta::new_readonly(callee_program, false),
+                ],
+            );
+            let result = mollusk.process_instruction(
+                &instruction,
+                &[
+                    (marker, marker_account.clone()),
+                    (payer, Account::new(1_000_000_000, 0, &system_program)),
+                    (peer_program, peer_account.clone()),
+                    (system_program, system_account.clone()),
+                    (callee_program, callee_account.clone()),
+                ],
+            );
+            let error = extract_solana_error(&result.raw_result);
+            if error.is_none() {
+                marker_account = result
+                    .get_account(&marker)
+                    .with_context(|| {
+                        format!("Solana call `{}` did not return marker account", step.call)
+                    })?
+                    .clone();
+            }
+            outcomes.push(outcome_from_mollusk_result(
+                sequence, &step.call, &result, error,
+            ));
+            sequence += 1;
+        }
+    }
+
+    Ok(HarnessRun::passed(outcomes))
+}
+
+fn solana_system_program_id() -> Address {
+    // Native system program: 11111111111111111111111111111111
+    Address::from_str_const("11111111111111111111111111111111")
 }
 
 /// Ownable-style programs: account[0]=authority (signer), account[1]=state (writable, program-owned).
@@ -658,6 +794,39 @@ fn build_ownable_fixture(
         &asm_path,
         &artifact_path,
         OWNABLE_PROJECT_NAME,
+        Some(source_path),
+        true,
+        sbpf,
+        keygen,
+    )
+}
+
+fn build_remote_call_fixture(
+    case: &ScenarioCase,
+    repo_root: &Path,
+    sbpf: &str,
+    keygen: &str,
+) -> Result<SolanaFixtureArtifact> {
+    let out_dir = repo_root.join("build/testkit/solana/remote-call");
+    fs::create_dir_all(&out_dir)
+        .with_context(|| format!("failed to create `{}`", out_dir.display()))?;
+
+    let mut build = Command::new("lake");
+    build.current_dir(repo_root).args(["build", "proof-forge"]);
+    run_required(&mut build, "lake build proof-forge")?;
+
+    let asm_path = out_dir.join("RemoteCall.s");
+    let artifact_path = out_dir.join("proof-forge-artifact.json");
+    let source_path = scenario_source(case, repo_root)?.ok_or_else(|| {
+        anyhow::anyhow!("remote-call requires scenario.source (Examples/Product/RemoteCall.lean)")
+    })?;
+    build_contract_source_fixture(case, repo_root, &source_path, &asm_path, &artifact_path)?;
+    finish_solana_fixture(
+        "RemoteCall",
+        &out_dir,
+        &asm_path,
+        &artifact_path,
+        REMOTE_CALL_PROJECT_NAME,
         Some(source_path),
         true,
         sbpf,

@@ -170,6 +170,7 @@ fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<EvmFixtureArti
         "error-ref" => build_error_ref_fixture(repo_root),
         "array-example" => build_contract_source_fixture_by_name(case, repo_root, "ArrayExample"),
         "ownable" => build_contract_source_fixture_by_name(case, repo_root, "Ownable"),
+        "remote-call" => build_contract_source_fixture_by_name(case, repo_root, "RemoteCall"),
         "role-gated-token" => {
             build_contract_source_fixture_by_name(case, repo_root, "RoleGatedToken")
         }

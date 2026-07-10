@@ -189,6 +189,22 @@ fn build_fixture(case: &ScenarioCase, repo_root: &Path) -> Result<NearFixtureArt
                 "Ownable.near-artifact.json",
             )
         }
+        "remote-call" => {
+            let source_path = scenario_source(case, repo_root)?.ok_or_else(|| {
+                anyhow::anyhow!(
+                    "remote-call requires scenario.source (Examples/Product/RemoteCall.lean)"
+                )
+            })?;
+            build_contract_source_wat(
+                case,
+                repo_root,
+                &source_path,
+                "RemoteCall",
+                "build/testkit/near/remote-call",
+                "remotecall.wat",
+                "RemoteCall.near-artifact.json",
+            )
+        }
         "alloc-release" => emit_wat_fixture(
             repo_root,
             "Tests/Backend/Wasm/EmitWatAlloc.lean",

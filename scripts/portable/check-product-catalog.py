@@ -53,6 +53,7 @@ def main() -> int:
         "scalar-state": "Counter / ValueVault scalar + events",
         "aggregate": "ArrayExample fixed-array map/array family",
         "auth-policy": "Ownable caller.sender auth/policy family",
+        "remote": "RemoteCall crosscall.invoke family (peer equiv = PF-P2-03)",
     }
     runtime_kinds = {
         e["kind"] for e in data["sources"] if e.get("runtimeTriad") and e.get("kind")
