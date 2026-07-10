@@ -645,6 +645,15 @@ theorem isCounterShapeLowerable_state
     isCounterModuleShape_state m.state.toList m.entrypoints.toList h.2
   exact ⟨sd, hlist, hdecl, isCounterStateDecl_eq sd hdecl⟩
 
+/-- PF-P3-01: state array is exactly the canonical `count` scalar. -/
+theorem isCounterShapeLowerable_state_array
+    (m : Module) (h : isCounterShapeLowerable m = true) :
+    m.state = #[{ id := "count", kind := .scalar, type := .u64 }] := by
+  obtain ⟨sd, hlist, _, hsd⟩ := isCounterShapeLowerable_state m h
+  have hlist' : m.state.toList = [{ id := "count", kind := .scalar, type := .u64 }] := by
+    simpa [hsd] using hlist
+  exact Array.toList_inj.mp hlist'
+
 /-- Empty `paramAbiWords` on every entrypoint of a shape-lowerable module. -/
 theorem isCounterShapeLowerable_paramAbiWords_empty
     (m : Module) (h : isCounterShapeLowerable m = true)

@@ -1365,4 +1365,14 @@ theorem evm_lowerable_implies_counter_skeleton
             e2.body = #[.return (.effect (.storageScalarRead "count"))]) :=
   isCounterShapeLowerable_skeleton m h
 
+/-- PF-P3-01: every EVM-lowerable module has the same state array as the
+canonical Counter fixture (name remains free). -/
+theorem evm_lowerable_state_eq_counter
+    (m : ProofForge.IR.Module)
+    (h : evmYulTargetSemantics.lowerableAccepts m = true) :
+    m.state = ProofForge.IR.Examples.Counter.module.state := by
+  have harr := isCounterShapeLowerable_state_array m h
+  -- Counter.module.state is the single count scalar.
+  simpa [ProofForge.IR.Examples.Counter.module, ProofForge.IR.Examples.Counter.stateCount] using harr
+
 end ProofForge.Backend.Evm.Refinement

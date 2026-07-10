@@ -85,7 +85,9 @@ open ProofForge.Backend.Refinement
 #check isCounterStateDecl_eq
 #check isCounterInitializeEntrypoint_fields
 #check isCounterInitializeEntrypoint_body_array
+#check isCounterShapeLowerable_state_array
 #check evm_lowerable_implies_counter_skeleton
+#check evm_lowerable_state_eq_counter
 
 end ProofForge.Tests.Track14FragmentTheorems
 
