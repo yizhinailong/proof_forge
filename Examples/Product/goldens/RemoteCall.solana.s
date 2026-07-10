@@ -246,8 +246,8 @@ sol_call_remote:
   add64 r7, 3
   ldxb r2, [r7+0]
   jeq r2, 0, error_owner
-  ; portable address handle → u64 account index 0
-  mov64 r2, 0
+  ; portable peer handle → peer/callee account index 2 (PF-P2-03)
+  mov64 r2, 2
   stxdw [r10-3248], r2
   ; portable address handle → u64 account index 1
   mov64 r2, 1
@@ -615,8 +615,8 @@ sol_call_with_args:
   add64 r7, 3
   ldxb r2, [r7+0]
   jeq r2, 0, error_owner
-  ; portable address handle → u64 account index 0
-  mov64 r2, 0
+  ; portable peer handle → peer/callee account index 2 (PF-P2-03)
+  mov64 r2, 2
   stxdw [r10-3248], r2
   ; portable address handle → u64 account index 1
   mov64 r2, 1

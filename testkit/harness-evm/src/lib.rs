@@ -104,6 +104,9 @@ impl ChainHarness for EvmHarness {
         let mut nonce = 0u64;
 
         for step in &case.manifest.steps {
+            if !step.applies_to_target("evm") {
+                continue;
+            }
             let selector = selectors
                 .get(&step.call)
                 .with_context(|| {

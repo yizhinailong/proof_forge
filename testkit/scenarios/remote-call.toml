@@ -297,5 +297,7 @@ contains = [
 ]
 
 # Shared portable step: initialize marker state without peer execution.
+# Solana CPI peer runtime (call_with_args → PeerOracleSum) is staged: peer
+# account index mapping is fixed (PF-P2-03 asm), Mollusk peer ELF harness next.
 [[step]]
 call = "initialize"

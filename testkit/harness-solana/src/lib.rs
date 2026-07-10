@@ -270,6 +270,9 @@ fn run_remote_call_accounts_scenario(
     let mut outcomes = Vec::new();
     let mut sequence = 1u32;
     for step in &case.manifest.steps {
+        if !step.applies_to_target("solana-sbpf-asm") {
+            continue;
+        }
         let tag = tags
             .get(&step.call)
             .with_context(|| format!("Solana manifest does not contain call `{}`", step.call))?;

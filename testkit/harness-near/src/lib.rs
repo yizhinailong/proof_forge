@@ -70,6 +70,9 @@ impl ChainHarness for NearHarness {
         let mut inputs = Vec::new();
         let mut has_inputs = false;
         for step in &case.manifest.steps {
+            if !step.applies_to_target("wasm-near") {
+                continue;
+            }
             let input = step.portable_input_bytes_le().with_context(|| {
                 format!("failed to encode wasm-near input for call `{}`", step.call)
             })?;

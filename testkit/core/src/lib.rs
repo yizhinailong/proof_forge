@@ -220,9 +220,17 @@ pub struct Step {
     pub args: Vec<StepArg>,
     #[serde(default)]
     pub expect: Option<Expectation>,
+    /// When non-empty, only run this step for the listed target ids (PF-P2-03).
+    #[serde(default)]
+    pub targets: Vec<String>,
 }
 
 impl Step {
+    /// Whether this step applies to the given target (empty `targets` = all).
+    pub fn applies_to_target(&self, target: &str) -> bool {
+        self.targets.is_empty() || self.targets.iter().any(|t| t == target)
+    }
+
     pub fn portable_input_bytes_le(&self) -> Result<Vec<u8>> {
         if let Some(input_hex) = &self.input_hex {
             ensure!(
@@ -1522,9 +1530,13 @@ pub fn assert_expectations(
     target_id: &str,
     outcomes: &[CallOutcome],
 ) -> Result<()> {
-    let expected_len: usize = case
+    let applicable: Vec<_> = case
         .manifest
         .steps
+        .iter()
+        .filter(|step| step.applies_to_target(target_id))
+        .collect();
+    let expected_len: usize = applicable
         .iter()
         .map(|step| step.repeat.unwrap_or(1) as usize)
         .sum();
@@ -1536,7 +1548,7 @@ pub fn assert_expectations(
     );
 
     let mut index = 0;
-    for step in &case.manifest.steps {
+    for step in applicable {
         for _ in 0..step.repeat.unwrap_or(1) {
             let outcome = &outcomes[index];
             ensure!(
