@@ -69,9 +69,13 @@ open ProofForge.Backend.Refinement
 #check evm_lowerable_implies_lowering_total_witnesses
 #check evm_renamed_witness_canonicalizes_to_proved
 #check evm_renamed_witness_canonical_lowering_total
+#check solana_renamed_witness_canonicalizes_to_proved
+#check solana_renamed_witness_canonical_lowering_total
+#check wasm_near_renamed_witness_canonicalizes_to_proved
+#check wasm_near_renamed_witness_canonical_lowering_total
 
 end ProofForge.Tests.Track14FragmentTheorems
 
 def main : IO UInt32 := do
-  IO.println "track14-fragment-theorems-smoke: EVM/Solana/Wasm proven⊂lowerable (structural), Counter+renamed+canonical-name witnesses, capability⇒lowerable"
+  IO.println "track14-fragment-theorems-smoke: triad proven⊂lowerable + renamed/canonical-name witnesses + capability⇒lowerable"
   return 0
