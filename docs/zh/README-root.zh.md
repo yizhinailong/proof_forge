@@ -50,7 +50,7 @@ portable Counter 流程，`evm`、`solana-sbpf-asm`、`wasm-near` 和
 | `move-aptos` | portable IR → Aptos Move 包 | Counter MVP（PF-P3-02 六门） | `just aptos-promotion`（fixture counter · aptos compile/test · 产品源 fail-closed）；需 `aptos` CLI |
 | `move-sui` | portable IR → Sui Move 包 | Counter MVP | 本地 `sui move build/test`、`just sui-counter-smoke` 等 |
 | `psy-dpn` | portable IR → `.psy` → Dargo → DPN circuit JSON | Experimental（受限子集） | golden source、诊断、`dargo` execute 冒烟 |
-| `aleo-leo` | portable IR → Leo package → `leo build`/`leo test` | 注册表目标（Road 1 sourcegen；Road 2 待开放） | 通用 IR→Leo lowering（`Backend/Aleo/IR/{Common,Validate}` + `IR`）、标量+map 存储、artifact metadata（`Metadata`/`MetadataJson`）、Counter/PureMath golden + map-lowering + metadata 冒烟 |
+| `aleo-leo` | portable IR → Leo package → `leo build`/`leo test` | Counter MVP（PF-P3-02 六门；Road 2 待开放） | `just aleo-promotion`（fixture counter · leo build/test · 产品源 fail-closed）；通用 IR→Leo lowering（`Backend/Aleo/IR/{Common,Validate}` + `IR`）、标量+map 存储、artifact metadata（`Metadata`/`MetadataJson`）、Counter/PureMath golden + map-lowering + metadata 冒烟 |
 | `wasm-cloudflare-workers` | portable IR → TypeScript Worker | Counter MVP（PF-P3-02 六门） | `just cloudflare-promotion`（fixture TS · wrangler · 产品源 fail-closed）；非 Wasm 二进制 |
 
 **仅 CLI 的验证目标：** `quint` 可通过 `proof-forge emit --target quint` 用于形式化/模型检查
