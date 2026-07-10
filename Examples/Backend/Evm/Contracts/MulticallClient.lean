@@ -13,7 +13,7 @@ def spec : ProofForge.Contract.ContractSpec :=
   build "MulticallClient" do
     scalarState "last" .u64
     let mc ← declareMulticall "multicall.peer"
-    entrySelectorWithParams "batch" "11223344" #[("tag", .u64)] .unit do
+    entrySelectorWithParams "batch" "0eaa75fe" #[("tag", .u64)] .unit do
       letBind "_r" .u64 (aggregate mc #[localVar "tag"])
       effect (storageScalarWrite "last" (localVar "tag"))
 

@@ -14,7 +14,7 @@ def spec : ProofForge.Contract.ContractSpec :=
     scalarState "last" .u64
     let token ← declareToken "permit.token"
 
-    entrySelectorWithParams "runPermit" "d4d4d4d4"
+    entrySelectorWithParams "runPermit" "3e18cf35"
         #[("owner", .u64), ("spender", .u64), ("value", .u64),
           ("deadline", .u64), ("v", .u64), ("r", .u64), ("s", .u64)] .unit do
       letBind "_ok" .u64
@@ -22,7 +22,7 @@ def spec : ProofForge.Contract.ContractSpec :=
           (localVar "deadline") (localVar "v") (localVar "r") (localVar "s"))
       effect (storageScalarWrite "last" (localVar "value"))
 
-    entrySelectorWithParams "readNonce" "e5e5e5e5" #[("owner", .u64)] .u64 do
+    entrySelectorWithParams "readNonce" "8c3f5563" #[("owner", .u64)] .u64 do
       ret (nonces token (localVar "owner"))
 
 def module : ProofForge.IR.Module :=

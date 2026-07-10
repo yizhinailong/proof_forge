@@ -13,7 +13,7 @@ def spec : ProofForge.Contract.ContractSpec :=
   build "Permit2Client" do
     scalarState "last" .u64
     let p2 ← declarePermit2 "permit2.peer"
-    entrySelectorWithParams "pull" "55667788"
+    entrySelectorWithParams "pull" "0d42ae62"
         #[("from", .u64), ("to", .u64), ("amount", .u64), ("token", .u64)] .unit do
       letBind "_r" .u64
         (transferFrom p2 (localVar "from") (localVar "to") (localVar "amount") (localVar "token"))

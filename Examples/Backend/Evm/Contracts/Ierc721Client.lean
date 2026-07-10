@@ -22,21 +22,21 @@ def spec : ProofForge.Contract.ContractSpec :=
     scalarState "last_token" .u64
     let nft ← declareNft "nft.peer"
 
-    entrySelectorWithParams "moveToken" "d1e2f3a4"
+    entrySelectorWithParams "moveToken" "0d1dfd76"
         #[("from", .u64), ("to", .u64), ("tokenId", .u64)] .unit do
       letBind "_ok" .u64 (transferFrom nft (localVar "from") (localVar "to") (localVar "tokenId"))
       effect (storageScalarWrite "last_token" (localVar "tokenId"))
 
-    entrySelectorWithParams "safeMoveToken" "e2f3a4b5"
+    entrySelectorWithParams "safeMoveToken" "60218c1e"
         #[("from", .u64), ("to", .u64), ("tokenId", .u64)] .unit do
       letBind "_ok" .u64 (safeTransferFrom nft (localVar "from") (localVar "to") (localVar "tokenId"))
       effect (storageScalarWrite "last_token" (localVar "tokenId"))
 
-    entrySelectorWithParams "readOwner" "f3a4b5c6"
+    entrySelectorWithParams "readOwner" "ed953f2b"
         #[("tokenId", .u64)] .u64 do
       ret (ownerOf nft (localVar "tokenId"))
 
-    entrySelectorWithParams "readBalance" "a4b5c6d7"
+    entrySelectorWithParams "readBalance" "9f700267"
         #[("account", .u64)] .u64 do
       ret (balanceOf nft (localVar "account"))
 

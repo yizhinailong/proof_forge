@@ -31,16 +31,18 @@ def spec : ProofForge.Contract.ContractSpec :=
     scalarState "last_amount" .u64
     let token ← declareToken "token.peer"
 
-    entrySelectorWithParams "pushTokens" "a1b2c3d4"
+    -- Host entry selectors must match ABI (PF selector honesty); peer IERC20
+    -- selectors remain on the remoteCall side (0xa9059cbb / 0x70a08231).
+    entrySelectorWithParams "pushTokens" "51720e25"
         #[("to", .u64), ("amount", .u64)] .unit do
       letBind "_ok" .u64 (transfer token (localVar "to") (localVar "amount"))
       effect (storageScalarWrite "last_amount" (localVar "amount"))
 
-    entrySelectorWithParams "readBalance" "b2c3d4e5"
+    entrySelectorWithParams "readBalance" "9f700267"
         #[("account", .u64)] .u64 do
       ret (balanceOf token (localVar "account"))
 
-    entrySelectorReturns "readSupply" "c3d4e5f6" .u64 do
+    entrySelectorReturns "readSupply" "6df137f6" .u64 do
       ret (totalSupply token)
 
 def module : ProofForge.IR.Module :=

@@ -14,16 +14,16 @@ def spec : ProofForge.Contract.ContractSpec :=
     scalarState "last" .u64
     let vault ← declareVault "vault.peer"
 
-    entrySelectorWithParams "readShares" "a1a1a1a1" #[("assets", .u64)] .u64 do
+    entrySelectorWithParams "readShares" "3f167e17" #[("assets", .u64)] .u64 do
       ret (convertToShares vault (localVar "assets"))
 
-    entrySelectorWithParams "doDeposit" "b2b2b2b2"
+    entrySelectorWithParams "doDeposit" "90f87f7c"
         #[("assets", .u64), ("receiver", .u64)] .u64 do
       letBind "shares" .u64 (deposit vault (localVar "assets") (localVar "receiver"))
       effect (storageScalarWrite "last" (localVar "shares"))
       ret (localVar "shares")
 
-    entrySelectorReturns "readTotalAssets" "c3c3c3c3" .u64 do
+    entrySelectorReturns "readTotalAssets" "ab795739" .u64 do
       ret (totalAssets vault)
 
 def module : ProofForge.IR.Module :=
