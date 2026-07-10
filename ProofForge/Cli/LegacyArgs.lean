@@ -315,6 +315,8 @@ partial def parseArgs : List String → CliOptions → Except String CliOptions
       parseArgs rest { opts with mode := .solanaSplTokenAuthorityCpiSbpf }
   | "--emit-solana-associated-token-cpi-sbpf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaAssociatedTokenCpiSbpf }
+  | "--emit-solana-memo-cpi-sbpf" :: rest, opts =>
+      parseArgs rest { opts with mode := .solanaMemoCpiSbpf }
   | "--emit-solana-spl-token-2022-cpi-sbpf" :: rest, opts =>
       parseArgs rest { opts with mode := .solanaSplToken2022CpiSbpf }
   | "--emit-solana-spl-token-2022-pausable-cpi-sbpf" :: rest, opts =>

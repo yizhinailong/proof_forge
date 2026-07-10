@@ -127,6 +127,7 @@ def usage : String :=
     "  proof-forge --emit-solana-spl-token-close-account-cpi-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-solana-spl-token-authority-cpi-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-solana-associated-token-cpi-sbpf [-o output.s] [--artifact-output file]",
+    "  proof-forge --emit-solana-memo-cpi-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-solana-spl-token-2022-cpi-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-solana-spl-token-2022-pausable-cpi-sbpf [-o output.s] [--artifact-output file]",
     "  proof-forge --emit-solana-spl-token-2022-transfer-hook-sbpf [-o output.s] [--artifact-output file]",

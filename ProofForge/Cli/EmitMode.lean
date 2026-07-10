@@ -126,6 +126,7 @@ inductive EmitMode where
   | solanaSplTokenCloseAccountCpiSbpf
   | solanaSplTokenAuthorityCpiSbpf
   | solanaAssociatedTokenCpiSbpf
+  | solanaMemoCpiSbpf
   | solanaSplToken2022CpiSbpf
   | solanaSplToken2022PausableCpiSbpf
   | solanaSplToken2022TransferHookSbpf
@@ -307,6 +308,7 @@ def EmitMode.hasBuiltInFixture : EmitMode → Bool
   | .solanaSplTokenCloseAccountCpiSbpf
   | .solanaSplTokenAuthorityCpiSbpf
   | .solanaAssociatedTokenCpiSbpf
+  | .solanaMemoCpiSbpf
   | .solanaSplToken2022CpiSbpf
   | .solanaSplToken2022PausableCpiSbpf
   | .solanaSplToken2022TransferHookSbpf

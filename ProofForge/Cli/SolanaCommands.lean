@@ -419,6 +419,12 @@ def compileSolanaAssociatedTokenCpiSbpf (opts : CliOptions) : IO UInt32 :=
     "solana-associated-token-cpi-sbpf"
     ProofForge.Solana.Examples.AssociatedTokenCpi.spec
 
+def compileSolanaMemoCpiSbpf (opts : CliOptions) : IO UInt32 :=
+  compileSolanaSpecSbpf opts
+    (FilePath.mk "build/solana/MemoCpi.s")
+    "solana-memo-cpi-sbpf"
+    ProofForge.Solana.Examples.MemoCpi.spec
+
 def compileSolanaSplToken2022CpiSbpf (opts : CliOptions) : IO UInt32 :=
   compileSolanaSpecSbpf opts
     (FilePath.mk "build/solana/SplToken2022Cpi.s")

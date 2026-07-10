@@ -16,6 +16,8 @@ scripts=(
   scripts/solana/pinocchio-spl-token-transfer-equivalence.sh
   scripts/solana/pinocchio-spl-token-ops-equivalence.sh
   scripts/solana/pinocchio-spl-token-authority-equivalence.sh
+  scripts/solana/pinocchio-spl-token-close-account-equivalence.sh
+  scripts/solana/pinocchio-memo-equivalence.sh
 )
 
 for script in "${scripts[@]}"; do

@@ -139,6 +139,11 @@ def solanaResolveEmit (req : EmitRequest) : Except String String :=
     Except.ok "--emit-solana-sdk-sbpf"
   else if f == "canned-entrypoint" then
     Except.ok "--emit-sbpf-asm"
+  else if f == "solana-memo-cpi" then
+    if fmt == "s" || fmt == "" then
+      Except.ok "--emit-solana-memo-cpi-sbpf"
+    else
+      Except.ok "--solana-memo-cpi-elf"
   else if f.startsWith "solana-" then
     if fmt == "s" then
       Except.error s!"emit --target solana-sbpf-asm --fixture {f} --format s is not yet mapped to a legacy flag; use --format elf"

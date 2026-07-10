@@ -764,6 +764,8 @@ and Node tooling) following the same pattern as others (`solc`, `foundry`,
 | V-GATE-SOLANA-13AR | `just solana-pinocchio-spl-token-authority-equivalence` emits the generated SPL Token `set_authority` CPI source/artifact metadata and compares its ABI/account/CPI/state-write contract against a checked-in Pinocchio Token authority reference manifest/source. Included in `just solana-light` through `just solana-pinocchio-reference-equivalence`. |
 | V-GATE-SOLANA-13AL | `just solana-pinocchio-spl-token-authority-live-equivalence` builds/deploys the ProofForge and Pinocchio SPL Token `set_authority` programs on Surfpool and compares the same Rust mint-authority transfer scenario against both. |
 | V-GATE-SOLANA-13C | `just solana-spl-token-close-account-cpi-live` deploys a generated SPL Token `close_account` CPI program on Surfpool and verifies account removal, destination rent recovery, and marker state through the Rust live RPC harness. |
+| V-GATE-SOLANA-13CR | `just solana-pinocchio-spl-token-close-account-equivalence` emits the generated SPL Token `close_account` CPI source/artifact metadata and compares its ABI/account/CPI/state-write contract against a checked-in Pinocchio Token close-account reference. Included in `just solana-light` through `just solana-pinocchio-reference-equivalence`. |
+| V-GATE-SOLANA-14R | `just solana-pinocchio-memo-equivalence` emits the generated Memo CPI source/artifact metadata (u64 + 16-byte raw) and compares its ABI/account/CPI/`memoSource`/state-write contract against a checked-in Pinocchio Memo reference. Included in `just solana-light` through `just solana-pinocchio-reference-equivalence`. |
 
 ## Lean Module Layout
 

@@ -410,6 +410,17 @@ solana-refinement-smoke:
     lake build ProofForge.Backend.Solana.Refinement
     lake env lean --run Tests/Backend/Solana/SolanaRefinement.lean
 
+# Mathlib-free sBPF binary encoder + labeled view (Scheme 1/2A encode half).
+solana-bpf-encode-smoke:
+    lake build ProofForge.Backend.Solana.BpfEncode
+    lake build ProofForge.Backend.Solana.LabeledSbpf
+    lake env lean --run Tests/Backend/Solana/SolanaBpfEncode.lean
+
+# Opt-in solanalib adapter + CompileCorrect pipeline (pulls solanalib/mathlib).
+solana-solanalib-adapter:
+    lake build SolanaRefinement
+    lake env lean --run SolanaRefinement/CompileCorrectSmoke.lean
+
 # Check contract_source target capability diagnostics through the CLI.
 contract-source-diagnostics:
     scripts/contract-source/diagnostic-smoke.sh
@@ -874,6 +885,14 @@ solana-pinocchio-spl-token-ops-equivalence:
 solana-pinocchio-spl-token-authority-equivalence:
     scripts/solana/pinocchio-spl-token-authority-equivalence.sh
 
+# Compare the generated SPL Token close_account CPI artifact with the Pinocchio reference contract.
+solana-pinocchio-spl-token-close-account-equivalence:
+    scripts/solana/pinocchio-spl-token-close-account-equivalence.sh
+
+# Compare the generated Memo CPI artifact with the Pinocchio reference contract.
+solana-pinocchio-memo-equivalence:
+    scripts/solana/pinocchio-memo-equivalence.sh
+
 # Run all CI-safe Solana Pinocchio reference-equivalence gates.
 solana-pinocchio-reference-equivalence:
     scripts/solana/pinocchio-reference-equivalence.sh
@@ -1045,7 +1064,7 @@ solana-web3-compat:
     python3 scripts/solana/check-web3-compat-wrappers.py
 
 # Run all Solana gates that are safe for default CI.
-solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke portable-value-vault solana-emit-asm solana-plan-smoke solana-auto-materialize primary-materialize crosscall-materialize solana-web3-compat solana-pinocchio-reference-equivalence solana-sbpf-exec-smoke solana-sbpf-genericity-smoke solana-counter-sbpf-regression solana-refinement-smoke
+solana-light: solana-lean solana-build-examples solana-emit-control solana-sdk-smoke portable-value-vault solana-emit-asm solana-plan-smoke solana-auto-materialize primary-materialize crosscall-materialize solana-web3-compat solana-pinocchio-reference-equivalence solana-sbpf-exec-smoke solana-sbpf-genericity-smoke solana-counter-sbpf-regression solana-refinement-smoke solana-bpf-encode-smoke
 
 # Check shared-vs-target example topology.
 examples-topology:

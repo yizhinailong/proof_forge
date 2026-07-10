@@ -131,7 +131,7 @@ missing.
 | Compressed NFTs (Bubblegum) | Missing | No Bubblegum support | P2 |
 | SPL Governance | Missing | No governance program support | P2 |
 | Anchor-style derive constraints | Partial | Manual `accountConstraint` / `pdaAccount` primitives; no derive macro | P1 |
-| Pinocchio reference breadth | Partial | 5 reference programs; target ≥10 | P1 |
+| Pinocchio reference breadth | Partial (7/10) | L1.4 added `spl-token-close-account` + `memo` (7 total with system-transfer, system-create-account, spl-token-transfer, spl-token-ops, spl-token-authority). Suite: `just solana-pinocchio-reference-equivalence` (7 CI-safe smokes). Remaining toward ≥10: ATA, Token-2022, sysvar, or further SPL helpers | P1 |
 
 ---
 
