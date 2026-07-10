@@ -120,7 +120,7 @@ implementation SHA is only known after the implementation commit exists.
 | 3 | PF-P2-03 | done: verified@7c4def9c; `just testkit-remote-call` (evm+solana); Foundry peer; Mollusk CPI; `just near-sandbox-peer` (call_with_args→49); `just product` | Waves 1 and 2 done |
 | 5 | PF-P3-01 | pending | Wave 3 done |
 | 5 | PF-P3-03 | pending | Wave 3 done |
-| 4 | PF-P3-02 | done: verified@pending; `just soroban-promotion` `cosmwasm-promotion` `aptos-promotion` `sui-promotion` `cloudflare-promotion` `psy-promotion` `aleo-promotion` | Wave 3 done; promote only one target at a time, and do not block Wave 5 |
+| 4 | PF-P3-02 | done: verified@8d4dd0c4; `just soroban-promotion` `cosmwasm-promotion` `aptos-promotion` `sui-promotion` `cloudflare-promotion` `psy-promotion` `aleo-promotion` | Wave 3 done; promote only one target at a time, and do not block Wave 5 |
 
 PF-P3-02 promotion order is fixed unless the human changes it: Soroban,
 CosmWasm, Aptos, Sui, Cloudflare Workers, Psy, Aleo. Completing one target is a
