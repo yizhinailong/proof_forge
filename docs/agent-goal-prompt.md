@@ -122,7 +122,7 @@ implementation SHA is only known after the implementation commit exists.
 | 3 | PF-P2-01 | done: verified@72c5789e; just product-catalog; just product; just testkit; just testkit-array-example; just testkit-ownable; just testkit-remote-call; just check | Waves 1 and 2 done |
 | 3 | PF-P2-02 | done: verified@7c4def9c; Foundry ERC721/1155/custom-error; Solana ELF; `just near-sandbox-peer` (storage_usage + promise peer); `just product`; `just check` | Waves 1 and 2 done; complete one backend slice at a time |
 | 3 | PF-P2-03 | done: verified@7c4def9c; `just testkit-remote-call` (evm+solana); Foundry peer; Mollusk CPI; `just near-sandbox-peer` (call_with_args→49); `just product` | Waves 1 and 2 done |
-| 5 | PF-P3-01 | in_progress: proved⊂lowerable + renamed/canonical + finite name-family + pinned skeleton + `state = Counter.state` (`evm_lowerable_state_eq_counter`); next: ∀ m lowerable→`lowerModule=.ok` (lowerer name-independence / totality) | Wave 3 done; after PF-P3-02 |
+| 5 | PF-P3-01 | in_progress: proved⊂lowerable + renamed/canonical + finite name-family + full entrypoint/state array identity (`matches_counterShapeModule`); next: ∀ m lowerable→`lowerModule=.ok` via name-independence of isOk | Wave 3 done; after PF-P3-02 |
 | 5 | PF-P3-03 | in_progress: HOSTED_ISOLATION + lean pin + rebuild-hash + wall-clock + `just worker-cgroup` (CPU RLIMIT + mem when platform supports); next: require mem backend on hosted Linux workers / close remaining gaps | Wave 3 done |
 | 4 | PF-P3-02 | done: verified@8d4dd0c4; `just soroban-promotion` `cosmwasm-promotion` `aptos-promotion` `sui-promotion` `cloudflare-promotion` `psy-promotion` `aleo-promotion` | Wave 3 done; promote only one target at a time, and do not block Wave 5 |
 

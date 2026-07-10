@@ -86,6 +86,10 @@ open ProofForge.Backend.Refinement
 #check isCounterInitializeEntrypoint_fields
 #check isCounterInitializeEntrypoint_body_array
 #check isCounterShapeLowerable_state_array
+#check isCounterShapeLowerable_entrypoints_array
+#check isCounterInitializeEntrypoint_eq
+#check counterShapeModule
+#check isCounterShapeLowerable_matches_counterShapeModule
 #check evm_lowerable_implies_counter_skeleton
 #check evm_lowerable_state_eq_counter
 

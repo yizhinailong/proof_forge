@@ -654,6 +654,81 @@ theorem isCounterShapeLowerable_state_array
     simpa [hsd] using hlist
   exact Array.toList_inj.mp hlist'
 
+/-- Canonical Counter initialize entrypoint (paramAbiWords pinned empty). -/
+def counterInitializeEntrypoint : Entrypoint := {
+  name := "initialize"
+  kind := .function
+  selector? := some "8129fc1c"
+  params := #[]
+  paramAbiWords := #[]
+  returns := .unit
+  body := #[.effect (.storageScalarWrite "count" (.literal (.u64 0)))]
+}
+
+def counterIncrementEntrypoint : Entrypoint := {
+  name := "increment"
+  kind := .function
+  selector? := some "d09de08a"
+  params := #[]
+  paramAbiWords := #[]
+  returns := .unit
+  body := #[
+    .letBind "n" .u64 (.effect (.storageScalarRead "count")),
+    .effect (.storageScalarWrite "count"
+      (.add (.local "n") (.literal (.u64 1)) true))
+  ]
+}
+
+def counterGetEntrypoint : Entrypoint := {
+  name := "get"
+  kind := .function
+  selector? := some "6d4ce63c"
+  params := #[]
+  paramAbiWords := #[]
+  returns := .u64
+  body := #[.return (.effect (.storageScalarRead "count"))]
+}
+
+/-- Full structural equality for pinned initialize entrypoints. -/
+theorem isCounterInitializeEntrypoint_eq
+    (ep : Entrypoint) (h : isCounterInitializeEntrypoint ep = true)
+    (hpinned : ep.paramAbiWords = #[]) :
+    ep = counterInitializeEntrypoint := by
+  obtain ⟨hn, hs, hr, _⟩ := isCounterInitializeEntrypoint_fields ep h
+  obtain ⟨hk, hp⟩ := isCounterInitializeEntrypoint_kind_params ep h
+  have hb := isCounterInitializeEntrypoint_body_array ep h
+  cases ep
+  case mk name kind selector? params paramAbiWords returns body =>
+    simp only at hn hs hr hk hp hb hpinned
+    subst hn; subst hs; subst hr; subst hk; subst hp; subst hb; subst hpinned
+    rfl
+
+theorem isCounterIncrementEntrypoint_eq
+    (ep : Entrypoint) (h : isCounterIncrementEntrypoint ep = true)
+    (hpinned : ep.paramAbiWords = #[]) :
+    ep = counterIncrementEntrypoint := by
+  obtain ⟨hn, hs, hr, _⟩ := isCounterIncrementEntrypoint_fields ep h
+  obtain ⟨hk, hp⟩ := isCounterIncrementEntrypoint_kind_params ep h
+  have hb := isCounterIncrementEntrypoint_body_array ep h
+  cases ep
+  case mk name kind selector? params paramAbiWords returns body =>
+    simp only at hn hs hr hk hp hb hpinned
+    subst hn; subst hs; subst hr; subst hk; subst hp; subst hb; subst hpinned
+    rfl
+
+theorem isCounterGetEntrypoint_eq
+    (ep : Entrypoint) (h : isCounterGetEntrypoint ep = true)
+    (hpinned : ep.paramAbiWords = #[]) :
+    ep = counterGetEntrypoint := by
+  obtain ⟨hn, hs, hr, _⟩ := isCounterGetEntrypoint_fields ep h
+  obtain ⟨hk, hp⟩ := isCounterGetEntrypoint_kind_params ep h
+  have hb := isCounterGetEntrypoint_body_array ep h
+  cases ep
+  case mk name kind selector? params paramAbiWords returns body =>
+    simp only at hn hs hr hk hp hb hpinned
+    subst hn; subst hs; subst hr; subst hk; subst hp; subst hb; subst hpinned
+    rfl
+
 /-- Empty `paramAbiWords` on every entrypoint of a shape-lowerable module. -/
 theorem isCounterShapeLowerable_paramAbiWords_empty
     (m : Module) (h : isCounterShapeLowerable m = true)
@@ -668,6 +743,57 @@ theorem isCounterShapeLowerable_paramAbiWords_empty
   have hsize : (ep.paramAbiWords.size == 0) = true :=
     List.all_eq_true.mp hall ep hep
   exact Array.eq_empty_of_size_eq_zero (beq_iff_eq.mp hsize)
+
+/-- PF-P3-01: entrypoints array is exactly the canonical Counter triple. -/
+theorem isCounterShapeLowerable_entrypoints_array
+    (m : Module) (h : isCounterShapeLowerable m = true) :
+    m.entrypoints = #[counterInitializeEntrypoint, counterIncrementEntrypoint,
+      counterGetEntrypoint] := by
+  obtain ⟨e0, e1, e2, heps, h0, h1, h2⟩ := isCounterShapeLowerable_entrypoints m h
+  have p0 := isCounterShapeLowerable_paramAbiWords_empty m h e0 (by simp [heps])
+  have p1 := isCounterShapeLowerable_paramAbiWords_empty m h e1 (by simp [heps])
+  have p2 := isCounterShapeLowerable_paramAbiWords_empty m h e2 (by simp [heps])
+  have e0eq := isCounterInitializeEntrypoint_eq e0 h0 p0
+  have e1eq := isCounterIncrementEntrypoint_eq e1 h1 p1
+  have e2eq := isCounterGetEntrypoint_eq e2 h2 p2
+  have hlist :
+      m.entrypoints.toList =
+        [counterInitializeEntrypoint, counterIncrementEntrypoint, counterGetEntrypoint] := by
+    simpa [e0eq, e1eq, e2eq] using heps
+  exact Array.toList_inj.mp hlist
+
+/-- Canonical Counter-shape module with free `name` (all other fields pinned). -/
+def counterShapeModule (name : String) : Module := {
+  name := name
+  structs := #[]
+  state := #[{ id := "count", kind := .scalar, type := .u64 }]
+  entrypoints := #[counterInitializeEntrypoint, counterIncrementEntrypoint,
+    counterGetEntrypoint]
+  allocator := defaultAllocator
+  proxyPattern? := none
+  nearCrosscallStrings := #[]
+  overflowChecked := false
+}
+
+/-- PF-P3-01: every shape-lowerable module matches `counterShapeModule` on every
+field except possibly `allocator` (recovered only up to `BEq` without
+`LawfulBEq`). This is the structural identity needed before lowerer
+totality over free names. -/
+theorem isCounterShapeLowerable_matches_counterShapeModule
+    (m : Module) (h : isCounterShapeLowerable m = true) :
+    m.name = (counterShapeModule m.name).name ∧
+      m.structs = (counterShapeModule m.name).structs ∧
+      m.state = (counterShapeModule m.name).state ∧
+      m.entrypoints = (counterShapeModule m.name).entrypoints ∧
+      m.proxyPattern? = (counterShapeModule m.name).proxyPattern? ∧
+      m.nearCrosscallStrings = (counterShapeModule m.name).nearCrosscallStrings ∧
+      m.overflowChecked = (counterShapeModule m.name).overflowChecked ∧
+      (m.allocator == (counterShapeModule m.name).allocator) = true := by
+  obtain ⟨hstructs, hproxy, hnear, hoverflow, halloc, _⟩ :=
+    isCounterShapeLowerable_flags m h
+  refine ⟨rfl, hstructs, isCounterShapeLowerable_state_array m h,
+    isCounterShapeLowerable_entrypoints_array m h, hproxy, hnear, hoverflow, ?_⟩
+  simpa [counterShapeModule] using halloc
 
 /-- PF-P3-01 progressive structural skeleton: every shape-lowerable module has
 fixed host/scalar flags, pinned allocator + empty paramAbiWords, unique `count`
