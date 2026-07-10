@@ -7,11 +7,17 @@ Smoke entry for the opt-in solanalib CompileCorrect surface.
 
 import SolanaRefinement.CompileCorrect
 import SolanaRefinement.CounterHostRefinement
+import SolanaRefinement.CoreTailHostComposition
+import SolanaRefinement.ValueVaultHostRefinement
+import SolanaRefinement.FullHostTargetSemantics
 
 namespace ProofForge.Backend.Solana.CompileCorrectSmoke
 
 open ProofForge.Backend.Solana.CompileCorrect
 open ProofForge.Backend.Solana.CounterHostRefinement
+open ProofForge.Backend.Solana.CoreTailHostComposition
+open ProofForge.Backend.Solana.ValueVaultHostRefinement
+open ProofForge.Backend.Solana.FullHostTargetSemantics
 open ProofForge.Backend.Solana.SolanalibAdapter
 
 #check counter_bpf_encode_ok
@@ -30,9 +36,15 @@ open ProofForge.Backend.Solana.SolanalibAdapter
 #check counter_host_counter_call_trace_bridge_ok
 #check counter_host_trace_simulation_sound_checked
 #check counter_host_counter_call_trace_sound_checked
+#check counter_core_tail_host_composition_ok
+#check host_core_tail_matches_abstract_grid
+#check value_vault_host_trace_simulation_ok
+#check value_vault_host_trace_simulation_sound_checked
+#check full_host_target_semantics_counter_ok
+#check full_host_target_semantics_executable_counter_ok
 
 end ProofForge.Backend.Solana.CompileCorrectSmoke
 
 def main : IO UInt32 := do
-  IO.println "solana-solanalib-compile-correct-smoke: encode + host + IR↔full-host paired simulation + step_ne_err checked"
+  IO.println "solana-solanalib-compile-correct-smoke: full Solana host stack (Counter+ValueVault+composition+TargetSemantics) checked"
   pure 0

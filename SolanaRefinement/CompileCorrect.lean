@@ -48,6 +48,9 @@ import SolanaRefinement.LabeledToSolanalib
 import SolanaRefinement.HostBridge
 import SolanaRefinement.FullProgramHost
 import SolanaRefinement.CounterHostRefinement
+import SolanaRefinement.CoreTailHostComposition
+import SolanaRefinement.ValueVaultHostRefinement
+import SolanaRefinement.FullHostTargetSemantics
 import ProofForge.Backend.Solana.BpfEncode
 import ProofForge.Backend.Solana.LabeledSbpf
 import ProofForge.IR.Examples.Counter
@@ -63,6 +66,9 @@ open ProofForge.Backend.Solana.LabeledToSolanalib
 open ProofForge.Backend.Solana.HostBridge
 open ProofForge.Backend.Solana.FullProgramHost
 open ProofForge.Backend.Solana.CounterHostRefinement
+open ProofForge.Backend.Solana.CoreTailHostComposition
+open ProofForge.Backend.Solana.ValueVaultHostRefinement
+open ProofForge.Backend.Solana.FullHostTargetSemantics
 open Solanalib.SBPF
 
 /-! ### Default-path encode anchor (also buildable without solanalib) -/
@@ -183,5 +189,15 @@ theorem counter_host_counter_call_trace_bridge_ok :
 #check counter_host_trace_simulation_sound_checked
 #check counter_host_counter_call_trace_sound_checked
 #check counter_host_initialize_step_sound_checked
+
+/-! ### Composition + ValueVault IR lockstep + TargetSemantics -/
+
+#check counter_core_tail_host_composition_ok
+#check host_core_tail_matches_abstract_grid
+#check host_core_ir_trace_ok
+#check value_vault_host_trace_simulation_ok
+#check value_vault_host_trace_simulation_sound_checked
+#check full_host_target_semantics_counter_ok
+#check full_host_target_semantics_executable_counter_ok
 
 end ProofForge.Backend.Solana.CompileCorrect

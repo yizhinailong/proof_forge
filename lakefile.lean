@@ -59,6 +59,9 @@ lean_lib SolanaRefinement where
     `SolanaRefinement.HostBridge,
     `SolanaRefinement.FullProgramHost,
     `SolanaRefinement.CounterHostRefinement,
+    `SolanaRefinement.CoreTailHostComposition,
+    `SolanaRefinement.ValueVaultHostRefinement,
+    `SolanaRefinement.FullHostTargetSemantics,
     `SolanaRefinement.CompileCorrect,
     `SolanaRefinement.CompileCorrectSmoke
   ]

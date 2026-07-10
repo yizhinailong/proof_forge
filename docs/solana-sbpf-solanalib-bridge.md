@@ -1,7 +1,8 @@
-# Solana sBPF ↔ solanalib Bridge (Scheme 1 + Scheme 2 Phase A/B)
+# Solana sBPF ↔ solanalib Bridge (Scheme 1 + Scheme 2 Phase A/B + host)
 
-Status: **landed skeleton** (2026-07) — mathlib-free encode + labeled view +
-opt-in solanalib lift/decode + CompileCorrect pipeline anchors.
+Status: **Counter + ValueVault host stack landed** (2026-07) — mathlib-free
+encode + labeled view + solanalib lift/verify + core-tail/full-program hosts +
+IR paired simulation + composition + TargetSemantics registration.
 
 **Portable IR is mandatory.** See
 [portable-ir-semantics-anchor.md](portable-ir-semantics-anchor.md). This bridge
@@ -59,6 +60,9 @@ BpfState
 | Host bridge (Counter core-tail) | `SolanaRefinement/HostBridge.lean` | same |
 | Full EmitSBPF Counter host | `SolanaRefinement/FullProgramHost.lean` | same |
 | IR ↔ full-host paired simulation | `SolanaRefinement/CounterHostRefinement.lean` | same |
+| Core-tail host ≡ abstract model | `SolanaRefinement/CoreTailHostComposition.lean` | same |
+| ValueVault IR ↔ host lockstep | `SolanaRefinement/ValueVaultHostRefinement.lean` | same |
+| Full-host `TargetSemantics` | `SolanaRefinement/FullHostTargetSemantics.lean` | same |
 | CompileCorrect sketch | `SolanaRefinement/CompileCorrect.lean` | same |
 | Smoke entry | `SolanaRefinement/CompileCorrectSmoke.lean` | same |
 | IR semantics anchor note | `docs/portable-ir-semantics-anchor.md` | docs |
@@ -123,18 +127,18 @@ just solana-solanalib-adapter
 `solana-solanalib-adapter` is **not** on the required `just product` /
 `just check` path (same policy as `evm-powdr-adapter`).
 
-## Next work (still from Portable IR)
+## Completion checklist (Solana host lane)
 
 1. ~~Host bridge for Counter core-tail (init/inc)~~ ✅.
 2. ~~`get` + `sol_set_return_data` stub + sequential init→get→inc→get~~ ✅.
-3. ~~Full EmitSBPF Counter + PF interpreter differential~~ ✅
-   (`FullProgramHost.lean`).
-4. ~~IR ↔ full-host paired simulation (pointwise)~~ ✅
-   (`CounterHostRefinement.lean` via `executableSimulationTraceOk_sound`).
-5. ~~ValueVault full-program host + PF differential~~ ✅
-   (`valueVaultFullTraceOk` / `valueVaultFullDiffOk`).
-6. Universal per-entrypoint simulation for full host (all related states),
-   then `traceSimulation_lift` without fixed scenarios.
+3. ~~Full EmitSBPF Counter + PF interpreter differential~~ ✅.
+4. ~~IR ↔ full-host paired simulation (pointwise)~~ ✅.
+5. ~~ValueVault full-program host + PF differential~~ ✅.
+6. ~~Core-tail host ≡ abstract `counterSbpfCoreTraceStep` grid + IR lockstep~~ ✅.
+7. ~~ValueVault IR ↔ host paired simulation~~ ✅.
+8. ~~`TargetSemantics` registration for full host~~ ✅.
 
-Scheme 2 Phase C (assembler-in-Lean replacing external `sbpf`) remains
-future work; product text emission is unchanged.
+**Remaining research (not blocking this lane):** universal all-input
+per-entrypoint simulation on the full host (no fixed scenarios); Scheme 2
+Phase C assembler-in-Lean; broader syscalls. Product text emission is
+unchanged.
