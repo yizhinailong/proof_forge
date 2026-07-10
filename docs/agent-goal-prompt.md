@@ -116,7 +116,7 @@ implementation SHA is only known after the implementation commit exists.
 | 1 | PF-P1-04 | done: verified@4cae7f88; just preflight-l2; just check-l2-parity; just product; just check | PF-P1-01 through PF-P1-03 done |
 | 2 | PF-P1-05 | done: verified@d3d2f3d8; just source-dsl-arity; just portable-default; just product; just check | Wave 1 done |
 | 2 | PF-P1-06 | done: verified@1f4c73e7; just leo-printer-fail-closed; just aleo-leo-codegen-smoke; just product; just check | Wave 1 done |
-| 3 | PF-P2-01 | in_progress: remote-call triad + catalog kinds; mark done after SHA known | Waves 1 and 2 done |
+| 3 | PF-P2-01 | done: verified@72c5789e; just product-catalog; just product; just testkit; just testkit-array-example; just testkit-ownable; just testkit-remote-call; just check | Waves 1 and 2 done |
 | 3 | PF-P2-02 | pending | Waves 1 and 2 done; complete one backend slice at a time |
 | 3 | PF-P2-03 | pending | Waves 1 and 2 done |
 | 5 | PF-P3-01 | pending | Wave 3 done |
