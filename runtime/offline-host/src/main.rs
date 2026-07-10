@@ -966,14 +966,28 @@ fn define_host_imports(linker: &mut Linker<HostState>) -> Result<()> {
             Ok(1)
         },
     )?;
+    // NEAR `promise_return` schedules the promise result as the transaction
+    // return. Offline host does not run a real peer VM; when a promise was
+    // created in this call, materialize a Borsh U64 peer result so product
+    // RemoteCall / NEP-141 callback paths can assert return values (N1.4).
+    //
+    // Heuristic: if the last promise_create args look like a JSON array of
+    // two decimal numbers `[a,b]`, return a+b (PeerOracle remote_call shape).
+    // Otherwise use `--promise-result-u64` (default 42).
     linker.func_wrap(
         "env",
         "promise_return",
         |mut caller: Caller<'_, HostState>, promise_id: i64| {
-            caller
-                .data_mut()
+            let state = caller.data_mut();
+            state
                 .promise_trace
                 .push(format!("promise_return id={promise_id}"));
+            if let Some(result) = offline_promise_return_u64(state) {
+                state.return_value = result.to_le_bytes().to_vec();
+                state.promise_trace.push(format!(
+                    "promise_return_value u64={result} (offline peer stub)"
+                ));
+            }
         },
     )?;
 
@@ -1008,6 +1022,54 @@ fn read_u128_le_low64(caller: &mut Caller<'_, HostState>, ptr: i64) -> Result<u6
     let mut buf = [0u8; 8];
     buf.copy_from_slice(&bytes[..8]);
     Ok(u64::from_le_bytes(buf))
+}
+
+/// Offline peer stub for `promise_return` (N1.4).
+///
+/// Only fills `value_return` for a **simple** promise chain (promise_create
+/// without promise_then). NEP-141 `ft_transfer_call` uses create+then and keeps
+/// the host's empty return until `ft_resolve_transfer` runs.
+///
+/// When `args` is a JSON array of two decimal integers, returns their sum
+/// (PeerOracle `remote_call` / sandbox-peer `call_with_args → 49`). Otherwise
+/// returns `promise_result_u64`.
+fn offline_promise_return_u64(state: &HostState) -> Option<u64> {
+    let has_then = state
+        .promise_trace
+        .iter()
+        .any(|line| line.starts_with("promise_then "));
+    if has_then {
+        return None;
+    }
+    let create = state
+        .promise_trace
+        .iter()
+        .rev()
+        .find(|line| line.starts_with("promise_create "))?;
+    // Format: promise_create id=… account=… method=… args=… deposit=… gas=…
+    let args = create
+        .split(" args=")
+        .nth(1)?
+        .split(" deposit=")
+        .next()?
+        .trim();
+    if let Some(sum) = parse_two_decimal_sum(args) {
+        return Some(sum);
+    }
+    // Empty-args remote still needs a return for product call_remote paths.
+    Some(state.promise_result_u64)
+}
+
+fn parse_two_decimal_sum(args: &str) -> Option<u64> {
+    let s = args.trim();
+    let inner = s.strip_prefix('[')?.strip_suffix(']')?;
+    let mut parts = inner.split(',').map(|p| p.trim());
+    let a: u64 = parts.next()?.parse().ok()?;
+    let b: u64 = parts.next()?.parse().ok()?;
+    if parts.next().is_some() {
+        return None;
+    }
+    Some(a.saturating_add(b))
 }
 
 fn read_memory(caller: &mut Caller<'_, HostState>, ptr: i64, len: i64) -> Result<Vec<u8>> {

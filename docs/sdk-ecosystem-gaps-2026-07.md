@@ -175,7 +175,7 @@ Probe: `proof-forge build --target wasm-near` on Product sources after S0 merge.
 | Entrypoint ABI (Borsh params + returns) | Partial (N1.2) | Multi-u64 + **flat struct / fixedArray** params+returns via EmitWat Borsh (`just emitwat-aggregate-abi`); dynamic `bytes`/`string` still fail-closed | P1 remain: dynamic bytes/string |
 | State storage (scalar/map/hash) | Covered | storage_read/write/has_key lowered; product maps OK | — |
 | Generic events via log_utf8 | Covered | EmitWat event lowering + offline host | — |
-| Cross-contract calls (Promise API) | Partial | Host imports + EmitWat materialize; RemoteCall builds; full async peer still N1.4 | P1 |
+| Cross-contract calls (Promise API) | Partial (N1.4) | Host imports + materialize; **offline** `just near-remote-call-offline-peer` (`call_with_args → 49`); **sandbox** `just near-sandbox-peer` real PeerOracle; IR semantics remain sum stub | P1 remain: richer multi-hop peer simulation |
 | Callback handling | Partial | `promise_result` host import exists; offline host returns `2` (Failed). Full callback dispatch deferred | P1 |
 
 ### Token standards

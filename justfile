@@ -741,6 +741,10 @@ near-benchmark-counter: near-compare
 near-sandbox-peer:
     scripts/near/sandbox-peer-smoke.sh
 
+# N1.4: offline-host peer stub for Product RemoteCall (call_with_args → 49).
+# Complements near-sandbox-peer when sandbox binary is unavailable in CI.
+near-remote-call-offline-peer:
+    scripts/near/remote-call-offline-peer-smoke.sh
 
 # Build the shared portable Counter to EVM, Solana sBPF, and NEAR/Wasm from one source file.
 portable-counter-multi-target:
