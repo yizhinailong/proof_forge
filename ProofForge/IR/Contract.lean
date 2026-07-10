@@ -343,6 +343,10 @@ def ContextField.isPortableEnv (field : ContextField) : Bool :=
 structure ErrorRef where
   assertionId : UInt32
   userCode? : Option String := none
+  /-- Optional Solidity custom-error selector (8 hex digits, no `0x`).
+  When set, EVM lowers to `abi.encodeWithSelector(selector)` (PF-P2-02)
+  instead of the ProofForge `(assertionId, string)` envelope. -/
+  soliditySelector? : Option String := none
   deriving Repr, BEq
 
 inductive Statement where
