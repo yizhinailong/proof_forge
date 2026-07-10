@@ -3,7 +3,10 @@
 Copy this entire document into one long-running goal or agent session. It is a
 continuous execution charter, not a request for another audit or plan.
 
-Status: **Complete: verified@35a07384**
+Status: **Active**
+
+**Complementary post-review execution charter:**
+[`superpowers/plans/2026-07-10-post-review-execution.md`](superpowers/plans/2026-07-10-post-review-execution.md)
 
 Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)

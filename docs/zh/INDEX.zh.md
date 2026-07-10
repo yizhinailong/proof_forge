@@ -2,11 +2,12 @@
 
 ProofForge 是一个 Lean 优先的多链智能合约平台。主干包含 EVM 基线，以及在统一的可移植 IR 和能力注册表之下的 Solana (sBPF 汇编)、NEAR (EmitWat)、Sui (Counter MVP)、CosmWasm 和 Aptos (Counter spike)、Psy/DPN、Aleo Leo 以及 Cloudflare Workers (TypeScript spike) 后端，遵循 2026-07 分支合并。
 
-**当前阶段：** 三个主要产品链（`solana-sbpf-asm`、`evm` 和
-`wasm-near`）的历史 Gate P0 已关闭，但
-[2026-07-10 多链愿景差距审查](multi-chain-gap-audit-2026-07-10.zh.md)
-发现了源码身份、命令支持、制品和验证契约问题；这些正确性任务必须先于更广的
-target 晋级。CLI M4 兼容性清理排在这些任务之后。
+**当前阶段：** Gate P0 已关闭；
+[2026-07-10 多链修复任务](../agent-goal-prompt.md)仍在推进 PF-P3-02
+次级目标成熟度工作。并行的
+[后审查主链深化计划](../superpowers/plans/2026-07-10-post-review-execution.md)
+覆盖 NEAR/EVM/Solana 产品深度、平台债务和诚实的 FV 片段扩展，且不会把尚未完成的
+次级目标工作声明为已完成。
 
 ## 文档地图
 
@@ -56,7 +57,8 @@ flowchart TB
 - [产品 / SDK 差距计划 (2026-07)](product-sdk-gap-plan-2026-07.md)：差距与 α–ε 阶段。
 
 - [宿主运行时抽象](host-runtime.md)：可移植 HostEffect → EVM 操作码 / Solana 系统调用 / NEAR 宿主导入。
-- [多链修复 Agent 目标提示词](../agent-goal-prompt.md)：驱动当前 PF-P0 至 PF-P3 队列的长期执行循环。
+- [多链修复 Agent 目标提示词](../agent-goal-prompt.md)：**进行中**的 PF 账本；PF-P3-02 仍开放，已完成条目保留其验证证据。
+- [后审查执行计划 (2026-07-10)](../superpowers/plans/2026-07-10-post-review-execution.md)：互补的进行中队列——深化主要三链、平台债务与 FV 片段。
 - [共享场景：Counter](shared-scenario.md)：跨目标验收测试。
 - [文档↔代码同步审计 (2026-07)](doc-code-sync-audit-2026-07.md)：偏差登记和维护清单。
 - [教程：一个模块，三个目标](tutorials/portable-contract-three-targets.md)：可移植 `contract_source` 演练 (CS-5.3)。
@@ -93,7 +95,9 @@ flowchart TB
 - [实现待办列表](implementation-backlog.md)：阶段性任务与验收标准。
 - [产品编写架构](product-authoring-architecture.md)：业务意图 vs 链上具象化；阶段 A–C 状态。
 - [可移植 SDK 统一计划 (2026-07-09)](../superpowers/plans/2026-07-09-portable-sdk-unification.md)：**已完成**（policy · Token · remote · author polish）。
-- [统一支持路线图 (2026-07-09)](../superpowers/plans/2026-07-09-unified-support-roadmap.md)：**进行中** —— HostEnv 三链、crosscall 诚实性、FV-9、平台债务。
+- [统一支持路线图 (2026-07-09)](../superpowers/plans/2026-07-09-unified-support-roadmap.md)：此前的统一波次（历史背景；未完成的 U4/U6 已纳入后审查计划）。
+- [后审查执行计划 (2026-07-10)](../superpowers/plans/2026-07-10-post-review-execution.md)：**进行中**——S0 主干、N1 NEAR、E1 EVM、L1 Solana、**B1 基准**、**Z1 Psy DPN**、**Z2 Aleo Instructions**、P1 平台、F1 FV 与 D1 DX。
+- [基准矩阵（PF 对比原生实现）](../benchmarks.md)：B1 行为与原生成本矩阵骨架，不制造虚假的跨链综合分数。
 - [CLI M4 legacy inventory](../cli-m4-legacy-inventory.md)：删除 alias 前的 EmitMode/flag 清单。
 - [CLI M4 删除清单](../cli-m4-deletion-checklist.md)：兼容窗口后的有序删除步骤。
 - [RFC 0012 版本策略](../rfcs/0012-versioning-and-compatibility-policy.md) + `just versioning-policy`。

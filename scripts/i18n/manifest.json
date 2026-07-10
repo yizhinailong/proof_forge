@@ -11,9 +11,10 @@
     "model": "gemini-3-flash-preview"
   },
   "docs/INDEX.md": {
-    "sha256": "ecc294c778eabd907c1d9951837217a56a4bc52832f50318bc4c38593eb584ff",
+    "sha256": "90a44f935e9aaed7eaa7fb19373cbbb3798d3dbd48be9a7fb56a3388f77ec764",
     "zh": "docs/zh/INDEX.zh.md",
-    "model": "manual-zh"
+    "model": "manual-zh",
+    "note": "synced for active PF remediation and post-review plan links"
   },
   "docs/onboarding.md": {
     "sha256": "84fe6b63515b634c383822479e1e8c89ed25aa1365b4d5deabf4850697b7fb39",

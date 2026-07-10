@@ -137,27 +137,53 @@ missing.
 
 ## NEAR / Wasm
 
-The NEAR/Wasm backend has the shallowest SDK surface. EmitWat covers
-scalar state, events, hash, context, control flow, arrays, and structs
-— but NEAR's real contract model (Promise API, tokens, account model,
-economics) is almost entirely missing.
+The NEAR/Wasm backend has the shallowest SDK surface of the primary triad.
+EmitWat covers scalar/map state, events, hash, context, control flow, arrays,
+and many product sources — but NEP economics, full Promise peer execution, and
+rich Borsh aggregates remain the main depth gaps.
+
+### N1.1 product × wasm-near inventory (2026-07-10)
+
+Probe: `proof-forge build --target wasm-near` on Product sources after S0 merge.
+
+| Source | Authoring | Build | Notes / ABI shape |
+|--------|-----------|------:|-------------------|
+| `Counter.lean` | contract_source | OK | scalar u64; offline-host lifecycle green |
+| `ValueVault.lean` | contract_source | OK | multi-entrypoint; multi-i64 params present in WAT |
+| `Ownable.lean` / policies | contract_source | OK | caller/auth portable path |
+| `ArrayExample.lean` | contract_source | OK | fixed array ops |
+| `RemoteCall.lean` | contract_source | OK | Promise encoding in WAT; peer runtime still N1.4 |
+| `StakingVault.lean` | contract_source | OK | `nativeValue` path |
+| `RoleGatedToken.lean` | contract_source | OK | maps + multi-param entries |
+| `EscrowVault.lean` (+ other NEAR-compare vaults) | contract_source | OK | product compile |
+| `SoulboundTokenBody.lean` | contract_source | OK | body balances (no TokenSpec) |
+| `FungibleToken.lean` / `FeeToken` / `SoulboundToken` | **TokenSpec** | **FAIL** as bare `build` (actionable diagnostic) | needs `--token` / `just product-token-near`; N1.3 message points at TokenSpec path |
+| NEP-141 body | stdlib + TokenSpec plan | OK via `just product-token-near` | plan JSON + `NearFungibleToken.wat` |
+
+**Gap classes for N1 (ordered):**
+
+1. **TokenSpec CLI UX** — bare `build` on TokenSpec modules throws ContractSpec missing; authors need a single documented path (N1.3).
+2. **Aggregate Borsh** — multi-param scalar i64 works; struct/bytes/string ABI still limited (N1.2).
+3. **Promise peer correctness** — materialize exists; sandbox/offline peer returns need N1.4.
+4. **NEP-141/145 product depth** — plan+WAT exist; full FT lifecycle + storage deposit economics still shallow (N1.3/N1.5).
+5. **Budget honesty** — wasmtime fuel vs near gas (N1.6).
 
 ### Contract model
 
 | Feature | Status | Evidence | Priority |
 |---|---|---|---|
-| Entrypoint ABI (Borsh params + returns) | Partial | Only u32/u64/bool/hash decoded; no aggregate ABI | P0 |
-| State storage (scalar/map/hash) | Covered | storage_read/write/has_key lowered | — |
+| Entrypoint ABI (Borsh params + returns) | Partial | Multi-u64 params work on product WAT (ValueVault/RoleGatedToken); structured aggregate ABI (structs/bytes/string) still incomplete | P0 → N1.2 |
+| State storage (scalar/map/hash) | Covered | storage_read/write/has_key lowered; product maps OK | — |
 | Generic events via log_utf8 | Covered | EmitWat event lowering + offline host | — |
-| Cross-contract calls (Promise API) | Partial | Host imports for `promise_create`/`promise_then`/`promise_results_count`/`promise_result`/`promise_return` in HostBridge. EmitWat crosscall stub lowering (logs intent). Full async promise execution needs account-id string passing | P1 |
+| Cross-contract calls (Promise API) | Partial | Host imports + EmitWat materialize; RemoteCall builds; full async peer still N1.4 | P1 |
 | Callback handling | Partial | `promise_result` host import exists; offline host returns `2` (Failed). Full callback dispatch deferred | P1 |
 
 ### Token standards
 
 | Feature | Status | Evidence | Priority |
 |---|---|---|---|
-| NEP-141 (fungible token) | Missing | No FT example or fixture | P0 |
-| NEP-145 (storage management) | Partial | `Tests/ContractSource/NearStorageDeposit.lean` covers `storage_deposit`, `storage_balance_of`, and `storage_balance_bounds` with U64 projected balances, Hash-key storage, target-first metadata, and offline-host smoke. Full JSON `StorageBalance`, withdraw/refund, and storage byte accounting remain open | P1 |
+| NEP-141 (fungible token) | Partial | `just product-token-near` emits NEP-141 plan + `NearFungibleToken.wat`; bare Product TokenSpec `build` still fails ContractSpec load | P0 → N1.3 |
+| NEP-145 (storage management) | Partial | `Tests/ContractSource/NearStorageDeposit.lean` + Product `StorageDeposit.lean` build; full JSON `StorageBalance`, withdraw/refund, byte accounting remain open | P1 |
 | NEP-148 (metadata) | Missing | No metadata fixture | P1 |
 | NEP-171 (NFT) | Missing | No NFT example | P1 |
 | NEP-178 (NFT enumeration) | Missing | No enumeration example | P2 |

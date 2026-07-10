@@ -6,12 +6,12 @@ contains the EVM baseline plus Solana (sBPF assembly), NEAR (EmitWat), Sui
 Cloudflare Workers (TypeScript spike) backends behind one portable IR and
 capability registry, following the 2026-07 branch consolidation.
 
-**Current phase:** the historical Gate P0 is closed for the three primary
-product chains (`solana-sbpf-asm`, `evm`, and `wasm-near`), but the
-[2026-07-10 multi-chain gap audit](multi-chain-gap-audit-2026-07-10.md)
-identified source-identity, command-support, artifact and validation-contract
-work that must precede broader target promotion. CLI M4 compatibility cleanup
-remains behind those correctness tasks.
+**Current phase:** Gate P0 is closed, while the
+[2026-07-10 multi-chain remediation](agent-goal-prompt.md) remains active for
+PF-P3-02 secondary-target maturity. The complementary
+[post-review deepen-triad plan](superpowers/plans/2026-07-10-post-review-execution.md)
+covers NEAR/EVM/Solana product depth, platform debt, and honest FV fragment
+growth without treating unfinished secondary-target work as complete.
 
 ## Documentation Map
 
@@ -64,7 +64,8 @@ Editable hand-drawn-style diagrams for presentations and onboarding — open on
 - [Product / SDK gap plan (2026-07)](product-sdk-gap-plan-2026-07.md): gaps and waves α–ε.
 
 - [Host runtime abstraction](host-runtime.md): portable HostEffect → EVM opcode / Solana syscall / NEAR host import.
-- [Multi-chain remediation agent goal](agent-goal-prompt.md): durable long-running execution loop for the active PF-P0 through PF-P3 queue.
+- [Multi-chain remediation agent goal](agent-goal-prompt.md): **active** PF ledger; PF-P3-02 remains open while completed rows retain their verified evidence.
+- [Post-review execution plan (2026-07-10)](superpowers/plans/2026-07-10-post-review-execution.md): complementary active queue — deepen primary triad, platform debt, FV fragment.
 - [Shared scenario: Counter](shared-scenario.md): cross-target acceptance test.
 - [Doc↔code sync audit (2026-07)](doc-code-sync-audit-2026-07.md): drift register and maintenance checklist.
 - [Tutorial: one module, three targets](tutorials/portable-contract-three-targets.md): portable `contract_source` walkthrough (CS-5.3).
@@ -102,7 +103,9 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - [Implementation backlog](implementation-backlog.md): staged tasks and acceptance criteria.
 - [Product authoring architecture](product-authoring-architecture.md): business-intent vs chain materialization; Phase A–C status.
 - [Portable SDK unification plan (2026-07-09)](superpowers/plans/2026-07-09-portable-sdk-unification.md): **complete** (policy · Token · remote · author polish).
-- [Unified support roadmap (2026-07-09)](superpowers/plans/2026-07-09-unified-support-roadmap.md): **active** — HostEnv triad · crosscall honesty · FV-9 · platform debt (slow unification).
+- [Unified support roadmap (2026-07-09)](superpowers/plans/2026-07-09-unified-support-roadmap.md): prior unification waves (historical context; unfinished U4/U6 absorbed by post-review plan).
+- [Post-review execution plan (2026-07-10)](superpowers/plans/2026-07-10-post-review-execution.md): **active** — S0 trunk · N1 NEAR · E1 EVM · L1 Solana · **B1 benchmarks** · **Z1 Psy DPN** · **Z2 Aleo Instructions** · P1 platform · F1 FV · D1 DX.
+- [Benchmarks (PF vs native)](benchmarks.md): B1 matrix skeleton — behavior + native cost dimensions (no fake cross-chain score).
 - [CLI M4 legacy inventory](cli-m4-legacy-inventory.md): EmitMode/flag zoo inventory before alias deletion.
 - [CLI M4 deletion checklist](cli-m4-deletion-checklist.md): ordered delete steps (compat window).
 - [RFC 0012 versioning](rfcs/0012-versioning-and-compatibility-policy.md) + `just versioning-policy`.
