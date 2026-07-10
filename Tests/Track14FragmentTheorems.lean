@@ -98,6 +98,7 @@ open ProofForge.Backend.Refinement
 #check evm_lowerable_eq_counterShapeModule
 #check evm_withCanonical_of_lowerable_eq_counter
 #check evm_lowerable_implies_canonical_lowering_total
+#check evm_lowerable_implies_lowering_total_of_name_indep
 
 end ProofForge.Tests.Track14FragmentTheorems
 
