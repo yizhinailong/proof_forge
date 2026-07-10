@@ -60,10 +60,10 @@
     "model": "manual-zh"
   },
   "docs/implementation-backlog.md": {
-    "sha256": "a462a23264e3664f0a538a3fe32f0bb2e0f8e8601f1ea24fa6cf59e37256cfb7",
+    "sha256": "8743a8d905057f71e6bc5e63826cd9af9c23544f6b3f0ddec5941bdd14c27c2e",
     "zh": "docs/zh/implementation-backlog.zh.md",
     "model": "manual-zh",
-    "note": "manually synced through the 2026-07-10 audit integration"
+    "note": "synced EN/zh PF-P2-02 ERC721/1155/custom-error closed status"
   },
   "docs/review-checklist.md": {
     "sha256": "c2a11658b0c9f51316f973e88195de3bc26f9863a1b81016b8f364a22856c979",

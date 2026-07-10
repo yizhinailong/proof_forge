@@ -6,8 +6,11 @@ testkit/target/
 tools/cosmwasm-vm-runner/target/
 *.bin
 *.yul
+# Golden Yul fixtures (product path under Examples/Backend/Evm after reorg).
 !Examples/Evm/*.golden.yul
 !Examples/Evm/Contracts/**/*.golden.yul
+!Examples/Backend/Evm/*.golden.yul
+!Examples/Backend/Evm/Contracts/**/*.golden.yul
 scripts/__pycache__/
 .DS_Store
 .nvimlog
