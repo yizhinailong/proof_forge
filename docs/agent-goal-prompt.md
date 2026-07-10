@@ -10,7 +10,8 @@ Queue source of truth:
 
 Baseline: Waves 0–2 done. Wave 3: PF-P2-01 done. PF-P2-02 in progress (NEAR sandbox
 blocked — no near CLI/sandbox tools). EVM custom-error + ERC721/1155 receiver +
-batch2 done; Solana ELF done. PF-P2-03 in progress: EVM peer CALL oracle slice.
+batch2 done; Solana ELF done. PF-P2-03 in progress: EVM peer CALL + Solana Mollusk
+CPI peer (call_with_args → 49) done; NEAR real peer still open.
 
 ---
 
@@ -118,7 +119,7 @@ implementation SHA is only known after the implementation commit exists.
 | 2 | PF-P1-06 | done: verified@1f4c73e7; just leo-printer-fail-closed; just aleo-leo-codegen-smoke; just product; just check | Wave 1 done |
 | 3 | PF-P2-01 | done: verified@72c5789e; just product-catalog; just product; just testkit; just testkit-array-example; just testkit-ownable; just testkit-remote-call; just check | Waves 1 and 2 done |
 | 3 | PF-P2-02 | in_progress: EVM+Solana slices done; NEAR sandbox blocked (no near/near-sandbox/cargo-near on PATH) | Waves 1 and 2 done; complete one backend slice at a time |
-| 3 | PF-P2-03 | in_progress: EVM peer oracle done; Solana peer→account index fix + PeerOracleSum fixture; next: Mollusk CPI runtime + NEAR | Waves 1 and 2 done |
+| 3 | PF-P2-03 | in_progress: EVM peer CALL + Solana Mollusk CPI peer (call_with_args→49) done; next: NEAR real peer equivalence | Waves 1 and 2 done |
 | 5 | PF-P3-01 | pending | Wave 3 done |
 | 5 | PF-P3-03 | pending | Wave 3 done |
 | 4 | PF-P3-02 | pending | Wave 3 done; promote only one target at a time, and do not block Wave 5 |

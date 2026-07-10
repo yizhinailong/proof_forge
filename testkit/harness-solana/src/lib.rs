@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
 use anyhow::{bail, ensure, Context, Result};
+use mollusk_svm::program::create_program_account_loader_v3;
 use mollusk_svm::Mollusk;
 use proof_forge_testkit_core::{
     assert_artifact_expectations, ArtifactOutput, CallOutcome, ChainHarness, DiagnosticExpectation,
@@ -201,7 +202,33 @@ fn run_remote_call_scenario(
     keygen: &str,
 ) -> Result<HarnessRun> {
     let artifact = build_remote_call_fixture(case, repo_root, sbpf, keygen)?;
-    run_remote_call_accounts_scenario(case, repo_root, artifact, REMOTE_CALL_MARKER_LEN)
+    let peer_elf = build_peer_oracle_sum_elf(repo_root, sbpf, keygen)?;
+    run_remote_call_accounts_scenario(case, repo_root, artifact, REMOTE_CALL_MARKER_LEN, &peer_elf)
+}
+
+/// Build the PF-P2-03 PeerOracleSum ELF (always returns u64 49 via set_return_data).
+fn build_peer_oracle_sum_elf(repo_root: &Path, sbpf: &str, keygen: &str) -> Result<PathBuf> {
+    let out_dir = repo_root.join("build/testkit/solana/peer-oracle-sum");
+    let asm_src = repo_root.join("Examples/Backend/Solana/fixtures/PeerOracleSum.s");
+    ensure!(
+        asm_src.exists(),
+        "missing PeerOracleSum fixture at `{}`",
+        asm_src.display()
+    );
+    let project_dir = out_dir.join("sbpf-project");
+    let project_name = "proofforge-peer-oracle-sum";
+    scaffold_sbpf_project(&project_dir, project_name, &asm_src, keygen)?;
+    let mut sbpf_build = Command::new(sbpf);
+    sbpf_build.current_dir(&project_dir).arg("build");
+    run_required(&mut sbpf_build, "sbpf build peer-oracle-sum")?;
+    // Mollusk::new appends `.so` — pass stem without extension.
+    let program_stem = project_dir.join("deploy").join(project_name);
+    ensure!(
+        program_stem.with_extension("so").exists(),
+        "peer-oracle-sum sbpf build missing `{}`",
+        program_stem.with_extension("so").display()
+    );
+    Ok(program_stem)
 }
 
 /// RemoteCall account layout: marker, payer, peer_program, system_program, callee_program.
@@ -210,6 +237,7 @@ fn run_remote_call_accounts_scenario(
     repo_root: &Path,
     artifact: SolanaFixtureArtifact,
     marker_data_len: usize,
+    peer_elf_stem: &Path,
 ) -> Result<HarnessRun> {
     let mut outputs = vec![
         ArtifactOutput {
@@ -253,15 +281,22 @@ fn run_remote_call_accounts_scenario(
 
     let tags = load_instruction_tags(&artifact.manifest_path)?;
     let pid = program_id(&artifact.keypair_path)?;
-    let mollusk = mollusk(pid, &artifact.program_path)?;
+    let mut mollusk = mollusk(pid, &artifact.program_path)?;
     let marker = Address::new_unique();
     let payer = Address::new_unique();
-    let peer_program = Address::new_unique();
+    // PF-P2-03: real peer ELF (returns u64 49). Program id must match the
+    // keypair used when assembling PeerOracleSum so CPI program_id resolves.
+    let peer_keypair = peer_elf_stem
+        .parent()
+        .unwrap()
+        .join("proofforge-peer-oracle-sum-keypair.json");
+    let peer_program = program_id(&peer_keypair)?;
+    let peer_path_str = path_str(peer_elf_stem)?;
+    mollusk.add_program(&peer_program, peer_path_str);
     let system_program = solana_system_program_id();
     let callee_program = Address::new_unique();
     let mut marker_account = Account::new(0, marker_data_len, &pid);
-    let mut peer_account = Account::new(0, 0, &Address::new_unique());
-    peer_account.executable = true;
+    let peer_account = create_program_account_loader_v3(&peer_program);
     let mut system_account = Account::new(1, 0, &system_program);
     system_account.executable = true;
     let mut callee_account = Account::new(0, 0, &Address::new_unique());

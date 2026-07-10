@@ -1629,13 +1629,23 @@ pub fn assert_trace_equivalence(case: &ScenarioCase, traces: &[TargetTrace<'_>])
         return Ok(());
     }
 
+    // Only compare steps shared across every target in this run (empty
+    // `step.targets` = all). Target-specific steps (PF-P2-03 peer CPI) are
+    // validated per-target via assert_expectations and skipped here.
+    let shared_steps: Vec<_> = case
+        .manifest
+        .steps
+        .iter()
+        .filter(|step| step.targets.is_empty())
+        .collect();
+
     let baseline = &traces[0];
-    let baseline_trace = normalize_trace(case, baseline)?;
+    let baseline_trace = normalize_shared_trace(case, baseline, &shared_steps)?;
     for trace in &traces[1..] {
-        let current_trace = normalize_trace(case, trace)?;
+        let current_trace = normalize_shared_trace(case, trace, &shared_steps)?;
         ensure!(
             current_trace.len() == baseline_trace.len(),
-            "scenario `{}` target `{}` produced {} observable outcomes, target `{}` produced {}",
+            "scenario `{}` target `{}` produced {} shared outcomes, target `{}` produced {}",
             case.manifest.scenario.name,
             trace.target_id,
             current_trace.len(),
@@ -1646,7 +1656,7 @@ pub fn assert_trace_equivalence(case: &ScenarioCase, traces: &[TargetTrace<'_>])
         {
             ensure!(
                 expected == got,
-                "scenario `{}` target `{}` observable trace differs from `{}` at outcome {}: expected {}, got {}",
+                "scenario `{}` target `{}` observable trace differs from `{}` at shared outcome {}: expected {}, got {}",
                 case.manifest.scenario.name,
                 trace.target_id,
                 baseline.target_id,
@@ -1658,6 +1668,21 @@ pub fn assert_trace_equivalence(case: &ScenarioCase, traces: &[TargetTrace<'_>])
     }
 
     Ok(())
+}
+
+fn normalize_shared_trace(
+    case: &ScenarioCase,
+    trace: &TargetTrace<'_>,
+    shared_steps: &[&Step],
+) -> Result<Vec<ObservableOutcome>> {
+    // Map full target outcomes (target-filtered) back onto shared steps only.
+    let full = normalize_trace(case, trace)?;
+    let shared_calls: std::collections::HashSet<&str> =
+        shared_steps.iter().map(|s| s.call.as_str()).collect();
+    Ok(full
+        .into_iter()
+        .filter(|o| shared_calls.contains(o.call.as_str()))
+        .collect())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1699,7 +1724,7 @@ impl fmt::Display for ObservableReturn {
 }
 
 fn normalize_trace(case: &ScenarioCase, trace: &TargetTrace<'_>) -> Result<Vec<ObservableOutcome>> {
-    let expected_len = expected_outcome_count(case);
+    let expected_len = expected_outcome_count_for_target(case, trace.target_id);
     ensure!(
         trace.outcomes.len() == expected_len,
         "scenario `{}` target `{}` expected {expected_len} call outcomes, got {}",
@@ -1710,7 +1735,12 @@ fn normalize_trace(case: &ScenarioCase, trace: &TargetTrace<'_>) -> Result<Vec<O
 
     let mut normalized = Vec::with_capacity(trace.outcomes.len());
     let mut index = 0usize;
-    for step in &case.manifest.steps {
+    for step in case
+        .manifest
+        .steps
+        .iter()
+        .filter(|step| step.applies_to_target(trace.target_id))
+    {
         for _ in 0..step.repeat.unwrap_or(1) {
             let expected_sequence = (index + 1) as u32;
             let outcome = &trace.outcomes[index];
@@ -1735,10 +1765,11 @@ fn normalize_trace(case: &ScenarioCase, trace: &TargetTrace<'_>) -> Result<Vec<O
     Ok(normalized)
 }
 
-fn expected_outcome_count(case: &ScenarioCase) -> usize {
+fn expected_outcome_count_for_target(case: &ScenarioCase, target_id: &str) -> usize {
     case.manifest
         .steps
         .iter()
+        .filter(|step| step.applies_to_target(target_id))
         .map(|step| step.repeat.unwrap_or(1) as usize)
         .sum()
 }

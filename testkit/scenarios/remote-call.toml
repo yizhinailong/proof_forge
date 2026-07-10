@@ -297,7 +297,14 @@ contains = [
 ]
 
 # Shared portable step: initialize marker state without peer execution.
-# Solana CPI peer runtime (call_with_args → PeerOracleSum) is staged: peer
-# account index mapping is fixed (PF-P2-03 asm), Mollusk peer ELF harness next.
 [[step]]
 call = "initialize"
+
+# PF-P2-03: real Solana CPI peer — PeerOracleSum ELF returns u64 49; RemoteCall
+# call_with_args (42+7 fixed args) observes peer return via sol_get_return_data.
+[[step]]
+call = "call_with_args"
+targets = ["solana-sbpf-asm"]
+
+[step.expect.return]
+u64 = 49
