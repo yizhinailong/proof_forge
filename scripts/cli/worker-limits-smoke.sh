@@ -80,4 +80,4 @@ set -e
 [[ "$st" -eq 124 || "$st" -ne 0 ]] || fail "expected timeout wrapper to kill sleep (exit $st)"
 echo "worker-limits: gate3 timeout enforcement ok (exit $st)"
 
-echo "worker-limits: ok (PF-P3-03 wall-clock worker control; cgroup CPU/mem remain follow-on)"
+echo "worker-limits: ok (PF-P3-03 wall-clock worker control; see just worker-cgroup for CPU/mem)"
