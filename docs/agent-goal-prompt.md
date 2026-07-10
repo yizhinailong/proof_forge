@@ -8,9 +8,8 @@ Status: **Active**
 Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
 
-Baseline: Waves 0–2 done. Wave 3: PF-P2-01 done. PF-P2-02/P2-03 NEAR sandbox peer
-unblocked (`near` + `cargo-near` + `near-sandbox` installed); `just near-sandbox-peer`
-proves call_with_args→49 + storage_usage. Closing Wave 3 ledger then Wave 4–5.
+Baseline: Waves 0–2 done. Wave 3: PF-P2-01/02/03 done @7c4def9c (NEAR sandbox peer +
+EVM/Solana triad). Wave 4–5 eligible next.
 
 ---
 
@@ -117,8 +116,8 @@ implementation SHA is only known after the implementation commit exists.
 | 2 | PF-P1-05 | done: verified@d3d2f3d8; just source-dsl-arity; just portable-default; just product; just check | Wave 1 done |
 | 2 | PF-P1-06 | done: verified@1f4c73e7; just leo-printer-fail-closed; just aleo-leo-codegen-smoke; just product; just check | Wave 1 done |
 | 3 | PF-P2-01 | done: verified@72c5789e; just product-catalog; just product; just testkit; just testkit-array-example; just testkit-ownable; just testkit-remote-call; just check | Waves 1 and 2 done |
-| 3 | PF-P2-02 | in_progress: EVM+Solana done; NEAR sandbox peer+storage_usage via `just near-sandbox-peer` (next: record done@SHA after commit) | Waves 1 and 2 done; complete one backend slice at a time |
-| 3 | PF-P2-03 | in_progress: EVM+Solana+NEAR sandbox peer call_with_args→49 via `just near-sandbox-peer` (next: record done@SHA after commit) | Waves 1 and 2 done |
+| 3 | PF-P2-02 | done: verified@7c4def9c; Foundry ERC721/1155/custom-error; Solana ELF; `just near-sandbox-peer` (storage_usage + promise peer); `just product`; `just check` | Waves 1 and 2 done; complete one backend slice at a time |
+| 3 | PF-P2-03 | done: verified@7c4def9c; `just testkit-remote-call` (evm+solana); Foundry peer; Mollusk CPI; `just near-sandbox-peer` (call_with_args→49); `just product` | Waves 1 and 2 done |
 | 5 | PF-P3-01 | pending | Wave 3 done |
 | 5 | PF-P3-03 | pending | Wave 3 done |
 | 4 | PF-P3-02 | pending | Wave 3 done; promote only one target at a time, and do not block Wave 5 |
