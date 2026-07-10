@@ -112,6 +112,7 @@ Accepted engineering direction ([rfcs/README](rfcs/README.md)):
 - [RFC 0012 versioning](rfcs/0012-versioning-and-compatibility-policy.md) + `just versioning-policy`.
 - [Upgrade/signing ops (RFC 0013)](upgrade-signing-ops.md): unsigned emit + live-gate key conventions.
 - [Client schema parity (U6.4)](client-schema-parity.md): entrypoint names + assertionId catalogue.
+- [Portable error vocabulary (P1.6)](portable-error-vocabulary.md): shared assertionId / errorByAssertionId contract.
 - [Review checklist (English)](review-checklist.md)
 - [Target notes](targets/README.md): per-family research and spike plans.
   - [EVM](targets/evm.md)

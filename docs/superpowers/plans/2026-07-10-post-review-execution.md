@@ -499,11 +499,11 @@ rejects direct path and Leo Road 1 is reinforced with clear reasons.
 | ID | Task | Work | Acceptance | Size | Status |
 |----|------|------|------------|------|--------|
 | **P1.1** | CLI M4 inventory refresh | Update `docs/cli-m4-legacy-inventory.md` + deletion checklist against current `EmitMode` / aliases | Inventory matches code; no stale flags | S | done: refreshed 2026-07-10; 155 EmitMode constructors, 175 LegacyArgs flags |
-| **P1.2** | CLI M4 deletion (compat window) | Remove legacy aliases only after checklist + `just cli-target-first` + docs/i18n | `EmitMode` surface reduced or gone; target-first only in scripts | L | pending |
+| **P1.2** | CLI M4 deletion (compat window) | Remove legacy aliases only after checklist + `just cli-target-first` + docs/i18n | `EmitMode` surface reduced or gone; target-first only in scripts | L | done: **compat window held** — inventory/checklist refreshed (157 EmitMode / 177 flags); bulk delete deferred with written rationale; `just cli-target-first` green (`--version` allowlisted) |
 | **P1.3** | Versioning RFC (WS30) | Short RFC: IR semver rules, artifact schema tolerance, capability-id append-only, SDK deprecation | RFC merged under `docs/rfcs/`; decisions entry | M | done: RFC 0012 Accepted (D-042); M1+M2 done; just versioning-policy green |
-| **P1.4** | Upgrade/signing RFC slice (WS32) | Minimal `upgradePolicy` model for EVM immutability/proxy, Solana upgrade authority, NEAR redeploy | Product examples either comply or fail closed with policy id in diagnostic | M | pending |
-| **P1.5** | Client schema parity | Keep `just client-schema-parity` green; extend if E1/N1 add entrypoints | Gate green; catalog updated | S | pending |
-| **P1.6** | Error model vocabulary (WS33 light) | Portable error codes shared by clients for assert/revert/custom-error | One doc table + client field parity smoke | M | pending |
+| **P1.4** | Upgrade/signing RFC slice (WS32) | Minimal `upgradePolicy` model for EVM immutability/proxy, Solana upgrade authority, NEAR redeploy | Product examples either comply or fail closed with policy id in diagnostic | M | done: RFC 0013 Accepted slice; UpgradePolicy + just evm-upgrade-policy-honesty; upgrade-signing-ops.md |
+| **P1.5** | Client schema parity | Keep `just client-schema-parity` green; extend if E1/N1 add entrypoints | Gate green; catalog updated | S | done: just client-schema-parity green (entrypoints + assertionId triad) |
+| **P1.6** | Error model vocabulary (WS33 light) | Portable error codes shared by clients for assert/revert/custom-error | One doc table + client field parity smoke | M | done: docs/portable-error-vocabulary.md + just portable-error-catalog / client-schema-parity |
 
 **Ordering:** P1.1 and P1.3 can start immediately after S0. **P1.2 only after** N1/E1 scripts no longer need legacy flags.
 
@@ -605,7 +605,7 @@ The plan is **complete** when:
 | B1 | done: B1.0–B1.8 closed | just benchmark-matrix / benchmark-zk-counter |
 | Z1 | done: Z1.0–Z1.6 closed | dpn goldens; metadata honesty; AST; Counter dpn-json; fallback policy |
 | Z2 | done: Z2.0–Z2.6 closed | Counter .aleo direct; Leo fallback policy |
-| P1 | pending | |
+| P1 | done: P1.1–P1.6 closed | M4 window held; RFC 0012/0013; client/error gates green |
 | F1 | pending | |
 | D1 | pending | |
 

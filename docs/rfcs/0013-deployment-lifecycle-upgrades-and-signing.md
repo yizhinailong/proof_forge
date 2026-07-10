@@ -1,7 +1,23 @@
 # RFC 0013: Deployment Lifecycle, Upgrades, and Signing
 
-Status: **Draft**
+Status: **Accepted (executable slice)**
 Date: 2026-07-03
+Updated: 2026-07-10 (P1.4)
+
+## Acceptance note (P1.4)
+
+The minimal executable policy is **implemented and gated**:
+
+| Surface | Evidence |
+|---------|----------|
+| Intent model | `ProofForge.Contract.UpgradePolicy` (`immutable` / `authority` / `governance`) |
+| Portable honesty | `ProofForge.Target.PortableHonesty.requireUpgradeHonesty` |
+| EVM | `just evm-upgrade-policy-honesty` (UUPS ok; authority without proxy fails closed) |
+| Ops | [upgrade-signing-ops.md](../upgrade-signing-ops.md) (unsigned emit; keys outside compiler) |
+| Decision | D-043 / E1.4 upgrade-policy honesty |
+
+Governance remains reject-in-v0 on triad. Solana upgrade authority + NEAR redeploy
+keys follow the ops table; product examples default to `immutable` or fail closed.
 
 ## Problem
 

@@ -1,6 +1,6 @@
 # CLI M4 deletion checklist (U6.3 prep)
 
-Status: **Checklist only — do not delete legacy aliases yet**  
+Status: **Compat window open — deletion deferred (P1.2)**  
 Date: 2026-07-09  
 Parent: [cli-m4-legacy-inventory.md](cli-m4-legacy-inventory.md), RFC 0009, D-039  
 Gate that must stay green: `just cli-target-first`
@@ -10,9 +10,19 @@ Gate that must stay green: `just cli-target-first`
 | Item | Count |
 |------|------:|
 | `EmitMode` constructors | 157 |
-| Distinct `--…` strings in `LegacyArgs` | ~172 |
+| Distinct `--…` strings in `LegacyArgs` | ~177 |
 | Executable callers of `--emit-*` outside allowlists | **0** (migration check green) |
 | Intentional legacy samples | `Tests/CliTargetFirst.lean` (maps legacy → target-first) |
+
+## P1.2 decision (2026-07-10)
+
+**Do not execute bulk `EmitMode` deletion in this wave.**
+
+Rationale:
+1. `just cli-target-first` is green once meta flags (`--version`) are allowlisted.
+2. Target-first maps still need legacy EmitMode constructors as **implementation** backends.
+3. Deleting constructors requires collapsing `LegacyArgs` → target-first dispatch only — a dedicated epic after N1/E1/Z* scripts stabilize.
+4. Checklist remains the SOT for the future delete window; inventory counts refreshed.
 
 ## Before deleting any alias
 

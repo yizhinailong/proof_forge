@@ -1,7 +1,7 @@
 # CLI M4 legacy inventory (U6.2)
 
 Status: **Inventory refreshed 2026-07-10 (P1.1) — do not delete aliases yet**  
-Date: 2026-07-10  
+Date: 2026-07-10 (P1 re-count)  
 Related: RFC 0009 / D-039, [platform-gaps](platform-gaps-2026-07.md) Gap 1,
 `just cli-target-first`, `ProofForge/Cli/EmitMode.lean`,
 `ProofForge/Cli/LegacyArgs.lean`, `ProofForge/Cli/TargetFirst.lean`.
@@ -22,10 +22,19 @@ executable callers and fails on direct legacy flags.
 
 | Surface | Count / note |
 |---------|----------------|
-| `EmitMode` constructors | **155** (`ProofForge/Cli/EmitMode.lean`) |
-| `LegacyArgs` flag string literals | **175** distinct `--…` tokens |
+| `EmitMode` constructors | **157** (`ProofForge/Cli/EmitMode.lean`) |
+| `LegacyArgs` flag string literals | **177** distinct `--…` tokens |
 | Target-first core | `ProofForge/Cli/TargetFirst.lean` (~414 lines) |
 | Migration gate | `scripts/cli/check-target-first-migration.py` + `Tests/CliTargetFirst.lean` |
+
+## 2026-07-10 delta (Z1/Z2/B1)
+
+Added since prior inventory (do **not** delete; still target-first mapped):
+
+- `--emit-counter-ir-dpn-json` / `counterIrDpnJson` (Psy DPN direct)
+- `--emit-counter-ir-aleo` / `counterIrAleo` (Aleo Instructions direct)
+- `--emit-solana-memo-cpi-sbpf`, `--solana-memo-cpi-elf` (L1 memo)
+- Global meta: `--version` is **not** a legacy EmitMode alias (allowlisted in migration check)
 
 ## What stays until M4 delete
 
