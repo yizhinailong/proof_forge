@@ -40,34 +40,12 @@ open ProofForge.Backend.Refinement.CounterUniversal
 open ProofForge.Backend.Evm.Refinement
 open ProofForge.Backend.Evm.Plan
 
-/-- Extract a packed unsigned integer from a 256-bit EVM storage word.
-`byteOffset` and `byteWidth` follow the layout produced by
-`ProofForge.Backend.Evm.Plan.storageLayout` and the packing used by
-`scalarStoragePackedReadExpr`. -/
-def packedU64FromWord (word : Nat) (byteOffset byteWidth : Nat) : Nat :=
-  let shiftBits := byteOffset * 8
-  (word / 2 ^ shiftBits) % 2 ^ (byteWidth * 8)
-
-/-- Read one scalar state using the canonical EVM storage plan. -/
-def packedStateValue?
-    (module : ProofForge.IR.Module)
-    (storage : ProofForge.Backend.Evm.YulSemantics.WordBindings)
-    (stateId : String) : Option Nat :=
-  match (storageLayout module).find? stateId with
-  | some state =>
-      let word := ProofForge.Backend.Evm.YulSemantics.lookupWord state.slot storage
-      some (packedU64FromWord word state.byteOffset state.byteWidth)
-  | none => none
-
-/-- IR `count` ↔ the Yul scalar selected by Counter's EVM storage plan. -/
-def counterYulSimulationRel
-    (irState : ProofForge.IR.Semantics.State)
-    (machine : EvmYulMachineState) : Bool :=
-  match irState.read "count",
-      packedStateValue? ProofForge.IR.Examples.Counter.module machine.storage "count" with
-  | some (.u64 c), some packed => packed == c
-  | none, some packed => packed == 0
-  | _, _ => false
+/-- Compatibility aliases for the canonical relation carried by
+`evmYulTargetSemantics`. -/
+abbrev packedU64FromWord := ProofForge.Backend.Evm.Refinement.packedU64FromWord
+abbrev packedStateValue? := ProofForge.Backend.Evm.Refinement.packedStateValue?
+abbrev counterYulSimulationRel :=
+  ProofForge.Backend.Evm.Refinement.counterYulSimulationRel
 
 def counterYulInitial (object : Lean.Compiler.Yul.Object) : EvmYulMachineState :=
   { object, storage := [] }

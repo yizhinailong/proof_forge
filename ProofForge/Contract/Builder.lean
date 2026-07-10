@@ -12,6 +12,7 @@ structure ModuleBuilder where
   structs : Array StructDecl := #[]
   state : Array StateDecl := #[]
   entrypoints : Array Entrypoint := #[]
+  eventAbiWords : Array EventAbiWord := #[]
   nearCrosscallStrings : Array String := #[]
   intents : Array Intent := #[]
   constructorParams : Array ProofForge.Contract.ConstructorParam := #[]
@@ -43,6 +44,7 @@ def ModuleBuilder.toModule (builder : ModuleBuilder) : Module := {
   structs := builder.structs
   state := builder.state
   entrypoints := builder.entrypoints
+  eventAbiWords := builder.eventAbiWords
   nearCrosscallStrings := builder.nearCrosscallStrings
   proxyPattern? := builder.proxyPattern?.map ProofForge.Contract.ProxyPattern.kind
 }
@@ -128,6 +130,19 @@ def constructorParam (name : String) (abiType : String) : ModuleM Unit := do
   modify fun builder =>
     { builder with
       constructorParams := builder.constructorParams.push { name, abiType }
+    }
+
+/-- Declare host ABI scalar words for named fields of an event. -/
+def eventAbi (eventName : String) (fields : Array (String × String)) : ModuleM Unit := do
+  modify fun builder =>
+    { builder with
+      eventAbiWords := fields.foldl
+        (fun words field => words.push {
+          eventName := eventName
+          fieldName := field.fst
+          abiWord := field.snd
+        })
+        builder.eventAbiWords
     }
 
 def constructorInitBinding

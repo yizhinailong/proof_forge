@@ -20,8 +20,13 @@ parity; performance fees / full OZ rounding matrix.
   down; the inverse `previewMint`/mint and `previewWithdraw`/withdraw paths round up. |
 | Underlying ERC-20 | `deposit`/`mint` **pull** via IERC20 `transferFrom(caller, vaultSelf, amount)`;
   `withdraw`/`redeem` **push** via IERC20 `transfer(receiver, amount)`.
+  Every mutating token call must return the ABI boolean word `1`; false reverts atomically.
   `vaultSelf` is init-set (portable `address(this)`). Method words are EVM
   selectors — **EVM-primary** packing. |
+| Lifecycle safety | `init` is one-shot and validates non-zero asset, `vaultSelf == contractId`,
+  and a non-zero fee recipient when fees are enabled. Deployment must invoke it atomically to
+  avoid first-caller initialization. All four asset entrypoints share a reentrancy lock that is
+  acquired before any external token call and released before success. |
 | Share token | Minimal ERC-20 surface on **shares** |
 | Entry fee | Optional **`feeBps` / 10000** on deposit/mint: fee shares mint to
   `feeRecipient`; user gets net. `mint(shares)` = **net** shares requested
@@ -262,10 +267,10 @@ theorem inverse_rounding_example :
 end Spec
 
 def assetAddress : ScalarRef :=
-  ProofForge.Contract.Surface.slot "asset" .u64
+  ProofForge.Contract.Surface.slot "asset" .address
 
 def vaultSelf : ScalarRef :=
-  ProofForge.Contract.Surface.slot "vaultSelf" .u64
+  ProofForge.Contract.Surface.slot "vaultSelf" .address
 
 def totalAssetsSlot : ScalarRef :=
   ProofForge.Contract.Surface.slot "totalAssets" .u64
@@ -303,7 +308,15 @@ def feeBps : ScalarRef :=
 
 /-- Recipient of entry-fee share mints (must be non-zero when fee > 0). -/
 def feeRecipient : ScalarRef :=
-  ProofForge.Contract.Surface.slot "feeRecipient" .u64
+  ProofForge.Contract.Surface.slot "feeRecipient" .address
+
+/-- Shared guard for all state-changing asset entrypoints. -/
+def erc4626Lock : ScalarRef :=
+  ProofForge.Contract.Surface.slot "erc4626Lock" .u64
+
+/-- One-shot initialization marker. -/
+def initialized : ScalarRef :=
+  ProofForge.Contract.Surface.slot "initialized" .u64
 
 /-- IERC20 `balanceOf(address)` selector. -/
 def ierC20BalanceOfSelector : Nat := 0x70a08231
@@ -321,6 +334,21 @@ def shareAllowances : MapRef :=
 def requireU64Result (value : ProofForge.IR.Expr) (message : String) : EntryM Unit :=
   ProofForge.Contract.Surface.requireGe
     (ProofForge.Contract.Surface.u64 0xffffffffffffffff) value message
+
+def addressWord (value : ProofForge.IR.Expr) : ProofForge.IR.Expr :=
+  ProofForge.Contract.Surface.cast value .u64
+
+def requireRemoteTrue (name : String) (value : ProofForge.IR.Expr) : EntryM Unit := do
+  ProofForge.Contract.Builder.letBind name .u64 value
+  ProofForge.Contract.Surface.requireEq
+    (ProofForge.Contract.Builder.localVar name)
+    (ProofForge.Contract.Surface.u64 1)
+    "ERC20 operation returned false"
+
+def requireFeeRecipientWhenEnabled
+    (bps recipient : ProofForge.IR.Expr) : EntryM Unit :=
+  ProofForge.Contract.Surface.whenPositive bps do
+    ProofForge.Contract.Surface.requireNonZero recipient "zero feeRecipient"
 
 /-- When `totalSupply > 0`, overwrite `convertScratch` with
     `amount * totalSupply / totalAssets` (floor). Caller must seed
@@ -565,6 +593,15 @@ def capLocalU64 (name : String) (cap : ProofForge.IR.Expr) : EntryM Unit :=
     #[.assign (.local name) cap]
     #[]
 
+/-- Cap one factor so a checked U64 multiplication by `multiplicand` cannot
+    overflow. A zero factor needs no cap and avoids division by zero. -/
+def capLocalForCheckedMul (name : String) (multiplicand : ProofForge.IR.Expr) : EntryM Unit :=
+  ProofForge.Contract.Surface.whenPositive multiplicand do
+    capLocalU64 name
+      (ProofForge.Contract.Surface.div
+        (ProofForge.Contract.Surface.u64 0xffffffffffffffff)
+        multiplicand)
+
 def assignLocalU64 (name : String) (value : ProofForge.IR.Expr) : EntryM Unit :=
   ProofForge.Contract.Builder.assign (.local name) value
 
@@ -575,7 +612,8 @@ def feeLimitsUsable : ProofForge.IR.Expr :=
     (ProofForge.Contract.Builder.lt bps (ProofForge.Contract.Surface.u64 10000))
     (ProofForge.Contract.Builder.boolOr
       (ProofForge.Contract.Builder.eq bps (ProofForge.Contract.Surface.u64 0))
-      (ProofForge.Contract.Builder.gt recipient (ProofForge.Contract.Surface.u64 0)))
+      (ProofForge.Contract.Builder.ne recipient
+        (ProofForge.Contract.Surface.cast (ProofForge.Contract.Surface.u64 0) .address)))
 
 /-- Conservative executable deposit limit under u64 state/map capacities. -/
 def localMaxDeposit (name : String) (receiver : ProofForge.IR.Expr) :
@@ -583,46 +621,54 @@ def localMaxDeposit (name : String) (receiver : ProofForge.IR.Expr) :
   let max := ProofForge.Contract.Surface.u64 0xffffffffffffffff
   let zero := ProofForge.Contract.Surface.u64 0
   ProofForge.Contract.Builder.letMutBind name .u64 zero
-  whenCondition feeLimitsUsable do
-    let ta := ProofForge.Contract.Surface.read totalAssetsSlot
-    let ts := ProofForge.Contract.Surface.read totalSupply
-    ProofForge.Contract.Builder.letBind (name ++ "_asset_cap") .u64
-      (ProofForge.Contract.Surface.sub max ta)
-    let assetCap := ProofForge.Contract.Builder.localVar (name ++ "_asset_cap")
-    ProofForge.Contract.Builder.letMutBind (name ++ "_gross_cap") .u64
-      (ProofForge.Contract.Surface.sub max ts)
-    let grossCapName := name ++ "_gross_cap"
-    capLocalU64 grossCapName
-      (ProofForge.Contract.Surface.sub max
-        (ProofForge.Contract.Surface.mapGet shareBalances receiver))
-    let bps := ProofForge.Contract.Surface.read feeBps
-    ProofForge.Contract.Surface.whenPositive bps do
+  whenCondition (ProofForge.Contract.Builder.ne receiver (ProofForge.Contract.Surface.u64 0)) do
+    whenCondition feeLimitsUsable do
+      let ta := ProofForge.Contract.Surface.read totalAssetsSlot
+      let ts := ProofForge.Contract.Surface.read totalSupply
+      let assetCapName := name ++ "_asset_cap"
+      ProofForge.Contract.Builder.letMutBind assetCapName .u64
+        (ProofForge.Contract.Surface.sub max ta)
+      capLocalForCheckedMul assetCapName ts
+      let assetCap := ProofForge.Contract.Builder.localVar assetCapName
+      ProofForge.Contract.Builder.letMutBind (name ++ "_gross_cap") .u64
+        (ProofForge.Contract.Surface.sub max ts)
+      let grossCapName := name ++ "_gross_cap"
       capLocalU64 grossCapName
         (ProofForge.Contract.Surface.sub max
-          (ProofForge.Contract.Surface.mapGet shareBalances
-            (ProofForge.Contract.Surface.read feeRecipient)))
-    assignLocalU64 name assetCap
-    let grossCap := ProofForge.Contract.Builder.localVar grossCapName
-    ProofForge.Contract.Surface.whenZero ts do
-      capLocalU64 name grossCap
-    ProofForge.Contract.Surface.whenPositive ts do
-      ProofForge.Contract.Surface.whenZero ta do
-        assignLocalU64 name zero
-      ProofForge.Contract.Surface.whenPositive ta do
-        ProofForge.Contract.Builder.letBind (name ++ "_gross_at_asset_cap") .u64
-          (ProofForge.Contract.Surface.div
-            (ProofForge.Contract.Surface.mul assetCap ts) ta)
-        let grossAtAssetCap :=
-          ProofForge.Contract.Builder.localVar (name ++ "_gross_at_asset_cap")
-        whenCondition (ProofForge.Contract.Builder.gt grossAtAssetCap grossCap) do
-          assignLocalU64 name
-            (ProofForge.Contract.Surface.div
-              (ProofForge.Contract.Surface.mul grossCap ta) ts)
-        ProofForge.Contract.Builder.letBind (name ++ "_gross_final") .u64
-          (ProofForge.Contract.Surface.div
-            (ProofForge.Contract.Surface.mul (.local name) ts) ta)
-        ProofForge.Contract.Surface.whenZero (.local (name ++ "_gross_final")) do
+          (ProofForge.Contract.Surface.mapGet shareBalances receiver))
+      let bps := ProofForge.Contract.Surface.read feeBps
+      ProofForge.Contract.Surface.whenPositive bps do
+        capLocalU64 grossCapName
+          (ProofForge.Contract.Surface.sub max
+            (ProofForge.Contract.Surface.mapGet shareBalances
+              (addressWord (ProofForge.Contract.Surface.read feeRecipient))))
+        capLocalForCheckedMul grossCapName bps
+      assignLocalU64 name assetCap
+      let grossCap := ProofForge.Contract.Builder.localVar grossCapName
+      ProofForge.Contract.Surface.whenZero ts do
+        capLocalU64 name grossCap
+      ProofForge.Contract.Surface.whenPositive ts do
+        ProofForge.Contract.Surface.whenZero ta do
           assignLocalU64 name zero
+        ProofForge.Contract.Surface.whenPositive ta do
+          ProofForge.Contract.Builder.letBind (name ++ "_gross_at_asset_cap") .u64
+            (ProofForge.Contract.Surface.div
+              (ProofForge.Contract.Surface.mul assetCap ts) ta)
+          let grossAtAssetCap :=
+            ProofForge.Contract.Builder.localVar (name ++ "_gross_at_asset_cap")
+          whenCondition (ProofForge.Contract.Builder.gt grossAtAssetCap grossCap) do
+            let reverseGrossName := name ++ "_reverse_gross_cap"
+            ProofForge.Contract.Builder.letMutBind reverseGrossName .u64 grossCap
+            capLocalForCheckedMul reverseGrossName ta
+            assignLocalU64 name
+              (ProofForge.Contract.Surface.div
+                (ProofForge.Contract.Surface.mul
+                  (ProofForge.Contract.Builder.localVar reverseGrossName) ta) ts)
+          ProofForge.Contract.Builder.letBind (name ++ "_gross_final") .u64
+            (ProofForge.Contract.Surface.div
+              (ProofForge.Contract.Surface.mul (.local name) ts) ta)
+          ProofForge.Contract.Surface.whenZero (.local (name ++ "_gross_final")) do
+            assignLocalU64 name zero
   pure (.local name)
 
 /-- Conservative executable net-share mint limit under u64 capacities. -/
@@ -631,58 +677,90 @@ def localMaxMint (name : String) (receiver : ProofForge.IR.Expr) :
   let max := ProofForge.Contract.Surface.u64 0xffffffffffffffff
   let zero := ProofForge.Contract.Surface.u64 0
   ProofForge.Contract.Builder.letMutBind name .u64 zero
-  whenCondition feeLimitsUsable do
-    let ta := ProofForge.Contract.Surface.read totalAssetsSlot
-    let ts := ProofForge.Contract.Surface.read totalSupply
-    ProofForge.Contract.Builder.letMutBind (name ++ "_gross_cap") .u64
-      (ProofForge.Contract.Surface.sub max ts)
-    let grossCapName := name ++ "_gross_cap"
-    let bps := ProofForge.Contract.Surface.read feeBps
-    ProofForge.Contract.Surface.whenPositive bps do
-      capLocalU64 grossCapName
+  whenCondition (ProofForge.Contract.Builder.ne receiver (ProofForge.Contract.Surface.u64 0)) do
+    whenCondition feeLimitsUsable do
+      let ta := ProofForge.Contract.Surface.read totalAssetsSlot
+      let ts := ProofForge.Contract.Surface.read totalSupply
+      ProofForge.Contract.Builder.letMutBind (name ++ "_gross_cap") .u64
+        (ProofForge.Contract.Surface.sub max ts)
+      let grossCapName := name ++ "_gross_cap"
+      let bps := ProofForge.Contract.Surface.read feeBps
+      ProofForge.Contract.Surface.whenPositive bps do
+        capLocalU64 grossCapName
+          (ProofForge.Contract.Surface.sub max
+            (ProofForge.Contract.Surface.mapGet shareBalances
+              (addressWord (ProofForge.Contract.Surface.read feeRecipient))))
+      let assetCapName := name ++ "_asset_cap"
+      ProofForge.Contract.Builder.letMutBind assetCapName .u64
+        (ProofForge.Contract.Surface.sub max ta)
+      ProofForge.Contract.Surface.whenZero ts do
+        capLocalU64 grossCapName (.local assetCapName)
+      ProofForge.Contract.Surface.whenPositive ts do
+        ProofForge.Contract.Surface.whenZero ta do
+          assignLocalU64 grossCapName zero
+        ProofForge.Contract.Surface.whenPositive ta do
+          capLocalForCheckedMul assetCapName ts
+          ProofForge.Contract.Builder.letBind (name ++ "_gross_from_asset_cap") .u64
+            (ProofForge.Contract.Surface.div
+              (ProofForge.Contract.Surface.mul (.local assetCapName) ts) ta)
+          capLocalU64 grossCapName (.local (name ++ "_gross_from_asset_cap"))
+      ProofForge.Contract.Surface.whenZero bps do
+        assignLocalU64 name (.local grossCapName)
+      ProofForge.Contract.Surface.whenPositive bps do
+        capLocalForCheckedMul grossCapName bps
+        localNetAfterFee (name ++ "_net_cap") (.local grossCapName) >>= fun netCap => do
+          assignLocalU64 name netCap
+          capLocalForCheckedMul name (ProofForge.Contract.Surface.u64 10000)
+          localGrossFromNetShares (name ++ "_gross_needed") (.local name) >>= fun grossNeeded => do
+            whenCondition (ProofForge.Contract.Builder.gt grossNeeded (.local grossCapName)) do
+              assignLocalU64 name zero
+      capLocalU64 name
         (ProofForge.Contract.Surface.sub max
-          (ProofForge.Contract.Surface.mapGet shareBalances
-            (ProofForge.Contract.Surface.read feeRecipient)))
-    ProofForge.Contract.Builder.letMutBind (name ++ "_asset_gross_cap") .u64
-      (ProofForge.Contract.Surface.sub max ta)
-    let assetGrossCapName := name ++ "_asset_gross_cap"
-    ProofForge.Contract.Surface.whenPositive ts do
-      ProofForge.Contract.Surface.whenZero ta do
-        assignLocalU64 assetGrossCapName zero
-      ProofForge.Contract.Surface.whenPositive ta do
-        assignLocalU64 assetGrossCapName
-          (ProofForge.Contract.Surface.div
-            (ProofForge.Contract.Surface.mul (.local assetGrossCapName) ts) ta)
-    capLocalU64 grossCapName (.local assetGrossCapName)
-    localNetAfterFee (name ++ "_net_cap") (.local grossCapName) >>= fun netCap => do
-      localGrossFromNetShares (name ++ "_gross_needed") netCap >>= fun grossNeeded => do
-        assignLocalU64 name netCap
-        whenCondition (ProofForge.Contract.Builder.gt grossNeeded (.local grossCapName)) do
-          assignLocalU64 name
-            (ProofForge.Contract.Surface.sub netCap (ProofForge.Contract.Surface.u64 1))
-    capLocalU64 name
-      (ProofForge.Contract.Surface.sub max
-        (ProofForge.Contract.Surface.mapGet shareBalances receiver))
+          (ProofForge.Contract.Surface.mapGet shareBalances receiver))
   pure (.local name)
 
 def localMaxExit (name : String) (holder : ProofForge.IR.Expr) (redeem : Bool) :
     EntryM ProofForge.IR.Expr := do
+  let max := ProofForge.Contract.Surface.u64 0xffffffffffffffff
   let zero := ProofForge.Contract.Surface.u64 0
   ProofForge.Contract.Builder.letMutBind name .u64 zero
   whenCondition feeLimitsUsable do
-    ProofForge.Contract.Builder.letMutBind (name ++ "_shares") .u64
+    let sharesName := name ++ "_shares"
+    ProofForge.Contract.Builder.letMutBind sharesName .u64
       (ProofForge.Contract.Surface.mapGet shareBalances holder)
-    capLocalU64 (name ++ "_shares") (ProofForge.Contract.Surface.read totalSupply)
-    let shares := ProofForge.Contract.Builder.localVar (name ++ "_shares")
+    capLocalU64 sharesName (ProofForge.Contract.Surface.read totalSupply)
     let ts := ProofForge.Contract.Surface.read totalSupply
     let ta := ProofForge.Contract.Surface.read totalAssetsSlot
     ProofForge.Contract.Surface.whenPositive ts do
       ProofForge.Contract.Surface.whenPositive ta do
-        localConvertToAssets (name ++ "_gross_assets") shares >>= fun grossAssets =>
-          localNetAfterFee (name ++ "_net_assets") grossAssets >>= fun netAssets =>
-            ProofForge.Contract.Surface.whenPositive netAssets do
-              if redeem then assignLocalU64 name shares
-              else assignLocalU64 name grossAssets
+        capLocalForCheckedMul sharesName ta
+        let grossName := name ++ "_gross_assets"
+        ProofForge.Contract.Builder.letMutBind grossName .u64
+          (ProofForge.Contract.Surface.div
+            (ProofForge.Contract.Surface.mul (.local sharesName) ta) ts)
+        let bps := ProofForge.Contract.Surface.read feeBps
+        if redeem then
+          ProofForge.Contract.Surface.whenPositive bps do
+            let grossFeeCapName := name ++ "_gross_fee_cap"
+            ProofForge.Contract.Builder.letMutBind grossFeeCapName .u64
+              (ProofForge.Contract.Surface.div max bps)
+            whenCondition
+                (ProofForge.Contract.Builder.gt (.local grossName) (.local grossFeeCapName)) do
+              capLocalForCheckedMul grossFeeCapName ts
+              assignLocalU64 sharesName
+                (ProofForge.Contract.Surface.div
+                  (ProofForge.Contract.Surface.mul (.local grossFeeCapName) ts) ta)
+              assignLocalU64 grossName
+                (ProofForge.Contract.Surface.div
+                  (ProofForge.Contract.Surface.mul (.local sharesName) ta) ts)
+        else
+          capLocalForCheckedMul grossName ts
+          ProofForge.Contract.Surface.whenPositive bps do
+            capLocalForCheckedMul grossName bps
+        localNetAfterFee (name ++ "_net_assets") (.local grossName) >>= fun netAssets =>
+          ProofForge.Contract.Surface.whenPositive netAssets do
+            if redeem then assignLocalU64 name (.local sharesName)
+            else assignLocalU64 name (.local grossName)
   pure (.local name)
 
 /-- Mint fee shares to `feeRecipient` when fee > 0. -/
@@ -690,22 +768,23 @@ def mintFeeSharesIfAny : EntryM Unit := do
   let fee := ProofForge.Contract.Surface.read feeScratch
   ProofForge.Contract.Surface.whenPositive fee do
     let recip := ProofForge.Contract.Surface.read feeRecipient
-    ProofForge.Contract.Surface.requireNonZero recip "zero feeRecipient"
+    ProofForge.Contract.Surface.requireNonZero (addressWord recip) "zero feeRecipient"
+    let recipKey := addressWord recip
     let bal :=
-      ProofForge.Contract.Surface.mapGet shareBalances recip
-    ProofForge.Contract.Surface.mapSet shareBalances recip
+      ProofForge.Contract.Surface.mapGet shareBalances recipKey
+    ProofForge.Contract.Surface.mapSet shareBalances recipKey
       (ProofForge.Contract.Surface.add bal fee)
     ProofForge.Contract.Surface.emitIndexed (ProofForge.Contract.Surface.event "Transfer")
       #[
         ProofForge.Contract.Surface.field "from" (ProofForge.Contract.Surface.u64 0),
-        ProofForge.Contract.Surface.field "to" recip
+        ProofForge.Contract.Surface.field "to" (addressWord recip)
       ]
       #[ProofForge.Contract.Surface.field "value" fee]
 
 /-- Snapshot `balanceOf(vaultSelf)` into `balanceScratch` (exit FOT measure start). -/
 def beginVaultAssetMeasure : EntryM Unit := do
-  let assetTok := ProofForge.Contract.Surface.read assetAddress
-  let selfAddr := ProofForge.Contract.Surface.read vaultSelf
+  let assetTok := addressWord (ProofForge.Contract.Surface.read assetAddress)
+  let selfAddr := addressWord (ProofForge.Contract.Surface.read vaultSelf)
   let before :=
     ProofForge.Contract.Surface.remoteCall assetTok
       (ProofForge.Contract.Surface.u64 ierC20BalanceOfSelector) #[selfAddr]
@@ -713,8 +792,8 @@ def beginVaultAssetMeasure : EntryM Unit := do
 
 /-- After pushes: `actualAssetsScratch = balanceScratch - balanceOf(vaultSelf)`. -/
 def endVaultAssetMeasure : EntryM Unit := do
-  let assetTok := ProofForge.Contract.Surface.read assetAddress
-  let selfAddr := ProofForge.Contract.Surface.read vaultSelf
+  let assetTok := addressWord (ProofForge.Contract.Surface.read assetAddress)
+  let selfAddr := addressWord (ProofForge.Contract.Surface.read vaultSelf)
   let after :=
     ProofForge.Contract.Surface.remoteCall assetTok
       (ProofForge.Contract.Surface.u64 ierC20BalanceOfSelector) #[selfAddr]
@@ -731,19 +810,19 @@ def pushExitFeeAssetsIfAny : EntryM Unit := do
   let fee := ProofForge.Contract.Surface.read feeScratch
   ProofForge.Contract.Surface.whenPositive fee do
     let recip := ProofForge.Contract.Surface.read feeRecipient
-    ProofForge.Contract.Surface.requireNonZero recip "zero feeRecipient"
-    let assetTok := ProofForge.Contract.Surface.read assetAddress
+    ProofForge.Contract.Surface.requireNonZero (addressWord recip) "zero feeRecipient"
+    let assetTok := addressWord (ProofForge.Contract.Surface.read assetAddress)
     let sent :=
       ProofForge.Contract.Surface.remoteCall assetTok
         (ProofForge.Contract.Surface.u64 ierC20TransferSelector)
-        #[recip, fee]
-    ProofForge.Contract.Builder.letBind "_pf_exit_fee_push" .u64 sent
+        #[addressWord recip, fee]
+    requireRemoteTrue "_pf_exit_fee_push" sent
 
 /-- Pull `amount` via transferFrom(caller, vaultSelf, amount), then set
     `actualAssetsScratch` to `balanceOf(vaultSelf)` up-delta (fee-on-transfer). -/
 def pullAssetsMeasuring (amount : ProofForge.IR.Expr) : EntryM Unit := do
-  let assetTok := ProofForge.Contract.Surface.read assetAddress
-  let selfAddr := ProofForge.Contract.Surface.read vaultSelf
+  let assetTok := addressWord (ProofForge.Contract.Surface.read assetAddress)
+  let selfAddr := addressWord (ProofForge.Contract.Surface.read vaultSelf)
   let before :=
     ProofForge.Contract.Surface.remoteCall assetTok
       (ProofForge.Contract.Surface.u64 ierC20BalanceOfSelector) #[selfAddr]
@@ -752,7 +831,7 @@ def pullAssetsMeasuring (amount : ProofForge.IR.Expr) : EntryM Unit := do
     ProofForge.Contract.Surface.remoteCall assetTok
       (ProofForge.Contract.Surface.u64 ierC20TransferFromSelector)
       #[ProofForge.Contract.Surface.caller, selfAddr, amount]
-  ProofForge.Contract.Builder.letBind "_pf_pull" .u64 pulled
+  requireRemoteTrue "_pf_pull" pulled
   let after :=
     ProofForge.Contract.Surface.remoteCall assetTok
       (ProofForge.Contract.Surface.u64 ierC20BalanceOfSelector) #[selfAddr]
@@ -766,16 +845,16 @@ def pullAssetsMeasuring (amount : ProofForge.IR.Expr) : EntryM Unit := do
 
 /-- Push `amount` to `recipient` via IERC20 transfer (pair with vault measure). -/
 def pushAssets (recipient amount : ProofForge.IR.Expr) : EntryM Unit := do
-  let assetTok := ProofForge.Contract.Surface.read assetAddress
+  let assetTok := addressWord (ProofForge.Contract.Surface.read assetAddress)
   let sent :=
     ProofForge.Contract.Surface.remoteCall assetTok
       (ProofForge.Contract.Surface.u64 ierC20TransferSelector) #[recipient, amount]
-  ProofForge.Contract.Builder.letBind "_pf_push" .u64 sent
+  requireRemoteTrue "_pf_push" sent
 
 /-- Push to receiver and set `recvActualScratch` = recipient balance **up-delta**
     (recipient-side fee-on-transfer honesty). -/
 def pushAssetsMeasuringRecv (recipient amount : ProofForge.IR.Expr) : EntryM Unit := do
-  let assetTok := ProofForge.Contract.Surface.read assetAddress
+  let assetTok := addressWord (ProofForge.Contract.Surface.read assetAddress)
   let before :=
     ProofForge.Contract.Surface.remoteCall assetTok
       (ProofForge.Contract.Surface.u64 ierC20BalanceOfSelector) #[recipient]
@@ -783,7 +862,7 @@ def pushAssetsMeasuringRecv (recipient amount : ProofForge.IR.Expr) : EntryM Uni
   let sent :=
     ProofForge.Contract.Surface.remoteCall assetTok
       (ProofForge.Contract.Surface.u64 ierC20TransferSelector) #[recipient, amount]
-  ProofForge.Contract.Builder.letBind "_pf_push_recv" .u64 sent
+  requireRemoteTrue "_pf_push_recv" sent
   let after :=
     ProofForge.Contract.Surface.remoteCall assetTok
       (ProofForge.Contract.Surface.u64 ierC20BalanceOfSelector) #[recipient]
@@ -806,15 +885,27 @@ contract_mixin ERC4626Mixin do
   use ProofForge.Contract.Surface.scalar recvActualScratch
   use ProofForge.Contract.Surface.scalar feeBps
   use ProofForge.Contract.Surface.scalar feeRecipient
+  use ProofForge.Contract.Surface.scalar erc4626Lock
+  use ProofForge.Contract.Surface.scalar initialized
   use ProofForge.Contract.Surface.mapState shareBalances
   use ProofForge.Contract.Surface.mapState shareAllowances
 
-  event Deposit
-  event Withdraw
-  event Transfer
-  event Approval
+  event Deposit abi #[
+    ("sender", "address"), ("owner", "address"),
+    ("assets", "uint256"), ("shares", "uint256")
+  ]
+  event Withdraw abi #[
+    ("sender", "address"), ("receiver", "address"), ("owner", "address"),
+    ("assets", "uint256"), ("shares", "uint256")
+  ]
+  event Transfer abi #[
+    ("from", "address"), ("to", "address"), ("value", "uint256")
+  ]
+  event Approval abi #[
+    ("owner", "address"), ("spender", "address"), ("value", "uint256")
+  ]
 
-  query «asset» returns(.u64) do
+  query «asset» returns(.address) do
     return assetAddress;
 
   query totalAssets returns(.u64) do
@@ -854,7 +945,7 @@ contract_mixin ERC4626Mixin do
   query feeBps returns(.u64) do
     return feeBps;
 
-  query feeRecipient returns(.u64) do
+  query feeRecipient returns(.address) do
     return feeRecipient;
 
   -- preview: net after entry fee (deposit/mint) or exit fee (withdraw/redeem)
@@ -882,6 +973,7 @@ contract_mixin ERC4626Mixin do
         ProofForge.Contract.Builder.ret;
 
   entry deposit (assets : .u64, receiver : .address) returns(.u64) do
+    acquire_lock erc4626Lock;
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref receiver)
       "zero receiver";
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref assets)
@@ -918,9 +1010,11 @@ contract_mixin ERC4626Mixin do
     ] data #[
       fieldAsName "value" shares
     ];
+    release_lock erc4626Lock;
     return shares;
 
   entry mint (shares : .u64, receiver : .address) returns(.u64) do
+    acquire_lock erc4626Lock;
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref receiver)
       "zero receiver";
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref shares)
@@ -966,9 +1060,11 @@ contract_mixin ERC4626Mixin do
     ] data #[
       fieldAsName "value" userShares
     ];
+    release_lock erc4626Lock;
     return actual;
 
   entry withdraw (assets : .u64, receiver : .address, holder : .address) returns(.u64) do
+    acquire_lock erc4626Lock;
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref receiver)
       "zero receiver";
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref assets)
@@ -1019,9 +1115,11 @@ contract_mixin ERC4626Mixin do
     ] data #[
       fieldAsName "value" shares
     ];
+    release_lock erc4626Lock;
     return shares;
 
   entry redeem (shares : .u64, receiver : .address, holder : .address) returns(.u64) do
+    acquire_lock erc4626Lock;
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref receiver)
       "zero receiver";
     do ProofForge.Contract.Surface.requireNonZero (ProofForge.Contract.Surface.ref shares)
@@ -1064,6 +1162,7 @@ contract_mixin ERC4626Mixin do
       fieldAsName "assets" actualRecv,
       fieldAsName "shares" shares
     ];
+    release_lock erc4626Lock;
     return actualRecv;
 
   entry transfer (recipient : .address, amount : .u64) returns(.bool) do
@@ -1101,13 +1200,29 @@ contract_mixin ERC4626Mixin do
 contract_source ERC4626 do
   use mixin
   -- feeBpsVal ∈ [0, 10000]; feeRecipientAddr used only when fee shares > 0
-  entry init (assetAddr : .u64, selfAddr : .u64, feeBpsVal : .u64, feeRecipientAddr : .u64) do
-    assetAddress := assetAddr;
-    vaultSelf := selfAddr;
+  entry init (assetAddr : .address, selfAddr : .address,
+      feeBpsVal : .u64, feeRecipientAddr : .address) do
+    do ProofForge.Contract.Surface.requireEq
+      (ProofForge.Contract.Surface.read initialized) (u64 0) "already initialized";
+    initialized := u64 1;
+    do ProofForge.Contract.Surface.requireNonZero
+      (ProofForge.Contract.Surface.ref assetAddr) "zero asset";
+    do ProofForge.Contract.Surface.requireEq
+      (ProofForge.Contract.Surface.cast (ProofForge.Contract.Surface.ref selfAddr) .address)
+      (ProofForge.Contract.Surface.cast ProofForge.Contract.Surface.contractId .address)
+      "vaultSelf != contractId";
     do ProofForge.Contract.Surface.requireGe (u64 10000)
       (ProofForge.Contract.Surface.ref feeBpsVal) "feeBps > 10000";
+    do requireFeeRecipientWhenEnabled
+      (ProofForge.Contract.Surface.ref feeBpsVal)
+      (ProofForge.Contract.Surface.ref feeRecipientAddr);
+    assetAddress := ProofForge.Contract.Surface.cast
+      (ProofForge.Contract.Surface.ref assetAddr) .address;
+    vaultSelf := ProofForge.Contract.Surface.cast
+      (ProofForge.Contract.Surface.ref selfAddr) .address;
     feeBps := feeBpsVal;
-    feeRecipient := feeRecipientAddr;
+    feeRecipient := ProofForge.Contract.Surface.cast
+      (ProofForge.Contract.Surface.ref feeRecipientAddr) .address;
     totalAssetsSlot := u64 0;
     totalSupply := u64 0;
     feeScratch := u64 0;

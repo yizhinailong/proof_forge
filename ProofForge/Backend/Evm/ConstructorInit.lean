@@ -84,8 +84,11 @@ def validateAtomicUupsConstructor
     | .error { message := "UUPS proxy requires exact atomic constructor bindings and the ERC-1967 implementation state" }
   if implementationState.kind != .scalar then
     .error { message := "UUPS proxy requires exact atomic constructor bindings and the ERC-1967 implementation state" }
-  if module.entrypoints.any (fun entrypoint => entrypoint.name == "init") then
-    .error { message := "UUPS proxy runtime must not expose a post-deploy `init` entrypoint" }
+  if !module.entrypoints.isEmpty then
+    .error {
+      message :=
+        "UUPS proxy runtime must expose no entrypoints; initialize all transport state through atomic constructor bindings"
+    }
   let args := stripHexPrefix (trimAscii constructorArgsHex)
   if args.isEmpty then
     .error {
@@ -149,9 +152,15 @@ def genBindingInit
       .error { message := s!"constructor_bind address_word target `{binding.stateId}` must be .address or .hash" }
     else
       let value := codeLoadExpr dataPtr
+      let implementationCodeGuard :=
+        if binding.stateId == eip1967ImplementationStateId then
+          "\n      if iszero(extcodesize(__pf_address)) { revert(0, 0) }"
+        else
+          ""
       .ok ("{\n      let __pf_address := " ++ value ++
         "\n      if iszero(__pf_address) { revert(0, 0) }" ++
-        "\n      if gt(__pf_address, " ++ addressMask ++ ") { revert(0, 0) }\n      " ++
+        "\n      if gt(__pf_address, " ++ addressMask ++ ") { revert(0, 0) }" ++
+        implementationCodeGuard ++ "\n      " ++
         storeFullWordForState binding.stateId state "__pf_address" ++ "\n    }")
   | .addressKeccak =>
     if param.abiType != "address" then

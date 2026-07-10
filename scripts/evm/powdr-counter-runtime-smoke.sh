@@ -6,8 +6,17 @@ OUT_DIR="${PF_POWDR_COUNTER_OUT:-$ROOT/build/evm-powdr}"
 PROOF_FORGE_BIN="${PROOF_FORGE_BIN:-$ROOT/.lake/build/bin/proof-forge}"
 SOLC_BIN="${PF_POWDR_SOLC:-${SOLC:-solc}}"
 
-EXPECTED_HEX="5f3560e01c80638129fc1c14603c578063d09de08a14603257636d4ce63c146025575f80fd5b602b60a2565b5f5260205ff35b60386063565b5f80f35b60426046565b5f80f35b60018060401b035f165f1b60018060401b035f1b195f5416175f55565b60766001808060401b035f545f1c1660b1565b60018060401b038111609e5760018060401b03165f1b60018060401b035f1b195f5416175f55565b5f80fd5b60018060401b035f545f1c1690565b815f1903811160be570190565b5f80fda164736f6c634300081e000a"
-EXPECTED_SHA256="7e3059d3fecc58ce7afe7cfcde185a4d96435e10f7a7dd642a469f226dab3e5f"
+EXPECTED_HEX="$(
+  cd "$ROOT"
+  lake build EvmRefinement.CounterRuntime >/dev/null
+  lake env lean --run scripts/evm/print-counter-runtime-witness.lean
+)"
+EXPECTED_SHA256="$(python3 - "$EXPECTED_HEX" <<'PY'
+import hashlib
+import sys
+print(hashlib.sha256(bytes.fromhex(sys.argv[1])).hexdigest())
+PY
+)"
 
 mkdir -p "$OUT_DIR"
 
@@ -17,7 +26,7 @@ if [[ ! -x "$PROOF_FORGE_BIN" ]]; then
   exit 1
 fi
 
-if ! solc_version="$($SOLC_BIN --version 2>/dev/null)"; then
+if ! solc_version="$("$SOLC_BIN" --version 2>/dev/null)"; then
   echo "solc 0.8.30 not available: $SOLC_BIN" >&2
   exit 1
 fi

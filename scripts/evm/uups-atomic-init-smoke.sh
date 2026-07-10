@@ -75,6 +75,63 @@ expect_atomic_config_failure BadUUPSMissingBinding \
 expect_atomic_config_failure BadUUPSWrongBinding \
   Tests/Backend/Evm/BadUUPSWrongBinding.lean
 
+expect_runtime_entrypoint_failure() {
+  local fixture="$1"
+  local source="$2"
+  local output
+  local status
+  set +e
+  output=$(lake env proof-forge build --target evm --root . \
+    --evm-constructor-arg \
+      "implementation=0x0000000000000000000000000000000000001001" \
+    --evm-constructor-arg \
+      "admin=0x1234567890123456789012345678901234567890" \
+    --yul-output "$OUT_DIR/$fixture.yul" \
+    -o "$OUT_DIR/$fixture.bin" \
+    "$source" 2>&1)
+  status=$?
+  set -e
+  if [[ "$status" -eq 0 ]]; then
+    echo "uups-atomic-init: $fixture unexpectedly built with a runtime entrypoint" >&2
+    exit 1
+  fi
+  grep -Fq "UUPS proxy runtime must expose no entrypoints" <<<"$output" || {
+    echo "uups-atomic-init: $fixture missing runtime-entrypoint diagnostic: $output" >&2
+    exit 1
+  }
+  if [[ -e "$OUT_DIR/$fixture.yul" || -e "$OUT_DIR/$fixture.bin" ]]; then
+    echo "uups-atomic-init: $fixture failure left a deployable artifact" >&2
+    exit 1
+  fi
+}
+
+expect_runtime_entrypoint_failure BadUUPSAlternateInitializer \
+  Tests/Backend/Evm/BadUUPSAlternateInitializer.lean
+expect_runtime_entrypoint_failure BadUUPSRuntimeWriter \
+  Tests/Backend/Evm/BadUUPSRuntimeWriter.lean
+
+set +e
+assign_op_output=$(lake env proof-forge build --target evm --root . \
+  --yul-output "$OUT_DIR/BadUUPSImplementationAssignOp.yul" \
+  -o "$OUT_DIR/BadUUPSImplementationAssignOp.bin" \
+  Tests/Backend/Evm/BadUUPSImplementationAssignOp.lean 2>&1)
+assign_op_status=$?
+set -e
+if [[ "$assign_op_status" -eq 0 ]]; then
+  echo "uups-atomic-init: EIP-1967 implementation compound assignment unexpectedly built" >&2
+  exit 1
+fi
+grep -Fq "compound assignment is not allowed for the EIP-1967 implementation state" \
+  <<<"$assign_op_output" || {
+  echo "uups-atomic-init: missing EIP-1967 compound-assignment diagnostic: $assign_op_output" >&2
+  exit 1
+}
+if [[ -e "$OUT_DIR/BadUUPSImplementationAssignOp.yul" ||
+      -e "$OUT_DIR/BadUUPSImplementationAssignOp.bin" ]]; then
+  echo "uups-atomic-init: EIP-1967 compound-assignment failure left a deployable artifact" >&2
+  exit 1
+fi
+
 NONCANONICAL_IMPLEMENTATION_WORD="0000000000000000000000010000000000000000000000000000000000001001"
 CANONICAL_ADMIN_WORD="0000000000000000000000001234567890123456789012345678901234567890"
 set +e
@@ -120,6 +177,8 @@ build_proxy_initcode UUPSProxyZeroImplementation \
 build_proxy_initcode UUPSProxyZeroAdmin \
   "0x0000000000000000000000000000000000001001" \
   "0x0000000000000000000000000000000000000000"
+build_proxy_initcode UUPSProxyEoaImplementation \
+  "0x0000000000000000000000000000000000001003" "$ADMIN"
 
 ADDRESS_MASK="1461501637330902918203684832716283019655932542975"
 guard_count=$(grep -Fc "if gt(__pf_address, $ADDRESS_MASK) { revert(0, 0) }" \
@@ -223,6 +282,37 @@ contract UUPSAtomicInitTest {
             deploy(hex"$(cat "$OUT_DIR/UUPSProxyZeroAdmin.init.bin")") == address(0),
             "zero admin deployed"
         );
+    }
+
+    function testConstructorRejectsEoaImplementation() public {
+        require(
+            deploy(hex"$(cat "$OUT_DIR/UUPSProxyEoaImplementation.init.bin")") == address(0),
+            "EOA implementation deployed"
+        );
+    }
+
+    function testUpgradeRejectsEoaAndProxySelf() public {
+        address admin = address(uint160(0x1234567890123456789012345678901234567890));
+        address implementationV1 = address(0x1001);
+        vm.etch(implementationV1, hex"$(cat "$OUT_DIR/CounterUUPSImpl.bin")");
+
+        address proxy = deploy(hex"$(cat "$OUT_DIR/UUPSProxyAtomic.init.bin")");
+        require(proxy != address(0), "atomic proxy deployment failed");
+
+        vm.prank(admin);
+        (bool eoaUpgradeOk,) = proxy.call(
+            abi.encodeWithSignature("upgradeTo(address)", address(0x1003))
+        );
+        require(!eoaUpgradeOk, "EOA implementation accepted");
+
+        vm.prank(admin);
+        (bool selfUpgradeOk,) = proxy.call(
+            abi.encodeWithSignature("upgradeTo(address)", proxy)
+        );
+        require(!selfUpgradeOk, "proxy self implementation accepted");
+
+        (bool getOk, bytes memory getResult) = proxy.call(abi.encodeWithSignature("get()"));
+        require(getOk && abi.decode(getResult, (uint256)) == 0, "rejected upgrades changed implementation");
     }
 }
 SOL

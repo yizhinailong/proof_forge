@@ -207,8 +207,14 @@ def eventAbiField
   let wordTypes ← lowerExceptString <|
     ProofForge.Backend.Evm.IR.abiValueWordTypes module s!"event `{eventName}` field `{field.fst}`" irType
   let mut wordTypeNames : Array String := #[]
-  for wordType in wordTypes do
-    wordTypeNames := wordTypeNames.push (← eventAbiWordTypeName wordType)
+  if wordTypes.size == 1 &&
+      match irType with
+      | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
+      | _ => false then
+    wordTypeNames := #[abiType]
+  else
+    for wordType in wordTypes do
+      wordTypeNames := wordTypeNames.push (← eventAbiWordTypeName wordType)
   .ok {
     name := field.fst,
     irType := irType,

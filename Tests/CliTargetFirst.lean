@@ -38,6 +38,9 @@ def requireErrorContains (args : List String) (needles : Array String) : IO Unit
         require (err.contains needle) s!"CLI mapping error `{err}` missing `{needle}`"
 
 def main : IO UInt32 := do
+  requireErrorContains
+    ["check", "--target", "evm"]
+    #["native dispatch", "does not use the legacy mapper"]
   require
     ((ProofForge.Cli.defaultBytecodeYulOutput (System.FilePath.mk "build/evm/Counter.bin")).toString == "build/evm/Counter.yul")
     "EVM bytecode build should default Yul output next to the bytecode output"

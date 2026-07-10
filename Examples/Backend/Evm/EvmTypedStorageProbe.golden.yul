@@ -54,14 +54,14 @@ object "EvmTypedStorageProbe" {
     default {
       revert(0, 0)
     }
-    function f_EvmTypedStorageProbe_bool_scalar_lifecycle() -> result {
+    function f_EvmTypedStorageProbe_bool_scalar_lifecycle() -> __pf_result {
       sstore(0, or(and(sload(0), not(shl(0, 255))), shl(0, and(1, 255))))
       if iszero(eq(and(shr(0, sload(0)), 255), 1)) {
         revert(0, 0)
       }
-      result := and(shr(0, sload(0)), 255)
+      __pf_result := and(shr(0, sload(0)), 255)
     }
-    function f_EvmTypedStorageProbe_typed_array_lifecycle() -> result {
+    function f_EvmTypedStorageProbe_typed_array_lifecycle() -> __pf_result {
       sstore(8, or(and(sload(8), not(shl(0, 18446744073709551615))), shl(0, and(999, 18446744073709551615))))
       sstore(__proof_forge_array_slot(1, 3, 0), 7)
       sstore(__proof_forge_array_slot(1, 3, 1), 11)
@@ -83,28 +83,28 @@ object "EvmTypedStorageProbe" {
         revert(0, 0)
       }
       let sum := __pf_checked_add(__pf_checked_add(sload(__proof_forge_array_slot(1, 3, 0)), sload(__proof_forge_array_slot(1, 3, 1))), sload(__proof_forge_array_slot(1, 3, 2)))
-      result := __pf_checked_add(sum, sload(__proof_forge_array_slot(4, 2, 0)))
+      __pf_result := __pf_checked_add(sum, sload(__proof_forge_array_slot(4, 2, 0)))
     }
-    function f_EvmTypedStorageProbe_path_assign_u32() -> result {
+    function f_EvmTypedStorageProbe_path_assign_u32() -> __pf_result {
       sstore(__proof_forge_array_slot(1, 3, 0), 10)
       {
-        let _slot := __proof_forge_array_slot(1, 3, 0)
-        sstore(_slot, add(sload(_slot), 5))
+        let __pf_storage_slot := __proof_forge_array_slot(1, 3, 0)
+        sstore(__pf_storage_slot, add(sload(__pf_storage_slot), 5))
       }
       {
-        let _slot := __proof_forge_array_slot(1, 3, 0)
-        sstore(_slot, mul(sload(_slot), 2))
+        let __pf_storage_slot := __proof_forge_array_slot(1, 3, 0)
+        sstore(__pf_storage_slot, mul(sload(__pf_storage_slot), 2))
       }
-      result := sload(__proof_forge_array_slot(1, 3, 0))
+      __pf_result := sload(__proof_forge_array_slot(1, 3, 0))
     }
-    function f_EvmTypedStorageProbe_read_flag(index) -> result {
-      result := sload(__proof_forge_array_slot(4, 2, index))
+    function f_EvmTypedStorageProbe_read_flag(index) -> __pf_result {
+      __pf_result := sload(__proof_forge_array_slot(4, 2, index))
     }
     function f_EvmTypedStorageProbe_write_limb(index, value) {
       sstore(__proof_forge_array_slot(1, 3, index), value)
     }
-    function f_EvmTypedStorageProbe_read_root(index) -> result {
-      result := sload(__proof_forge_array_slot(6, 2, index))
+    function f_EvmTypedStorageProbe_read_root(index) -> __pf_result {
+      __pf_result := sload(__proof_forge_array_slot(6, 2, index))
     }
     function __proof_forge_array_slot(slot, length, index) -> result {
       if iszero(lt(index, length)) {
@@ -125,7 +125,7 @@ object "EvmTypedStorageProbe" {
       r := sub(a, b)
     }
     function __pf_checked_mul(a, b) -> r {
-      if iszero(a) {
+      if or(iszero(a), iszero(b)) {
         r := 0
         leave
       }

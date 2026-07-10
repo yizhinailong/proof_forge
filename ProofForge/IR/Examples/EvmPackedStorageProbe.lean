@@ -215,6 +215,77 @@ def packedAssignOpWraps : Entrypoint := {
   ]
 }
 
+/-- Every checked node must enforce the U8 width. The inner addition overflows
+    even though the outer subtraction brings the final word back into range. -/
+def packedNestedCheckedOverflowReverts : Entrypoint := {
+  name := "packed_nested_checked_overflow_reverts"
+  selector? := some "48bedaed"
+  returns := .bool
+  body := #[
+    .effect (.storageScalarWrite "flag" (boolLit false)),
+    .effect (.storageScalarWrite "tag" (u32Lit 305419896)),
+    .effect (.storageScalarWrite "counter"
+      (.sub (.add (u8Lit 255) (u8Lit 1) true) (u8Lit 1) true)),
+    .return (.effect (.storageScalarRead "flag"))
+  ]
+}
+
+/-- A wrapping outer node must not erase an overflowing checked inner node. -/
+def packedMixedOverflowReverts : Entrypoint := {
+  name := "packed_mixed_overflow_reverts"
+  selector? := some "a691f1b1"
+  returns := .bool
+  body := #[
+    .effect (.storageScalarWrite "flag" (boolLit false)),
+    .effect (.storageScalarWrite "tag" (u32Lit 305419896)),
+    .effect (.storageScalarWrite "counter"
+      (.sub (.add (u8Lit 255) (u8Lit 1) true) (u8Lit 256) false)),
+    .return (.effect (.storageScalarRead "flag"))
+  ]
+}
+
+/-- Wrapping is applied at every U8 arithmetic node and remains isolated from
+    neighboring packed fields. -/
+def packedNestedWrappingPreservesNeighbors : Entrypoint := {
+  name := "packed_nested_wrapping_preserves_neighbors"
+  selector? := some "baa34f4a"
+  returns := .bool
+  body := #[
+    .effect (.storageScalarWrite "flag" (boolLit false)),
+    .effect (.storageScalarWrite "tag" (u32Lit 305419896)),
+    .effect (.storageScalarWrite "counter"
+      (.sub (.add (u8Lit 255) (u8Lit 1) false) (u8Lit 1) false)),
+    .assertEq (.effect (.storageScalarRead "counter")) (u8Lit 255)
+      "nested wrapping counter is 255",
+    .assertEq (.effect (.storageScalarRead "flag")) (boolLit false)
+      "nested wrapping does not set flag",
+    .assertEq (.effect (.storageScalarRead "tag")) (u32Lit 305419896)
+      "nested wrapping does not alter tag",
+    .return (.effect (.storageScalarRead "flag"))
+  ]
+}
+
+/-- Checked multiplication by zero must produce zero for either operand order.
+    This specifically covers the non-zero left / zero right helper path. -/
+def packedCheckedMulZeroRhsSucceeds : Entrypoint := {
+  name := "packed_checked_mul_zero_rhs_succeeds"
+  selector? := some "ffb3ca34"
+  returns := .bool
+  body := #[
+    .effect (.storageScalarWrite "flag" (boolLit false)),
+    .effect (.storageScalarWrite "tag" (u32Lit 305419896)),
+    .effect (.storageScalarWrite "counter"
+      (.mul (u8Lit 7) (u8Lit 0) true)),
+    .assertEq (.effect (.storageScalarRead "counter")) (u8Lit 0)
+      "checked multiplication by zero is zero",
+    .assertEq (.effect (.storageScalarRead "flag")) (boolLit false)
+      "checked multiplication by zero does not set flag",
+    .assertEq (.effect (.storageScalarRead "tag")) (u32Lit 305419896)
+      "checked multiplication by zero does not alter tag",
+    .return (.effect (.storageScalarRead "flag"))
+  ]
+}
+
 /-- Checked compound assignment must reject a value that fits in an EVM word
     but not in the packed field. The whole call, including neighboring writes,
     must roll back. -/
@@ -302,6 +373,10 @@ def module : Module := {
     packedSlot3Lifecycle,
     packedAssignOp,
     packedAssignOpWraps,
+    packedNestedCheckedOverflowReverts,
+    packedMixedOverflowReverts,
+    packedNestedWrappingPreservesNeighbors,
+    packedCheckedMulZeroRhsSucceeds,
     packedAssignOpOverflowReverts,
     packedCheckedWriteOverflowReverts,
     packedCheckedLiteralWriteOverflowReverts,

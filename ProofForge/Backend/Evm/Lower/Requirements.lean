@@ -90,7 +90,7 @@ mutual
         storageSlotPlanUsesCheckedArithmetic slot
     | .builtin _ args | .helperCall _ args | .arrayLit _ args =>
         args.any exprPlanUsesCheckedArithmetic
-    | .checkedArith op lhs rhs overflowChecked =>
+    | .checkedArith op lhs rhs overflowChecked _ =>
         (overflowChecked && needsCheckedArithmetic op) ||
           exprPlanUsesCheckedArithmetic lhs ||
           exprPlanUsesCheckedArithmetic rhs
@@ -268,7 +268,7 @@ partial def exprPlanUsesWrappingArithmetic : ExprPlan → Bool
       false
   | .builtin _ args | .helperCall _ args | .arrayLit _ args =>
       args.any exprPlanUsesWrappingArithmetic
-  | .checkedArith op lhs rhs overflowChecked =>
+  | .checkedArith op lhs rhs overflowChecked _ =>
       (!overflowChecked && needsCheckedArithmetic op) ||
         exprPlanUsesWrappingArithmetic lhs ||
         exprPlanUsesWrappingArithmetic rhs
@@ -336,6 +336,35 @@ def scalarStorageWriteSemantics
 
 def entrypointsUseCheckedArithmetic (entrypoints : Array EntrypointPlan) : Bool :=
   entrypoints.any fun entrypoint => entrypoint.body.any stmtPlanUsesCheckedArithmetic
+
+partial def narrowStorageEffectUsesCheckedWidthHelper : EffectPlan → Bool
+  | .storageScalarWriteTarget target value =>
+      target.byteWidth < 32 && exprPlanUsesCheckedArithmetic value
+  | .storageScalarAssignOpTarget target op value =>
+      target.byteWidth < 32 &&
+        ((target.writeSemantics == .checked && needsCheckedArithmetic op) ||
+          exprPlanUsesCheckedArithmetic value)
+  | .storageScalarWrite _ value =>
+      exprPlanUsesCheckedArithmetic value
+  | .storageScalarAssignOp _ op value =>
+      needsCheckedArithmetic op || exprPlanUsesCheckedArithmetic value
+  | _ => false
+
+partial def stmtPlanUsesCheckedWidthHelper : StmtPlan → Bool
+  | .effect effect =>
+      narrowStorageEffectUsesCheckedWidthHelper effect
+  | .ifElse _ thenBody elseBody =>
+      thenBody.any stmtPlanUsesCheckedWidthHelper ||
+        elseBody.any stmtPlanUsesCheckedWidthHelper
+  | .boundedFor _ _ _ body =>
+      body.any stmtPlanUsesCheckedWidthHelper
+  | .letBind .. | .letMutBind .. | .assign .. | .assignOp ..
+  | .assert .. | .assertEq .. | .release .. | .revert ..
+  | .revertWithError .. | .return .. =>
+      false
+
+def entrypointsUseCheckedWidthHelper (entrypoints : Array EntrypointPlan) : Bool :=
+  entrypoints.any fun entrypoint => entrypoint.body.any stmtPlanUsesCheckedWidthHelper
 
 def pushNatIfMissing (acc : Array Nat) (value : Nat) : Array Nat :=
   if acc.contains value then acc else acc.push value
@@ -448,7 +477,7 @@ mutual
     | .builtin _ args | .helperCall _ args | .arrayLit _ args =>
         args.foldl (init := emptyLocalArrayHelperRequirements) fun acc arg =>
           mergeLocalArrayHelperRequirements acc (localArrayHelperRequirementsFromExprPlan arg)
-    | .checkedArith _ lhs rhs _
+    | .checkedArith _ lhs rhs _ _
     | .hashTwoToOne lhs rhs =>
         mergeLocalArrayHelperRequirements
           (localArrayHelperRequirementsFromExprPlan lhs)
@@ -823,7 +852,7 @@ mutual
         let nested := args.foldl (init := #[]) fun acc arg =>
           mergeHelperSets acc (plannedHelpersFromExprPlan arg)
         HelperSet.insert nested helper
-    | .checkedArith _ lhs rhs _
+    | .checkedArith _ lhs rhs _ _
     | .arrayGet lhs rhs =>
         mergeHelperSets
           (plannedHelpersFromExprPlan lhs)
@@ -1137,7 +1166,7 @@ mutual
     | .builtin _ args | .helperCall _ args | .arrayLit _ args =>
         args.foldl (init := #[]) fun acc arg =>
           mergeContextPlans acc (contextOpsFromExprPlan arg)
-    | .checkedArith _ lhs rhs _
+    | .checkedArith _ lhs rhs _ _
     | .hashTwoToOne lhs rhs =>
         mergeContextPlans
           (contextOpsFromExprPlan lhs)

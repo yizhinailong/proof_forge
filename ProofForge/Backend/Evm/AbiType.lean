@@ -4,9 +4,37 @@ namespace ProofForge.Backend.Evm.AbiType
 
 open ProofForge.IR
 
+/-- `paramAbiWords` changes the host-visible ABI shape without changing the IR
+carrier. Keep the two representations compatible so selector generation,
+calldata validation, and local lowering cannot disagree about one word. -/
+def abiWordOverrideCompatible (type : ValueType) (abiWord : String) : Bool :=
+  match type, abiWord with
+  | .u8, "uint8" => true
+  | .u32, "uint32" => true
+  | .u64, "uint64" => true
+  | .u128, "uint128" => true
+  | .bool, "bool" => true
+  | .hash, "uint256" | .hash, "bytes32" => true
+  | .address, "address" => true
+  -- Contract.Source represents these EVM surface words with a portable U64
+  -- carrier. Their canonical calldata guards are applied by ToYul.Abi.
+  | .u64, "address" | .u64, "bytes4" => true
+  | _, _ => false
+
+def validateAbiWordOverride
+    (context : String) (type : ValueType) (abiWord? : Option String) : Except String Unit :=
+  match abiWord? with
+  | none => .ok ()
+  | some abiWord =>
+      if abiWordOverrideCompatible type abiWord then
+        .ok ()
+      else
+        .error s!"{context} has incompatible EVM ABI override `{abiWord}` for IR carrier `{type.name}`"
+
 def scalarTypeName
     (context : String) (type : ValueType) (abiWord? : Option String := none) :
-    Except String String :=
+    Except String String := do
+  validateAbiWordOverride context type abiWord?
   match abiWord? with
   | some word => .ok word
   | none =>
@@ -26,6 +54,7 @@ def scalarTypeName
 partial def typeName
     (module : Module) (context : String) (type : ValueType)
     (abiWord? : Option String := none) : Except String String := do
+  validateAbiWordOverride context type abiWord?
   match type with
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .bytes | .string =>
       scalarTypeName context type abiWord?
@@ -69,6 +98,7 @@ end
 partial def descriptor
     (module : Module) (context : String) (type : ValueType)
     (abiWord? : Option String := none) : Except String Descriptor := do
+  validateAbiWordOverride context type abiWord?
   match type with
   | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address | .bytes | .string =>
       .ok (.scalar (← scalarTypeName context type abiWord?))

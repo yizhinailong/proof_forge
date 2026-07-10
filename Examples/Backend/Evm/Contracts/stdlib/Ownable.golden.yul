@@ -27,8 +27,8 @@ object "Ownable" {
     default {
       revert(0, 0)
     }
-    function f_Ownable_owner() -> result {
-      result := and(shr(0, sload(0)), 18446744073709551615)
+    function f_Ownable_owner() -> __pf_result {
+      __pf_result := and(shr(0, sload(0)), 18446744073709551615)
     }
     function f_Ownable_transferOwnership(newOwner) {
       if iszero(eq(caller(), and(shr(0, sload(0)), 18446744073709551615))) {

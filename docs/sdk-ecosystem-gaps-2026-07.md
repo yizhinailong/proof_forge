@@ -3,11 +3,11 @@
 Status: **Living gap inventory; EVM receiver/selector MVP closed under PF-P2-02
 (2026-07). Last inventory pass: 2026-07-10.**
 
-Gate P0 is closed — the three primary chains have production-grade
-compilers, artifact emission, deploy manifests, testkit parity, and
-resource budgets. But "production-grade compiler" ≠ "any contract can
-be written and deployed." This page records the SDK / ecosystem feature
-gaps that block the goal of full developer coverage on each chain.
+Gate P0 is closed: the three primary chains have scoped compiler, artifact,
+deploy-manifest, testkit, and resource-budget gates for documented fragments.
+They remain `experimental`; P0 is not a proof of universal compiler correctness
+or production readiness. This page records the SDK / ecosystem feature gaps
+that block the goal of broad developer coverage on each chain.
 
 Each section is ordered by priority (P0 = blocks "any contract", P1 =
 blocks common patterns, P2 = polish / broader coverage).
@@ -46,7 +46,7 @@ gaps.
 
 | Feature | Status | Evidence | Priority |
 |---|---|---|---|
-| UUPS proxy | Partial (backend transport spike, E1.4) | `Stdlib/UUPSProxy` + `UUPSUpgradeable` exercise ERC-1967 delegatecall transport. Proxy deployment requires non-zero `implementation` and `admin` constructor arguments, writes both slots atomically, and exposes no runtime initializer; `just evm-uups-atomic-init` covers attacker-first calls, zero-address rejection, full-width admin authorization, upgrade, and storage preservation. Product EVM builds still reject every `authority` policy, including `proxy_pattern uups`, because `keyRef` remains metadata rather than the constructor-bound runtime authority (`just evm-upgrade-policy-honesty`, `Tests/UpgradePolicy.lean`). The spike only supports implementations whose initial state is valid at zero; arbitrary initializer delegatecall, transparent proxy, and governance remain unsupported | P1: bind declared `keyRef` to constructor authority and add atomic initializer calldata |
+| UUPS proxy | Partial (backend transport spike, E1.4) | `Stdlib/UUPSProxy` + `UUPSUpgradeable` exercise ERC-1967 delegatecall transport. Proxy deployment atomically binds full-width `implementation` and `admin`, rejects zero addresses and implementations without runtime code, and exposes no runtime entrypoint. `upgradeTo` evaluates its candidate once and rejects EOAs and proxy self; `just evm-uups-atomic-init` covers attacker-first calls, constructor/runtime EOA rejection, self rejection, full-width admin authorization, upgrade, and storage preservation. Product EVM builds still reject every `authority` policy, including `proxy_pattern uups`, because `keyRef` remains metadata rather than the constructor-bound runtime authority (`just evm-upgrade-policy-honesty`, `Tests/UpgradePolicy.lean`). The spike does not call `proxiableUUID`, so code-bearing but incompatible implementations can still brick the proxy; implementations must also be valid at zero state because arbitrary initializer delegatecall remains unsupported. Transparent proxy and governance remain unsupported | P1: bind declared `keyRef` to constructor authority, validate UUPS compatibility, and add atomic initializer calldata |
 | Transparent proxy | Missing | Same rejection | P1 |
 | Beacon proxy | Missing | Same rejection | P2 |
 | Diamonds (EIP-2535) | Missing | No facet/loupe storage pattern | P2 |

@@ -31,7 +31,7 @@ object "EvmMemoryArrayProbe" {
     default {
       revert(0, 0)
     }
-    function f_EvmMemoryArrayProbe_memory_lifecycle() -> result {
+    function f_EvmMemoryArrayProbe_memory_lifecycle() -> __pf_result {
       let arr := __proof_forge_memory_array_new(3)
       {
         if iszero(lt(0, mload(arr))) {
@@ -51,13 +51,13 @@ object "EvmMemoryArrayProbe" {
         }
         mstore(add(add(arr, 32), mul(2, 32)), 13)
       }
-      result := __pf_checked_add(__pf_checked_add(__proof_forge_memory_array_get(arr, 0), __proof_forge_memory_array_get(arr, 1)), __proof_forge_memory_array_get(arr, 2))
+      __pf_result := __pf_checked_add(__pf_checked_add(__proof_forge_memory_array_get(arr, 0), __proof_forge_memory_array_get(arr, 1)), __proof_forge_memory_array_get(arr, 2))
     }
-    function f_EvmMemoryArrayProbe_memory_length() -> result {
+    function f_EvmMemoryArrayProbe_memory_length() -> __pf_result {
       let arr := __proof_forge_memory_array_new(5)
-      result := mload(arr)
+      __pf_result := mload(arr)
     }
-    function f_EvmMemoryArrayProbe_get_and_sum(a, b, c) -> result {
+    function f_EvmMemoryArrayProbe_get_and_sum(a, b, c) -> __pf_result {
       let arr := __proof_forge_memory_array_new(3)
       {
         if iszero(lt(0, mload(arr))) {
@@ -77,7 +77,7 @@ object "EvmMemoryArrayProbe" {
         }
         mstore(add(add(arr, 32), mul(2, 32)), c)
       }
-      result := __pf_checked_add(__pf_checked_add(__proof_forge_memory_array_get(arr, 0), __proof_forge_memory_array_get(arr, 1)), __proof_forge_memory_array_get(arr, 2))
+      __pf_result := __pf_checked_add(__pf_checked_add(__proof_forge_memory_array_get(arr, 0), __proof_forge_memory_array_get(arr, 1)), __proof_forge_memory_array_get(arr, 2))
     }
     function __proof_forge_memory_array_new(length) -> ptr {
       ptr := mload(64)
@@ -103,7 +103,7 @@ object "EvmMemoryArrayProbe" {
       r := sub(a, b)
     }
     function __pf_checked_mul(a, b) -> r {
-      if iszero(a) {
+      if or(iszero(a), iszero(b)) {
         r := 0
         leave
       }

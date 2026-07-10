@@ -96,8 +96,8 @@ object "EvmErrorsProbe" {
         revert(0, 132)
       }
     }
-    function f_EvmErrorsProbe_normalPath() -> result {
-      result := and(shr(0, sload(0)), 18446744073709551615)
+    function f_EvmErrorsProbe_normalPath() -> __pf_result {
+      __pf_result := and(shr(0, sload(0)), 18446744073709551615)
     }
   }
 }

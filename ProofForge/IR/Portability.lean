@@ -296,7 +296,13 @@ def classifyModule (module : Module) : Array PortabilityFinding :=
     else
       #[finding "module.nearCrosscallStrings" "NEAR host string pool"
           (.targetMetadata (some .wasmHost))]
-  structFindings ++ stateFindings ++ entryFindings ++ proxyFindings ++ nearStringFindings
+  let eventAbiFindings :=
+    if module.eventAbiWords.isEmpty then #[]
+    else
+      #[finding "module.eventAbiWords" "event ABI surface overrides"
+          (.targetMetadata (some .evm))]
+  structFindings ++ stateFindings ++ entryFindings ++ proxyFindings ++
+    nearStringFindings ++ eventAbiFindings
 
 /-- Findings that are not portable-core and not generic metadata. -/
 def nonPortableFindings (module : Module) : Array PortabilityFinding :=

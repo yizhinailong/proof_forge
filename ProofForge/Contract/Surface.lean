@@ -49,6 +49,9 @@ def contract (name : String) (body : ModuleM Unit) : ContractSpec :=
 def declareConstructorParam (name : String) (abiType : String) : ModuleM Unit :=
   ProofForge.Contract.Builder.constructorParam name abiType
 
+def declareEventAbi (eventName : String) (fields : Array (String × String)) : ModuleM Unit :=
+  ProofForge.Contract.Builder.eventAbi eventName fields
+
 def declareConstructorInitBinding
     (stateId paramName : String) (kind : ProofForge.Contract.ConstructorInitKind) : ModuleM Unit :=
   ProofForge.Contract.Builder.constructorInitBinding stateId paramName kind

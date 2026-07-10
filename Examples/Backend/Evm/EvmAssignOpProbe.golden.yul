@@ -26,7 +26,7 @@ object "EvmAssignOpProbe" {
     default {
       revert(0, 0)
     }
-    function f_EvmAssignOpProbe_compound_assignment(seed) -> result {
+    function f_EvmAssignOpProbe_compound_assignment(seed) -> __pf_result {
       let total := seed
       total := add(total, 7)
       total := sub(total, 2)
@@ -39,9 +39,9 @@ object "EvmAssignOpProbe" {
       total := shl(1, total)
       total := shr(1, total)
       sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(total, 18446744073709551615))))
-      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(add(and(shr(0, sload(0)), 18446744073709551615), 5), 18446744073709551615))))
-      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(sub(and(shr(0, sload(0)), 18446744073709551615), 1), 18446744073709551615))))
-      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(mul(and(shr(0, sload(0)), 18446744073709551615), 2), 18446744073709551615))))
+      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(and(add(and(shr(0, sload(0)), 18446744073709551615), 5), 18446744073709551615), 18446744073709551615))))
+      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(and(sub(and(shr(0, sload(0)), 18446744073709551615), 1), 18446744073709551615), 18446744073709551615))))
+      sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(and(mul(and(shr(0, sload(0)), 18446744073709551615), 2), 18446744073709551615), 18446744073709551615))))
       sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(div(and(shr(0, sload(0)), 18446744073709551615), 3), 18446744073709551615))))
       sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(mod(and(shr(0, sload(0)), 18446744073709551615), 13), 18446744073709551615))))
       sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(or(and(shr(0, sload(0)), 18446744073709551615), 16), 18446744073709551615))))
@@ -49,9 +49,9 @@ object "EvmAssignOpProbe" {
       sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(xor(and(shr(0, sload(0)), 18446744073709551615), 7), 18446744073709551615))))
       sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(shl(2, and(shr(0, sload(0)), 18446744073709551615)), 18446744073709551615))))
       sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(shr(1, and(shr(0, sload(0)), 18446744073709551615)), 18446744073709551615))))
-      result := and(shr(0, sload(0)), 18446744073709551615)
+      __pf_result := and(shr(0, sload(0)), 18446744073709551615)
     }
-    function f_EvmAssignOpProbe_compound_u32(seed) -> result {
+    function f_EvmAssignOpProbe_compound_u32(seed) -> __pf_result {
       let word := seed
       word := add(word, 3)
       word := sub(word, 1)
@@ -63,7 +63,7 @@ object "EvmAssignOpProbe" {
       word := xor(word, 3)
       word := shl(1, word)
       word := shr(1, word)
-      result := word
+      __pf_result := word
     }
     function __pf_checked_add(a, b) -> r {
       if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
@@ -78,7 +78,7 @@ object "EvmAssignOpProbe" {
       r := sub(a, b)
     }
     function __pf_checked_mul(a, b) -> r {
-      if iszero(a) {
+      if or(iszero(a), iszero(b)) {
         r := 0
         leave
       }

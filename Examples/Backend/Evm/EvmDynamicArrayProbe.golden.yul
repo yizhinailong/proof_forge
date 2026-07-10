@@ -52,25 +52,25 @@ object "EvmDynamicArrayProbe" {
     default {
       revert(0, 0)
     }
-    function f_EvmDynamicArrayProbe_storage_lifecycle() -> result {
+    function f_EvmDynamicArrayProbe_storage_lifecycle() -> __pf_result {
       sstore(__proof_forge_dynamic_array_slot(0, 0), 7)
       sstore(__proof_forge_dynamic_array_slot(0, 1), 11)
       sstore(__proof_forge_dynamic_array_slot(0, 2), 13)
-      result := __pf_checked_add(__pf_checked_add(sload(__proof_forge_dynamic_array_slot(0, 0)), sload(__proof_forge_dynamic_array_slot(0, 1))), sload(__proof_forge_dynamic_array_slot(0, 2)))
+      __pf_result := __pf_checked_add(__pf_checked_add(sload(__proof_forge_dynamic_array_slot(0, 0)), sload(__proof_forge_dynamic_array_slot(0, 1))), sload(__proof_forge_dynamic_array_slot(0, 2)))
     }
-    function f_EvmDynamicArrayProbe_read_value(index) -> result {
-      result := sload(__proof_forge_dynamic_array_slot(0, index))
+    function f_EvmDynamicArrayProbe_read_value(index) -> __pf_result {
+      __pf_result := sload(__proof_forge_dynamic_array_slot(0, index))
     }
     function f_EvmDynamicArrayProbe_write_value(index, value) {
       sstore(__proof_forge_dynamic_array_slot(0, index), value)
     }
-    function f_EvmDynamicArrayProbe_path_assign_lifecycle() -> result {
+    function f_EvmDynamicArrayProbe_path_assign_lifecycle() -> __pf_result {
       sstore(__proof_forge_dynamic_array_slot(0, 2), 10)
       {
-        let _slot := __proof_forge_dynamic_array_slot(0, 2)
-        sstore(_slot, add(sload(_slot), 5))
+        let __pf_storage_slot := __proof_forge_dynamic_array_slot(0, 2)
+        sstore(__pf_storage_slot, add(sload(__pf_storage_slot), 5))
       }
-      result := sload(__proof_forge_dynamic_array_slot(0, 2))
+      __pf_result := sload(__proof_forge_dynamic_array_slot(0, 2))
     }
     function f_EvmDynamicArrayProbe_push_value(value) {
       let __proof_forge_dyn_array_len := sload(0)
@@ -103,7 +103,7 @@ object "EvmDynamicArrayProbe" {
       r := sub(a, b)
     }
     function __pf_checked_mul(a, b) -> r {
-      if iszero(a) {
+      if or(iszero(a), iszero(b)) {
         r := 0
         leave
       }

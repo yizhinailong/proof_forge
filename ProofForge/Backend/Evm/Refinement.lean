@@ -422,6 +422,48 @@ def EvmYulMachineState.traceStep (state : EvmYulMachineState) (call : TraceCall)
     runEvmEntrypointObservable state.object state.storage call
   .ok ({ state with storage }, observableStep)
 
+/-- Extract a packed scalar from the canonical EVM storage word layout. -/
+def packedU64FromWord (word : Nat) (byteOffset byteWidth : Nat) : Nat :=
+  let shiftBits := byteOffset * 8
+  (word / 2 ^ shiftBits) % 2 ^ (byteWidth * 8)
+
+/-- Read one scalar state through the same layout used by EVM lowering. -/
+def packedStateValue?
+    (module : ProofForge.IR.Module)
+    (storage : ProofForge.Backend.Evm.YulSemantics.WordBindings)
+    (stateId : String) : Option Nat :=
+  match (ProofForge.Backend.Evm.Plan.storageLayout module).find? stateId with
+  | some state =>
+      let word := ProofForge.Backend.Evm.YulSemantics.lookupWord state.slot storage
+      some (packedU64FromWord word state.byteOffset state.byteWidth)
+  | none => none
+
+/-- Canonical low-order relation between IR Counter state and EVM/Yul storage. -/
+def counterYulSimulationRel
+    (irState : ProofForge.IR.Semantics.State)
+    (machine : EvmYulMachineState) : Bool :=
+  match irState.read "count",
+      packedStateValue? ProofForge.IR.Examples.Counter.module machine.storage "count" with
+  | some (.u64 count), some packed => packed == count
+  | none, some packed => packed == 0
+  | _, _ => false
+
+def counterYulInitialMachineState
+    (module : ProofForge.IR.Module) : Option EvmYulMachineState :=
+  if isCounterModule module then
+    match ProofForge.Backend.Evm.IR.lowerModule module with
+    | .ok object => some { object, storage := [] }
+    | .error _ => none
+  else
+    none
+
+@[simp] theorem counterYulSimulationRel_empty
+    (object : Lean.Compiler.Yul.Object) :
+    counterYulSimulationRel ProofForge.IR.Semantics.State.empty
+      ({ object, storage := [] } : EvmYulMachineState) = true := by
+  simp only [counterYulSimulationRel]
+  native_decide
+
 def evmYulTargetSemantics : TargetSemantics := {
   id := "evm-yul-subset"
   supportedFragments := #[.counter]
@@ -437,7 +479,19 @@ def evmYulTargetSemantics : TargetSemantics := {
     intro calls state
     rfl
   executableTraceOk := evmYulTraceOk
-  initialRelHolds := by intros; trivial
+  irStateRel := fun irState machine => counterYulSimulationRel irState machine = true
+  initialMachineState := counterYulInitialMachineState
+  initialRelHolds := by
+    intro module machine h
+    by_cases hcounter : isCounterModule module = true
+    · cases hlower : ProofForge.Backend.Evm.IR.lowerModule module with
+      | error error =>
+          simp [counterYulInitialMachineState, hcounter, hlower] at h
+      | ok object =>
+          simp [counterYulInitialMachineState, hcounter, hlower] at h
+          subst machine
+          exact counterYulSimulationRel_empty object
+    · simp [counterYulInitialMachineState, hcounter] at h
 }
 
 def counterTraceCalls : Array TraceCall := #[
@@ -1402,6 +1456,7 @@ theorem evm_lowerable_implies_counter_skeleton
     m.structs = #[] ∧
       m.proxyPattern? = none ∧
       m.nearCrosscallStrings = #[] ∧
+      m.eventAbiWords = #[] ∧
       m.overflowChecked = false ∧
       m.allocator = ProofForge.IR.defaultAllocator ∧
       (∃ sd, m.state.toList = [sd] ∧

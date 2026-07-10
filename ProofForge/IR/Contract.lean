@@ -457,11 +457,23 @@ structure Entrypoint where
 abbrev Entrypoint.paramEvmAbiWords (ep : Entrypoint) : Array (Option String) :=
   ep.paramAbiWords
 
+/-- Host ABI scalar type for one named event field. Event expressions retain
+their portable IR carrier; target adapters use this declaration for canonical
+event signatures and artifact metadata. -/
+structure EventAbiWord where
+  eventName : String
+  fieldName : String
+  abiWord : String
+  deriving Repr, BEq
+
 structure Module where
   name : String
   structs : Array StructDecl := #[]
   state : Array StateDecl
   entrypoints : Array Entrypoint
+  /-- Named event-field ABI overrides, parallel to `Entrypoint.paramAbiWords`.
+  Names keep the declaration stable when indexed and data fields are split. -/
+  eventAbiWords : Array EventAbiWord := #[]
   allocator : AllocatorConfig := defaultAllocator
   /-- When set to `uups`, the EVM adapter adds a delegatecall fallback for
   proxy shells. Stored on the module as target-resolved metadata rather than a

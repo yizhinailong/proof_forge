@@ -485,6 +485,13 @@ def plannedCheckedArithmeticHelperFunctions (plan : ProofForge.Backend.Evm.Plan.
     Array Lean.Compiler.Yul.Statement :=
   if plan.usesCheckedArithmetic then ProofForge.Backend.Evm.ToYul.checkedArithmeticHelperFunctions else #[]
 
+def plannedCheckedWidthHelperFunctions (plan : ProofForge.Backend.Evm.Plan.ModulePlan) :
+    Array Lean.Compiler.Yul.Statement :=
+  if ProofForge.Backend.Evm.Lower.entrypointsUseCheckedWidthHelper plan.entrypoints then
+    #[ProofForge.Backend.Evm.ToYul.checkedWidthHelperFunction]
+  else
+    #[]
+
 def plannedCrosscallHelperFunctions
     (specs : Array ProofForge.Backend.Evm.Plan.CrosscallHelperSpec) :
     Except LowerError (Array Lean.Compiler.Yul.Statement) :=
@@ -559,6 +566,7 @@ def lowerModuleWithPlan
   let helpers := helpers ++ plannedStructArrayHelperFunctions plan
   let helpers := helpers ++ plannedHashHelperFunctions plan
   let helpers := helpers ++ plannedMemoryArrayHelperFunctions plan
+  let helpers := helpers ++ plannedCheckedWidthHelperFunctions plan
   let completePlan := entrypointBodyPlanIsComplete module plan.entrypoints
   let helpers :=
     if completePlan then

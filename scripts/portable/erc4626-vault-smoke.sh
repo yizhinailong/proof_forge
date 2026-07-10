@@ -52,7 +52,7 @@ def main : IO Unit := do
     m with
     entrypoints := m.entrypoints.map fun ep =>
       match ep.name with
-      | "init" => { ep with selector? := some "8129fc1c" }
+      | "init" => { ep with selector? := some "4b180da9" }
       | "deposit" => { ep with selector? := some "6e553f65" }
       | "mint" => { ep with selector? := some "94bf804d" }
       | "withdraw" => { ep with selector? := some "b460af94" }
@@ -102,7 +102,8 @@ def main : IO Unit := do
   match ProofForge.Backend.WasmHost.EmitWat.renderModule m with
   | .ok _ => throw (IO.userError "NEAR should honest-reject selector remotes without string pool")
   | .error e =>
-      require (e.message.contains "nearCrosscallStrings" || e.message.contains "crosscall")
+      require (e.message.contains "nearCrosscallStrings" || e.message.contains "crosscall" ||
+          e.message.contains "Address")
         s!"NEAR diagnostic: {e.message}"
   IO.println "erc4626-vault emit: ok"
 EOF

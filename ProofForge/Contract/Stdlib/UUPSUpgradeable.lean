@@ -21,7 +21,9 @@ contract_mixin UUPSUpgradeableMixin do
   use ProofForge.Contract.Surface.scalar «owner»
   use ProofForge.Contract.Surface.scalar eip1967Implementation
 
-  event Upgraded
+  event Upgraded abi #[
+    ("implementation", "address")
+  ]
 
   entry upgradeTo (newImpl : .address) do
     do ProofForge.Contract.Surface.requireOwnerHash «owner»;

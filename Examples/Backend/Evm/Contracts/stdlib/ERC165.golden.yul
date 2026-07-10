@@ -29,9 +29,9 @@ object "ERC165" {
     default {
       revert(0, 0)
     }
-    function f_ERC165_supportsInterface(interfaceId) -> result {
+    function f_ERC165_supportsInterface(interfaceId) -> __pf_result {
       let registered := sload(__proof_forge_map_slot(0, interfaceId))
-      result := or(eq(interfaceId, shl(224, 33540519)), iszero(eq(registered, 0)))
+      __pf_result := or(eq(interfaceId, shl(224, 33540519)), iszero(eq(registered, 0)))
     }
     function f_ERC165_registerInterface(interfaceId) {
       __proof_forge_map_write(0, interfaceId, 1)

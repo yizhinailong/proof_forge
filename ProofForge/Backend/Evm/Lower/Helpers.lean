@@ -391,7 +391,7 @@ mutual
     | .builtin _ args | .helperCall _ args | .arrayLit _ args =>
         args.foldlM (init := #[]) fun acc arg => do
           .ok (mergeCrosscallHelperSpecs acc (← crosscallHelperSpecsFromExprPlan module arg))
-    | .checkedArith _ lhs rhs _
+    | .checkedArith _ lhs rhs _ _
     | .arrayGet lhs rhs
     | .hashTwoToOne lhs rhs => do
         .ok (mergeCrosscallHelperSpecs
@@ -1016,7 +1016,7 @@ mutual
     | .builtin _ args | .helperCall _ args | .arrayLit _ args =>
         args.foldl (init := #[]) fun acc arg =>
           mergeCreateHelperSpecs acc (createHelperSpecsFromExprPlan arg)
-    | .checkedArith _ lhs rhs _
+    | .checkedArith _ lhs rhs _ _
     | .arrayGet lhs rhs
     | .hashTwoToOne lhs rhs =>
         mergeCreateHelperSpecs

@@ -32,6 +32,31 @@ theorem counter_initialize_clears_low_64_bits_and_preserves_high_192_bits :
       EvmSemantics.UInt256.ofNat (123 * 2 ^ 64) := by
   native_decide
 
+theorem counterCompiledPowdr_irStateRel_is_CounterStorageRel
+    (irState : IRState) (evmState : EvmState) :
+    counterCompiledPowdrTargetSemantics.irStateRel irState evmState ↔
+      CounterStorageRel irState evmState := by
+  rfl
+
+theorem counterCompiledPowdr_initialMachineState_none
+    (module : ProofForge.IR.Module) :
+    counterCompiledPowdrTargetSemantics.initialMachineState module = none := by
+  rfl
+
+theorem counter_compiled_runtime_hex_is_valid :
+    EvmRefinement.HexWitness.decodeHex? counterCompiledRuntimeHex =
+      some counterCompiledRuntimeCode :=
+  counterCompiledRuntimeHex_decodes
+
+theorem counter_compiled_runtime_tracks_narrow_arithmetic :
+    counterCompiledRuntimeCode.size = 262 ∧
+      LegacyHighPacked.byteArrayHasSliceAt counterCompiledRuntimeCode
+        (ByteArray.mk #[
+          0x5b, 0x90, 0x81, 0x11, 0x60, 0xe5, 0x57, 0x90, 0x56, 0x5b, 0x5f,
+          0x80, 0xfd]) 220 = true := by
+  exact ⟨counterCompiledRuntimeCode_size,
+    counterCompiledRuntimeCode_checks_u64_narrowing⟩
+
 #check counterCompiledPowdr_executable_trace_ok
 #check counterCompiledPowdr_ir_and_target_trace_match
 #check counterCompiledPowdr_initialize_executable_smoke

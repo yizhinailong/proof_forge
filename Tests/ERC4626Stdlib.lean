@@ -101,6 +101,25 @@ def main : IO UInt32 := do
 
   let m := ProofForge.Contract.Stdlib.ERC4626.module
   require (m.name == "ERC4626") "module name"
+  for stateId in #["asset", "vaultSelf", "feeRecipient"] do
+    let some state := m.state.find? (fun candidate => candidate.id == stateId)
+      | throw (IO.userError s!"missing address state {stateId}")
+    require (state.kind == .scalar && state.type == .address)
+      s!"{stateId} must preserve full-width addresses"
+  for stateId in #["erc4626Lock", "initialized"] do
+    require (m.state.any (fun state => state.id == stateId && state.kind == .scalar &&
+        state.type == .u64)) s!"missing scalar guard state {stateId}"
+  let some init := m.entrypoints.find? (fun entrypoint => entrypoint.name == "init")
+    | throw (IO.userError "missing init")
+  require (init.paramAbiWords == #[some "address", some "address", none, some "address"])
+    "init must expose address ABI words"
+  let some assetGetter := m.entrypoints.find? (fun entrypoint => entrypoint.name == "asset")
+    | throw (IO.userError "missing asset getter")
+  require (assetGetter.returns == .address) "asset getter returns address"
+  let some feeRecipientGetter :=
+      m.entrypoints.find? (fun entrypoint => entrypoint.name == "feeRecipient")
+    | throw (IO.userError "missing feeRecipient getter")
+  require (feeRecipientGetter.returns == .address) "feeRecipient getter returns address"
   let names := m.entrypoints.map (·.name)
   for n in #["deposit", "mint", "withdraw", "redeem", "convertToShares",
               "convertToAssets", "totalAssets", "asset", "balanceOf", "maxWithdraw",
@@ -128,7 +147,8 @@ def main : IO UInt32 := do
   match ProofForge.Backend.WasmHost.EmitWat.renderModule m with
   | .ok _ => throw (IO.userError "NEAR should reject empty nearCrosscallStrings for asset pull")
   | .error e =>
-      require (e.message.contains "nearCrosscallStrings" || e.message.contains "crosscall")
+      require (e.message.contains "nearCrosscallStrings" || e.message.contains "crosscall" ||
+          e.message.contains "Address")
         s!"NEAR honesty diagnostic, got: {e.message}"
 
   IO.println "erc4626-stdlib: ok (pro-rata·entry/exit fee·EVM; Solana/NEAR honest reject)"

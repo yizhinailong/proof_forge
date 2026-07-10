@@ -1063,193 +1063,193 @@ object "EvmCrosscallProbe" {
     default {
       revert(0, 0)
     }
-    function f_EvmCrosscallProbe_call_remote(target, method) -> result {
-      result := __proof_forge_crosscall_0(target, method)
+    function f_EvmCrosscallProbe_call_remote(target, method) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_0(target, method)
     }
-    function f_EvmCrosscallProbe_call_remote1(target, method, x) -> result {
-      result := __proof_forge_crosscall_1(target, method, x)
+    function f_EvmCrosscallProbe_call_remote1(target, method, x) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_1(target, method, x)
     }
-    function f_EvmCrosscallProbe_call_remote2(target, method, x, y) -> result {
-      result := __proof_forge_crosscall_2(target, method, x, y)
+    function f_EvmCrosscallProbe_call_remote2(target, method, x, y) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_2(target, method, x, y)
     }
-    function f_EvmCrosscallProbe_call_remote_bool(target, method, flag) -> result {
-      result := __proof_forge_crosscall_1_bool(target, method, flag)
+    function f_EvmCrosscallProbe_call_remote_bool(target, method, flag) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_1_bool(target, method, flag)
     }
-    function f_EvmCrosscallProbe_call_remote_u32(target, method, x) -> result {
-      result := __proof_forge_crosscall_1_u32(target, method, x)
+    function f_EvmCrosscallProbe_call_remote_u32(target, method, x) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_1_u32(target, method, x)
     }
-    function f_EvmCrosscallProbe_call_remote_hash(target, method, value) -> result {
-      result := __proof_forge_crosscall_1_hash(target, method, value)
+    function f_EvmCrosscallProbe_call_remote_hash(target, method, value) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_1_hash(target, method, value)
     }
-    function f_EvmCrosscallProbe_call_remote_pair(target, method) -> __proof_forge_return_0, __proof_forge_return_1 {
-      __proof_forge_return_0, __proof_forge_return_1 := __proof_forge_crosscall_0_abi_bool_u32(target, method)
+    function f_EvmCrosscallProbe_call_remote_pair(target, method) -> __pf_return_0, __pf_return_1 {
+      __pf_return_0, __pf_return_1 := __proof_forge_crosscall_0_abi_bool_u32(target, method)
     }
-    function f_EvmCrosscallProbe_call_remote_array(target, method) -> __proof_forge_return_0, __proof_forge_return_1 {
-      __proof_forge_return_0, __proof_forge_return_1 := __proof_forge_crosscall_0_abi_u64_u64(target, method)
+    function f_EvmCrosscallProbe_call_remote_array(target, method) -> __pf_return_0, __pf_return_1 {
+      __pf_return_0, __pf_return_1 := __proof_forge_crosscall_0_abi_u64_u64(target, method)
     }
-    function f_EvmCrosscallProbe_call_remote_matrix(target, method) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 {
-      __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 := __proof_forge_crosscall_0_abi_u64_u64_u64_u64(target, method)
+    function f_EvmCrosscallProbe_call_remote_matrix(target, method) -> __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3 {
+      __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3 := __proof_forge_crosscall_0_abi_u64_u64_u64_u64(target, method)
     }
-    function f_EvmCrosscallProbe_call_remote_pair_arg(target, method, flag, small) -> result {
+    function f_EvmCrosscallProbe_call_remote_pair_arg(target, method, flag, small) -> __pf_result {
       let __proof_forge_struct_pair_flag := flag
       let __proof_forge_struct_pair_small := small
-      result := __proof_forge_crosscall_2_bool(target, method, __proof_forge_struct_pair_flag, __proof_forge_struct_pair_small)
+      __pf_result := __proof_forge_crosscall_2_bool(target, method, __proof_forge_struct_pair_flag, __proof_forge_struct_pair_small)
     }
-    function f_EvmCrosscallProbe_call_remote_array_arg(target, method, x, y) -> result {
+    function f_EvmCrosscallProbe_call_remote_array_arg(target, method, x, y) -> __pf_result {
       let __proof_forge_array_values_0 := x
       let __proof_forge_array_values_1 := y
-      result := __proof_forge_crosscall_2(target, method, __proof_forge_array_values_0, __proof_forge_array_values_1)
+      __pf_result := __proof_forge_crosscall_2(target, method, __proof_forge_array_values_0, __proof_forge_array_values_1)
     }
-    function f_EvmCrosscallProbe_call_remote_matrix_arg(target, method, a, b, c, d) -> result {
-      result := __proof_forge_crosscall_4(target, method, a, b, c, d)
+    function f_EvmCrosscallProbe_call_remote_matrix_arg(target, method, a, b, c, d) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_4(target, method, a, b, c, d)
     }
-    function f_EvmCrosscallProbe_call_remote_pair_array(target, method) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 {
-      __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 := __proof_forge_crosscall_0_abi_bool_u32_bool_u32(target, method)
+    function f_EvmCrosscallProbe_call_remote_pair_array(target, method) -> __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3 {
+      __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3 := __proof_forge_crosscall_0_abi_bool_u32_bool_u32(target, method)
     }
-    function f_EvmCrosscallProbe_call_remote_pair_array_arg(target, method, flag0, small0, flag1, small1) -> result {
+    function f_EvmCrosscallProbe_call_remote_pair_array_arg(target, method, flag0, small0, flag1, small1) -> __pf_result {
       let __proof_forge_array_struct_pairs_0_flag := flag0
       let __proof_forge_array_struct_pairs_0_small := small0
       let __proof_forge_array_struct_pairs_1_flag := flag1
       let __proof_forge_array_struct_pairs_1_small := small1
-      result := __proof_forge_crosscall_4(target, method, __proof_forge_array_struct_pairs_0_flag, __proof_forge_array_struct_pairs_0_small, __proof_forge_array_struct_pairs_1_flag, __proof_forge_array_struct_pairs_1_small)
+      __pf_result := __proof_forge_crosscall_4(target, method, __proof_forge_array_struct_pairs_0_flag, __proof_forge_array_struct_pairs_0_small, __proof_forge_array_struct_pairs_1_flag, __proof_forge_array_struct_pairs_1_small)
     }
-    function f_EvmCrosscallProbe_call_remote_pair_matrix(target, method) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3, __proof_forge_return_4, __proof_forge_return_5, __proof_forge_return_6, __proof_forge_return_7 {
-      __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3, __proof_forge_return_4, __proof_forge_return_5, __proof_forge_return_6, __proof_forge_return_7 := __proof_forge_crosscall_0_abi_bool_u32_bool_u32_bool_u32_bool_u32(target, method)
+    function f_EvmCrosscallProbe_call_remote_pair_matrix(target, method) -> __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3, __pf_return_4, __pf_return_5, __pf_return_6, __pf_return_7 {
+      __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3, __pf_return_4, __pf_return_5, __pf_return_6, __pf_return_7 := __proof_forge_crosscall_0_abi_bool_u32_bool_u32_bool_u32_bool_u32(target, method)
     }
-    function f_EvmCrosscallProbe_call_remote_pair_matrix_arg(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11) -> result {
-      result := __proof_forge_crosscall_8(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11)
+    function f_EvmCrosscallProbe_call_remote_pair_matrix_arg(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_8(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11)
     }
-    function f_EvmCrosscallProbe_call_remote_value(target, method) -> result {
-      result := __proof_forge_crosscall_value_0(target, method, callvalue())
+    function f_EvmCrosscallProbe_call_remote_value(target, method) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_value_0(target, method, callvalue())
     }
-    function f_EvmCrosscallProbe_call_remote_value_pair_arg(target, method, flag, small) -> result {
+    function f_EvmCrosscallProbe_call_remote_value_pair_arg(target, method, flag, small) -> __pf_result {
       let __proof_forge_struct_pair_flag := flag
       let __proof_forge_struct_pair_small := small
-      result := __proof_forge_crosscall_value_2(target, method, callvalue(), __proof_forge_struct_pair_flag, __proof_forge_struct_pair_small)
+      __pf_result := __proof_forge_crosscall_value_2(target, method, callvalue(), __proof_forge_struct_pair_flag, __proof_forge_struct_pair_small)
     }
-    function f_EvmCrosscallProbe_call_remote_value_pair(target, method) -> __proof_forge_return_0, __proof_forge_return_1 {
-      __proof_forge_return_0, __proof_forge_return_1 := __proof_forge_crosscall_value_0_abi_bool_u32(target, method, callvalue())
+    function f_EvmCrosscallProbe_call_remote_value_pair(target, method) -> __pf_return_0, __pf_return_1 {
+      __pf_return_0, __pf_return_1 := __proof_forge_crosscall_value_0_abi_bool_u32(target, method, callvalue())
     }
-    function f_EvmCrosscallProbe_call_remote_value_array(target, method) -> __proof_forge_return_0, __proof_forge_return_1 {
-      __proof_forge_return_0, __proof_forge_return_1 := __proof_forge_crosscall_value_0_abi_u64_u64(target, method, callvalue())
+    function f_EvmCrosscallProbe_call_remote_value_array(target, method) -> __pf_return_0, __pf_return_1 {
+      __pf_return_0, __pf_return_1 := __proof_forge_crosscall_value_0_abi_u64_u64(target, method, callvalue())
     }
-    function f_EvmCrosscallProbe_call_remote_value_matrix(target, method) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 {
-      __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 := __proof_forge_crosscall_value_0_abi_u64_u64_u64_u64(target, method, callvalue())
+    function f_EvmCrosscallProbe_call_remote_value_matrix(target, method) -> __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3 {
+      __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3 := __proof_forge_crosscall_value_0_abi_u64_u64_u64_u64(target, method, callvalue())
     }
-    function f_EvmCrosscallProbe_call_remote_value_pair_array(target, method) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 {
-      __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 := __proof_forge_crosscall_value_0_abi_bool_u32_bool_u32(target, method, callvalue())
+    function f_EvmCrosscallProbe_call_remote_value_pair_array(target, method) -> __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3 {
+      __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3 := __proof_forge_crosscall_value_0_abi_bool_u32_bool_u32(target, method, callvalue())
     }
-    function f_EvmCrosscallProbe_call_remote_value_pair_array_arg(target, method, flag0, small0, flag1, small1) -> result {
+    function f_EvmCrosscallProbe_call_remote_value_pair_array_arg(target, method, flag0, small0, flag1, small1) -> __pf_result {
       let __proof_forge_array_struct_pairs_0_flag := flag0
       let __proof_forge_array_struct_pairs_0_small := small0
       let __proof_forge_array_struct_pairs_1_flag := flag1
       let __proof_forge_array_struct_pairs_1_small := small1
-      result := __proof_forge_crosscall_value_4(target, method, callvalue(), __proof_forge_array_struct_pairs_0_flag, __proof_forge_array_struct_pairs_0_small, __proof_forge_array_struct_pairs_1_flag, __proof_forge_array_struct_pairs_1_small)
+      __pf_result := __proof_forge_crosscall_value_4(target, method, callvalue(), __proof_forge_array_struct_pairs_0_flag, __proof_forge_array_struct_pairs_0_small, __proof_forge_array_struct_pairs_1_flag, __proof_forge_array_struct_pairs_1_small)
     }
-    function f_EvmCrosscallProbe_call_remote_value_pair_matrix(target, method) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3, __proof_forge_return_4, __proof_forge_return_5, __proof_forge_return_6, __proof_forge_return_7 {
-      __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3, __proof_forge_return_4, __proof_forge_return_5, __proof_forge_return_6, __proof_forge_return_7 := __proof_forge_crosscall_value_0_abi_bool_u32_bool_u32_bool_u32_bool_u32(target, method, callvalue())
+    function f_EvmCrosscallProbe_call_remote_value_pair_matrix(target, method) -> __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3, __pf_return_4, __pf_return_5, __pf_return_6, __pf_return_7 {
+      __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3, __pf_return_4, __pf_return_5, __pf_return_6, __pf_return_7 := __proof_forge_crosscall_value_0_abi_bool_u32_bool_u32_bool_u32_bool_u32(target, method, callvalue())
     }
-    function f_EvmCrosscallProbe_call_remote_value_pair_matrix_arg(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11) -> result {
-      result := __proof_forge_crosscall_value_8(target, method, callvalue(), flag00, small00, flag01, small01, flag10, small10, flag11, small11)
+    function f_EvmCrosscallProbe_call_remote_value_pair_matrix_arg(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_value_8(target, method, callvalue(), flag00, small00, flag01, small01, flag10, small10, flag11, small11)
     }
-    function f_EvmCrosscallProbe_call_remote_value_matrix_arg(target, method, a, b, c, d) -> result {
-      result := __proof_forge_crosscall_value_4(target, method, callvalue(), a, b, c, d)
+    function f_EvmCrosscallProbe_call_remote_value_matrix_arg(target, method, a, b, c, d) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_value_4(target, method, callvalue(), a, b, c, d)
     }
-    function f_EvmCrosscallProbe_call_remote_static(target, method) -> result {
-      result := __proof_forge_crosscall_static_0(target, method)
+    function f_EvmCrosscallProbe_call_remote_static(target, method) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_static_0(target, method)
     }
-    function f_EvmCrosscallProbe_call_remote_static_bool(target, method, flag) -> result {
-      result := __proof_forge_crosscall_static_1_bool(target, method, flag)
+    function f_EvmCrosscallProbe_call_remote_static_bool(target, method, flag) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_static_1_bool(target, method, flag)
     }
-    function f_EvmCrosscallProbe_call_remote_static_u32(target, method, x) -> result {
-      result := __proof_forge_crosscall_static_1_u32(target, method, x)
+    function f_EvmCrosscallProbe_call_remote_static_u32(target, method, x) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_static_1_u32(target, method, x)
     }
-    function f_EvmCrosscallProbe_call_remote_static_hash(target, method, value) -> result {
-      result := __proof_forge_crosscall_static_1_hash(target, method, value)
+    function f_EvmCrosscallProbe_call_remote_static_hash(target, method, value) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_static_1_hash(target, method, value)
     }
-    function f_EvmCrosscallProbe_call_remote_static_pair_arg(target, method, flag, small) -> result {
+    function f_EvmCrosscallProbe_call_remote_static_pair_arg(target, method, flag, small) -> __pf_result {
       let __proof_forge_struct_pair_flag := flag
       let __proof_forge_struct_pair_small := small
-      result := __proof_forge_crosscall_static_2_u32(target, method, __proof_forge_struct_pair_flag, __proof_forge_struct_pair_small)
+      __pf_result := __proof_forge_crosscall_static_2_u32(target, method, __proof_forge_struct_pair_flag, __proof_forge_struct_pair_small)
     }
-    function f_EvmCrosscallProbe_call_remote_static_pair(target, method) -> __proof_forge_return_0, __proof_forge_return_1 {
-      __proof_forge_return_0, __proof_forge_return_1 := __proof_forge_crosscall_static_0_abi_bool_u32(target, method)
+    function f_EvmCrosscallProbe_call_remote_static_pair(target, method) -> __pf_return_0, __pf_return_1 {
+      __pf_return_0, __pf_return_1 := __proof_forge_crosscall_static_0_abi_bool_u32(target, method)
     }
-    function f_EvmCrosscallProbe_call_remote_static_array(target, method) -> __proof_forge_return_0, __proof_forge_return_1 {
-      __proof_forge_return_0, __proof_forge_return_1 := __proof_forge_crosscall_static_0_abi_u64_u64(target, method)
+    function f_EvmCrosscallProbe_call_remote_static_array(target, method) -> __pf_return_0, __pf_return_1 {
+      __pf_return_0, __pf_return_1 := __proof_forge_crosscall_static_0_abi_u64_u64(target, method)
     }
-    function f_EvmCrosscallProbe_call_remote_static_matrix(target, method) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 {
-      __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 := __proof_forge_crosscall_static_0_abi_u64_u64_u64_u64(target, method)
+    function f_EvmCrosscallProbe_call_remote_static_matrix(target, method) -> __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3 {
+      __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3 := __proof_forge_crosscall_static_0_abi_u64_u64_u64_u64(target, method)
     }
-    function f_EvmCrosscallProbe_call_remote_static_pair_array(target, method) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 {
-      __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 := __proof_forge_crosscall_static_0_abi_bool_u32_bool_u32(target, method)
+    function f_EvmCrosscallProbe_call_remote_static_pair_array(target, method) -> __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3 {
+      __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3 := __proof_forge_crosscall_static_0_abi_bool_u32_bool_u32(target, method)
     }
-    function f_EvmCrosscallProbe_call_remote_static_pair_array_arg(target, method, flag0, small0, flag1, small1) -> result {
+    function f_EvmCrosscallProbe_call_remote_static_pair_array_arg(target, method, flag0, small0, flag1, small1) -> __pf_result {
       let __proof_forge_array_struct_pairs_0_flag := flag0
       let __proof_forge_array_struct_pairs_0_small := small0
       let __proof_forge_array_struct_pairs_1_flag := flag1
       let __proof_forge_array_struct_pairs_1_small := small1
-      result := __proof_forge_crosscall_static_4(target, method, __proof_forge_array_struct_pairs_0_flag, __proof_forge_array_struct_pairs_0_small, __proof_forge_array_struct_pairs_1_flag, __proof_forge_array_struct_pairs_1_small)
+      __pf_result := __proof_forge_crosscall_static_4(target, method, __proof_forge_array_struct_pairs_0_flag, __proof_forge_array_struct_pairs_0_small, __proof_forge_array_struct_pairs_1_flag, __proof_forge_array_struct_pairs_1_small)
     }
-    function f_EvmCrosscallProbe_call_remote_static_pair_matrix(target, method) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3, __proof_forge_return_4, __proof_forge_return_5, __proof_forge_return_6, __proof_forge_return_7 {
-      __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3, __proof_forge_return_4, __proof_forge_return_5, __proof_forge_return_6, __proof_forge_return_7 := __proof_forge_crosscall_static_0_abi_bool_u32_bool_u32_bool_u32_bool_u32(target, method)
+    function f_EvmCrosscallProbe_call_remote_static_pair_matrix(target, method) -> __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3, __pf_return_4, __pf_return_5, __pf_return_6, __pf_return_7 {
+      __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3, __pf_return_4, __pf_return_5, __pf_return_6, __pf_return_7 := __proof_forge_crosscall_static_0_abi_bool_u32_bool_u32_bool_u32_bool_u32(target, method)
     }
-    function f_EvmCrosscallProbe_call_remote_static_pair_matrix_arg(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11) -> result {
-      result := __proof_forge_crosscall_static_8(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11)
+    function f_EvmCrosscallProbe_call_remote_static_pair_matrix_arg(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_static_8(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11)
     }
-    function f_EvmCrosscallProbe_call_remote_static_matrix_arg(target, method, a, b, c, d) -> result {
-      result := __proof_forge_crosscall_static_4(target, method, a, b, c, d)
+    function f_EvmCrosscallProbe_call_remote_static_matrix_arg(target, method, a, b, c, d) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_static_4(target, method, a, b, c, d)
     }
-    function f_EvmCrosscallProbe_call_remote_delegate(target, method) -> result {
-      result := __proof_forge_crosscall_delegate_0(target, method)
+    function f_EvmCrosscallProbe_call_remote_delegate(target, method) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_delegate_0(target, method)
     }
-    function f_EvmCrosscallProbe_call_remote_delegate_bool(target, method, flag) -> result {
-      result := __proof_forge_crosscall_delegate_1_bool(target, method, flag)
+    function f_EvmCrosscallProbe_call_remote_delegate_bool(target, method, flag) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_delegate_1_bool(target, method, flag)
     }
-    function f_EvmCrosscallProbe_call_remote_delegate_u32(target, method, x) -> result {
-      result := __proof_forge_crosscall_delegate_1_u32(target, method, x)
+    function f_EvmCrosscallProbe_call_remote_delegate_u32(target, method, x) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_delegate_1_u32(target, method, x)
     }
-    function f_EvmCrosscallProbe_call_remote_delegate_hash(target, method, value) -> result {
-      result := __proof_forge_crosscall_delegate_1_hash(target, method, value)
+    function f_EvmCrosscallProbe_call_remote_delegate_hash(target, method, value) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_delegate_1_hash(target, method, value)
     }
-    function f_EvmCrosscallProbe_call_remote_delegate_pair_arg(target, method, flag, small) -> result {
+    function f_EvmCrosscallProbe_call_remote_delegate_pair_arg(target, method, flag, small) -> __pf_result {
       let __proof_forge_struct_pair_flag := flag
       let __proof_forge_struct_pair_small := small
-      result := __proof_forge_crosscall_delegate_2_u32(target, method, __proof_forge_struct_pair_flag, __proof_forge_struct_pair_small)
+      __pf_result := __proof_forge_crosscall_delegate_2_u32(target, method, __proof_forge_struct_pair_flag, __proof_forge_struct_pair_small)
     }
-    function f_EvmCrosscallProbe_call_remote_delegate_pair(target, method) -> __proof_forge_return_0, __proof_forge_return_1 {
-      __proof_forge_return_0, __proof_forge_return_1 := __proof_forge_crosscall_delegate_0_abi_bool_u32(target, method)
+    function f_EvmCrosscallProbe_call_remote_delegate_pair(target, method) -> __pf_return_0, __pf_return_1 {
+      __pf_return_0, __pf_return_1 := __proof_forge_crosscall_delegate_0_abi_bool_u32(target, method)
     }
-    function f_EvmCrosscallProbe_call_remote_delegate_array(target, method) -> __proof_forge_return_0, __proof_forge_return_1 {
-      __proof_forge_return_0, __proof_forge_return_1 := __proof_forge_crosscall_delegate_0_abi_u64_u64(target, method)
+    function f_EvmCrosscallProbe_call_remote_delegate_array(target, method) -> __pf_return_0, __pf_return_1 {
+      __pf_return_0, __pf_return_1 := __proof_forge_crosscall_delegate_0_abi_u64_u64(target, method)
     }
-    function f_EvmCrosscallProbe_call_remote_delegate_matrix(target, method) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 {
-      __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 := __proof_forge_crosscall_delegate_0_abi_u64_u64_u64_u64(target, method)
+    function f_EvmCrosscallProbe_call_remote_delegate_matrix(target, method) -> __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3 {
+      __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3 := __proof_forge_crosscall_delegate_0_abi_u64_u64_u64_u64(target, method)
     }
-    function f_EvmCrosscallProbe_call_remote_delegate_pair_array(target, method) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 {
-      __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3 := __proof_forge_crosscall_delegate_0_abi_bool_u32_bool_u32(target, method)
+    function f_EvmCrosscallProbe_call_remote_delegate_pair_array(target, method) -> __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3 {
+      __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3 := __proof_forge_crosscall_delegate_0_abi_bool_u32_bool_u32(target, method)
     }
-    function f_EvmCrosscallProbe_call_remote_delegate_pair_array_arg(target, method, flag0, small0, flag1, small1) -> result {
+    function f_EvmCrosscallProbe_call_remote_delegate_pair_array_arg(target, method, flag0, small0, flag1, small1) -> __pf_result {
       let __proof_forge_array_struct_pairs_0_flag := flag0
       let __proof_forge_array_struct_pairs_0_small := small0
       let __proof_forge_array_struct_pairs_1_flag := flag1
       let __proof_forge_array_struct_pairs_1_small := small1
-      result := __proof_forge_crosscall_delegate_4(target, method, __proof_forge_array_struct_pairs_0_flag, __proof_forge_array_struct_pairs_0_small, __proof_forge_array_struct_pairs_1_flag, __proof_forge_array_struct_pairs_1_small)
+      __pf_result := __proof_forge_crosscall_delegate_4(target, method, __proof_forge_array_struct_pairs_0_flag, __proof_forge_array_struct_pairs_0_small, __proof_forge_array_struct_pairs_1_flag, __proof_forge_array_struct_pairs_1_small)
     }
-    function f_EvmCrosscallProbe_call_remote_delegate_pair_matrix(target, method) -> __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3, __proof_forge_return_4, __proof_forge_return_5, __proof_forge_return_6, __proof_forge_return_7 {
-      __proof_forge_return_0, __proof_forge_return_1, __proof_forge_return_2, __proof_forge_return_3, __proof_forge_return_4, __proof_forge_return_5, __proof_forge_return_6, __proof_forge_return_7 := __proof_forge_crosscall_delegate_0_abi_bool_u32_bool_u32_bool_u32_bool_u32(target, method)
+    function f_EvmCrosscallProbe_call_remote_delegate_pair_matrix(target, method) -> __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3, __pf_return_4, __pf_return_5, __pf_return_6, __pf_return_7 {
+      __pf_return_0, __pf_return_1, __pf_return_2, __pf_return_3, __pf_return_4, __pf_return_5, __pf_return_6, __pf_return_7 := __proof_forge_crosscall_delegate_0_abi_bool_u32_bool_u32_bool_u32_bool_u32(target, method)
     }
-    function f_EvmCrosscallProbe_call_remote_delegate_pair_matrix_arg(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11) -> result {
-      result := __proof_forge_crosscall_delegate_8(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11)
+    function f_EvmCrosscallProbe_call_remote_delegate_pair_matrix_arg(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_delegate_8(target, method, flag00, small00, flag01, small01, flag10, small10, flag11, small11)
     }
-    function f_EvmCrosscallProbe_call_remote_delegate_matrix_arg(target, method, a, b, c, d) -> result {
-      result := __proof_forge_crosscall_delegate_4(target, method, a, b, c, d)
+    function f_EvmCrosscallProbe_call_remote_delegate_matrix_arg(target, method, a, b, c, d) -> __pf_result {
+      __pf_result := __proof_forge_crosscall_delegate_4(target, method, a, b, c, d)
     }
-    function f_EvmCrosscallProbe_deploy_create(value) -> result {
-      result := __proof_forge_create_69602a60005260206000f3600052600a6016f3(value)
+    function f_EvmCrosscallProbe_deploy_create(value) -> __pf_result {
+      __pf_result := __proof_forge_create_69602a60005260206000f3600052600a6016f3(value)
     }
-    function f_EvmCrosscallProbe_deploy_create2(value, salt) -> result {
-      result := __proof_forge_create2_69602a60005260206000f3600052600a6016f3(value, salt)
+    function f_EvmCrosscallProbe_deploy_create2(value, salt) -> __pf_result {
+      __pf_result := __proof_forge_create2_69602a60005260206000f3600052600a6016f3(value, salt)
     }
     function __proof_forge_crosscall_0(target, selector) -> result {
       mstore(0, shl(224, selector))

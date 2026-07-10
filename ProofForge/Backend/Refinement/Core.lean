@@ -378,6 +378,7 @@ def isCounterShapeLowerable (module : Module) : Bool :=
   module.structs.size == 0 &&
     module.proxyPattern?.isNone &&
     module.nearCrosscallStrings.size == 0 &&
+    module.eventAbiWords.size == 0 &&
     !module.overflowChecked &&
     decide (module.allocator = defaultAllocator) &&
     counterEntrypointsMetadataPinned module.entrypoints.toList &&
@@ -651,12 +652,14 @@ theorem isCounterShapeLowerable_flags
     m.structs = #[] ∧
       m.proxyPattern? = none ∧
       m.nearCrosscallStrings = #[] ∧
+      m.eventAbiWords = #[] ∧
       m.overflowChecked = false ∧
       m.allocator = defaultAllocator ∧
       counterEntrypointsMetadataPinned m.entrypoints.toList = true := by
   simp only [isCounterShapeLowerable, Bool.and_eq_true, decide_eq_true_eq] at h
-  -- (((((structs ∧ proxy) ∧ near) ∧ !overflow) ∧ allocator) ∧ meta) ∧ shape
-  obtain ⟨⟨⟨⟨⟨⟨hstructsB, hproxyB⟩, hnearB⟩, hoverflowB⟩, halloc⟩, hmeta⟩, _hshape⟩ := h
+  -- ((((((structs ∧ proxy) ∧ near) ∧ event ABI) ∧ !overflow) ∧ allocator) ∧ meta) ∧ shape
+  obtain ⟨⟨⟨⟨⟨⟨⟨hstructsB, hproxyB⟩, hnearB⟩, heventAbiB⟩, hoverflowB⟩,
+      halloc⟩, hmeta⟩, _hshape⟩ := h
   have hstructs : m.structs = #[] :=
     Array.eq_empty_of_size_eq_zero (beq_iff_eq.mp hstructsB)
   have hproxy : m.proxyPattern? = none := by
@@ -668,12 +671,14 @@ theorem isCounterShapeLowerable_flags
       simp [Option.isNone] at hp
   have hnear : m.nearCrosscallStrings = #[] :=
     Array.eq_empty_of_size_eq_zero (beq_iff_eq.mp hnearB)
+  have heventAbi : m.eventAbiWords = #[] :=
+    Array.eq_empty_of_size_eq_zero (beq_iff_eq.mp heventAbiB)
   have hoverflow : m.overflowChecked = false := by
     cases hov : m.overflowChecked with
     | false => rfl
     | true =>
       simp [hov] at hoverflowB
-  exact ⟨hstructs, hproxy, hnear, hoverflow, halloc, hmeta⟩
+  exact ⟨hstructs, hproxy, hnear, heventAbi, hoverflow, halloc, hmeta⟩
 
 /-- PF-P3-01: shape-lowerable modules carry the Counter entrypoint triple. -/
 theorem isCounterShapeLowerable_entrypoints
@@ -792,7 +797,7 @@ theorem isCounterShapeLowerable_paramAbiWords_empty
     (ep : Entrypoint) (hep : ep ∈ m.entrypoints.toList) :
     ep.paramAbiWords = #[] := by
   have hmeta : counterEntrypointsMetadataPinned m.entrypoints.toList = true :=
-    (isCounterShapeLowerable_flags m h).2.2.2.2.2
+    (isCounterShapeLowerable_flags m h).2.2.2.2.2.2
   -- all (size == 0) = true and membership ⇒ size = 0
   have hall :
       (m.entrypoints.toList.all (fun e => e.paramAbiWords.size == 0)) = true := by
@@ -826,6 +831,7 @@ def counterShapeModule (name : String) : Module := {
   state := #[{ id := "count", kind := .scalar, type := .u64 }]
   entrypoints := #[counterInitializeEntrypoint, counterIncrementEntrypoint,
     counterGetEntrypoint]
+  eventAbiWords := #[]
   allocator := defaultAllocator
   proxyPattern? := none
   nearCrosscallStrings := #[]
@@ -844,12 +850,13 @@ theorem isCounterShapeLowerable_matches_counterShapeModule
       m.entrypoints = (counterShapeModule m.name).entrypoints ∧
       m.proxyPattern? = (counterShapeModule m.name).proxyPattern? ∧
       m.nearCrosscallStrings = (counterShapeModule m.name).nearCrosscallStrings ∧
+      m.eventAbiWords = (counterShapeModule m.name).eventAbiWords ∧
       m.overflowChecked = (counterShapeModule m.name).overflowChecked ∧
       m.allocator = (counterShapeModule m.name).allocator := by
-  obtain ⟨hstructs, hproxy, hnear, hoverflow, halloc, _⟩ :=
+  obtain ⟨hstructs, hproxy, hnear, heventAbi, hoverflow, halloc, _⟩ :=
     isCounterShapeLowerable_flags m h
   refine ⟨rfl, hstructs, isCounterShapeLowerable_state_array m h,
-    isCounterShapeLowerable_entrypoints_array m h, hproxy, hnear, hoverflow, ?_⟩
+    isCounterShapeLowerable_entrypoints_array m h, hproxy, hnear, heventAbi, hoverflow, ?_⟩
   simpa [counterShapeModule] using halloc
 
 /-- PF-P3-01: every shape-lowerable module is definitionally `counterShapeModule`
@@ -857,12 +864,13 @@ with the module's own name (full structure equality). -/
 theorem isCounterShapeLowerable_eq_counterShapeModule
     (m : Module) (h : isCounterShapeLowerable m = true) :
     m = counterShapeModule m.name := by
-  obtain ⟨_, hstructs, hstate, hentr, hproxy, hnear, hoverflow, halloc⟩ :=
+  obtain ⟨_, hstructs, hstate, hentr, hproxy, hnear, heventAbi, hoverflow, halloc⟩ :=
     isCounterShapeLowerable_matches_counterShapeModule m h
   cases m
-  case mk name structs state entrypoints allocator proxyPattern? nearCrosscallStrings overflowChecked =>
-    simp only [counterShapeModule] at hstructs hstate hentr hproxy hnear hoverflow halloc ⊢
-    subst hstructs; subst hstate; subst hentr; subst hproxy; subst hnear; subst hoverflow; subst halloc
+  case mk name structs state entrypoints eventAbiWords allocator proxyPattern? nearCrosscallStrings overflowChecked =>
+    simp only [counterShapeModule] at hstructs hstate hentr hproxy hnear heventAbi hoverflow halloc ⊢
+    subst hstructs; subst hstate; subst hentr; subst hproxy; subst hnear; subst heventAbi
+    subst hoverflow; subst halloc
     rfl
 
 /-- PF-P3-01 progressive structural skeleton: every shape-lowerable module has
@@ -877,6 +885,7 @@ theorem isCounterShapeLowerable_skeleton
     m.structs = #[] ∧
       m.proxyPattern? = none ∧
       m.nearCrosscallStrings = #[] ∧
+      m.eventAbiWords = #[] ∧
       m.overflowChecked = false ∧
       m.allocator = defaultAllocator ∧
       (∃ sd, m.state.toList = [sd] ∧
@@ -899,7 +908,7 @@ theorem isCounterShapeLowerable_skeleton
             e2.selector? = some "6d4ce63c" ∧
             e2.returns = .u64 ∧ e2.params = #[] ∧ e2.kind = .function ∧
             e2.body = #[.return (.effect (.storageScalarRead "count"))]) := by
-  obtain ⟨hstructs, hproxy, hnear, hoverflow, halloc, _hmeta⟩ :=
+  obtain ⟨hstructs, hproxy, hnear, heventAbi, hoverflow, halloc, _hmeta⟩ :=
     isCounterShapeLowerable_flags m h
   obtain ⟨sd, hstate, _, hsd⟩ := isCounterShapeLowerable_state m h
   obtain ⟨e0, e1, e2, heps, h0, h1, h2⟩ := isCounterShapeLowerable_entrypoints m h
@@ -915,7 +924,7 @@ theorem isCounterShapeLowerable_skeleton
   have heps_mem0 : e0 ∈ m.entrypoints.toList := by simp [heps]
   have heps_mem1 : e1 ∈ m.entrypoints.toList := by simp [heps]
   have heps_mem2 : e2 ∈ m.entrypoints.toList := by simp [heps]
-  refine ⟨hstructs, hproxy, hnear, hoverflow, halloc, ⟨sd, hstate, hsd⟩,
+  refine ⟨hstructs, hproxy, hnear, heventAbi, hoverflow, halloc, ⟨sd, hstate, hsd⟩,
     ⟨e0, e1, e2, heps,
       isCounterShapeLowerable_paramAbiWords_empty m h e0 heps_mem0,
       isCounterShapeLowerable_paramAbiWords_empty m h e1 heps_mem1,

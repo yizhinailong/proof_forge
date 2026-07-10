@@ -31,6 +31,26 @@ object "EvmPackedStorageProbe" {
       mstore(0, _r)
       return(0, 32)
     }
+    case 0x48bedaed {
+      let _r := f_EvmPackedStorageProbe_packed_nested_checked_overflow_reverts()
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0xa691f1b1 {
+      let _r := f_EvmPackedStorageProbe_packed_mixed_overflow_reverts()
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0xbaa34f4a {
+      let _r := f_EvmPackedStorageProbe_packed_nested_wrapping_preserves_neighbors()
+      mstore(0, _r)
+      return(0, 32)
+    }
+    case 0xffb3ca34 {
+      let _r := f_EvmPackedStorageProbe_packed_checked_mul_zero_rhs_succeeds()
+      mstore(0, _r)
+      return(0, 32)
+    }
     case 0xab0efcd6 {
       let _r := f_EvmPackedStorageProbe_packed_assign_op_overflow_reverts()
       mstore(0, _r)
@@ -65,7 +85,7 @@ object "EvmPackedStorageProbe" {
     default {
       revert(0, 0)
     }
-    function f_EvmPackedStorageProbe_packed_slot0_lifecycle() -> result {
+    function f_EvmPackedStorageProbe_packed_slot0_lifecycle() -> __pf_result {
       {
         let __pf_packed_value := 1
         if gt(__pf_packed_value, 255) {
@@ -125,9 +145,9 @@ object "EvmPackedStorageProbe" {
       if iszero(eq(and(shr(48, sload(0)), 18446744073709551615), 99999)) {
         revert(0, 0)
       }
-      result := and(shr(48, sload(0)), 18446744073709551615)
+      __pf_result := and(shr(48, sload(0)), 18446744073709551615)
     }
-    function f_EvmPackedStorageProbe_packed_slot1_lifecycle() -> result {
+    function f_EvmPackedStorageProbe_packed_slot1_lifecycle() -> __pf_result {
       {
         let __pf_packed_value := 1
         if gt(__pf_packed_value, 255) {
@@ -174,9 +194,9 @@ object "EvmPackedStorageProbe" {
       if iszero(eq(and(shr(0, sload(0)), 255), 1)) {
         revert(0, 0)
       }
-      result := and(shr(112, sload(0)), 340282366920938463463374607431768211455)
+      __pf_result := and(shr(112, sload(0)), 340282366920938463463374607431768211455)
     }
-    function f_EvmPackedStorageProbe_packed_slot2_lifecycle() -> result {
+    function f_EvmPackedStorageProbe_packed_slot2_lifecycle() -> __pf_result {
       {
         let __pf_packed_value := 97433442511412352346923430580824580583949948245
         if gt(__pf_packed_value, 1461501637330902918203684832716283019655932542975) {
@@ -214,9 +234,9 @@ object "EvmPackedStorageProbe" {
       if iszero(eq(and(shr(160, sload(1)), 255), 1)) {
         revert(0, 0)
       }
-      result := and(shr(160, sload(1)), 255)
+      __pf_result := and(shr(160, sload(1)), 255)
     }
-    function f_EvmPackedStorageProbe_packed_slot3_lifecycle() -> result {
+    function f_EvmPackedStorageProbe_packed_slot3_lifecycle() -> __pf_result {
       {
         let __pf_packed_value := 500000
         if gt(__pf_packed_value, 18446744073709551615) {
@@ -276,9 +296,9 @@ object "EvmPackedStorageProbe" {
       if iszero(eq(and(shr(40, sload(2)), 255), 1)) {
         revert(0, 0)
       }
-      result := and(shr(168, sload(1)), 18446744073709551615)
+      __pf_result := and(shr(168, sload(1)), 18446744073709551615)
     }
-    function f_EvmPackedStorageProbe_packed_assign_op() -> result {
+    function f_EvmPackedStorageProbe_packed_assign_op() -> __pf_result {
       {
         let __pf_packed_value := 10
         if gt(__pf_packed_value, 255) {
@@ -287,7 +307,7 @@ object "EvmPackedStorageProbe" {
         sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(__pf_packed_value, 255))))
       }
       {
-        let __pf_packed_value := __pf_checked_add(and(shr(8, sload(0)), 255), 5)
+        let __pf_packed_value := __pf_checked_width(__pf_checked_add(__pf_checked_width(and(shr(8, sload(0)), 255), 255), __pf_checked_width(5, 255)), 255)
         if gt(__pf_packed_value, 255) {
           revert(0, 0)
         }
@@ -297,7 +317,7 @@ object "EvmPackedStorageProbe" {
         revert(0, 0)
       }
       {
-        let __pf_packed_value := __pf_checked_mul(and(shr(8, sload(0)), 255), 2)
+        let __pf_packed_value := __pf_checked_width(__pf_checked_mul(__pf_checked_width(and(shr(8, sload(0)), 255), 255), __pf_checked_width(2, 255)), 255)
         if gt(__pf_packed_value, 255) {
           revert(0, 0)
         }
@@ -314,7 +334,7 @@ object "EvmPackedStorageProbe" {
         sstore(0, or(and(sload(0), not(shl(16, 4294967295))), shl(16, and(__pf_packed_value, 4294967295))))
       }
       {
-        let __pf_packed_value := __pf_checked_add(and(shr(16, sload(0)), 4294967295), 8)
+        let __pf_packed_value := __pf_checked_width(__pf_checked_add(__pf_checked_width(and(shr(16, sload(0)), 4294967295), 4294967295), __pf_checked_width(8, 4294967295)), 4294967295)
         if gt(__pf_packed_value, 4294967295) {
           revert(0, 0)
         }
@@ -326,9 +346,9 @@ object "EvmPackedStorageProbe" {
       if iszero(eq(and(shr(8, sload(0)), 255), 30)) {
         revert(0, 0)
       }
-      result := and(shr(8, sload(0)), 255)
+      __pf_result := and(shr(8, sload(0)), 255)
     }
-    function f_EvmPackedStorageProbe_packed_assign_op_wraps() -> result {
+    function f_EvmPackedStorageProbe_packed_assign_op_wraps() -> __pf_result {
       {
         let __pf_packed_value := 0
         if gt(__pf_packed_value, 255) {
@@ -343,7 +363,7 @@ object "EvmPackedStorageProbe" {
         }
         sstore(0, or(and(sload(0), not(shl(16, 4294967295))), shl(16, and(__pf_packed_value, 4294967295))))
       }
-      sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(add(255, 1), 255))))
+      sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(and(add(255, 1), 255), 255))))
       if iszero(eq(and(shr(8, sload(0)), 255), 0)) {
         revert(0, 0)
       }
@@ -353,9 +373,117 @@ object "EvmPackedStorageProbe" {
       if iszero(eq(and(shr(16, sload(0)), 4294967295), 305419896)) {
         revert(0, 0)
       }
-      result := and(shr(0, sload(0)), 255)
+      __pf_result := and(shr(0, sload(0)), 255)
     }
-    function f_EvmPackedStorageProbe_packed_assign_op_overflow_reverts() -> result {
+    function f_EvmPackedStorageProbe_packed_nested_checked_overflow_reverts() -> __pf_result {
+      {
+        let __pf_packed_value := 0
+        if gt(__pf_packed_value, 255) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(0, 255))), shl(0, and(__pf_packed_value, 255))))
+      }
+      {
+        let __pf_packed_value := 305419896
+        if gt(__pf_packed_value, 4294967295) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(16, 4294967295))), shl(16, and(__pf_packed_value, 4294967295))))
+      }
+      {
+        let __pf_packed_value := __pf_checked_width(__pf_checked_sub(__pf_checked_width(__pf_checked_width(__pf_checked_add(__pf_checked_width(255, 255), __pf_checked_width(1, 255)), 255), 255), __pf_checked_width(1, 255)), 255)
+        if gt(__pf_packed_value, 255) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(__pf_packed_value, 255))))
+      }
+      __pf_result := and(shr(0, sload(0)), 255)
+    }
+    function f_EvmPackedStorageProbe_packed_mixed_overflow_reverts() -> __pf_result {
+      {
+        let __pf_packed_value := 0
+        if gt(__pf_packed_value, 255) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(0, 255))), shl(0, and(__pf_packed_value, 255))))
+      }
+      {
+        let __pf_packed_value := 305419896
+        if gt(__pf_packed_value, 4294967295) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(16, 4294967295))), shl(16, and(__pf_packed_value, 4294967295))))
+      }
+      {
+        let __pf_packed_value := and(sub(__pf_checked_width(__pf_checked_add(__pf_checked_width(255, 255), __pf_checked_width(1, 255)), 255), 256), 255)
+        if gt(__pf_packed_value, 255) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(__pf_packed_value, 255))))
+      }
+      __pf_result := and(shr(0, sload(0)), 255)
+    }
+    function f_EvmPackedStorageProbe_packed_nested_wrapping_preserves_neighbors() -> __pf_result {
+      {
+        let __pf_packed_value := 0
+        if gt(__pf_packed_value, 255) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(0, 255))), shl(0, and(__pf_packed_value, 255))))
+      }
+      {
+        let __pf_packed_value := 305419896
+        if gt(__pf_packed_value, 4294967295) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(16, 4294967295))), shl(16, and(__pf_packed_value, 4294967295))))
+      }
+      sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(and(sub(and(add(255, 1), 255), 1), 255), 255))))
+      if iszero(eq(and(shr(8, sload(0)), 255), 255)) {
+        revert(0, 0)
+      }
+      if iszero(eq(and(shr(0, sload(0)), 255), 0)) {
+        revert(0, 0)
+      }
+      if iszero(eq(and(shr(16, sload(0)), 4294967295), 305419896)) {
+        revert(0, 0)
+      }
+      __pf_result := and(shr(0, sload(0)), 255)
+    }
+    function f_EvmPackedStorageProbe_packed_checked_mul_zero_rhs_succeeds() -> __pf_result {
+      {
+        let __pf_packed_value := 0
+        if gt(__pf_packed_value, 255) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(0, 255))), shl(0, and(__pf_packed_value, 255))))
+      }
+      {
+        let __pf_packed_value := 305419896
+        if gt(__pf_packed_value, 4294967295) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(16, 4294967295))), shl(16, and(__pf_packed_value, 4294967295))))
+      }
+      {
+        let __pf_packed_value := __pf_checked_width(__pf_checked_mul(__pf_checked_width(7, 255), __pf_checked_width(0, 255)), 255)
+        if gt(__pf_packed_value, 255) {
+          revert(0, 0)
+        }
+        sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(__pf_packed_value, 255))))
+      }
+      if iszero(eq(and(shr(8, sload(0)), 255), 0)) {
+        revert(0, 0)
+      }
+      if iszero(eq(and(shr(0, sload(0)), 255), 0)) {
+        revert(0, 0)
+      }
+      if iszero(eq(and(shr(16, sload(0)), 4294967295), 305419896)) {
+        revert(0, 0)
+      }
+      __pf_result := and(shr(0, sload(0)), 255)
+    }
+    function f_EvmPackedStorageProbe_packed_assign_op_overflow_reverts() -> __pf_result {
       {
         let __pf_packed_value := 0
         if gt(__pf_packed_value, 255) {
@@ -378,15 +506,15 @@ object "EvmPackedStorageProbe" {
         sstore(0, or(and(sload(0), not(shl(16, 4294967295))), shl(16, and(__pf_packed_value, 4294967295))))
       }
       {
-        let __pf_packed_value := __pf_checked_add(and(shr(8, sload(0)), 255), 1)
+        let __pf_packed_value := __pf_checked_width(__pf_checked_add(__pf_checked_width(and(shr(8, sload(0)), 255), 255), __pf_checked_width(1, 255)), 255)
         if gt(__pf_packed_value, 255) {
           revert(0, 0)
         }
         sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(__pf_packed_value, 255))))
       }
-      result := and(shr(0, sload(0)), 255)
+      __pf_result := and(shr(0, sload(0)), 255)
     }
-    function f_EvmPackedStorageProbe_packed_checked_write_overflow_reverts() -> result {
+    function f_EvmPackedStorageProbe_packed_checked_write_overflow_reverts() -> __pf_result {
       {
         let __pf_packed_value := 0
         if gt(__pf_packed_value, 255) {
@@ -402,15 +530,15 @@ object "EvmPackedStorageProbe" {
         sstore(0, or(and(sload(0), not(shl(16, 4294967295))), shl(16, and(__pf_packed_value, 4294967295))))
       }
       {
-        let __pf_packed_value := __pf_checked_add(255, 1)
+        let __pf_packed_value := __pf_checked_width(__pf_checked_add(__pf_checked_width(255, 255), __pf_checked_width(1, 255)), 255)
         if gt(__pf_packed_value, 255) {
           revert(0, 0)
         }
         sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(__pf_packed_value, 255))))
       }
-      result := and(shr(0, sload(0)), 255)
+      __pf_result := and(shr(0, sload(0)), 255)
     }
-    function f_EvmPackedStorageProbe_packed_checked_literal_write_overflow_reverts() -> result {
+    function f_EvmPackedStorageProbe_packed_checked_literal_write_overflow_reverts() -> __pf_result {
       {
         let __pf_packed_value := 0
         if gt(__pf_packed_value, 255) {
@@ -432,9 +560,9 @@ object "EvmPackedStorageProbe" {
         }
         sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(__pf_packed_value, 255))))
       }
-      result := and(shr(0, sload(0)), 255)
+      __pf_result := and(shr(0, sload(0)), 255)
     }
-    function f_EvmPackedStorageProbe_packed_checked_local_write_overflow_reverts() -> result {
+    function f_EvmPackedStorageProbe_packed_checked_local_write_overflow_reverts() -> __pf_result {
       {
         let __pf_packed_value := 0
         if gt(__pf_packed_value, 255) {
@@ -457,9 +585,9 @@ object "EvmPackedStorageProbe" {
         }
         sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(__pf_packed_value, 255))))
       }
-      result := and(shr(0, sload(0)), 255)
+      __pf_result := and(shr(0, sload(0)), 255)
     }
-    function f_EvmPackedStorageProbe_packed_checked_write_param(candidate) -> result {
+    function f_EvmPackedStorageProbe_packed_checked_write_param(candidate) -> __pf_result {
       {
         let __pf_packed_value := candidate
         if gt(__pf_packed_value, 255) {
@@ -467,7 +595,13 @@ object "EvmPackedStorageProbe" {
         }
         sstore(0, or(and(sload(0), not(shl(8, 255))), shl(8, and(__pf_packed_value, 255))))
       }
-      result := and(shr(8, sload(0)), 255)
+      __pf_result := and(shr(8, sload(0)), 255)
+    }
+    function __pf_checked_width(value, maxValue) -> result {
+      if gt(value, maxValue) {
+        revert(0, 0)
+      }
+      result := value
     }
     function __pf_checked_add(a, b) -> r {
       if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
@@ -482,7 +616,7 @@ object "EvmPackedStorageProbe" {
       r := sub(a, b)
     }
     function __pf_checked_mul(a, b) -> r {
-      if iszero(a) {
+      if or(iszero(a), iszero(b)) {
         r := 0
         leave
       }

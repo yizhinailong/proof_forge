@@ -169,9 +169,11 @@ evm-plan:
 
 # Check the EVM semantic plan (entrypoints, events, metadata) smoke.
 evm-semantic-plan:
-    lake build ProofForge.Backend.Evm.IR ProofForge.IR.Examples.Counter ProofForge.IR.Examples.EvmMapProbe ProofForge.IR.Examples.EvmStorageArrayProbe ProofForge.IR.Examples.EvmStorageStructProbe ProofForge.IR.Examples.EvmPackedStorageProbe ProofForge.IR.Examples.EventProbe
+    lake build ProofForge.Backend.Evm.IR ProofForge.IR.Examples.Counter ProofForge.IR.Examples.EvmMapProbe ProofForge.IR.Examples.EvmStorageArrayProbe ProofForge.IR.Examples.EvmStorageStructProbe ProofForge.IR.Examples.EvmPackedStorageProbe ProofForge.IR.Examples.EventProbe ProofForge.Contract.Stdlib.UUPSUpgradeable ProofForge.Contract.Stdlib.ERC721 ProofForge.Contract.Stdlib.ERC1155 ProofForge.Contract.Stdlib.ERC4626
     lake env lean --run Tests/Backend/Evm/EvmSemanticPlan.lean
     lake env lean --run Tests/Backend/Evm/EvmPackedStorage.lean
+    lake env lean --run Tests/Backend/Evm/EvmAbiSecurity.lean
+    PATH="$HOME/.foundry/bin:$PATH" lake env lean --run Tests/Backend/Evm/EvmStandardEvents.lean
 
 # Check the RFC 0014 Phase 1 shared validate subset (identifiers, return-path predicate, type-check helpers).
 shared-validate-smoke:

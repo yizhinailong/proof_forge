@@ -32,17 +32,17 @@ level）由 `proof-forge --list-targets --json` 生成到
 
 所有后端都在 `main` 上（"链"是目录和 target id，不是分支）。生命周期阶段见
 [docs/targets/README.md](../targets/README.md)。
-主三链完成规约 (D-045) 已关闭，`evm`、`solana-sbpf-asm` 和 `wasm-near`
-的全部 P0 SDK blocker 均已解决：当前剩余 **0 个开放 P0 blocker**。通过
-portable Counter 流程，`evm`、`solana-sbpf-asm`、`wasm-near` 和
-`move-sui` 已具有统一 SDK schema/layout 输出。三链 portable 场景
+主三链 P0 后端门禁规约 (D-045) 已关闭，但 SDK 深度尚未完成：当前差距清单仍有
+**3 个开放 P0 SDK blocker**（EVM 1 个、NEAR 2 个；Solana 0 个）。通过 portable
+Counter 流程，`evm`、`solana-sbpf-asm`、`wasm-near` 和 `move-sui` 已具有
+统一 SDK schema/layout 输出。三链 portable 场景
 （Counter、ValueVault）可通过 `just portable-counter-multi-target` 和
 `just portable-value-vault` 在 EVM、Solana 和 NEAR 上编译并执行；Sui
 有意限定为 Counter MVP，并使用本地 `sui move build/test` 验证。
 
 | Target id | 管线 | 阶段 | 本地验证 |
 |---|---|---|---|
-| `evm` | Lean / portable IR → Yul → `solc` → bytecode | Experimental（生产级门禁） | golden Yul、诊断、Foundry 运行时冒烟（15 个测试）、Anvil 部署、动态构造函数 Anvil、构造函数 body、部署 gas-limit/price/priority flags、stdlib（ERC-20/721/1155/165/AccessControl/Ownable/Pausable/ReentrancyGuard/UUPS/Create2；见 [sdk-ecosystem-gaps](../sdk-ecosystem-gaps-2026-07.md)） |
+| `evm` | Lean / portable IR → Yul → `solc` → bytecode | Experimental（广泛 CI 门禁；不是完整 Solidity SDK） | golden Yul、诊断、Foundry 运行时冒烟（35 个测试）、Anvil 部署、动态构造函数 Anvil、构造函数 body、部署 gas-limit/price/priority flags、stdlib（ERC-20/721/1155/165/AccessControl/Ownable/Pausable/ReentrancyGuard/UUPS/Create2；见 [sdk-ecosystem-gaps](../sdk-ecosystem-gaps-2026-07.md)） |
 | `solana-sbpf-asm` | portable IR → sBPF assembly → `sbpf` → ELF | Experimental | Mollusk 测试、Surfpool/Rust live 冒烟、Pinocchio 等价性门禁、indexed events、Memo CPI、Associated Token `create_idempotent` CPI、Token-2022 扩展、map storage、nativeValue lamports read |
 | `wasm-near` | portable IR → `EmitWat`（Wasm AST → WAT）→ `wat2wasm` | Experimental | 诊断、IR 覆盖清单、形式化 trace obligation、target-first 冒烟、离线宿主冒烟（signer+deposit+promise stubs）、artifact/deploy metadata、NEP-141 FT stdlib、aggregate ABI params、nested mapKey paths、nativeValue U64 truncation、eventEmitIndexed flattening |
 | `wasm-stellar-soroban` | portable IR → `EmitWat` + `HostBridge.soroban` → WAT → `wat2wasm` | Counter MVP（PF-P3-02 六门） | `just soroban-promotion`（源身份 · fail-closed · HostBridge · wat2wasm · offline-host 生命周期 · 文档）；auth 仍为 always-auth spike；Stellar CLI/TTL 为后续 |
@@ -202,10 +202,14 @@ flowchart TB
 Phase 0: EVM 基线                          （完成）
 Phase 1: target registry + portable IR     （完成）
 Phase 2+: 并行后端 spike                   （Solana、NEAR、Psy 已在 main；
+                                            Sui 为 Counter MVP；
                                             Aleo、CF Workers 为 research）
-当前:     shared scenario 在 evm + solana-sbpf-asm + wasm-near 跑通，
-          合并收敛跟进（Workstream 24），
-          形式化验证路线图（Workstream 25）
+Phase 3:  三链 P0 后端门禁                  （完成——Counter + ValueVault
+                                            在 evm + solana-sbpf-asm +
+                                            wasm-near 上可移植）
+当前:     3 个开放 P0 SDK blocker——EVM typed runtime custom-error args；
+          NEAR 参数化 TokenSpec runtime + NEP-145 refund guard；
+          随后推进 P1 深度和形式化验证（Workstream 25）
 之后:     Move 家族（Aptos 优先）、云平台（两个以上目标达到
           Experimental 且 shared-scenario 对齐后；D-010）
 ```

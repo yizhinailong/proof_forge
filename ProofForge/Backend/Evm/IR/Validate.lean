@@ -432,7 +432,12 @@ def validateEffectStmtTypes (module : Module) (env : TypeEnv) : Effect → Excep
   | .storageScalarWrite stateId value => do
       ensureType s!"scalar state `{stateId}` write" (← scalarStateType module stateId) (← inferExprType module env value)
   | .storageScalarAssignOp stateId op value => do
-      ensureAssignOpTypes op (← scalarStateType module stateId) (← inferExprType module env value)
+      if stateId == "$eip1967.implementation" then
+        .error {
+          message := "compound assignment is not allowed for the EIP-1967 implementation state"
+        }
+      else
+        ensureAssignOpTypes op (← scalarStateType module stateId) (← inferExprType module env value)
   | .storageMapContains _ _ =>
       .error { message := "storage.map.contains must be used as an expression" }
   | .storageMapGet _ _ =>

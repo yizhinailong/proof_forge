@@ -48,19 +48,19 @@ object "AccessControl" {
     default {
       revert(0, 0)
     }
-    function f_AccessControl_hasRole(role, who) -> result {
+    function f_AccessControl_hasRole(role, who) -> __pf_result {
       let member := sload(__proof_forge_map_slot(__proof_forge_map_slot(0, role), who))
-      result := iszero(eq(member, 0))
+      __pf_result := iszero(eq(member, 0))
     }
     function f_AccessControl_grantRole(role, who) {
       if iszero(iszero(eq(sload(__proof_forge_map_slot(__proof_forge_map_slot(0, 0), caller())), 0))) {
         revert(0, 0)
       }
       {
-        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(0, role), who)
-        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, role), who)
-        sstore(_slot, 1)
-        sstore(_presence_slot, 1)
+        let __pf_storage_slot := __proof_forge_map_slot(__proof_forge_map_slot(0, role), who)
+        let __pf_storage_presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, role), who)
+        sstore(__pf_storage_slot, 1)
+        sstore(__pf_storage_presence_slot, 1)
       }
     }
     function f_AccessControl_revokeRole(role, who) {
@@ -68,19 +68,19 @@ object "AccessControl" {
         revert(0, 0)
       }
       {
-        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(0, role), who)
-        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, role), who)
-        sstore(_slot, 0)
-        sstore(_presence_slot, 1)
+        let __pf_storage_slot := __proof_forge_map_slot(__proof_forge_map_slot(0, role), who)
+        let __pf_storage_presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, role), who)
+        sstore(__pf_storage_slot, 0)
+        sstore(__pf_storage_presence_slot, 1)
       }
     }
     function f_AccessControl_init() {
       let admin := caller()
       {
-        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(0, 0), admin)
-        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, 0), admin)
-        sstore(_slot, 1)
-        sstore(_presence_slot, 1)
+        let __pf_storage_slot := __proof_forge_map_slot(__proof_forge_map_slot(0, 0), admin)
+        let __pf_storage_presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, 0), admin)
+        sstore(__pf_storage_slot, 1)
+        sstore(__pf_storage_presence_slot, 1)
       }
     }
     function __proof_forge_map_slot(slot, key) -> result {

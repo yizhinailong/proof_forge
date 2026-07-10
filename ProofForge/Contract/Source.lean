@@ -210,6 +210,7 @@ scoped syntax "state " ident " : " term : contractItem
 scoped syntax "mapping " ident " from " term " to " term : contractItem
 scoped syntax "binding " ident " : " term : contractItem
 scoped syntax "event " ident : contractItem
+scoped syntax "event " ident " abi " term : contractItem
 scoped syntax "allocator " "bump" : contractItem
 scoped syntax "account " ident " readonly" : contractItem
 scoped syntax "account " ident " readonly " "signer" : contractItem
@@ -722,6 +723,10 @@ def lowerItem (item : TSyntax `contractItem)
       return { action? := some action, binder := mkMapLet name keyType valueType }
   | `(contractItem| binding $name:ident : $type:term) =>
       return { binder := mkBindingLet name type }
+  | `(contractItem| event $name:ident abi $fields:term) =>
+      let nameLit := identNameLit name
+      let action ← `(ProofForge.Contract.Surface.declareEventAbi $nameLit $fields)
+      return { action? := some action, binder := mkEventLet name }
   | `(contractItem| event $name:ident) =>
       return { binder := mkEventLet name }
   | `(contractItem| use $action:term) =>

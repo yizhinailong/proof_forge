@@ -43,6 +43,55 @@ for raw_path in sys.argv[1:]:
 print("foundry-smoke: CREATE2 factory address ABI metadata ok")
 PY
 
+python3 - \
+  "$OUT_DIR/CounterUUPSImpl.proof-forge-artifact.json" \
+  "$OUT_DIR/ERC721Probe.proof-forge-artifact.json" \
+  "$OUT_DIR/ERC1155.proof-forge-artifact.json" \
+  "$OUT_DIR/ERC4626.proof-forge-artifact.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+expected = {
+    "CounterUUPSImpl": {
+        "Upgraded": ("Upgraded(address)", ["address"]),
+    },
+    "ERC721Probe": {
+        "Transfer": ("Transfer(address,address,uint256)", ["address", "address", "uint256"]),
+    },
+    "ERC1155": {
+        "ApprovalForAll": ("ApprovalForAll(address,address,bool)", ["address", "address", "bool"]),
+        "TransferSingle": (
+            "TransferSingle(address,address,address,uint256,uint256)",
+            ["address", "address", "address", "uint256", "uint256"],
+        ),
+    },
+    "ERC4626": {
+        "Deposit": ("Deposit(address,address,uint256,uint256)", ["address", "address", "uint256", "uint256"]),
+        "Withdraw": (
+            "Withdraw(address,address,address,uint256,uint256)",
+            ["address", "address", "address", "uint256", "uint256"],
+        ),
+    },
+}
+
+for raw_path in sys.argv[1:]:
+    path = Path(raw_path)
+    artifact = json.loads(path.read_text())
+    fixture = artifact["fixture"]
+    events = {event["name"]: event for event in artifact["abi"]["events"]}
+    for name, (signature, field_types) in expected[fixture].items():
+        event = events[name]
+        actual_types = [
+            field["type"]
+            for field in event["indexedFields"] + event["dataFields"]
+        ]
+        assert event["signature"] == signature, f"{path}: {name} signature"
+        assert actual_types == field_types, f"{path}: {name} field ABI types"
+
+print("foundry-smoke: standard event ABI metadata ok")
+PY
+
 if [[ -n "${PROOF_FORGE_BIN:-}" ]]; then
   proof_forge=("$PROOF_FORGE_BIN")
 else
@@ -213,6 +262,18 @@ contract PeerOracle {
 contract ERC4626AssetMock {
     mapping(address => uint256) public balanceOf;
     uint256 public transferFeeBps;
+    bool public failTransferFrom;
+    bool public suppressTransferFromMove;
+    bool public failTransfer;
+    bool public suppressTransferMove;
+    uint256 public falseTransferCall;
+    uint256 public transferFromCalls;
+    uint256 public transferCalls;
+    address public callbackVault;
+    uint8 public callbackMode;
+    bool public callbackAttempted;
+    bool public callbackSucceeded;
+    bool private callbackActive;
 
     function setTransferFeeBps(uint256 value) external {
         require(value <= 10_000, "fee too high");
@@ -223,18 +284,59 @@ contract ERC4626AssetMock {
         balanceOf[recipient] += amount;
     }
 
+    function setTransferFromBehavior(bool result, bool moves) external {
+        failTransferFrom = !result;
+        suppressTransferFromMove = !moves;
+    }
+
+    function setTransferBehavior(bool result, bool moves) external {
+        failTransfer = !result;
+        suppressTransferMove = !moves;
+    }
+
+    function setFalseTransferCall(uint256 callNumber) external {
+        falseTransferCall = callNumber;
+    }
+
+    function setCallback(address vault, uint8 mode) external {
+        callbackVault = vault;
+        callbackMode = mode;
+        callbackAttempted = false;
+        callbackSucceeded = false;
+    }
+
+    function tryCallback(uint8 mode) internal {
+        if (callbackMode != mode || callbackActive) return;
+        callbackActive = true;
+        callbackAttempted = true;
+        (callbackSucceeded,) = callbackVault.call(
+            abi.encodeWithSignature("deposit(uint256,address)", 1, address(this))
+        );
+        callbackActive = false;
+    }
+
     function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-        require(balanceOf[from] >= amount, "insufficient mock balance");
-        balanceOf[from] -= amount;
-        balanceOf[to] += amount - (amount * transferFeeBps / 10_000);
-        return true;
+        transferFromCalls += 1;
+        tryCallback(1);
+        if (!suppressTransferFromMove) {
+            require(balanceOf[from] >= amount, "insufficient mock balance");
+            balanceOf[from] -= amount;
+            balanceOf[to] += amount - (amount * transferFeeBps / 10_000);
+        }
+        return !failTransferFrom;
     }
 
     function transfer(address to, uint256 amount) external returns (bool) {
-        require(balanceOf[msg.sender] >= amount, "insufficient mock balance");
-        balanceOf[msg.sender] -= amount;
-        balanceOf[to] += amount - (amount * transferFeeBps / 10_000);
-        return true;
+        transferCalls += 1;
+        tryCallback(2);
+        bool forcedFalse = falseTransferCall != 0 && transferCalls == falseTransferCall;
+        bool moves = forcedFalse ? false : !suppressTransferMove;
+        if (moves) {
+            require(balanceOf[msg.sender] >= amount, "insufficient mock balance");
+            balanceOf[msg.sender] -= amount;
+            balanceOf[to] += amount - (amount * transferFeeBps / 10_000);
+        }
+        return forcedFalse ? false : !failTransfer;
     }
 }
 
@@ -243,6 +345,24 @@ contract ProofForgeSmokeTest {
     address constant ERC4626_ACTOR = address(0xA11CE4626);
 
     event Deployed(address indexed addr, bytes32 indexed salt);
+    event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+    event ApprovalForAll(address indexed account, address indexed operator, bool approved);
+    event TransferSingle(
+        address indexed operator,
+        address indexed from,
+        address indexed to,
+        uint256 id,
+        uint256 value
+    );
+    event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares);
+    event Withdraw(
+        address indexed sender,
+        address indexed receiver,
+        address indexed owner,
+        uint256 assets,
+        uint256 shares
+    );
+    event Upgraded(address indexed implementation);
 
     function assertTrue(bool value) internal pure {
         require(value, "assertTrue failed");
@@ -291,22 +411,21 @@ contract ProofForgeSmokeTest {
         uint256 feeBps_,
         address feeRecipient_
     ) internal {
-        // Packed slot 0: asset, vaultSelf, totalAssets, totalSupply (u64 each).
-        uint256 slot0 = uint256(uint160(asset))
-            | (uint256(uint160(vault)) << 64)
-            | (totalAssets_ << 128)
-            | (totalSupply_ << 192);
-        vm.store(vault, bytes32(uint256(0)), bytes32(slot0));
-        // Packed slot 2: two scratch words, feeBps, feeRecipient (u64 each).
+        // Address slots are full 160-bit words; adjacent u64 fields use the
+        // remaining packed bytes where available.
+        vm.store(vault, bytes32(uint256(0)), bytes32(uint256(uint160(asset))));
         vm.store(
             vault,
-            bytes32(uint256(2)),
-            bytes32((feeBps_ << 128) | (uint256(uint160(feeRecipient_)) << 192))
+            bytes32(uint256(1)),
+            bytes32(uint256(uint160(vault)) | (totalAssets_ << 160))
         );
+        vm.store(vault, bytes32(uint256(2)), bytes32(totalSupply_));
+        vm.store(vault, bytes32(uint256(3)), bytes32(feeBps_ << 192));
+        vm.store(vault, bytes32(uint256(4)), bytes32(uint256(uint160(feeRecipient_))));
     }
 
     function setERC4626ShareBalance(address vault, address holder, uint256 amount) internal {
-        vm.store(vault, keccak256(abi.encode(uint256(uint160(holder)), uint256(3))), bytes32(amount));
+        vm.store(vault, keccak256(abi.encode(uint256(uint160(holder)), uint256(6))), bytes32(amount));
     }
 
     function installERC4626(
@@ -614,12 +733,8 @@ contract ProofForgeSmokeTest {
         uint256 depositLimit = callUint(
             depositVault, abi.encodeWithSignature("maxDeposit(address)", ERC4626_ACTOR)
         );
-        assertEq(depositLimit, 2);
-        vm.prank(ERC4626_ACTOR);
-        (bool depositOk,) = depositVault.call(
-            abi.encodeWithSignature("deposit(uint256,address)", depositLimit, ERC4626_ACTOR)
-        );
-        assertTrue(depositOk);
+        // 1 asset converts to zero shares; 2 * totalSupply overflows U64.
+        assertEq(depositLimit, 0);
 
         address mintVault = address(0x4634);
         address mintAsset = address(0xA5508);
@@ -637,11 +752,8 @@ contract ProofForgeSmokeTest {
         uint256 mintLimit = callUint(
             mintVault, abi.encodeWithSignature("maxMint(address)", ERC4626_ACTOR)
         );
-        assertEq(mintLimit, 1);
-        vm.prank(ERC4626_ACTOR);
-        (bool mintOk,) =
-            mintVault.call(abi.encodeWithSignature("mint(uint256,address)", mintLimit, ERC4626_ACTOR));
-        assertTrue(mintOk);
+        // Minting one share pulls two assets, then 2 * totalSupply overflows U64.
+        assertEq(mintLimit, 0);
 
         address feeMintVault = address(0x4638);
         address feeMintAsset = address(0xA5512);
@@ -659,12 +771,104 @@ contract ProofForgeSmokeTest {
         uint256 feeMintLimit = callUint(
             feeMintVault, abi.encodeWithSignature("maxMint(address)", ERC4626_ACTOR)
         );
-        assertEq(feeMintLimit, 197);
-        vm.prank(ERC4626_ACTOR);
-        (bool feeMintOk,) = feeMintVault.call(
-            abi.encodeWithSignature("mint(uint256,address)", feeMintLimit, ERC4626_ACTOR)
+        assertEq(feeMintLimit, 0);
+
+        uint256 safeLimit = maxU64 / 100;
+        address safeDepositVault = address(0x4639);
+        address safeDepositAsset = address(0xA5513);
+        installERC4626(
+            safeDepositVault,
+            safeDepositAsset,
+            100,
+            100,
+            0,
+            address(0),
+            0,
+            100,
+            safeLimit
         );
-        assertTrue(feeMintOk);
+        assertEq(
+            callUint(safeDepositVault, abi.encodeWithSignature("maxDeposit(address)", ERC4626_ACTOR)),
+            safeLimit
+        );
+        vm.prank(ERC4626_ACTOR);
+        (bool safeDepositOk,) = safeDepositVault.call(
+            abi.encodeWithSignature("deposit(uint256,address)", safeLimit, ERC4626_ACTOR)
+        );
+        assertTrue(safeDepositOk);
+
+        address safeMintVault = address(0x463A);
+        address safeMintAsset = address(0xA5514);
+        installERC4626(
+            safeMintVault,
+            safeMintAsset,
+            100,
+            100,
+            0,
+            address(0),
+            0,
+            100,
+            safeLimit
+        );
+        assertEq(
+            callUint(safeMintVault, abi.encodeWithSignature("maxMint(address)", ERC4626_ACTOR)),
+            safeLimit
+        );
+        vm.prank(ERC4626_ACTOR);
+        (bool safeMintOk,) = safeMintVault.call(
+            abi.encodeWithSignature("mint(uint256,address)", safeLimit, ERC4626_ACTOR)
+        );
+        assertTrue(safeMintOk);
+
+        address narrowWithdrawVault = address(0x463B);
+        address narrowWithdrawAsset = address(0xA5515);
+        installERC4626(
+            narrowWithdrawVault,
+            narrowWithdrawAsset,
+            maxU64 - 2,
+            maxU64 - 3,
+            0,
+            address(0),
+            2,
+            maxU64 - 2,
+            0
+        );
+        uint256 narrowWithdrawLimit = callUint(
+            narrowWithdrawVault, abi.encodeWithSignature("maxWithdraw(address)", ERC4626_ACTOR)
+        );
+        assertEq(narrowWithdrawLimit, 1);
+        vm.prank(ERC4626_ACTOR);
+        (bool narrowWithdrawOk,) = narrowWithdrawVault.call(
+            abi.encodeWithSignature(
+                "withdraw(uint256,address,address)", narrowWithdrawLimit, ERC4626_ACTOR, ERC4626_ACTOR
+            )
+        );
+        assertTrue(narrowWithdrawOk);
+
+        address narrowRedeemVault = address(0x463C);
+        address narrowRedeemAsset = address(0xA5516);
+        installERC4626(
+            narrowRedeemVault,
+            narrowRedeemAsset,
+            maxU64 - 2,
+            maxU64 - 3,
+            0,
+            address(0),
+            2,
+            maxU64 - 2,
+            0
+        );
+        uint256 narrowRedeemLimit = callUint(
+            narrowRedeemVault, abi.encodeWithSignature("maxRedeem(address)", ERC4626_ACTOR)
+        );
+        assertEq(narrowRedeemLimit, 1);
+        vm.prank(ERC4626_ACTOR);
+        (bool narrowRedeemOk,) = narrowRedeemVault.call(
+            abi.encodeWithSignature(
+                "redeem(uint256,address,address)", narrowRedeemLimit, ERC4626_ACTOR, ERC4626_ACTOR
+            )
+        );
+        assertTrue(narrowRedeemOk);
 
         address withdrawVault = address(0x4635);
         address withdrawAsset = address(0xA5509);
@@ -706,6 +910,226 @@ contract ProofForgeSmokeTest {
         assertEq(callUint(vault, abi.encodeWithSignature("maxMint(address)", ERC4626_ACTOR)), 0);
         assertEq(callUint(vault, abi.encodeWithSignature("maxWithdraw(address)", ERC4626_ACTOR)), 0);
         assertEq(callUint(vault, abi.encodeWithSignature("maxRedeem(address)", ERC4626_ACTOR)), 0);
+    }
+
+    function testERC4626InitPreservesFullWidthAddressesAndCannotRepeat() public {
+        address vault = address(0x1234567890AbCdEF1234567890abCDEF12344626);
+        address asset = address(0xa234567890abcdEf1234567890AbcDEF1234A551);
+        address recipient = address(0xF234567890abcDEf1234567890AbcDef12340fEE);
+        deployRuntime(hex"$(cat "$OUT_DIR/ERC4626.bin")", vault);
+        ERC4626AssetMock template = new ERC4626AssetMock();
+        vm.etch(asset, address(template).code);
+
+        (bool initOk,) = vault.call(
+            abi.encodeWithSignature("init(address,address,uint256,address)", asset, vault, 100, recipient)
+        );
+        assertTrue(initOk);
+        assertEq(callUint(vault, abi.encodeWithSignature("asset()")), uint256(uint160(asset)));
+        assertEq(callUint(vault, abi.encodeWithSignature("feeRecipient()")), uint256(uint160(recipient)));
+
+        ERC4626AssetMock(asset).mint(ERC4626_ACTOR, 10);
+        vm.prank(ERC4626_ACTOR);
+        (bool depositOk,) = vault.call(
+            abi.encodeWithSignature("deposit(uint256,address)", 10, ERC4626_ACTOR)
+        );
+        assertTrue(depositOk);
+        assertEq(ERC4626AssetMock(asset).balanceOf(vault), 10);
+
+        address replacementAsset = address(0xBEEF);
+        vm.prank(address(0xBAD));
+        (bool secondInitOk,) = vault.call(
+            abi.encodeWithSignature(
+                "init(address,address,uint256,address)", replacementAsset, address(0xCAFE), 0, address(0)
+            )
+        );
+        assertFalse(secondInitOk);
+        assertEq(callUint(vault, abi.encodeWithSignature("asset()")), uint256(uint160(asset)));
+        assertEq(callUint(vault, abi.encodeWithSignature("feeRecipient()")), uint256(uint160(recipient)));
+        assertEq(callUint(vault, abi.encodeWithSignature("totalAssets()")), 10);
+        assertEq(callUint(vault, abi.encodeWithSignature("totalSupply()")), 10);
+    }
+
+    function testERC4626InitRejectsInvalidConfigurationAtomically() public {
+        address vault = address(0x4646);
+        address asset = address(0xA5525);
+        address recipient = address(0xFEE5525);
+        deployRuntime(hex"$(cat "$OUT_DIR/ERC4626.bin")", vault);
+
+        (bool zeroAssetOk,) = vault.call(
+            abi.encodeWithSignature("init(address,address,uint256,address)", address(0), vault, 0, address(0))
+        );
+        assertFalse(zeroAssetOk);
+
+        (bool wrongSelfOk,) = vault.call(
+            abi.encodeWithSignature("init(address,address,uint256,address)", asset, address(0xBAD), 0, address(0))
+        );
+        assertFalse(wrongSelfOk);
+
+        (bool zeroFeeRecipientOk,) = vault.call(
+            abi.encodeWithSignature("init(address,address,uint256,address)", asset, vault, 100, address(0))
+        );
+        assertFalse(zeroFeeRecipientOk);
+
+        (bool validInitOk,) = vault.call(
+            abi.encodeWithSignature("init(address,address,uint256,address)", asset, vault, 100, recipient)
+        );
+        assertTrue(validInitOk);
+        assertEq(callUint(vault, abi.encodeWithSignature("asset()")), uint256(uint160(asset)));
+        assertEq(callUint(vault, abi.encodeWithSignature("feeRecipient()")), uint256(uint160(recipient)));
+    }
+
+    function testERC4626StandardEventsPreserveHighAddresses() public {
+        address vault = address(0x4647);
+        address asset = address(0xA5526);
+        address actor = address(uint160(0xa111111111111111111111111111111111111111));
+        installERC4626(vault, asset, 0, 0, 0, address(0), 0, 0, 0);
+        ERC4626AssetMock(asset).mint(actor, 10);
+
+        vm.expectEmit(true, true, false, true, vault);
+        emit Deposit(actor, actor, 5, 5);
+        vm.prank(actor);
+        (bool depositOk,) = vault.call(
+            abi.encodeWithSignature("deposit(uint256,address)", 5, actor)
+        );
+        assertTrue(depositOk);
+
+        vm.expectEmit(true, true, true, true, vault);
+        emit Withdraw(actor, actor, actor, 2, 2);
+        vm.prank(actor);
+        (bool withdrawOk,) = vault.call(
+            abi.encodeWithSignature("withdraw(uint256,address,address)", 2, actor, actor)
+        );
+        assertTrue(withdrawOk);
+    }
+
+    function testERC4626ZeroReceiverHasZeroDepositAndMintLimits() public {
+        address vault = address(0x4640);
+        deployRuntime(hex"$(cat "$OUT_DIR/ERC4626.bin")", vault);
+        setERC4626State(vault, address(0), 0, 0, 0, address(0));
+        assertEq(callUint(vault, abi.encodeWithSignature("maxDeposit(address)", address(0))), 0);
+        assertEq(callUint(vault, abi.encodeWithSignature("maxMint(address)", address(0))), 0);
+    }
+
+    function testERC4626RejectsFalseTokenReturnsAtomically() public {
+        address pullVault = address(0x4641);
+        address pullAsset = address(0xA5520);
+        installERC4626(pullVault, pullAsset, 0, 0, 0, address(0), 0, 0, 10);
+        ERC4626AssetMock(pullAsset).setTransferFromBehavior(false, false);
+        vm.prank(ERC4626_ACTOR);
+        (bool pullNoMoveOk,) = pullVault.call(
+            abi.encodeWithSignature("deposit(uint256,address)", 5, ERC4626_ACTOR)
+        );
+        assertFalse(pullNoMoveOk);
+        assertEq(callUint(pullVault, abi.encodeWithSignature("totalAssets()")), 0);
+        assertEq(ERC4626AssetMock(pullAsset).balanceOf(ERC4626_ACTOR), 10);
+
+        ERC4626AssetMock(pullAsset).setTransferFromBehavior(false, true);
+        vm.prank(ERC4626_ACTOR);
+        (bool pullMovedOk,) = pullVault.call(
+            abi.encodeWithSignature("deposit(uint256,address)", 5, ERC4626_ACTOR)
+        );
+        assertFalse(pullMovedOk);
+        assertEq(callUint(pullVault, abi.encodeWithSignature("totalAssets()")), 0);
+        assertEq(callUint(pullVault, abi.encodeWithSignature("totalSupply()")), 0);
+        assertEq(callUint(pullVault, abi.encodeWithSignature("balanceOf(address)", ERC4626_ACTOR)), 0);
+        assertEq(ERC4626AssetMock(pullAsset).balanceOf(ERC4626_ACTOR), 10);
+        assertEq(ERC4626AssetMock(pullAsset).balanceOf(pullVault), 0);
+
+        address pushVault = address(0x4642);
+        address pushAsset = address(0xA5521);
+        installERC4626(pushVault, pushAsset, 2, 2, 0, address(0), 2, 2, 0);
+        ERC4626AssetMock(pushAsset).setTransferBehavior(false, false);
+        vm.prank(ERC4626_ACTOR);
+        (bool pushNoMoveOk,) = pushVault.call(
+            abi.encodeWithSignature("withdraw(uint256,address,address)", 1, ERC4626_ACTOR, ERC4626_ACTOR)
+        );
+        assertFalse(pushNoMoveOk);
+        assertEq(callUint(pushVault, abi.encodeWithSignature("totalAssets()")), 2);
+        assertEq(callUint(pushVault, abi.encodeWithSignature("totalSupply()")), 2);
+        assertEq(callUint(pushVault, abi.encodeWithSignature("balanceOf(address)", ERC4626_ACTOR)), 2);
+        assertEq(ERC4626AssetMock(pushAsset).balanceOf(ERC4626_ACTOR), 0);
+        assertEq(ERC4626AssetMock(pushAsset).balanceOf(pushVault), 2);
+
+        ERC4626AssetMock(pushAsset).setTransferBehavior(false, true);
+        vm.prank(ERC4626_ACTOR);
+        (bool pushMovedOk,) = pushVault.call(
+            abi.encodeWithSignature("withdraw(uint256,address,address)", 1, ERC4626_ACTOR, ERC4626_ACTOR)
+        );
+        assertFalse(pushMovedOk);
+        assertEq(callUint(pushVault, abi.encodeWithSignature("totalAssets()")), 2);
+        assertEq(callUint(pushVault, abi.encodeWithSignature("totalSupply()")), 2);
+        assertEq(callUint(pushVault, abi.encodeWithSignature("balanceOf(address)", ERC4626_ACTOR)), 2);
+        assertEq(ERC4626AssetMock(pushAsset).balanceOf(ERC4626_ACTOR), 0);
+        assertEq(ERC4626AssetMock(pushAsset).balanceOf(pushVault), 2);
+
+        address feeVault = address(0x4643);
+        address feeAsset = address(0xA5522);
+        address feeRecipient = address(0xFEE5522);
+        installERC4626(feeVault, feeAsset, 100, 100, 100, feeRecipient, 100, 100, 0);
+        ERC4626AssetMock(feeAsset).setFalseTransferCall(2);
+        vm.prank(ERC4626_ACTOR);
+        (bool feePushOk,) = feeVault.call(
+            abi.encodeWithSignature("withdraw(uint256,address,address)", 100, ERC4626_ACTOR, ERC4626_ACTOR)
+        );
+        assertFalse(feePushOk);
+        assertEq(callUint(feeVault, abi.encodeWithSignature("totalAssets()")), 100);
+        assertEq(callUint(feeVault, abi.encodeWithSignature("totalSupply()")), 100);
+        assertEq(callUint(feeVault, abi.encodeWithSignature("balanceOf(address)", ERC4626_ACTOR)), 100);
+        assertEq(ERC4626AssetMock(feeAsset).balanceOf(ERC4626_ACTOR), 0);
+        assertEq(ERC4626AssetMock(feeAsset).balanceOf(feeRecipient), 0);
+        assertEq(ERC4626AssetMock(feeAsset).balanceOf(feeVault), 100);
+    }
+
+    function testERC4626RejectsPullAndPushReentrancyAndReleasesLock() public {
+        address pullVault = address(0x4644);
+        address pullAsset = address(0xA5523);
+        installERC4626(pullVault, pullAsset, 0, 0, 0, address(0), 0, 0, 10);
+        ERC4626AssetMock(pullAsset).mint(pullAsset, 2);
+        ERC4626AssetMock(pullAsset).setCallback(pullVault, 1);
+        vm.prank(ERC4626_ACTOR);
+        (bool firstDepositOk,) = pullVault.call(
+            abi.encodeWithSignature("deposit(uint256,address)", 5, ERC4626_ACTOR)
+        );
+        assertTrue(firstDepositOk);
+        assertTrue(ERC4626AssetMock(pullAsset).callbackAttempted());
+        assertFalse(ERC4626AssetMock(pullAsset).callbackSucceeded());
+        assertEq(ERC4626AssetMock(pullAsset).transferFromCalls(), 1);
+        assertEq(callUint(pullVault, abi.encodeWithSignature("totalAssets()")), 5);
+        assertEq(callUint(pullVault, abi.encodeWithSignature("totalSupply()")), 5);
+
+        ERC4626AssetMock(pullAsset).setCallback(pullVault, 1);
+        vm.prank(ERC4626_ACTOR);
+        (bool secondDepositOk,) = pullVault.call(
+            abi.encodeWithSignature("deposit(uint256,address)", 5, ERC4626_ACTOR)
+        );
+        assertTrue(secondDepositOk);
+        assertFalse(ERC4626AssetMock(pullAsset).callbackSucceeded());
+        assertEq(ERC4626AssetMock(pullAsset).transferFromCalls(), 2);
+
+        address pushVault = address(0x4645);
+        address pushAsset = address(0xA5524);
+        installERC4626(pushVault, pushAsset, 2, 2, 0, address(0), 2, 2, 0);
+        ERC4626AssetMock(pushAsset).mint(pushAsset, 2);
+        ERC4626AssetMock(pushAsset).setCallback(pushVault, 2);
+        vm.prank(ERC4626_ACTOR);
+        (bool firstWithdrawOk,) = pushVault.call(
+            abi.encodeWithSignature("withdraw(uint256,address,address)", 1, ERC4626_ACTOR, ERC4626_ACTOR)
+        );
+        assertTrue(firstWithdrawOk);
+        assertTrue(ERC4626AssetMock(pushAsset).callbackAttempted());
+        assertFalse(ERC4626AssetMock(pushAsset).callbackSucceeded());
+        assertEq(ERC4626AssetMock(pushAsset).transferCalls(), 1);
+
+        ERC4626AssetMock(pushAsset).setCallback(pushVault, 2);
+        vm.prank(ERC4626_ACTOR);
+        (bool secondWithdrawOk,) = pushVault.call(
+            abi.encodeWithSignature("withdraw(uint256,address,address)", 1, ERC4626_ACTOR, ERC4626_ACTOR)
+        );
+        assertTrue(secondWithdrawOk);
+        assertFalse(ERC4626AssetMock(pushAsset).callbackSucceeded());
+        assertEq(ERC4626AssetMock(pushAsset).transferCalls(), 2);
+        assertEq(callUint(pushVault, abi.encodeWithSignature("totalAssets()")), 0);
+        assertEq(callUint(pushVault, abi.encodeWithSignature("totalSupply()")), 0);
     }
 
     function testOwnableLifecycle() public {
@@ -883,10 +1307,12 @@ contract ProofForgeSmokeTest {
 
     function testERC721ProbeLifecycle() public {
         address probe = address(0x7210);
-        address alice = address(0xA11CE);
-        address bob = address(0xB0B);
+        address alice = address(uint160(0xa111111111111111111111111111111111111111));
+        address bob = address(uint160(0xb222222222222222222222222222222222222222));
         deployRuntime(hex"$(cat "$OUT_DIR/ERC721Probe.bin")", probe);
 
+        vm.expectEmit(true, true, true, false, probe);
+        emit Transfer(address(0), alice, 1);
         vm.prank(alice);
         (bool mintOk,) = probe.call(abi.encodeWithSignature("mint(address,uint256)", alice, uint256(1)));
         assertTrue(mintOk);
@@ -966,11 +1392,13 @@ contract ProofForgeSmokeTest {
 
     function testERC1155Lifecycle() public {
         address token = address(0x1155);
-        address alice = address(0xA11CE);
-        address bob = address(0xB0B);
-        address operator = address(0x0FEE);
+        address alice = address(uint160(0xa111111111111111111111111111111111111111));
+        address bob = address(uint160(0xb222222222222222222222222222222222222222));
+        address operator = address(uint160(0xc333333333333333333333333333333333333333));
         deployRuntime(hex"$(cat "$OUT_DIR/ERC1155.bin")", token);
 
+        vm.expectEmit(true, true, true, true, token);
+        emit TransferSingle(alice, address(0), alice, 7, 100);
         vm.prank(alice);
         (bool mintOk,) = token.call(abi.encodeWithSignature("mint(address,uint256,uint256)", alice, uint256(7), uint256(100)));
         assertTrue(mintOk);
@@ -994,6 +1422,8 @@ contract ProofForgeSmokeTest {
             token.call(abi.encodeWithSignature("safeTransferFrom(address,address,uint256,uint256)", alice, bob, uint256(7), uint256(1)));
         assertFalse(unauthorizedOk);
 
+        vm.expectEmit(true, true, false, true, token);
+        emit ApprovalForAll(alice, operator, true);
         vm.prank(alice);
         (bool approvalOk,) = token.call(abi.encodeWithSignature("setApprovalForAll(address,bool)", operator, true));
         assertTrue(approvalOk);
@@ -1215,7 +1645,7 @@ contract ProofForgeSmokeTest {
     function testUUPSProxyUpgradeLifecycle() public {
         address admin = address(uint160(0x1234567890123456789012345678901234567890));
         address implV1 = address(0x1001);
-        address implV2 = address(0x1002);
+        address implV2 = address(uint160(0xc222222222222222222222222222222222222222));
         deployRuntime(hex"$(cat "$OUT_DIR/CounterUUPSImpl.bin")", implV1);
         deployRuntime(hex"$(cat "$OUT_DIR/CounterUUPSImpl.bin")", implV2);
         address proxy = deployInitCode(hex"$(cat "$OUT_DIR/UUPSProxy.init.bin")");
@@ -1241,6 +1671,8 @@ contract ProofForgeSmokeTest {
         (bool unauthorizedUpgradeOk,) = proxy.call(abi.encodeWithSignature("upgradeTo(address)", implV2));
         assertFalse(unauthorizedUpgradeOk);
 
+        vm.expectEmit(true, false, false, false, proxy);
+        emit Upgraded(implV2);
         vm.prank(admin);
         (bool upgradeOk,) = proxy.call(abi.encodeWithSignature("upgradeTo(address)", implV2));
         assertTrue(upgradeOk);

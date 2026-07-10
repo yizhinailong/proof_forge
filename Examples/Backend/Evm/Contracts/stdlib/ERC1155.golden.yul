@@ -118,15 +118,15 @@ object "ERC1155" {
     default {
       revert(0, 0)
     }
-    function f_ERC1155_balanceOf(holder, id) -> result {
+    function f_ERC1155_balanceOf(holder, id) -> __pf_result {
       if iszero(iszero(eq(holder, 0))) {
         revert(0, 0)
       }
-      result := sload(__proof_forge_map_slot(__proof_forge_map_slot(0, holder), id))
+      __pf_result := sload(__proof_forge_map_slot(__proof_forge_map_slot(0, holder), id))
     }
-    function f_ERC1155_isApprovedForAll(holder, operator) -> result {
+    function f_ERC1155_isApprovedForAll(holder, operator) -> __pf_result {
       let approved := sload(__proof_forge_map_slot(__proof_forge_map_slot(1, holder), operator))
-      result := iszero(eq(approved, 0))
+      __pf_result := iszero(eq(approved, 0))
     }
     function f_ERC1155_setApprovalForAll(operator, approved) {
       let holder := caller()
@@ -134,19 +134,19 @@ object "ERC1155" {
         revert(0, 0)
       }
       {
-        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(1, holder), operator)
-        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(1, holder), operator)
-        sstore(_slot, approved)
-        sstore(_presence_slot, 1)
+        let __pf_storage_slot := __proof_forge_map_slot(__proof_forge_map_slot(1, holder), operator)
+        let __pf_storage_presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(1, holder), operator)
+        sstore(__pf_storage_slot, approved)
+        sstore(__pf_storage_presence_slot, 1)
       }
       {
-        mstore(0, 29598998109930618199791702304337314577662353053623321855103937010099468529519)
-        mstore(32, 48922228376648683701831924498070670784747201620589013331429154107591348977664)
-        let _topic0 := keccak256(0, 34)
-        let _indexed_topic0 := holder
-        let _indexed_topic1 := operator
+        mstore(0, 29598998109930618199791702304337314570850007615435530133533608702771098496098)
+        mstore(32, 50403592710896236504088002338673980987564355465062697744246489382138754891776)
+        let __pf_event_topic0 := keccak256(0, 36)
+        let __pf_event_indexed_topic0 := holder
+        let __pf_event_indexed_topic1 := operator
         mstore(0, approved)
-        log3(0, 32, _topic0, _indexed_topic0, _indexed_topic1)
+        log3(0, 32, __pf_event_topic0, __pf_event_indexed_topic0, __pf_event_indexed_topic1)
       }
     }
     function f_ERC1155_safeTransferFrom(src, dst, id, amount) {
@@ -163,28 +163,28 @@ object "ERC1155" {
         revert(0, 0)
       }
       {
-        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(0, src), id)
-        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, src), id)
-        sstore(_slot, __pf_checked_sub(fromBal, amount))
-        sstore(_presence_slot, 1)
+        let __pf_storage_slot := __proof_forge_map_slot(__proof_forge_map_slot(0, src), id)
+        let __pf_storage_presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, src), id)
+        sstore(__pf_storage_slot, __pf_checked_sub(fromBal, amount))
+        sstore(__pf_storage_presence_slot, 1)
       }
       let toBal := sload(__proof_forge_map_slot(__proof_forge_map_slot(0, dst), id))
       {
-        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(0, dst), id)
-        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, dst), id)
-        sstore(_slot, __pf_checked_add(toBal, amount))
-        sstore(_presence_slot, 1)
+        let __pf_storage_slot := __proof_forge_map_slot(__proof_forge_map_slot(0, dst), id)
+        let __pf_storage_presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, dst), id)
+        sstore(__pf_storage_slot, __pf_checked_add(toBal, amount))
+        sstore(__pf_storage_presence_slot, 1)
       }
       {
-        mstore(0, 38196372293521921434662571559482110217816123204105828618894700137794298538350)
-        mstore(32, 52564060266569530381556813907571567292663703373687215552951033558997877653504)
-        let _topic0 := keccak256(0, 50)
-        let _indexed_topic0 := operator
-        let _indexed_topic1 := src
-        let _indexed_topic2 := dst
+        mstore(0, 38196372293521921434662571559482110211003777765918036897324371830465927261281)
+        mstore(32, 45408759099000918016964216062045765926360248736437601954278641986188968198144)
+        let __pf_event_topic0 := keccak256(0, 55)
+        let __pf_event_indexed_topic0 := operator
+        let __pf_event_indexed_topic1 := src
+        let __pf_event_indexed_topic2 := dst
         mstore(0, id)
         mstore(32, amount)
-        log4(0, 64, _topic0, _indexed_topic0, _indexed_topic1, _indexed_topic2)
+        log4(0, 64, __pf_event_topic0, __pf_event_indexed_topic0, __pf_event_indexed_topic1, __pf_event_indexed_topic2)
       }
       {
         {
@@ -230,56 +230,56 @@ object "ERC1155" {
         revert(0, 0)
       }
       {
-        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(0, src), id0)
-        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, src), id0)
-        sstore(_slot, __pf_checked_sub(fromBal0, amount0))
-        sstore(_presence_slot, 1)
+        let __pf_storage_slot := __proof_forge_map_slot(__proof_forge_map_slot(0, src), id0)
+        let __pf_storage_presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, src), id0)
+        sstore(__pf_storage_slot, __pf_checked_sub(fromBal0, amount0))
+        sstore(__pf_storage_presence_slot, 1)
       }
       let toBal0 := sload(__proof_forge_map_slot(__proof_forge_map_slot(0, dst), id0))
       {
-        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(0, dst), id0)
-        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, dst), id0)
-        sstore(_slot, __pf_checked_add(toBal0, amount0))
-        sstore(_presence_slot, 1)
+        let __pf_storage_slot := __proof_forge_map_slot(__proof_forge_map_slot(0, dst), id0)
+        let __pf_storage_presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, dst), id0)
+        sstore(__pf_storage_slot, __pf_checked_add(toBal0, amount0))
+        sstore(__pf_storage_presence_slot, 1)
       }
       {
-        mstore(0, 38196372293521921434662571559482110217816123204105828618894700137794298538350)
-        mstore(32, 52564060266569530381556813907571567292663703373687215552951033558997877653504)
-        let _topic0 := keccak256(0, 50)
-        let _indexed_topic0 := operator
-        let _indexed_topic1 := src
-        let _indexed_topic2 := dst
+        mstore(0, 38196372293521921434662571559482110211003777765918036897324371830465927261281)
+        mstore(32, 45408759099000918016964216062045765926360248736437601954278641986188968198144)
+        let __pf_event_topic0 := keccak256(0, 55)
+        let __pf_event_indexed_topic0 := operator
+        let __pf_event_indexed_topic1 := src
+        let __pf_event_indexed_topic2 := dst
         mstore(0, id0)
         mstore(32, amount0)
-        log4(0, 64, _topic0, _indexed_topic0, _indexed_topic1, _indexed_topic2)
+        log4(0, 64, __pf_event_topic0, __pf_event_indexed_topic0, __pf_event_indexed_topic1, __pf_event_indexed_topic2)
       }
       let fromBal1 := sload(__proof_forge_map_slot(__proof_forge_map_slot(0, src), id1))
       if iszero(iszero(lt(fromBal1, amount1))) {
         revert(0, 0)
       }
       {
-        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(0, src), id1)
-        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, src), id1)
-        sstore(_slot, __pf_checked_sub(fromBal1, amount1))
-        sstore(_presence_slot, 1)
+        let __pf_storage_slot := __proof_forge_map_slot(__proof_forge_map_slot(0, src), id1)
+        let __pf_storage_presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, src), id1)
+        sstore(__pf_storage_slot, __pf_checked_sub(fromBal1, amount1))
+        sstore(__pf_storage_presence_slot, 1)
       }
       let toBal1 := sload(__proof_forge_map_slot(__proof_forge_map_slot(0, dst), id1))
       {
-        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(0, dst), id1)
-        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, dst), id1)
-        sstore(_slot, __pf_checked_add(toBal1, amount1))
-        sstore(_presence_slot, 1)
+        let __pf_storage_slot := __proof_forge_map_slot(__proof_forge_map_slot(0, dst), id1)
+        let __pf_storage_presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, dst), id1)
+        sstore(__pf_storage_slot, __pf_checked_add(toBal1, amount1))
+        sstore(__pf_storage_presence_slot, 1)
       }
       {
-        mstore(0, 38196372293521921434662571559482110217816123204105828618894700137794298538350)
-        mstore(32, 52564060266569530381556813907571567292663703373687215552951033558997877653504)
-        let _topic0 := keccak256(0, 50)
-        let _indexed_topic0 := operator
-        let _indexed_topic1 := src
-        let _indexed_topic2 := dst
+        mstore(0, 38196372293521921434662571559482110211003777765918036897324371830465927261281)
+        mstore(32, 45408759099000918016964216062045765926360248736437601954278641986188968198144)
+        let __pf_event_topic0 := keccak256(0, 55)
+        let __pf_event_indexed_topic0 := operator
+        let __pf_event_indexed_topic1 := src
+        let __pf_event_indexed_topic2 := dst
         mstore(0, id1)
         mstore(32, amount1)
-        log4(0, 64, _topic0, _indexed_topic0, _indexed_topic1, _indexed_topic2)
+        log4(0, 64, __pf_event_topic0, __pf_event_indexed_topic0, __pf_event_indexed_topic1, __pf_event_indexed_topic2)
       }
       {
         let __pf_erc1155_batch_operator := operator
@@ -324,21 +324,21 @@ object "ERC1155" {
       }
       let toBal := sload(__proof_forge_map_slot(__proof_forge_map_slot(0, recipient), id))
       {
-        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(0, recipient), id)
-        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, recipient), id)
-        sstore(_slot, __pf_checked_add(toBal, amount))
-        sstore(_presence_slot, 1)
+        let __pf_storage_slot := __proof_forge_map_slot(__proof_forge_map_slot(0, recipient), id)
+        let __pf_storage_presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, recipient), id)
+        sstore(__pf_storage_slot, __pf_checked_add(toBal, amount))
+        sstore(__pf_storage_presence_slot, 1)
       }
       {
-        mstore(0, 38196372293521921434662571559482110217816123204105828618894700137794298538350)
-        mstore(32, 52564060266569530381556813907571567292663703373687215552951033558997877653504)
-        let _topic0 := keccak256(0, 50)
-        let _indexed_topic0 := operator
-        let _indexed_topic1 := 0
-        let _indexed_topic2 := recipient
+        mstore(0, 38196372293521921434662571559482110211003777765918036897324371830465927261281)
+        mstore(32, 45408759099000918016964216062045765926360248736437601954278641986188968198144)
+        let __pf_event_topic0 := keccak256(0, 55)
+        let __pf_event_indexed_topic0 := operator
+        let __pf_event_indexed_topic1 := 0
+        let __pf_event_indexed_topic2 := recipient
         mstore(0, id)
         mstore(32, amount)
-        log4(0, 64, _topic0, _indexed_topic0, _indexed_topic1, _indexed_topic2)
+        log4(0, 64, __pf_event_topic0, __pf_event_indexed_topic0, __pf_event_indexed_topic1, __pf_event_indexed_topic2)
       }
     }
     function f_ERC1155_burn(id, amount) {
@@ -348,21 +348,21 @@ object "ERC1155" {
         revert(0, 0)
       }
       {
-        let _slot := __proof_forge_map_slot(__proof_forge_map_slot(0, operator), id)
-        let _presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, operator), id)
-        sstore(_slot, __pf_checked_sub(bal, amount))
-        sstore(_presence_slot, 1)
+        let __pf_storage_slot := __proof_forge_map_slot(__proof_forge_map_slot(0, operator), id)
+        let __pf_storage_presence_slot := __proof_forge_map_presence_slot(__proof_forge_map_slot(0, operator), id)
+        sstore(__pf_storage_slot, __pf_checked_sub(bal, amount))
+        sstore(__pf_storage_presence_slot, 1)
       }
       {
-        mstore(0, 38196372293521921434662571559482110217816123204105828618894700137794298538350)
-        mstore(32, 52564060266569530381556813907571567292663703373687215552951033558997877653504)
-        let _topic0 := keccak256(0, 50)
-        let _indexed_topic0 := operator
-        let _indexed_topic1 := operator
-        let _indexed_topic2 := 0
+        mstore(0, 38196372293521921434662571559482110211003777765918036897324371830465927261281)
+        mstore(32, 45408759099000918016964216062045765926360248736437601954278641986188968198144)
+        let __pf_event_topic0 := keccak256(0, 55)
+        let __pf_event_indexed_topic0 := operator
+        let __pf_event_indexed_topic1 := operator
+        let __pf_event_indexed_topic2 := 0
         mstore(0, id)
         mstore(32, amount)
-        log4(0, 64, _topic0, _indexed_topic0, _indexed_topic1, _indexed_topic2)
+        log4(0, 64, __pf_event_topic0, __pf_event_indexed_topic0, __pf_event_indexed_topic1, __pf_event_indexed_topic2)
       }
     }
     function __proof_forge_map_slot(slot, key) -> result {
@@ -391,7 +391,7 @@ object "ERC1155" {
       r := sub(a, b)
     }
     function __pf_checked_mul(a, b) -> r {
-      if iszero(a) {
+      if or(iszero(a), iszero(b)) {
         r := 0
         leave
       }

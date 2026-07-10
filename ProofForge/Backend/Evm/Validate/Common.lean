@@ -1,6 +1,7 @@
 import Init.Data.Array.Basic
 import Init.Data.String.Basic
 import ProofForge.Backend.Diagnostic
+import ProofForge.Backend.Evm.AbiType
 import ProofForge.Backend.Evm.Names
 import ProofForge.Backend.Evm.Plan
 import ProofForge.Backend.SharedValidate
@@ -144,6 +145,13 @@ def validateEventName (name : String) : Except LowerError Unit := do
   if name.toUTF8.size == 0 then
     .error { message := "event name must be non-empty for IR EVM v0" }
 
+/-- Event fields are output-only, so widening the portable U64 value domain to
+the standard Solidity uint256 event word is lossless. Keep this separate from
+entrypoint calldata override compatibility, where U64 <- uint256 is unsafe. -/
+def eventAbiWordOverrideCompatible (type : ValueType) (abiWord : String) : Bool :=
+  ProofForge.Backend.Evm.AbiType.abiWordOverrideCompatible type abiWord ||
+    (type == .u64 && abiWord == "uint256")
+
 def packedUtf8Words (value : String) : Array Nat × Nat := Id.run do
   let bytes := value.toUTF8
   let wordCount := (bytes.size + 31) / 32
@@ -179,17 +187,24 @@ mutual
     .ok ("(" ++ String.intercalate "," parts.toList ++ ")")
 
   partial def eventSignatureFieldType (module : Module) (eventName fieldName : String) (type : ValueType) : Except LowerError String :=
-    let erc20FieldType? : Option String :=
-      if eventName == "Transfer" then
-        if fieldName == "from" || fieldName == "to" then some "address"
-        else if fieldName == "value" then some "uint256" else none
-      else if eventName == "Approval" then
-        if fieldName == "owner" || fieldName == "spender" then some "address"
-        else if fieldName == "value" then some "uint256" else none
-      else none
-    match erc20FieldType? with
-    | some abiType => .ok abiType
-    | none =>
+    let overrides := module.eventAbiWords.filter fun override =>
+      override.eventName == eventName && override.fieldName == fieldName
+    if overrides.size > 1 then
+      .error {
+        message := s!"event `{eventName}` field `{fieldName}` has duplicate ABI overrides"
+      }
+    else
+      match overrides[0]? with
+      | some override =>
+          if eventAbiWordOverrideCompatible type override.abiWord then
+            .ok override.abiWord
+          else
+            .error {
+              message :=
+                s!"event `{eventName}` field `{fieldName}` has incompatible EVM ABI override " ++
+                  s!"`{override.abiWord}` for IR carrier `{type.name}`"
+            }
+      | none =>
         match type with
         | .u32 => .ok "uint32"
         | .u64 => .ok "uint64"
@@ -253,7 +268,7 @@ def validateIndexedEventFieldCount (eventName : String) (count : Nat) : Except L
     .ok ()
 
 def eventIndexedTopicName (index : Nat) : String :=
-  s!"_indexed_topic{index}"
+  s!"__pf_event_indexed_topic{index}"
 
 def eventLogBuiltinName (indexedFieldCount : Nat) : Except LowerError String :=
   if indexedFieldCount <= 3 then
@@ -548,7 +563,22 @@ abbrev TypeEnv := Array LocalBinding
 def findLocal? (env : TypeEnv) (name : String) : Option LocalBinding :=
   env.find? fun binding => binding.name == name
 
-def addLocal (env : TypeEnv) (name : String) (type : ValueType) (isMutable : Bool) : Except LowerError TypeEnv :=
+def validateUserIdentifier (context name : String) : Except LowerError Unit :=
+  if name.startsWith "__pf_" then
+    .error {
+      message :=
+        s!"{context} `{name}` starts with `__pf_`, which is reserved for generated EVM temporaries"
+    }
+  else if name.startsWith "__proof_forge_" then
+    .error {
+      message :=
+        s!"{context} `{name}` starts with `__proof_forge_`, which is reserved for generated EVM temporaries"
+    }
+  else
+    .ok ()
+
+def addLocal (env : TypeEnv) (name : String) (type : ValueType) (isMutable : Bool) : Except LowerError TypeEnv := do
+  validateUserIdentifier "local" name
   if (findLocal? env name).isSome then
     .error { message := s!"duplicate local `{name}`" }
   else

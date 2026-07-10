@@ -70,12 +70,12 @@ object "ERC721Probe" {
     default {
       revert(0, 0)
     }
-    function f_ERC721Probe_ownerOf(tokenId) -> result {
+    function f_ERC721Probe_ownerOf(tokenId) -> __pf_result {
       let tokenOwner := sload(__proof_forge_map_slot(0, tokenId))
       if iszero(iszero(eq(tokenOwner, 0))) {
         revert(0, 0)
       }
-      result := tokenOwner
+      __pf_result := tokenOwner
     }
     function f_ERC721Probe_transferFrom(holder, recipient, tokenId) {
       let operator := caller()
@@ -94,12 +94,13 @@ object "ERC721Probe" {
       }
       __proof_forge_map_write(0, tokenId, recipient)
       {
-        mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288672809)
-        let _topic0 := keccak256(0, 32)
-        let _indexed_topic0 := holder
-        let _indexed_topic1 := recipient
-        let _indexed_topic2 := tokenId
-        log4(0, 0, _topic0, _indexed_topic0, _indexed_topic1, _indexed_topic2)
+        mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288410934)
+        mstore(32, 18544826791913921923306290567797672742125270981606496584444378688767337168896)
+        let __pf_event_topic0 := keccak256(0, 33)
+        let __pf_event_indexed_topic0 := holder
+        let __pf_event_indexed_topic1 := recipient
+        let __pf_event_indexed_topic2 := tokenId
+        log4(0, 0, __pf_event_topic0, __pf_event_indexed_topic0, __pf_event_indexed_topic1, __pf_event_indexed_topic2)
       }
     }
     function f_ERC721Probe_safeTransferFrom(holder, recipient, tokenId) {
@@ -119,12 +120,13 @@ object "ERC721Probe" {
       }
       __proof_forge_map_write(0, tokenId, recipient)
       {
-        mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288672809)
-        let _topic0 := keccak256(0, 32)
-        let _indexed_topic0 := holder
-        let _indexed_topic1 := recipient
-        let _indexed_topic2 := tokenId
-        log4(0, 0, _topic0, _indexed_topic0, _indexed_topic1, _indexed_topic2)
+        mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288410934)
+        mstore(32, 18544826791913921923306290567797672742125270981606496584444378688767337168896)
+        let __pf_event_topic0 := keccak256(0, 33)
+        let __pf_event_indexed_topic0 := holder
+        let __pf_event_indexed_topic1 := recipient
+        let __pf_event_indexed_topic2 := tokenId
+        log4(0, 0, __pf_event_topic0, __pf_event_indexed_topic0, __pf_event_indexed_topic1, __pf_event_indexed_topic2)
       }
       {
         {
@@ -164,12 +166,13 @@ object "ERC721Probe" {
       }
       __proof_forge_map_write(0, tokenId, recipient)
       {
-        mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288672809)
-        let _topic0 := keccak256(0, 32)
-        let _indexed_topic0 := 0
-        let _indexed_topic1 := recipient
-        let _indexed_topic2 := tokenId
-        log4(0, 0, _topic0, _indexed_topic0, _indexed_topic1, _indexed_topic2)
+        mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288410934)
+        mstore(32, 18544826791913921923306290567797672742125270981606496584444378688767337168896)
+        let __pf_event_topic0 := keccak256(0, 33)
+        let __pf_event_indexed_topic0 := 0
+        let __pf_event_indexed_topic1 := recipient
+        let __pf_event_indexed_topic2 := tokenId
+        log4(0, 0, __pf_event_topic0, __pf_event_indexed_topic0, __pf_event_indexed_topic1, __pf_event_indexed_topic2)
       }
     }
     function f_ERC721Probe_burn(tokenId) {
@@ -180,12 +183,13 @@ object "ERC721Probe" {
       }
       __proof_forge_map_write(0, tokenId, 0)
       {
-        mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288672809)
-        let _topic0 := keccak256(0, 32)
-        let _indexed_topic0 := who
-        let _indexed_topic1 := 0
-        let _indexed_topic2 := tokenId
-        log4(0, 0, _topic0, _indexed_topic0, _indexed_topic1, _indexed_topic2)
+        mstore(0, 38196372293521921433607444633801509737016894376733792893611070291108288410934)
+        mstore(32, 18544826791913921923306290567797672742125270981606496584444378688767337168896)
+        let __pf_event_topic0 := keccak256(0, 33)
+        let __pf_event_indexed_topic0 := who
+        let __pf_event_indexed_topic1 := 0
+        let __pf_event_indexed_topic2 := tokenId
+        log4(0, 0, __pf_event_topic0, __pf_event_indexed_topic0, __pf_event_indexed_topic1, __pf_event_indexed_topic2)
       }
     }
     function __proof_forge_map_slot(slot, key) -> result {

@@ -254,7 +254,7 @@ mutual
     | .storageLoad _ => true
     | .builtin _ args => args.all exprPlanSupportsPlannedBody
     | .helperCall _ args => args.all exprPlanSupportsPlannedBody
-    | .checkedArith _ lhs rhs _ => exprPlanSupportsPlannedBody lhs && exprPlanSupportsPlannedBody rhs
+    | .checkedArith _ lhs rhs _ _ => exprPlanSupportsPlannedBody lhs && exprPlanSupportsPlannedBody rhs
     | .hashPack a b c d =>
         exprPlanSupportsPlannedBody a &&
         exprPlanSupportsPlannedBody b &&
@@ -320,7 +320,7 @@ def plannedBodyAssignmentTargetSupported :
 
 def eventFieldPlanSupportsPlannedBody :
     ProofForge.Backend.Evm.Plan.EventFieldPlan → Bool
-  | .mk _ type _ =>
+  | .of _ type _ _ =>
       match type with
       | .u8 | .u32 | .u64 | .u128 | .bool | .hash | .address => true
       | .unit | .bytes | .string | .array _ | .fixedArray _ _ | .structType _ => false

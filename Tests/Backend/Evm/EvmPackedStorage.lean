@@ -52,8 +52,11 @@ def testCheckedAssignOpRejectsNarrowOverflow : IO Unit := do
   require (statements.size == 1) "checked packed assign_op must remain one scoped statement"
   let rendered := renderStatement statements[0]!
   require
-    (rendered.contains "let __pf_packed_value := __pf_checked_add(and(shr(8, sload(7)), 255), 1)")
+    (rendered.contains "let __pf_packed_value := __pf_checked_width(__pf_checked_add(")
     s!"checked packed assign_op must evaluate its value exactly once in local scope, got: {rendered}"
+  require
+    (rendered.contains "__pf_checked_width(and(shr(8, sload(7)), 255), 255)")
+    s!"checked packed assign_op must validate its packed operand width, got: {rendered}"
   require
     (rendered.contains "if gt(__pf_packed_value, 255)")
     s!"checked packed assign_op must reject values above the field mask, got: {rendered}"
@@ -70,7 +73,7 @@ def testWrappingAssignOpTruncatesToFieldWidth : IO Unit := do
     statements
     8
     255
-    "add(and(shr(8, sload(7)), 255), 1)"
+    "and(add(and(shr(8, sload(7)), 255), 1), 255)"
     "wrapping packed assign_op"
 
 def requirePackedWidthGuard
@@ -156,6 +159,105 @@ def testLowerCarriesDirectWriteSemantics : IO Unit := do
     #[]
     .wrapping
     "explicit wrapping expression"
+  match ProofForge.Backend.Evm.Lower.buildEffectPlan module #[]
+      (.storageScalarWrite "counter"
+        (.add (.literal (.u8 255)) (.literal (.u8 1)) false)) with
+  | .ok (.storageScalarWriteTarget _
+      (.checkedArith .add _ _ false (some byteWidth))) =>
+      require (byteWidth == 1)
+        s!"u8 arithmetic plan must retain byte width 1, got {byteWidth}"
+  | .ok _ => throw <| IO.userError "u8 arithmetic plan must carry result width metadata"
+  | .error err => throw <| IO.userError err.message
+
+def testNarrowArithmeticIsAppliedPerNode : IO Unit := do
+  let module := ProofForge.IR.Examples.EvmPackedStorageProbe.module
+  let renderWrite (value : ProofForge.IR.Expr) (label : String) : IO String := do
+    let effectPlan ←
+      match ProofForge.Backend.Evm.Lower.buildEffectPlan module #[]
+          (.storageScalarWrite "counter" value) with
+      | .ok plan@(.storageScalarWriteTarget ..) => pure plan
+      | .ok _ => throw <| IO.userError s!"{label}: expected planned scalar target"
+      | .error err => throw <| IO.userError s!"{label}: {err.message}"
+    let statements ←
+      match scalarStorageTargetEffectPlanStatements
+          id
+          (fun _ => .error "raw expression lowering is not expected")
+          (fun _ => .error "nested effect lowering is not expected")
+          effectPlan with
+      | .ok statements => pure statements
+      | .error err => throw <| IO.userError s!"{label}: {err}"
+    pure <| String.intercalate "\n" (statements.toList.map renderStatement)
+  let nestedChecked :=
+    .sub
+      (.add (.literal (.u8 255)) (.literal (.u8 1)) true)
+      (.literal (.u8 1))
+      true
+  let nestedCheckedRendered ← renderWrite nestedChecked "nested checked expression"
+  require
+    (nestedCheckedRendered.contains "__pf_checked_width")
+    s!"nested checked arithmetic must enforce the width at each node, got: {nestedCheckedRendered}"
+  let mixedRendered ← renderWrite
+    (.sub
+      (.add (.literal (.u8 255)) (.literal (.u8 1)) true)
+      (.literal (.u8 256))
+      false)
+    "mixed checked/wrapping expression"
+  require
+    (mixedRendered.contains "__pf_checked_width")
+    s!"mixed arithmetic must retain the inner checked width guard, got: {mixedRendered}"
+  require
+    (mixedRendered.contains "and(sub(")
+    s!"mixed arithmetic must mask the outer wrapping result, got: {mixedRendered}"
+  let castPlan ←
+    match ProofForge.Backend.Evm.Lower.buildEffectPlan module #[]
+        (.storageScalarWrite "counter"
+          (.cast
+            (.add (.literal (.u64 1)) (.literal (.u64 2)) true)
+            .u8)) with
+    | .ok (.storageScalarWriteTarget _ plan) => pure plan
+    | .ok _ => throw <| IO.userError "cast storage write must retain its planned target"
+    | .error err => throw <| IO.userError err.message
+  match castPlan with
+  | .cast (.checkedArith .add _ _ _ (some byteWidth)) .u8 =>
+      require (byteWidth == 8)
+        s!"arithmetic below a narrowing cast must retain U64 width 8, got {byteWidth}"
+  | _ =>
+      throw <| IO.userError
+        "arithmetic below a narrowing cast must carry its own result width"
+  let ordinaryPlan ←
+    match ProofForge.Backend.Evm.Lower.buildExprPlan module #[]
+        (.add (.literal (.u8 1)) (.literal (.u8 2)) true) with
+    | .ok plan => pure plan
+    | .error err => throw <| IO.userError err.message
+  let ordinaryExpr ←
+    match exprPlanExpr
+        id
+        (fun _ => .error "raw expression lowering is not expected")
+        (fun _ => .error "nested effect lowering is not expected")
+        ordinaryPlan with
+    | .ok expr => pure expr
+    | .error err => throw <| IO.userError err
+  require
+    (renderExpr ordinaryExpr == "__pf_checked_add(1, 2)")
+    s!"ordinary non-storage arithmetic must retain word semantics, got: {renderExpr ordinaryExpr}"
+  let missingWidthTarget : ScalarStorageTargetPlan := {
+    slot := .scalarSlot 0
+    byteOffset := 0
+    byteWidth := 1
+    writeSemantics := .checked
+  }
+  match scalarStorageTargetEffectPlanStatements
+      id
+      (fun _ => .error "raw expression lowering is not expected")
+      (fun _ => .error "nested effect lowering is not expected")
+      (.storageScalarWriteTarget missingWidthTarget
+        (.checkedArith .add (.literalWord 1) (.literalWord 2) true none)) with
+  | .error err =>
+      require
+        (err == "EVM narrow scalar storage arithmetic plan is missing result byte width metadata")
+        s!"missing width metadata must fail with a stable diagnostic, got: {err}"
+  | .ok _ =>
+      throw <| IO.userError "narrow storage arithmetic without width metadata must fail closed"
 
 def requireAbiUpperBoundGuard
     (type : ProofForge.IR.ValueType)
@@ -239,6 +341,22 @@ def testWrappingFixtureMasksBeforeNeighborBits : IO Unit := do
   require
     (module.entrypoints.any (fun entrypoint => entrypoint.name == "packed_assign_op_wraps"))
     "packed storage fixture must expose the wrapping-width regression entrypoint"
+  require
+    (module.entrypoints.any
+      (fun entrypoint => entrypoint.name == "packed_nested_checked_overflow_reverts"))
+    "packed storage fixture must expose the nested checked regression entrypoint"
+  require
+    (module.entrypoints.any
+      (fun entrypoint => entrypoint.name == "packed_mixed_overflow_reverts"))
+    "packed storage fixture must expose the mixed-mode regression entrypoint"
+  require
+    (module.entrypoints.any
+      (fun entrypoint => entrypoint.name == "packed_nested_wrapping_preserves_neighbors"))
+    "packed storage fixture must expose the nested wrapping regression entrypoint"
+  require
+    (module.entrypoints.any
+      (fun entrypoint => entrypoint.name == "packed_checked_mul_zero_rhs_succeeds"))
+    "packed storage fixture must expose the checked multiply-zero regression entrypoint"
   let yul ←
     match ProofForge.Backend.Evm.IR.renderModule module with
     | .ok yul => pure yul
@@ -246,6 +364,9 @@ def testWrappingFixtureMasksBeforeNeighborBits : IO Unit := do
   require
     (yul.contains "and(add(255, 1), 255)")
     "wrapping packed expression fixture must truncate before shifting into its shared slot"
+  require
+    (yul.contains "and(sub(and(add(255, 1), 255), 1), 255)")
+    "nested wrapping fixture must mask every U8 arithmetic node"
   require
     (yul.contains "f_EvmPackedStorageProbe_packed_assign_op_overflow_reverts")
     "packed storage fixture must expose the checked-width overflow regression entrypoint"
@@ -268,8 +389,11 @@ def testWrappingFixtureMasksBeforeNeighborBits : IO Unit := do
     ((yul.splitOn "if gt(__pf_packed_value, 255)").length >= 3)
     "checked packed direct writes and assign_op must each guard the destination field width"
   require
-    (yul.contains "let __pf_packed_value := __pf_checked_add(255, 1)")
+    (yul.contains "let __pf_packed_value := __pf_checked_width(__pf_checked_add(")
     "checked packed direct writes must evaluate the checked expression once before the width guard"
+  require
+    (yul.contains "function __pf_checked_width(value, maxValue) -> result")
+    "packed checked arithmetic must emit its shared width helper"
   require
     (yul.contains "let __pf_packed_value := 256")
     "checked packed literal writes must guard values without arithmetic"
@@ -286,6 +410,7 @@ def main : IO UInt32 := do
   testWrappingAssignOpTruncatesToFieldWidth
   testDirectWriteSemanticsAreExplicit
   testLowerCarriesDirectWriteSemantics
+  testNarrowArithmeticIsAppliedPerNode
   testNarrowAbiWordGuards
   testAbiWordOverridesDriveCanonicalGuards
   testConstructorUsesLowOrderPacking

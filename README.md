@@ -37,18 +37,18 @@ table is the PF-P1-02 contract.
 
 All backends live on `main` (chains are directories and target ids, not
 branches). Lifecycle stages follow [docs/targets/README.md](docs/targets/README.md).
-The primary-chain completion covenant (D-045) is closed and all P0 SDK
-blockers across `evm`, `solana-sbpf-asm`, and `wasm-near` are resolved:
-**0 open P0 blockers** remain. Unified SDK schema/layout outputs now exist
-for `evm`, `solana-sbpf-asm`, `wasm-near`, and `move-sui` via the portable
-Counter flow. Three-chain portable scenarios (Counter, ValueVault) compile
-and execute on EVM, Solana, and NEAR via `just portable-counter-multi-target`
-and `just portable-value-vault`; Sui is intentionally scoped to a Counter MVP
-with local `sui move build/test` validation.
+The primary-chain P0 backend-gate covenant (D-045) is closed, but SDK depth is
+not: the current gap inventory records **3 open P0 SDK blockers** (1 EVM, 2
+NEAR; Solana has 0). Unified SDK schema/layout outputs exist for `evm`,
+`solana-sbpf-asm`, `wasm-near`, and `move-sui` via the portable Counter flow.
+Three-chain portable scenarios (Counter, ValueVault) compile and execute on
+EVM, Solana, and NEAR via `just portable-counter-multi-target` and
+`just portable-value-vault`; Sui is intentionally scoped to a Counter MVP with
+local `sui move build/test` validation.
 
 | Target id | Pipeline | Stage | Local validation |
 |---|---|---|---|
-| `evm` | Lean / portable IR → Yul → `solc` → bytecode | Experimental (broad CI gates; not a full Solidity SDK) | golden Yul, diagnostics, Foundry runtime smoke (15 tests), Anvil deploy, dynamic constructor Anvil, constructor body, deploy gas-limit/price/priority flags, stdlib (ERC-20/721/1155/165/AccessControl/Ownable/Pausable/ReentrancyGuard/UUPS/Create2 — see [sdk-ecosystem-gaps](docs/sdk-ecosystem-gaps-2026-07.md)) |
+| `evm` | Lean / portable IR → Yul → `solc` → bytecode | Experimental (broad CI gates; not a full Solidity SDK) | golden Yul, diagnostics, Foundry runtime smoke (35 tests), Anvil deploy, dynamic constructor Anvil, constructor body, deploy gas-limit/price/priority flags, stdlib (ERC-20/721/1155/165/AccessControl/Ownable/Pausable/ReentrancyGuard/UUPS/Create2 — see [sdk-ecosystem-gaps](docs/sdk-ecosystem-gaps-2026-07.md)) |
 | `solana-sbpf-asm` | portable IR → sBPF assembly → `sbpf` → ELF | Experimental | Mollusk tests, Surfpool/Rust live smokes, Pinocchio equivalence gates, indexed events, Memo CPI, Associated Token `create_idempotent` CPI, Token-2022 extensions (transfer_fee/non_transferable/metadata_pointer/default_account_state/immutable_owner/permanent_delegate/interest_bearing/memo_transfer/transfer_hook_init/pausable), map storage, nativeValue lamports read |
 | `wasm-near` | portable IR → `EmitWat` (Wasm AST → WAT) → `wat2wasm` | Experimental | diagnostics, IR coverage manifests, formal trace obligations, target-first smoke, offline host smoke (signer+deposit+promise stubs), artifact/deploy metadata, NEP-141 FT stdlib, aggregate ABI params, nested mapKey paths, nativeValue U64 truncation, eventEmitIndexed flattening |
 | `wasm-stellar-soroban` | portable IR → `EmitWat` + `HostBridge.soroban` → WAT → `wat2wasm` | Counter MVP (PF-P3-02 six-gate) | `just soroban-promotion` (source identity · fail-closed · HostBridge · wat2wasm · offline-host lifecycle · docs); auth still spike-always; Stellar CLI/TTL remain follow-on |
@@ -222,13 +222,12 @@ Phase 1: target registry + portable IR     (done)
 Phase 2+: parallel backend spikes          (Solana, NEAR, Psy on main;
                                             Sui Counter MVP;
                                             Aleo, CF Workers research)
-Phase 3:  three-chain P0 SDK cleanup        (done — 0 open P0 blockers;
-                                            Counter + ValueVault portable
-                                            on evm + solana-sbpf-asm + wasm-near)
-Current:  P1 feature expansion — full NEAR Promise async execution,
-          Solana map storage, EVM dynamic constructor args runtime,
-          Sui beyond-Counter planning, Pinocchio reference breadth,
-          formal verification (Workstream 25)
+Phase 3:  three-chain P0 backend gates      (done — Counter + ValueVault
+                                            portable on evm + solana-sbpf-asm
+                                            + wasm-near)
+Current:  3 open P0 SDK blockers — EVM typed runtime custom-error args;
+          NEAR parameterized TokenSpec runtime + NEP-145 refund guard;
+          then P1 depth and formal verification (Workstream 25)
 Later:    Move family expansion, cloud platform (after two+ targets reach
           Experimental with shared-scenario parity; D-010)
 ```

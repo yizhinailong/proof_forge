@@ -45,6 +45,10 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint packed_slot3_lifecycle:e077025f \
   --expect-entrypoint packed_assign_op:d1a61f5e \
   --expect-entrypoint packed_assign_op_wraps:9641cb4f \
+  --expect-entrypoint packed_nested_checked_overflow_reverts:48bedaed \
+  --expect-entrypoint packed_mixed_overflow_reverts:a691f1b1 \
+  --expect-entrypoint packed_nested_wrapping_preserves_neighbors:baa34f4a \
+  --expect-entrypoint packed_checked_mul_zero_rhs_succeeds:ffb3ca34 \
   --expect-entrypoint packed_assign_op_overflow_reverts:ab0efcd6 \
   --expect-entrypoint packed_checked_write_overflow_reverts:2b19bf56 \
   "$METADATA_FILE"
@@ -206,6 +210,56 @@ contract ProofForgeIRPackedStorageSmokeTest {
         deployRuntime(hex"$probe_hex", probe);
 
         assertFalse(callBool(probe, abi.encodeWithSignature("packed_assign_op_wraps()")));
+        uint256 s0 = readStorage(probe, 0);
+        assertEq(s0 & 0xFF, 0);
+        assertEq((s0 >> 8) & 0xFF, 0);
+        assertEq((s0 >> 16) & 0xFFFFFFFF, 0x12345678);
+    }
+
+    function testIRPackedNestedCheckedRejectsInnerOverflow() public {
+        address probe = address(uint160(0xB10D));
+        deployRuntime(hex"$probe_hex", probe);
+
+        (bool ok,) = probe.call(
+            abi.encodeWithSignature("packed_nested_checked_overflow_reverts()")
+        );
+        assertFalse(ok);
+        assertEq(readStorage(probe, 0), 0);
+    }
+
+    function testIRPackedMixedRejectsCheckedInnerOverflow() public {
+        address probe = address(uint160(0xB10E));
+        deployRuntime(hex"$probe_hex", probe);
+
+        (bool ok,) = probe.call(
+            abi.encodeWithSignature("packed_mixed_overflow_reverts()")
+        );
+        assertFalse(ok);
+        assertEq(readStorage(probe, 0), 0);
+    }
+
+    function testIRPackedNestedWrappingDoesNotCorruptNeighbors() public {
+        address probe = address(uint160(0xB10F));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertFalse(callBool(
+            probe,
+            abi.encodeWithSignature("packed_nested_wrapping_preserves_neighbors()")
+        ));
+        uint256 s0 = readStorage(probe, 0);
+        assertEq(s0 & 0xFF, 0);
+        assertEq((s0 >> 8) & 0xFF, 255);
+        assertEq((s0 >> 16) & 0xFFFFFFFF, 0x12345678);
+    }
+
+    function testIRPackedCheckedMulZeroRhsSucceeds() public {
+        address probe = address(uint160(0xB110));
+        deployRuntime(hex"$probe_hex", probe);
+
+        assertFalse(callBool(
+            probe,
+            abi.encodeWithSignature("packed_checked_mul_zero_rhs_succeeds()")
+        ));
         uint256 s0 = readStorage(probe, 0);
         assertEq(s0 & 0xFF, 0);
         assertEq((s0 >> 8) & 0xFF, 0);

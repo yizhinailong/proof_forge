@@ -15,7 +15,7 @@ object "AssignmentProbe" {
     default {
       revert(0, 0)
     }
-    function f_AssignmentProbe_reassignment(seed) -> result {
+    function f_AssignmentProbe_reassignment(seed) -> __pf_result {
       let total := seed
       total := __pf_checked_add(total, 7)
       let matched := 0
@@ -23,7 +23,7 @@ object "AssignmentProbe" {
       if iszero(matched) {
         revert(0, 0)
       }
-      result := total
+      __pf_result := total
     }
     function __pf_checked_add(a, b) -> r {
       if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
@@ -38,7 +38,7 @@ object "AssignmentProbe" {
       r := sub(a, b)
     }
     function __pf_checked_mul(a, b) -> r {
-      if iszero(a) {
+      if or(iszero(a), iszero(b)) {
         r := 0
         leave
       }

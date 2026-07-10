@@ -72,10 +72,10 @@ object "ValueVault" {
       sstore(1, or(and(sload(1), not(shl(64, 18446744073709551615))), shl(64, and(1, 18446744073709551615))))
       {
         mstore(0, 39071099571687660945166386872448312871805156882141718791961628460695011207424)
-        let _topic0 := keccak256(0, 31)
+        let __pf_event_topic0 := keccak256(0, 31)
         mstore(0, initial)
         mstore(32, checkpoint)
-        log1(0, 64, _topic0)
+        log1(0, 64, __pf_event_topic0)
       }
     }
     function f_ValueVault_deposit(amount) {
@@ -89,11 +89,11 @@ object "ValueVault" {
       {
         mstore(0, 39071037697028304160098723791689314040959467696239598275638237910041856665966)
         mstore(32, 52564060173324780267596278835754282818996031008839138188382124664963096117248)
-        let _topic0 := keccak256(0, 36)
+        let __pf_event_topic0 := keccak256(0, 36)
         mstore(0, amount)
         mstore(32, next)
         mstore(64, next_ops)
-        log1(0, 96, _topic0)
+        log1(0, 96, __pf_event_topic0)
       }
     }
     function f_ValueVault_charge_fee(gross, fee_bps) {
@@ -112,12 +112,12 @@ object "ValueVault" {
       {
         mstore(0, 39071037697027897510689409130345737227010720245254687220372800936815839048758)
         mstore(32, 23598819743929234470467432538778669474426055237433427601561053256784151576576)
-        let _topic0 := keccak256(0, 41)
+        let __pf_event_topic0 := keccak256(0, 41)
         mstore(0, gross)
         mstore(32, fee)
         mstore(64, net)
         mstore(96, next)
-        log1(0, 128, _topic0)
+        log1(0, 128, __pf_event_topic0)
       }
     }
     function f_ValueVault_release(amount) {
@@ -134,14 +134,14 @@ object "ValueVault" {
       {
         mstore(0, 39071037697034063400694021446782743710686767595469519175822566052150785961588)
         mstore(32, 24517052842465079370413120945299090683665717048513947648744169312629567782912)
-        let _topic0 := keccak256(0, 35)
+        let __pf_event_topic0 := keccak256(0, 35)
         mstore(0, amount)
         mstore(32, next)
         mstore(64, released_next)
-        log1(0, 96, _topic0)
+        log1(0, 96, __pf_event_topic0)
       }
     }
-    function f_ValueVault_snapshot() -> result {
+    function f_ValueVault_snapshot() -> __pf_result {
       let checkpoint := number()
       let balance_now := and(shr(0, sload(0)), 18446744073709551615)
       let released_now := and(shr(64, sload(0)), 18446744073709551615)
@@ -150,22 +150,22 @@ object "ValueVault" {
       {
         mstore(0, 39071037697034489170499070161745893994303869518306945196793092304346311913076)
         mstore(32, 24517076713121108544309768058624709740433614168679780803641681990953488875520)
-        let _topic0 := keccak256(0, 42)
+        let __pf_event_topic0 := keccak256(0, 42)
         mstore(0, balance_now)
         mstore(32, released_now)
         mstore(64, fees_now)
         mstore(96, checkpoint)
-        log1(0, 128, _topic0)
+        log1(0, 128, __pf_event_topic0)
       }
-      result := balance_now
+      __pf_result := balance_now
     }
-    function f_ValueVault_get_balance() -> result {
-      result := and(shr(0, sload(0)), 18446744073709551615)
+    function f_ValueVault_get_balance() -> __pf_result {
+      __pf_result := and(shr(0, sload(0)), 18446744073709551615)
     }
-    function f_ValueVault_get_net_value() -> result {
+    function f_ValueVault_get_net_value() -> __pf_result {
       let balance_now := and(shr(0, sload(0)), 18446744073709551615)
       let fees_now := and(shr(128, sload(0)), 18446744073709551615)
-      result := __pf_checked_sub(balance_now, fees_now)
+      __pf_result := __pf_checked_sub(balance_now, fees_now)
     }
     function __pf_checked_add(a, b) -> r {
       if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
@@ -180,7 +180,7 @@ object "ValueVault" {
       r := sub(a, b)
     }
     function __pf_checked_mul(a, b) -> r {
-      if iszero(a) {
+      if or(iszero(a), iszero(b)) {
         r := 0
         leave
       }

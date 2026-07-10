@@ -35,11 +35,11 @@ object "AbiScalarProbe" {
     default {
       revert(0, 0)
     }
-    function f_AbiScalarProbe_mix(base, delta, flag) -> result {
-      result := __pf_checked_add(__pf_checked_add(base, delta), flag)
+    function f_AbiScalarProbe_mix(base, delta, flag) -> __pf_result {
+      __pf_result := __pf_checked_add(__pf_checked_add(base, delta), flag)
     }
-    function f_AbiScalarProbe_same(left, right) -> result {
-      result := eq(left, right)
+    function f_AbiScalarProbe_same(left, right) -> __pf_result {
+      __pf_result := eq(left, right)
     }
     function __pf_checked_add(a, b) -> r {
       if gt(a, sub(115792089237316195423570985008687907853269984665640564039457584007913129639935, b)) {
@@ -54,7 +54,7 @@ object "AbiScalarProbe" {
       r := sub(a, b)
     }
     function __pf_checked_mul(a, b) -> r {
-      if iszero(a) {
+      if or(iszero(a), iszero(b)) {
         r := 0
         leave
       }

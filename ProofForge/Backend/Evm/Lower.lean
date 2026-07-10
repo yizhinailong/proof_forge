@@ -685,10 +685,32 @@ mutual
       pure acc
 end
 
+def validateEventAbiWords
+    (module : Module) (plans : Array EventPlan) : Except LowerError Unit := do
+  let mut seen : Array (String × String) := #[]
+  for override in module.eventAbiWords do
+    let key := (override.eventName, override.fieldName)
+    if seen.contains key then
+      .error {
+        message :=
+          s!"event `{override.eventName}` field `{override.fieldName}` has duplicate ABI overrides"
+      }
+    seen := seen.push key
+    let some event := plans.find? (fun event => event.name == override.eventName)
+      | .error {
+          message := s!"event ABI override names unknown event `{override.eventName}`"
+        }
+    if !(event.fields.any fun field => field.name == override.fieldName) then
+      .error {
+        message :=
+          s!"event `{override.eventName}` ABI override names unknown field `{override.fieldName}`"
+      }
+
 def buildEventPlans (module : Module) : Except LowerError (Array EventPlan) := do
   let mut collector : EventCollector := {}
   for entrypoint in module.entrypoints do
     collector ← collectEventPlansFromStatements module (entrypointTypeEnv entrypoint) collector entrypoint.body
+  validateEventAbiWords module collector.plans
   .ok collector.plans
 
 def localArrayGetLengthsForDynamicExprTarget

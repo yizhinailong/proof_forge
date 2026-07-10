@@ -26,8 +26,8 @@ object "ReentrancyGuard" {
     function f_ReentrancyGuard_release() {
       sstore(0, or(and(sload(0), not(shl(0, 18446744073709551615))), shl(0, and(0, 18446744073709551615))))
     }
-    function f_ReentrancyGuard_locked() -> result {
-      result := and(shr(0, sload(0)), 18446744073709551615)
+    function f_ReentrancyGuard_locked() -> __pf_result {
+      __pf_result := and(shr(0, sload(0)), 18446744073709551615)
     }
   }
 }

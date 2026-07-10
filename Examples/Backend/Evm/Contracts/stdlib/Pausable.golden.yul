@@ -17,8 +17,8 @@ object "Pausable" {
     default {
       revert(0, 0)
     }
-    function f_Pausable_paused() -> result {
-      result := and(shr(0, sload(0)), 18446744073709551615)
+    function f_Pausable_paused() -> __pf_result {
+      __pf_result := and(shr(0, sload(0)), 18446744073709551615)
     }
     function f_Pausable_pause() {
       if iszero(eq(and(shr(0, sload(0)), 18446744073709551615), 0)) {

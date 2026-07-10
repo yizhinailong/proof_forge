@@ -178,10 +178,10 @@ just near-target-first   # or dedicated just near-nep141-smoke
 |----|------|------|------------|------|--------|
 | **E1.1** | Custom error ABI args | Extend `revertWithError` / ABI encoder beyond 4-byte selector; Foundry assert selector+args | `scripts/evm/errors-ir-smoke.sh` covers arg case; client metadata exposes arg types | M | in_progress: validated compile-time static-scalar subset + generated-client runtime smoke landed; runtime `Expr` args through EVM Plan remain |
 | **E1.2** | ERC-1155 arbitrary batch | Dynamic batch transfer + `onERC1155BatchReceived`; keep size-2 path | Foundry accept/reject batch receiver tests green | L | in_progress: fixed size-2 callback has exact argument/rollback checks; arbitrary-length ABI and standard `TransferBatch` remain |
-| **E1.3** | Storage packing decision | Either implement simple consecutive packing for small scalars **or** document permanent one-slot-per-field + diagnostic/lint. Prefer decision RFC note if deferring. | Decision recorded in `decisions.md` or gap doc; if implement, Foundry layout test | M | implementation landed: D-051 low-order packing + mask + checked/wrapping overflow regressions; fresh merged-revision verification pending |
-| **E1.4** | Upgrade policy honesty | Align UUPS stdlib with Workstream 32 `upgradePolicy`: either lower allowed proxy path or reject product deploy with actionable error (no half-working proxy). | Product contract with non-immutable policy fails closed **or** UUPS smoke passes under allowed policy | M | implementation landed: backend transport now uses mandatory atomic implementation/admin constructor bindings with no runtime init selectors; attacker-first and zero-address Foundry regressions pass. Product authority/governance still fail closed because keyRef is not runtime-bound; generic initializer calldata remains open; fresh merged-revision verification pending |
-| **E1.5** | CREATE2 / factory polish | Advanced salt bookkeeping only if product example needs it; otherwise close gap as “limited covered” with example | Existing Create2 Foundry green; gap doc accurate | S | implementation landed: limited factory returns ABI address and emits typed Deployed event; fresh merged-revision verification pending |
-| **E1.6** | Selective DeFi example | One product example (staking **or** simple vault extension already partially present) multi-target if portable; else EVM-only Backend example | `just product` or `just evm-all` includes example; budgets pinned if in testkit | M | done on local main: existing `StakingVault` selected as the bounded EVM example; merge and fresh verification pending |
+| **E1.3** | Storage packing decision | Either implement simple consecutive packing for small scalars **or** document permanent one-slot-per-field + diagnostic/lint. Prefer decision RFC note if deferring. | Decision recorded in `decisions.md` or gap doc; if implement, Foundry layout test | M | verified on integrated revision: D-051 low-order packing + masks + recursive checked/wrapping narrow-arithmetic regressions |
+| **E1.4** | Upgrade policy honesty | Align UUPS stdlib with Workstream 32 `upgradePolicy`: either lower allowed proxy path or reject product deploy with actionable error (no half-working proxy). | Product contract with non-immutable policy fails closed **or** UUPS smoke passes under allowed policy | M | verified on integrated revision: backend transport uses mandatory atomic implementation/admin constructor bindings with no runtime init selectors; alternate/noncanonical writers and compound implementation-slot assignments fail closed; attacker-first, zero/EOA/self, and storage-preservation regressions pass. Product authority/governance still fail closed because keyRef is not runtime-bound; `proxiableUUID` and generic initializer calldata remain open |
+| **E1.5** | CREATE2 / factory polish | Advanced salt bookkeeping only if product example needs it; otherwise close gap as “limited covered” with example | Existing Create2 Foundry green; gap doc accurate | S | verified on integrated revision: limited factory returns an ABI address and emits a typed `Deployed` event |
+| **E1.6** | Selective DeFi example | One product example (staking **or** simple vault extension already partially present) multi-target if portable; else EVM-only Backend example | `just product` or `just evm-all` includes example; budgets pinned if in testkit | M | done on integrated revision: existing `StakingVault` is the bounded EVM example and is covered by product/testkit gates |
 
 ### E1 parallelization
 
@@ -600,7 +600,7 @@ The plan is **complete** when:
 |------|-------|----------|
 | S0 | done: verified@81b4c373; S0.1 merge + S0.2 product green + S0.3 claim + S0.4 INDEX + S0.5 inventory | just product green; origin 0 behind; branch inventory written |
 | N1 | done: N1.1–N1.7 closed | near-deploy-honesty; budget honesty; storage_withdraw; FT offline |
-| E1 | in_progress: E1.1/E1.2 remain partial; E1.3–E1.6 implementation landed; fresh merged-revision verification pending | static-scalar custom-error subset; size-2 ERC-1155 callback; low-order packing safety; upgrade fail-closed honesty; address-typed CREATE2 factory; StakingVault example |
+| E1 | in_progress: E1.1/E1.2 remain partial; E1.3–E1.6 verified on the integrated revision | static-scalar custom-error subset; size-2 ERC-1155 callback; low-order packing safety; upgrade fail-closed honesty; address-typed CREATE2 factory; StakingVault example |
 | L1 | done: L1.1–L1.5 closed | memo multi-byte; pinocchio 7 refs; solana-source-elf |
 | B1 | done: B1.0–B1.8 closed | just benchmark-matrix / benchmark-zk-counter |
 | Z1 | done: Z1.0–Z1.6 closed | dpn goldens; metadata honesty; AST; Counter dpn-json; fallback policy |
@@ -690,4 +690,54 @@ No placeholders for “implement later” without an ID: deferred items live in 
 
 ---
 
-**Status:** Active (2026-07-10) — extended with Psy/Aleo lowest-boundary research + benchmark matrix; ready for execution after human approval of wave order.
+## Post-review hardening addendum (2026-07-10)
+
+This addendum records correctness and security gaps found while reviewing the
+integrated implementation. It is a verification ledger for this review, not a
+claim that the wider E1/F1 waves are complete.
+
+| ID | Finding | Remediation | Required evidence | State |
+|----|---------|-------------|-------------------|-------|
+| **R1** | ERC-4626 truncated address state, repeat/malformed initialization, unchecked ERC-20 boolean returns, missing reentrancy guard, and dishonest overflow-edge maxima | Store full-width addresses; make initialization one-shot with asset/self/fee-recipient validation; require transfer/transferFrom success; lock all asset-moving entrypoints; compute `maxDeposit`/`maxMint` from the same checked arithmetic accepted by execution | Lean stdlib smoke + Foundry full-width, bad-init rollback, token rollback, reentrancy, lock-release, zero/overflow-limit cases | done (scoped review): `just evm-foundry` 35/35 + stdlib checks |
+| **R2** | UUPS shell admitted alternate/noncanonical runtime initializers and implementation writers, including compound implementation-slot assignments, and allowed unsafe implementation upgrades | Require an entrypoint-free proxy shell; reserve constructor-only bindings; reject every runtime implementation writer, including compound assignment; reject zero/EOA/self implementations; evaluate upgrade input once; preserve storage across valid upgrade | negative fixture diagnostics + UUPS Foundry atomic-init/EOA/self/storage cases | done (scoped review): negative fixtures + `just evm-upgrade-policy-honesty` 5/5 |
+| **R3** | ABI override compatibility accepted lossy shapes; standard event signatures inherited noncanonical carrier widths; compiler-reserved and inline-generated Yul identifiers could collide with user parameters/locals | Enforce explicit entrypoint/event ABI compatibility matrices; introduce named standard-event ABI words and carry them into signatures, topics, and artifact metadata; reject duplicate/unknown/incompatible overrides; reserve generated prefixes and place temporaries in the `__pf_` namespace | `EvmAbiSecurity.lean` + `EvmStandardEvents.lean` RED/GREEN regressions, exact artifact signatures, runtime `expectEmit`, semantic-plan/Yul gates | done (scoped review): semantic-plan, metadata, topic, and Foundry event checks pass |
+| **R4** | Packed narrow arithmetic checked only the final stored value, allowing nested intermediate overflow | Carry per-node result width through `ExprPlan`; recursively enforce checked arithmetic or wrapping masks for narrow storage expressions; fail closed on missing metadata | semantic-plan regressions + packed-storage IR smoke + Foundry nested-overflow cases | done (scoped review): checked and wrapping nested-arithmetic cases pass |
+| **R5** | EVM `TargetSemantics` used a vacuous state relation and synthetic initial-state proof; powdr canonical target inherited a legacy relation | Relate Counter IR state to the canonical low-order packed storage layout; construct the real lowered Yul initial machine; bind canonical powdr semantics to `CounterStorageRel` and state honestly that no generic initial machine is supplied | `TargetSemanticsInstances`, Yul-host refinement, powdr refinement/runtime gates | done (scoped review): Counter/supported-fragment proof anchors and runtime witness gates pass |
+| **R6** | CLI deploy embedded a development private key, started Anvil through a shell string, ignored configured `cast`, conflated manifest and resolved chain profiles, deferred deployer mismatch detection until after broadcast, and emitted unrelated default/Anvil provenance | Require an explicit key; spawn Anvil with argv; use configured tools; pass the resolved chain profile independently through plan/run writers and validation; derive the signing address before broadcast and reject a mismatched `--deployer`; validate creation `from`, network kind, and actual Anvil-start status | CLI deploy unit/smoke tests + missing-key, hostile-argument, configured-cast, profile-override, pre-broadcast deployer-mismatch, and public-profile provenance regressions | done (scoped review): CLI tests + Anvil deploy + broadcast smokes pass |
+| **R7** | Public docs conflated scoped Gate P0 evidence with production-grade compiler correctness and reported stale zero-blocker counts | Qualify P0 as fragment-scoped artifact/execution/metadata/budget evidence; retain Experimental maturity; synchronize English/Chinese docs and manifest hashes | docs check + i18n sync | done (scoped review): claims remain Experimental and synchronized |
+| **R8** | Node-level arithmetic changed the emitted Counter runtime while the powdr refinement witness still pinned the previous bytecode | Make the solc 0.8.30 full runtime a single import-tracked Lean source; decode it fail-closed for the formal config; prove the updated low-order/narrow/add instruction slices; make both external compiler smokes read the same witness | powdr refinement + pinned 0.8.30 runtime + external Yul compiler gates | done (scoped review): single-source runtime witness and all three gates pass |
+
+### Verification snapshot (2026-07-11)
+
+| Surface | Command | Result |
+|---------|---------|--------|
+| Product + aggregate baseline | `just product`; `just check` | PASS. `just check` completed with only policy-allowed environment skips (Quint verify under Java 11 and unavailable memory-cgroup backend). |
+| EVM plan/ABI/event security | `just evm-semantic-plan` | PASS, including packed arithmetic, namespace/ABI negatives, standard event signatures, topics, and metadata. |
+| EVM runtime | `just evm-foundry` | PASS, 35/35 Foundry tests. |
+| UUPS transport | `just evm-upgrade-policy-honesty` | PASS, 5/5 atomic-init and invalid-implementation tests. |
+| Deploy path | `just cli-deploy`; `just evm-anvil-deploy`; `just evm-broadcast-smoke` | PASS, including resolved-profile override and pre-broadcast deployer validation. |
+| Formal runtime witness | `just evm-powdr-counter-refinement-smoke`; `just evm-powdr-counter-runtime`; `just evm-yul-compiler-counter-smoke` | PASS against the same pinned solc 0.8.30 runtime witness. |
+| Documentation | `just docs-check`; `scripts/i18n/check-sync.sh` | PASS after the English/Chinese status update and manifest refresh. |
+
+This snapshot closes R1-R8 only at the implemented scopes above. It does not
+close the wider E1 or F1 waves, and it does not promote the EVM backend beyond
+Experimental.
+
+### Explicit remaining work after this review
+
+| Priority | Gap | Next concrete slice |
+|----------|-----|---------------------|
+| P0 | EVM typed runtime custom-error arguments (**E1.1 remains open**) | Add runtime `Expr` argument lowering through Plan/Yul, ABI metadata, and Foundry revert-data assertions |
+| P1 | Arbitrary-length ERC-1155 batch ABI and standard `TransferBatch` (**E1.2 remains open**) | Add dynamic-array ABI decode/encode, receiver callback, event emission, and rollback tests |
+| P1 | UUPS compatibility and initialization lifecycle | Add `proxiableUUID` validation and a bounded, typed initializer-calldata path before promotion beyond transport spike |
+| P0 | ERC-4626 deployment initialization race | Add an atomic constructor/initcode binding path; until then, document that a separately deployed uninitialized runtime can be claimed by the first caller |
+| P0 | Parameterized NEAR TokenSpec runtime artifact | Unify TokenSpec, plan, and offline-host lifecycle into one source-identity-preserving artifact |
+| P0 | NEP-145 withdrawal/refund correctness | Enforce one-yocto guard and predecessor refund Promise with offline-host evidence |
+| P1 | Full-precision multiply/divide semantics | Introduce an explicit IR/backend primitive rather than relying on native-width intermediate multiplication |
+| P1 | Release and supply-chain hardening | Add checksums/SBOM/provenance, pinned tool verification, and release artifact CI |
+| P1 | Documentation integrity | Add internal-link checking and keep i18n hash validation mandatory |
+| P1 | Package distribution | Define and test versioned Lean/Lake, CLI binary, and generated-client package publication |
+
+---
+
+**Status:** Active (2026-07-11) — post-review R1-R8 hardening is verified at the scoped boundaries above; E1.1/E1.2, the remaining lifecycle gaps, and F1 remain open.
