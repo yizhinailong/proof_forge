@@ -142,6 +142,13 @@ async fn main() -> Result<()> {
         bail!("call_with_args failed: {outcome:?}");
     }
 
+    // N1.6: real NEAR VM gas from sandbox (not Wasmtime fuel).
+    let near_gas = outcome.total_gas_burnt.as_gas();
+    if near_gas == 0 {
+        bail!("expected non-zero nearGas from sandbox call_with_args");
+    }
+    eprintln!("sandbox-peer-smoke: nearGas={near_gas} (NEAR VM gas burnt)");
+
     // Prefer Borsh u64 in the value return.
     let raw = outcome
         .raw_bytes()
@@ -151,7 +158,7 @@ async fn main() -> Result<()> {
         bail!("expected call_with_args → 49, got {n}");
     }
     println!(
-        "sandbox-peer-smoke: ok (call_with_args → 49 via near-sandbox peer; storage_usage={storage_after})"
+        "sandbox-peer-smoke: ok (call_with_args → 49 via near-sandbox peer; storage_usage={storage_after}; nearGas={near_gas})"
     );
     Ok(())
 }

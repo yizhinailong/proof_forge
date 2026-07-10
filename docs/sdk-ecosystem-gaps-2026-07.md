@@ -166,7 +166,7 @@ Probe: `proof-forge build --target wasm-near` on Product sources after S0 merge.
 2. **Aggregate Borsh** — multi-param scalar i64 works; struct/bytes/string ABI still limited (N1.2).
 3. **Promise peer correctness** — materialize exists; sandbox/offline peer returns need N1.4.
 4. **NEP-141/145 product depth** — plan+WAT exist; full FT lifecycle + storage deposit economics still shallow (N1.3/N1.5).
-5. **Budget honesty** — wasmtime fuel vs near gas (N1.6).
+5. **Budget honesty** — offline `wasmtimeFuel*` only; real `nearGas` from sandbox (N1.6).
 
 ### Contract model
 
@@ -204,7 +204,7 @@ Probe: `proof-forge build --target wasm-near` on Product sources after S0 merge.
 |---|---|---|---|
 | attached_deposit (native value) | Covered | `attached_deposit` host import + `.nativeValue` EmitWat lowering (U64 truncation of U128); `StoragePathWrite` supports nested `mapKey+mapKey` paths | — |
 | balance_of / balance_change | Missing | No balance host APIs | P1 |
-| prepaid_gas / used_gas / GAS_PRICE | Missing | Only external fuel reporting; no in-contract gas APIs | P1 |
+| prepaid_gas / used_gas / GAS_PRICE | Partial (N1.6) | Offline: `wasmtimeFuelCumulative`/`wasmtimeFuelDelta` only (`just near-budget-honesty`); sandbox: `nearGas` via `just near-sandbox-peer`. No in-contract prepaid_gas host API yet | P1 remain: in-contract gas APIs |
 
 ### Crypto / misc
 

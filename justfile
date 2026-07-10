@@ -750,6 +750,11 @@ near-remote-call-offline-peer:
 near-storage-deposit-offline:
     scripts/near/storage-deposit-offline-smoke.sh
 
+# N1.6: offline fuel field honesty (wasmtimeFuel* only; never near_gas).
+# Real nearGas is reported by near-sandbox-peer when sandbox is available.
+near-budget-honesty:
+    scripts/near/budget-honesty-smoke.sh
+
 # Build the shared portable Counter to EVM, Solana sBPF, and NEAR/Wasm from one source file.
 portable-counter-multi-target:
     scripts/portable/counter-multi-target.sh
