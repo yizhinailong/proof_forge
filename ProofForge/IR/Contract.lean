@@ -361,9 +361,16 @@ structure ErrorRef where
   assertionId : UInt32
   userCode? : Option String := none
   /-- Optional Solidity custom-error selector (8 hex digits, no `0x`).
-  When set, EVM lowers to `abi.encodeWithSelector(selector)` (PF-P2-02)
-  instead of the ProofForge `(assertionId, string)` envelope. -/
+  When set, EVM lowers to `abi.encodeWithSelector(selector[, args…])`
+  (PF-P2-02 / E1.1) instead of the ProofForge `(assertionId, string)` envelope. -/
   soliditySelector? : Option String := none
+  /-- Optional compile-time ABI static words after the 4-byte selector (E1.1).
+  Each `Nat` is one 32-byte ABI word (right-aligned value). Dynamic types are
+  out of scope — fail closed by omitting them (selector-only or envelope). -/
+  solidityArgWords : Array Nat := #[]
+  /-- Optional Solidity ABI type names parallel to `solidityArgWords` (client/metadata).
+  Example: `#["uint64", "uint64"]` for `error InsufficientBalance(uint64,uint64)`. -/
+  solidityArgTypes : Array String := #[]
   deriving Repr, BEq
 
 inductive Statement where

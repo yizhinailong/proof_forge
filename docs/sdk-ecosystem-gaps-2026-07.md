@@ -66,7 +66,7 @@ gaps.
 
 | Feature | Status | Evidence | Priority |
 |---|---|---|---|
-| Custom errors (0.8.4+) | Covered (limited) | IR `revertWithError` + Solidity 4-byte custom-error selector surface (no-args); `scripts/evm/errors-ir-smoke.sh` `test_revertCustomError_selector` (selector `0x09caebf3`); client/metadata expose selector fields. **Limitation:** ABI-encoded custom-error *arguments* beyond selector remain open | P1 |
+| Custom errors (0.8.4+) | Covered (static args) | IR `revertWithError` + Solidity custom-error selector surface; **E1.1** static ABI words via `ErrorRef.solidityArgWords` / `solidityArgTypes` (e.g. `InsufficientBalance(uint64,uint64)` → selector+2 words); `scripts/evm/errors-ir-smoke.sh` `test_revertCustomError_selector` + `test_revertCustomErrorArgs_selector_and_words`; client/metadata expose selector + arg types/words. **Limitation:** dynamic custom-error args (`string`/`bytes`/arrays) and runtime-computed arg values remain open | P1 remain: dynamic args |
 | Structured events | Covered | Named events, indexed topics, aggregate data — all lowered | — |
 | Constructor args | Covered | CLI ABI-encodes static words and dynamic types (`string`/`bytes`/`uint256[]`, CS-3.4) into the initcode tail; deploy manifest records the schema; `DynamicConstructorProbe` exercises `cstring`/`cbytes`/`u256array` with `evmConstructorInitBindings`; deploy-object initcode reads the tail via `codesize()-argsSize` and binds storage at deploy time; Foundry (`foundry-smoke.sh`) and Anvil (`dynamic-constructor-anvil-smoke.sh`) positive smokes | — |
 | Storage packing | Missing | One slot per field; no packing/layout optimizer | P1 |
@@ -231,7 +231,7 @@ Probe: `proof-forge build --target wasm-near` on Product sources after S0 merge.
 
 ## Summary: P0 blockers per chain
 
-**EVM (0 open P0, 5 closed):** ERC-20 (closed — stdlib mixin + compose), ERC-721 NFT (closed — stdlib mixin + `onERC721Received` PF-P2-02), ERC-165 (closed — stdlib mixin), AccessControl roles (closed — stdlib mixin), Constructor dynamic args (closed — CS-3.4 runtime init + Foundry/Anvil smokes). **Open:** none at P0. Remaining P1: arbitrary ERC-1155 batch/`onERC1155BatchReceived`, custom-error ABI args, storage packing, full multicall body.
+**EVM (0 open P0, 5 closed):** ERC-20 (closed — stdlib mixin + compose), ERC-721 NFT (closed — stdlib mixin + `onERC721Received` PF-P2-02), ERC-165 (closed — stdlib mixin), AccessControl roles (closed — stdlib mixin), Constructor dynamic args (closed — CS-3.4 runtime init + Foundry/Anvil smokes). **Open:** none at P0. Remaining P1: arbitrary ERC-1155 batch/`onERC1155BatchReceived`, custom-error *dynamic* args, storage packing, full multicall body. (E1.1 closed static custom-error ABI args.)
 
 **Solana (0 open P0, 5 closed P0):** Account constraint owner validation, user-facing realloc API, SPL Token close-account lowering, ComputeBudgetInstruction, and Token-2022 direct sBPF CPI lowering for transfer_fee + non_transferable + metadata_pointer + default_account_state + immutable_owner + permanent_delegate + interest_bearing + memo_transfer + transfer_hook initialization + pausable are closed. The P1 Associated Token `create_idempotent` CPI gap and Token-2022 transfer-hook `Execute`/extra-account-meta routing are also now covered.
 

@@ -42,6 +42,7 @@ python3 "$ROOT/scripts/evm/validate-artifact-metadata.py" \
   --expect-entrypoint revertWithMessage:185c38a4 \
   --expect-entrypoint revertWithErrorRef:b34aafd2 \
   --expect-entrypoint revertCustomError:c5159795 \
+  --expect-entrypoint revertCustomErrorArgs:1cff28dd \
   --expect-entrypoint guardedRevert:0ff6ea62 \
   --expect-entrypoint conditionalRevert:194fd609 \
   --expect-entrypoint normalPath:a3f05111 \
@@ -114,6 +115,26 @@ contract ProofForgeIRErrorsSmokeTest {
             sel := mload(add(ret, 32))
         }
         require(sel == bytes4(0x09caebf3), "unexpected custom error selector");
+    }
+
+    // E1.1: custom error with ABI static args — InsufficientBalance(uint64,uint64).
+    function test_revertCustomErrorArgs_selector_and_words() public {
+        (bool ok, bytes memory ret) = PROBE.call(hex"1cff28dd");
+        assertFalse(ok);
+        // 4-byte selector + 2 × 32-byte ABI words
+        require(ret.length == 68, "custom error args should be 4+64 bytes");
+        bytes4 sel;
+        uint64 available;
+        uint64 required;
+        assembly {
+            sel := mload(add(ret, 32))
+            // ABI words start at ret+4 (after selector); load as full words then cast
+            available := mload(add(ret, 36))
+            required := mload(add(ret, 68))
+        }
+        require(sel == bytes4(0x9432a7ee), "unexpected InsufficientBalance selector");
+        require(available == 10, "available arg word mismatch");
+        require(required == 3, "required arg word mismatch");
     }
 
     function test_guardedRevert_false_reverts() public {

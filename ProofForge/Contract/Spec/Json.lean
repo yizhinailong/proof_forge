@@ -113,6 +113,10 @@ structure ErrorCatalogEntry where
   userCode? : Option String := none
   /-- Optional Solidity custom-error selector (8 hex digits, no `0x`). -/
   soliditySelector? : Option String := none
+  /-- Optional Solidity ABI type names for custom-error args (E1.1). -/
+  solidityArgTypes : Array String := #[]
+  /-- Optional compile-time ABI words mirrored from ErrorRef (E1.1). -/
+  solidityArgWords : Array Nat := #[]
   message : String
   entrypoints : Array String
   deriving Repr
@@ -121,6 +125,8 @@ def ErrorCatalogEntry.matches (entry : ErrorCatalogEntry) (ref : ErrorRef) (mess
   entry.assertionId == ref.assertionId &&
     entry.userCode? == ref.userCode? &&
     entry.soliditySelector? == ref.soliditySelector? &&
+    entry.solidityArgTypes == ref.solidityArgTypes &&
+    entry.solidityArgWords == ref.solidityArgWords &&
     entry.message == message
 
 def addErrorRef (entrypointName message : String) (ref : ErrorRef)
@@ -130,6 +136,8 @@ def addErrorRef (entrypointName message : String) (ref : ErrorRef)
         assertionId := ref.assertionId
         userCode? := ref.userCode?
         soliditySelector? := ref.soliditySelector?
+        solidityArgTypes := ref.solidityArgTypes
+        solidityArgWords := ref.solidityArgWords
         message
         entrypoints := #[entrypointName]
       }]
@@ -165,6 +173,8 @@ def errorCatalogEntryJson (entry : ErrorCatalogEntry) : String :=
     ("assertionId", jsonUInt32 entry.assertionId),
     ("userCode", jsonStringOption entry.userCode?),
     ("soliditySelector", jsonStringOption entry.soliditySelector?),
+    ("solidityArgTypes", jsonStringArray entry.solidityArgTypes),
+    ("solidityArgWords", jsonArray (entry.solidityArgWords.map fun w => toString w)),
     ("message", jsonString entry.message),
     ("entrypoints", jsonStringArray entry.entrypoints)
   ]

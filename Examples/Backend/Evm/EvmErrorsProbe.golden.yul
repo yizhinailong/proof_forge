@@ -17,6 +17,10 @@ object "EvmErrorsProbe" {
       f_EvmErrorsProbe_revertCustomError()
       return(0, 0)
     }
+    case 0x1cff28dd {
+      f_EvmErrorsProbe_revertCustomErrorArgs()
+      return(0, 0)
+    }
     case 0x0ff6ea62 {
       if lt(calldatasize(), 36) {
         revert(0, 0)
@@ -65,6 +69,12 @@ object "EvmErrorsProbe" {
     function f_EvmErrorsProbe_revertCustomError() {
       mstore(0, shl(224, 164293619))
       revert(0, 4)
+    }
+    function f_EvmErrorsProbe_revertCustomErrorArgs() {
+      mstore(0, shl(224, 2486347758))
+      mstore(4, 10)
+      mstore(36, 3)
+      revert(0, 68)
     }
     function f_EvmErrorsProbe_guardedRevert(condition) {
       if iszero(condition) {
