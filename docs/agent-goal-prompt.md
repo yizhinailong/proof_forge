@@ -3,16 +3,15 @@
 Copy this entire document into one long-running goal or agent session. It is a
 continuous execution charter, not a request for another audit or plan.
 
-Status: **Active**
+Status: **Blocked: 2026-07-10; install `near` CLI + `near-sandbox` + `cargo-near` on PATH to resume Wave 3 NEAR slices (PF-P2-02 sandbox Promise/storage; PF-P2-03 real peer call_with_args→49). Last code HEAD before block: 8b8af602.**
 
 Queue source of truth:
 [`multi-chain-gap-audit-2026-07-10.md`](multi-chain-gap-audit-2026-07-10.md)
 
-Baseline: Waves 0–2 done. Wave 3: PF-P2-01 done. PF-P2-02 in progress (NEAR sandbox
-blocked — no near CLI/sandbox tools). EVM custom-error + ERC721/1155 receiver +
-batch2 done; Solana ELF done. PF-P2-03 in progress: EVM+Solana real peer
-(call_with_args → 49 via Foundry/revm + Mollusk CPI) done; NEAR real peer still
-blocked (no near CLI/sandbox).
+Baseline: Waves 0–2 done. Wave 3: PF-P2-01 done. PF-P2-02 EVM+Solana slices done;
+NEAR remaining blocked. PF-P2-03 EVM (Foundry + revm testkit) + Solana (Mollusk
+CPI) peer call_with_args→49 done; NEAR real peer blocked. Wave 4–5 closed until
+Wave 3 unblocks.
 
 ---
 
@@ -119,8 +118,8 @@ implementation SHA is only known after the implementation commit exists.
 | 2 | PF-P1-05 | done: verified@d3d2f3d8; just source-dsl-arity; just portable-default; just product; just check | Wave 1 done |
 | 2 | PF-P1-06 | done: verified@1f4c73e7; just leo-printer-fail-closed; just aleo-leo-codegen-smoke; just product; just check | Wave 1 done |
 | 3 | PF-P2-01 | done: verified@72c5789e; just product-catalog; just product; just testkit; just testkit-array-example; just testkit-ownable; just testkit-remote-call; just check | Waves 1 and 2 done |
-| 3 | PF-P2-02 | in_progress: EVM+Solana slices done; NEAR sandbox blocked (no near/near-sandbox/cargo-near on PATH) | Waves 1 and 2 done; complete one backend slice at a time |
-| 3 | PF-P2-03 | in_progress: EVM revm+Foundry + Solana Mollusk peer (call_with_args→49) done; next: NEAR real peer (blocked: no near/near-sandbox/cargo-near) | Waves 1 and 2 done |
+| 3 | PF-P2-02 | blocked: NEAR sandbox Promise/callback + storage-accounting remaining; EVM custom-error/ERC721/1155 + Solana ELF done @8b8af602; probes: `command -v near` / `near-sandbox` / `cargo-near` all not found (2026-07-10); unblock: install near CLI + near-sandbox + cargo-near then run sandbox FT/promise gate | Waves 1 and 2 done; complete one backend slice at a time |
+| 3 | PF-P2-03 | blocked: NEAR real peer remaining; EVM revm+Foundry + Solana Mollusk call_with_args→49 done @8b8af602 (`just testkit-remote-call`); probes: near/near-sandbox/cargo-near not on PATH; unblock: install NEAR tools, add sandbox peer oracle scenario matching triad return 49 | Waves 1 and 2 done |
 | 5 | PF-P3-01 | pending | Wave 3 done |
 | 5 | PF-P3-03 | pending | Wave 3 done |
 | 4 | PF-P3-02 | pending | Wave 3 done; promote only one target at a time, and do not block Wave 5 |
