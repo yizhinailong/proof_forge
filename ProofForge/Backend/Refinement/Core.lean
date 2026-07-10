@@ -353,12 +353,20 @@ def isCounterModuleShape (state : List StateDecl) (entrypoints : List Entrypoint
         isCounterGetEntrypoint entry2
   | _, _ => false
 
+/-- Entrypoint metadata pinned for the Counter lowerable class: empty ABI-word
+overrides so lowerable modules do not differ from the canonical fixture on
+fields that `lowerModule` may consult for ABI packing. -/
+def counterEntrypointsMetadataPinned (entrypoints : List Entrypoint) : Bool :=
+  entrypoints.all (fun ep => ep.paramAbiWords.size == 0)
+
 /-- Broad Counter-shape *lowerable* predicate (PF-P3-01).
 
 Same IR shape and host/scalar constraints as the proved Counter fragment,
 but without pinning `module.name == "Counter"`. Primary triad lowerers treat
 the name as a label and succeed on this class. Overflow-checked variants
-remain outside the class (they break Solana/NEAR lowering).
+remain outside the class (they break Solana/NEAR lowering). Also pins
+`allocator = defaultAllocator` and empty `paramAbiWords` so unconstrained
+metadata cannot inflate the lowerable class beyond the Counter skeleton.
 
 This is the structural superset of `isCounterModule` used for
 `TargetSemantics.lowerableAccepts` so that `proven ⊂ lowerable` is a real
@@ -369,6 +377,8 @@ def isCounterShapeLowerable (module : Module) : Bool :=
     module.proxyPattern?.isNone &&
     module.nearCrosscallStrings.size == 0 &&
     !module.overflowChecked &&
+    module.allocator == defaultAllocator &&
+    counterEntrypointsMetadataPinned module.entrypoints.toList &&
     isCounterModuleShape module.state.toList module.entrypoints.toList
 
 /-- Narrow proved Counter fragment: canonical name plus lowerable shape. -/
@@ -590,23 +600,29 @@ theorem isCounterShapeLowerable_flags
     m.structs = #[] ∧
       m.proxyPattern? = none ∧
       m.nearCrosscallStrings = #[] ∧
-      m.overflowChecked = false := by
+      m.overflowChecked = false ∧
+      (m.allocator == defaultAllocator) = true ∧
+      counterEntrypointsMetadataPinned m.entrypoints.toList = true := by
   simp only [isCounterShapeLowerable, Bool.and_eq_true] at h
-  refine ⟨?structs, ?proxy, ?near, ?overflow⟩
-  · exact Array.eq_empty_of_size_eq_zero (beq_iff_eq.mp h.1.1.1.1)
-  · have hp : m.proxyPattern?.isNone = true := h.1.1.1.2
-    revert hp
+  -- (((((structs ∧ proxy) ∧ near) ∧ !overflow) ∧ allocator) ∧ meta) ∧ shape
+  obtain ⟨⟨⟨⟨⟨⟨hstructsB, hproxyB⟩, hnearB⟩, hoverflowB⟩, halloc⟩, hmeta⟩, _hshape⟩ := h
+  have hstructs : m.structs = #[] :=
+    Array.eq_empty_of_size_eq_zero (beq_iff_eq.mp hstructsB)
+  have hproxy : m.proxyPattern? = none := by
+    revert hproxyB
     cases m.proxyPattern? with
     | none => intro; rfl
     | some _ =>
       intro hp
       simp [Option.isNone] at hp
-  · exact Array.eq_empty_of_size_eq_zero (beq_iff_eq.mp h.1.1.2)
-  · have ho : (!m.overflowChecked) = true := h.1.2
+  have hnear : m.nearCrosscallStrings = #[] :=
+    Array.eq_empty_of_size_eq_zero (beq_iff_eq.mp hnearB)
+  have hoverflow : m.overflowChecked = false := by
     cases hov : m.overflowChecked with
     | false => rfl
     | true =>
-      simp [hov] at ho
+      simp [hov] at hoverflowB
+  exact ⟨hstructs, hproxy, hnear, hoverflow, halloc, hmeta⟩
 
 /-- PF-P3-01: shape-lowerable modules carry the Counter entrypoint triple. -/
 theorem isCounterShapeLowerable_entrypoints
@@ -629,24 +645,40 @@ theorem isCounterShapeLowerable_state
     isCounterModuleShape_state m.state.toList m.entrypoints.toList h.2
   exact ⟨sd, hlist, hdecl, isCounterStateDecl_eq sd hdecl⟩
 
-/-- PF-P3-01 progressive structural skeleton: every shape-lowerable module has
-fixed host/scalar flags, unique `count` state, and a triple of Counter
-entrypoints with forced names/selectors/returns/params/bodies.
+/-- Empty `paramAbiWords` on every entrypoint of a shape-lowerable module. -/
+theorem isCounterShapeLowerable_paramAbiWords_empty
+    (m : Module) (h : isCounterShapeLowerable m = true)
+    (ep : Entrypoint) (hep : ep ∈ m.entrypoints.toList) :
+    ep.paramAbiWords = #[] := by
+  have hmeta : counterEntrypointsMetadataPinned m.entrypoints.toList = true :=
+    (isCounterShapeLowerable_flags m h).2.2.2.2.2
+  -- all (size == 0) = true and membership ⇒ size = 0
+  have hall :
+      (m.entrypoints.toList.all (fun e => e.paramAbiWords.size == 0)) = true := by
+    simpa [counterEntrypointsMetadataPinned] using hmeta
+  have hsize : (ep.paramAbiWords.size == 0) = true :=
+    List.all_eq_true.mp hall ep hep
+  exact Array.eq_empty_of_size_eq_zero (beq_iff_eq.mp hsize)
 
-Unconstrained metadata (`paramAbiWords`, `allocator`) is intentionally outside
-this skeleton — the full `∀ m, lowerable m → lowerModule m = .ok` bridge still
-requires either strengthening `isCounterShapeLowerable` to pin those fields or
-a lowerer-total theorem over them. -/
+/-- PF-P3-01 progressive structural skeleton: every shape-lowerable module has
+fixed host/scalar flags, pinned allocator + empty paramAbiWords, unique `count`
+state, and a triple of Counter entrypoints with forced
+names/selectors/returns/params/bodies.
+
+The remaining half of `∀ m, lowerable m → lowerModule m = .ok` is lowerer
+totality (or name-independence of `isOk`) over this fully pinned IR skeleton. -/
 theorem isCounterShapeLowerable_skeleton
     (m : Module) (h : isCounterShapeLowerable m = true) :
     m.structs = #[] ∧
       m.proxyPattern? = none ∧
       m.nearCrosscallStrings = #[] ∧
       m.overflowChecked = false ∧
+      (m.allocator == defaultAllocator) = true ∧
       (∃ sd, m.state.toList = [sd] ∧
         sd = { id := "count", kind := .scalar, type := .u64 }) ∧
       (∃ e0 e1 e2,
         m.entrypoints.toList = [e0, e1, e2] ∧
+          e0.paramAbiWords = #[] ∧ e1.paramAbiWords = #[] ∧ e2.paramAbiWords = #[] ∧
           e0.name = "initialize" ∧ e0.selector? = some "8129fc1c" ∧
             e0.returns = .unit ∧ e0.params = #[] ∧ e0.kind = .function ∧
             e0.body = #[.effect (.storageScalarWrite "count" (.literal (.u64 0)))] ∧
@@ -659,7 +691,8 @@ theorem isCounterShapeLowerable_skeleton
           e2.name = "get" ∧ e2.selector? = some "6d4ce63c" ∧
             e2.returns = .u64 ∧ e2.params = #[] ∧ e2.kind = .function ∧
             e2.body = #[.return (.effect (.storageScalarRead "count"))]) := by
-  obtain ⟨hstructs, hproxy, hnear, hoverflow⟩ := isCounterShapeLowerable_flags m h
+  obtain ⟨hstructs, hproxy, hnear, hoverflow, halloc, _hmeta⟩ :=
+    isCounterShapeLowerable_flags m h
   obtain ⟨sd, hstate, _, hsd⟩ := isCounterShapeLowerable_state m h
   obtain ⟨e0, e1, e2, heps, h0, h1, h2⟩ := isCounterShapeLowerable_entrypoints m h
   obtain ⟨n0, s0, r0, _⟩ := isCounterInitializeEntrypoint_fields e0 h0
@@ -668,8 +701,14 @@ theorem isCounterShapeLowerable_skeleton
   obtain ⟨k1, p1⟩ := isCounterIncrementEntrypoint_kind_params e1 h1
   obtain ⟨n2, s2, r2, _⟩ := isCounterGetEntrypoint_fields e2 h2
   obtain ⟨k2, p2⟩ := isCounterGetEntrypoint_kind_params e2 h2
-  refine ⟨hstructs, hproxy, hnear, hoverflow, ⟨sd, hstate, hsd⟩,
+  have heps_mem0 : e0 ∈ m.entrypoints.toList := by simp [heps]
+  have heps_mem1 : e1 ∈ m.entrypoints.toList := by simp [heps]
+  have heps_mem2 : e2 ∈ m.entrypoints.toList := by simp [heps]
+  refine ⟨hstructs, hproxy, hnear, hoverflow, halloc, ⟨sd, hstate, hsd⟩,
     ⟨e0, e1, e2, heps,
+      isCounterShapeLowerable_paramAbiWords_empty m h e0 heps_mem0,
+      isCounterShapeLowerable_paramAbiWords_empty m h e1 heps_mem1,
+      isCounterShapeLowerable_paramAbiWords_empty m h e2 heps_mem2,
       n0, s0, r0, p0, k0, isCounterInitializeEntrypoint_body_array e0 h0,
       n1, s1, r1, p1, k1, isCounterIncrementEntrypoint_body_array e1 h1,
       n2, s2, r2, p2, k2, isCounterGetEntrypoint_body_array e2 h2⟩⟩

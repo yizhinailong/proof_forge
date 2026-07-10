@@ -1334,11 +1334,10 @@ theorem evm_counter_shape_name_family_lowerable_total :
     evm_shape_name_VaultCounter_lowerable_total⟩
 
 /-- PF-P3-01 progressive structural bridge: every EVM-lowerable module carries
-the Counter IR skeleton (fixed state/entrypoints/bodies). This is the
-structural half of `∀ m, lowerable m → …`; the remaining half
-(`lowerModule m = .ok`) still needs lowerer totality over unconstrained
-metadata (`paramAbiWords`, `allocator`) or a strengthened lowerable
-predicate. -/
+the pinned Counter IR skeleton (flags, default allocator, empty
+paramAbiWords, fixed state/entrypoints/bodies). Remaining half of
+`∀ m, lowerable m → lowerModule m = .ok` is lowerer totality / name-
+independence of `isOk` over this class. -/
 theorem evm_lowerable_implies_counter_skeleton
     (m : ProofForge.IR.Module)
     (h : evmYulTargetSemantics.lowerableAccepts m = true) :
@@ -1346,10 +1345,12 @@ theorem evm_lowerable_implies_counter_skeleton
       m.proxyPattern? = none ∧
       m.nearCrosscallStrings = #[] ∧
       m.overflowChecked = false ∧
+      (m.allocator == ProofForge.IR.defaultAllocator) = true ∧
       (∃ sd, m.state.toList = [sd] ∧
         sd = { id := "count", kind := .scalar, type := .u64 }) ∧
       (∃ e0 e1 e2,
         m.entrypoints.toList = [e0, e1, e2] ∧
+          e0.paramAbiWords = #[] ∧ e1.paramAbiWords = #[] ∧ e2.paramAbiWords = #[] ∧
           e0.name = "initialize" ∧ e0.selector? = some "8129fc1c" ∧
             e0.returns = .unit ∧ e0.params = #[] ∧ e0.kind = .function ∧
             e0.body = #[.effect (.storageScalarWrite "count" (.literal (.u64 0)))] ∧
