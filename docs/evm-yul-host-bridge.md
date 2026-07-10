@@ -3,6 +3,10 @@
 Status: **landed** (2026-07) — mathlib-free IR ↔ in-tree `YulSemantics`
 paired simulation for Counter + ValueVault default scenario.
 
+**Update (2026-07-10):** ValueVault now carries a multi-field storage relation
+(balance / released / fees / last_value packed in slot 0; last_checkpoint /
+operations packed in slot 1), not only return-value lockstep.
+
 ## Goal
 
 Mirror the Solana solanalib host lane for EVM **without** leaving Portable IR
@@ -24,7 +28,7 @@ EvmYulMachineState  (lowered Yul object + WordBindings storage)
 |-------|--------|------|
 | IR ↔ Yul Counter paired simulation | `ProofForge/Backend/Evm/YulHostRefinement.lean` | `just evm-yul-host-refinement-smoke` |
 | CounterCall vocabulary lockstep | same | same |
-| ValueVault default scenario lockstep | same | same |
+| ValueVault default scenario lockstep + multi-field storage relation | same | same |
 | Existing executable-trace anchors re-checked | same | same |
 
 ### Storage relation (Counter)
@@ -32,6 +36,23 @@ EvmYulMachineState  (lowered Yul object + WordBindings storage)
 IR `count : U64` relates to Yul storage slot `0` high-64 bits
 (`word / 2^192`), matching the EVM packing used by
 `EvmRefinement.CounterRefinement`.
+
+### Storage relation (ValueVault)
+
+All six `U64` scalar fields are packed by the standard EVM layout
+(`ProofForge.Backend.Evm.Plan.storageLayout`) into two storage slots:
+
+| Field | Slot | Byte offset | Extraction |
+|-------|------|-------------|------------|
+| `balance` | 0 | 0 | `word / 2^192` |
+| `released` | 0 | 8 | `(word / 2^128) % 2^64` |
+| `fees` | 0 | 16 | `(word / 2^64) % 2^64` |
+| `last_value` | 0 | 24 | `word % 2^64` |
+| `last_checkpoint` | 1 | 0 | `word / 2^192` |
+| `operations` | 1 | 8 | `(word / 2^128) % 2^64` |
+
+The relation is checked at every step by `valueVaultYulTraceOk` and
+witnessed by `value_vault_yul_trace_simulation_sound_checked`.
 
 ### Honest claims
 
@@ -51,6 +72,6 @@ IR `count : U64` relates to Yul storage slot `0` high-64 bits
 
 ## Next work
 
-1. Multi-field storage relation for ValueVault (not only observables).
+1. ~~Multi-field storage relation for ValueVault (not only observables).~~ ✅ Done.
 2. Strengthen powdr delivery boundary (opt-in) for Counter bytecode.
 3. Optional: yul-compiler integration for verified Yul→bytecode (external).

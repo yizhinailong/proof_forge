@@ -98,7 +98,8 @@ TCB. Both discharge a `Bool` proposition, but they trust different evaluators:
    Yul→bytecode `solc` hop is **not** proven.
 2. **EVM Yul-subset host lane (default, mathlib-free)** trusts the in-tree
    `YulSemantics` interpreter + `native_decide` paired-step checks in
-   `YulHostRefinement` (Counter storage rel + ValueVault return lockstep). This
+   `YulHostRefinement` (Counter storage rel + ValueVault multi-field storage rel
+   + return lockstep). This
    is **not** a powdr TCB expansion: it does not import powdr/mathlib and does
    not claim solc or bytecode equivalence. Gate:
    `just evm-yul-host-refinement-smoke`.
@@ -275,7 +276,7 @@ N1/E1) and F1.3 (push simulation lemmas).
 | Product source | Key IR constructs | C-proof fragment | C-diff traces | Outside both |
 |---|---|---|---|---|
 | `Counter` | scalar u64 state, `entry`/`query`, `let`, `+!` | ✅ `.counter` (all inputs, `counter-model`) | ✅ Counter scalar/event (EVM Yul host, Wasm, sBPF) | — |
-| `ValueVault` | 6× scalar u64 state, `entry`/`query`, `let`, `+!`/`-!`/`*!`/`/!`, `emit`, `checkpointId` | partial: shallow ∀-call `valueVault_step_simulates` + full entrypoint fuel-coverage (not supportedFragment) | ✅ scalar/event slice (EVM Yul host, Wasm, sBPF) | full IR↔target universal refinement; multi-field Yul storage rel |
+| `ValueVault` | 6× scalar u64 state, `entry`/`query`, `let`, `+!`/`-!`/`*!`/`/!`, `emit`, `checkpointId` | partial: shallow ∀-call `valueVault_step_simulates` + full entrypoint fuel-coverage (not supportedFragment) | ✅ scalar/event slice + **EVM Yul multi-field storage rel** (Wasm, sBPF) | full IR↔target universal refinement |
 | `Ownable` | scalar u64 (owner), `entry`/`query`, caller auth (`signer_account_id`) | ❌ | ❌ | caller-auth host import; ownership transfer |
 | `RemoteCall` | scalar u64 state, `entry`, `crosscall.invoke`, `remoteCallRef` | ❌ | ❌ (IR stub, not peer) | crosscall materialize (CALL/CPI/Promise) — F1.4 gates separate |
 | `ArrayExample` | `array` state, `query`, `for`, u64 indexing | ❌ | ✅ fixed-array storage probe (Wasm, sBPF) | dynamic array bounds; full `for` loop |
@@ -295,7 +296,8 @@ N1/E1) and F1.3 (push simulation lemmas).
 
 **F1.2 landed (2026-07-10)** — host-surface pins for N1/E1-adjacent lower paths:
 - EVM: `just evm-yul-host-refinement-smoke` — IR↔Yul Counter + ValueVault
-  paired simulation (`YulHostRefinement`; see [evm-yul-host-bridge.md](evm-yul-host-bridge.md)).
+  paired simulation (`YulHostRefinement`; see [evm-yul-host-bridge.md](evm-yul-host-bridge.md));
+  ValueVault now also has a slot-packed multi-field storage relation.
 - NEAR/Wasm + Solana: existing Counter/ValueVault executable-trace anchors remain
   the triad C-diff pins (`just value-vault-wasm-refinement-smoke`, Solana sBPF
   refinement smokes).

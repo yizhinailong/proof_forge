@@ -11,6 +11,7 @@ open ProofForge.Backend.Evm.YulHostRefinement
 #check counter_yul_counter_call_trace_ok
 #check counter_yul_counter_call_trace_sound_checked
 #check value_vault_yul_trace_simulation_ok
+#check value_vault_yul_trace_simulation_sound_checked
 #check value_vault_yul_executable_still_ok
 #check counter_yul_executable_still_ok
 
