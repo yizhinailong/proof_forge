@@ -389,7 +389,8 @@ def evmArtifactBundle
     (yulBytes bytecodeBytes initBytes : Nat)
     (solcAvailable : Bool)
     (solcVersion? : Option String)
-    (contractSizeOk : Bool) :
+    (contractSizeOk : Bool)
+    (leanVersion? : Option String := none) :
     ProofForge.Target.ArtifactBundle.ArtifactBundle :=
   open ProofForge.Target.ArtifactBundle in
   let source : SourceIdentity := {
@@ -424,12 +425,15 @@ def evmArtifactBundle
     outputs := #[yulOut, bytecodeOut, initOut]
     primaryOutput? := some "evm-bytecode"
     finalOutput? := some "evm-bytecode"
-    toolchain := #[{
-      tool := "solc"
-      stage := "final-deployable"
-      available := solcAvailable
-      version? := solcVersion?
-    }]
+    toolchain := #[
+      leanElaborationTool leanVersion?,
+      {
+        tool := "solc"
+        stage := "final-deployable"
+        available := solcAvailable
+        version? := solcVersion?
+      }
+    ]
     validations := #[
       { name := "solcStrictAssembly", state := if solcAvailable then .passed else .unavailable },
       { name := "bytecodeGeneration", state := if solcAvailable then .passed else .unavailable },
@@ -505,6 +509,7 @@ def writeEvmArtifactMetadata
   let yulDigest ← fileDigestAndBytes yulOutput
   let bytecodeDigest ← fileDigestAndBytes bytecodeOutput
   let initDigest ← fileDigestAndBytes initCodeOutput
+  let leanPin ← ProofForge.Target.ArtifactBundle.readLeanToolchainPin
   let bundle := evmArtifactBundle
     sourceModule
     sourceKind
@@ -521,6 +526,7 @@ def writeEvmArtifactMetadata
     true
     solcVer?
     (contractSizeStatus == "passed")
+    leanPin
   let _ ← match ProofForge.Target.ArtifactBundle.validateHonesty bundle with
     | .ok () => pure ()
     | .error err => throw <| IO.userError s!"EVM ArtifactBundle honesty: {err.message}"

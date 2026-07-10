@@ -143,7 +143,8 @@ def emitWatArtifactBundle
     (targetId : String) (module : ProofForge.IR.Module)
     (watPath : FilePath) (wasmPath? : Option FilePath)
     (watSha? wasmSha? : Option String)
-    (watBytes? wasmBytes? : Option Nat) :
+    (watBytes? wasmBytes? : Option Nat)
+    (leanVersion? : Option String := none) :
     ProofForge.Target.ArtifactBundle.ArtifactBundle :=
   open ProofForge.Target.ArtifactBundle in
   let source : SourceIdentity := {
@@ -158,6 +159,7 @@ def emitWatArtifactBundle
     sha256? := watSha?
     bytes? := watBytes?
   }
+  let leanTool := leanElaborationTool leanVersion?
   match wasmPath? with
   | some wasmPath =>
       let wasmOut : TypedOutput := {
@@ -173,7 +175,7 @@ def emitWatArtifactBundle
         outputs := #[watOut, wasmOut]
         primaryOutput? := some "wasm"
         finalOutput? := some "wasm"
-        toolchain := #[{ tool := "wat2wasm", stage := "final-deployable", available := true }]
+        toolchain := #[leanTool, { tool := "wat2wasm", stage := "final-deployable", available := true }]
         validations := #[{ name := "wat2wasm", state := .passed }]
       }
   | none =>
@@ -183,7 +185,7 @@ def emitWatArtifactBundle
         outputs := #[watOut]
         primaryOutput? := some "wat"
         finalOutput? := none
-        toolchain := #[{ tool := "wat2wasm", stage := "final-deployable", available := false }]
+        toolchain := #[leanTool, { tool := "wat2wasm", stage := "final-deployable", available := false }]
         validations := #[{
           name := "wat2wasm"
           state := .unavailable
@@ -210,12 +212,14 @@ def writeEmitWatArtifactMetadata
         else
           pure none
     | none => pure none
+  let leanPin ← ProofForge.Target.ArtifactBundle.readLeanToolchainPin
   let bundle := emitWatArtifactBundle targetId module watPath
     (if wasmDigest?.isSome then wasmPath? else none)
     (some watDigest.fst)
     (wasmDigest?.map (·.fst))
     (some watDigest.snd)
     (wasmDigest?.map (·.snd))
+    leanPin
   let _ ← match ProofForge.Target.ArtifactBundle.validateHonesty bundle with
     | .ok () => pure ()
     | .error err => throw <| IO.userError s!"EmitWat ArtifactBundle honesty: {err.message}"

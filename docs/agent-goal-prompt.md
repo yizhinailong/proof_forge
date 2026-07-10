@@ -121,7 +121,7 @@ implementation SHA is only known after the implementation commit exists.
 | 3 | PF-P2-02 | done: verified@7c4def9c; Foundry ERC721/1155/custom-error; Solana ELF; `just near-sandbox-peer` (storage_usage + promise peer); `just product`; `just check` | Waves 1 and 2 done; complete one backend slice at a time |
 | 3 | PF-P2-03 | done: verified@7c4def9c; `just testkit-remote-call` (evm+solana); Foundry peer; Mollusk CPI; `just near-sandbox-peer` (call_with_args→49); `just product` | Waves 1 and 2 done |
 | 5 | PF-P3-01 | in_progress: structural isCounterShapeLowerable ⊃ isCounterModule + triad renamed lowerable∧¬proved witnesses; next: ∀ m lowerable m → lowerModule m = .ok structural bridge | Wave 3 done; after PF-P3-02 |
-| 5 | PF-P3-03 | in_progress: PROOF_FORGE_HOSTED_ISOLATION refuse + `just hosted-isolation`; next: isolated worker limits + toolchain pin / rebuild hashes | Wave 3 done |
+| 5 | PF-P3-03 | in_progress: HOSTED_ISOLATION refuse + lean-toolchain pin in EVM/EmitWat ArtifactBundle; next: worker CPU/mem/time limits + rebuild hash equivalence | Wave 3 done |
 | 4 | PF-P3-02 | done: verified@8d4dd0c4; `just soroban-promotion` `cosmwasm-promotion` `aptos-promotion` `sui-promotion` `cloudflare-promotion` `psy-promotion` `aleo-promotion` | Wave 3 done; promote only one target at a time, and do not block Wave 5 |
 
 PF-P3-02 promotion order is fixed unless the human changes it: Soroban,
