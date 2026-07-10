@@ -20,8 +20,8 @@ require_file benchmarks/native/evm/Counter.sol
 require_file benchmarks/native/solana/counter/src/lib.rs
 require_file benchmarks/native/solana/counter/Cargo.toml
 require_file benchmarks/native/near/counter/reference-manifest.json
-require_file testkit/compare/near/counter/src/lib.rs
-require_file testkit/compare/near/counter/Cargo.toml
+require_file benchmarks/native/near/counter-rs/src/lib.rs
+require_file benchmarks/native/near/counter-rs/Cargo.toml
 
 passed=0
 skipped=0
@@ -57,10 +57,10 @@ else
   skipped=$((skipped + 1))
 fi
 
-# --- NEAR (host unit tests via existing compare package) ---
+# --- NEAR (host unit tests on vendored B1 corpus) ---
 if command -v cargo >/dev/null 2>&1; then
-  note "near: cargo test host-tests on testkit/compare/near/counter"
-  cargo test --manifest-path testkit/compare/near/counter/Cargo.toml \
+  note "near: cargo test host-tests on benchmarks/native/near/counter-rs"
+  cargo test --manifest-path benchmarks/native/near/counter-rs/Cargo.toml \
     --features host-tests -- --nocapture \
     || fail "near host tests failed"
   note "near: ok (host tests)"
@@ -70,15 +70,15 @@ else
   skipped=$((skipped + 1))
 fi
 
-# Structural JSON pointer for NEAR reuse
+# Structural JSON pointer for NEAR corpus
 python3 - <<'PY'
-import json, pathlib, sys
+import json, pathlib
 p = pathlib.Path("benchmarks/native/near/counter/reference-manifest.json")
 m = json.loads(p.read_text())
-assert m["sourcePath"] == "testkit/compare/near/counter", m
+assert m["sourcePath"] == "benchmarks/native/near/counter-rs", m
 src = pathlib.Path(m["sourcePath"]) / "src" / "lib.rs"
 assert src.is_file(), src
-print("near: reference-manifest points at existing package")
+print("near: reference-manifest points at counter-rs")
 PY
 
 note "summary: ${passed} passed, ${skipped} skipped"
