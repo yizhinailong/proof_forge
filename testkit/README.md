@@ -39,10 +39,10 @@ Current scope:
   builds, loads artifact metadata selectors, and executes the same scenario
   steps as EVM transactions when Foundry `cast` is available for selector
   hydration
-- `solana-sbpf-asm` Counter, ValueVault, ArrayExample, and Ownable (authority +
-  state accounts) execution through `mollusk-svm` when `sbpf` and
-  `solana-keygen` are available, using assembly, manifest, IDL, TypeScript
-  client, source, and metadata artifacts emitted from shared `contract_source`
+- `solana-sbpf-asm` Counter and ValueVault product scenarios execute the
+  **source-built final ELF** (`artifactKind=solana-elf`, `sbpfBuild=passed`) via
+  Mollusk (PF-P2-02); ArrayExample, Ownable, and RemoteCall still use
+  intermediate assembly + harness scaffold when appropriate
 - normalized observable trace parity across every selected target that ran
 - `just testkit` and a CI gate
 

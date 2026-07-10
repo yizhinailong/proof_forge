@@ -548,6 +548,12 @@ fn run_state_account_scenario(
             path: source_path,
         });
     }
+    if let Some(elf_path) = &artifact.elf_path {
+        outputs.push(ArtifactOutput {
+            name: "elf",
+            path: elf_path,
+        });
+    }
     assert_artifact_expectations(case, "solana-sbpf-asm", repo_root, &outputs)?;
 
     let tags = load_instruction_tags(&artifact.manifest_path)?;
@@ -601,6 +607,8 @@ struct SolanaFixtureArtifact {
     client_path: Option<PathBuf>,
     contract_spec_path: Option<PathBuf>,
     source_path: Option<PathBuf>,
+    /// Present when the fixture was built as a final Solana ELF (PF-P2-02).
+    elf_path: Option<PathBuf>,
     keypair_path: PathBuf,
     program_path: PathBuf,
 }
@@ -622,17 +630,13 @@ fn build_counter_fixture(
     let asm_path = out_dir.join("Counter.s");
     let artifact_path = out_dir.join("proof-forge-artifact.json");
     if let Some(source_path) = scenario_source(case, repo_root)? {
-        build_contract_source_fixture(case, repo_root, &source_path, &asm_path, &artifact_path)?;
-        return finish_solana_fixture(
-            "Counter",
+        // PF-P2-02: product Counter runs the source-built final ELF (not harness-scaffolded asm).
+        return build_contract_source_elf_fixture(
+            case,
+            repo_root,
+            &source_path,
             &out_dir,
-            &asm_path,
-            &artifact_path,
-            COUNTER_PROJECT_NAME,
-            Some(source_path),
-            true,
-            sbpf,
-            keygen,
+            "Counter",
         );
     }
 
@@ -686,17 +690,13 @@ fn build_value_vault_fixture(
     let asm_path = out_dir.join("ValueVault.s");
     let artifact_path = out_dir.join("proof-forge-artifact.json");
     if let Some(source_path) = scenario_source(case, repo_root)? {
-        build_contract_source_fixture(case, repo_root, &source_path, &asm_path, &artifact_path)?;
-        return finish_solana_fixture(
-            "ValueVault",
+        // PF-P2-02: product ValueVault runs the source-built final ELF.
+        return build_contract_source_elf_fixture(
+            case,
+            repo_root,
+            &source_path,
             &out_dir,
-            &asm_path,
-            &artifact_path,
-            VALUE_VAULT_PROJECT_NAME,
-            Some(source_path),
-            true,
-            sbpf,
-            keygen,
+            "ValueVault",
         );
     }
 
@@ -842,8 +842,7 @@ fn build_contract_source_fixture(
     artifact_path: &Path,
 ) -> Result<()> {
     let mut build = Command::new("lake");
-    // PF-P0-03: default Solana source build is ELF; testkit scaffolds its own
-    // sbpf package from assembly, so request the toolchain-free intermediate.
+    // Assembly intermediate for fixtures that still scaffold their own sbpf package.
     build.current_dir(repo_root).args([
         "env",
         "proof-forge",
@@ -868,6 +867,142 @@ fn build_contract_source_fixture(
         ),
     )?;
     Ok(())
+}
+
+/// PF-P2-02: default Solana source build produces final ELF + project sidecar.
+/// Testkit executes Mollusk against the source-built ELF (no re-scaffold).
+fn build_contract_source_elf_fixture(
+    case: &ScenarioCase,
+    repo_root: &Path,
+    source_path: &Path,
+    out_dir: &Path,
+    contract_name: &str,
+) -> Result<SolanaFixtureArtifact> {
+    let elf_path = out_dir.join(format!("{contract_name}.so"));
+    let artifact_path = out_dir.join("proof-forge-artifact.json");
+    let mut build = Command::new("lake");
+    build.current_dir(repo_root).args([
+        "env",
+        "proof-forge",
+        "build",
+        "--target",
+        "solana-sbpf-asm",
+        "--root",
+        ".",
+        "-o",
+        path_str(&elf_path)?,
+        "--artifact-output",
+        path_str(&artifact_path)?,
+        path_str(source_path)?,
+    ]);
+    run_required(
+        &mut build,
+        &format!(
+            "proof-forge build --target solana-sbpf-asm (ELF) for scenario `{}`",
+            case.manifest.scenario.name
+        ),
+    )?;
+    ensure!(
+        elf_path.exists(),
+        "{contract_name} Solana ELF build did not create `{}`",
+        elf_path.display()
+    );
+    ensure!(
+        artifact_path.exists(),
+        "{contract_name} Solana ELF build did not create `{}`",
+        artifact_path.display()
+    );
+
+    // Sidecar project layout from proof-forge: <stem>-sbpf-project/
+    let project_dir = out_dir.join(format!("{contract_name}-sbpf-project"));
+    let asm_path = project_dir
+        .join("src")
+        .join(contract_name)
+        .join(format!("{contract_name}.s"));
+    let manifest_path = project_dir.join("manifest.toml");
+    let idl_path = project_dir.join("proof-forge-idl.json");
+    let client_path = project_dir.join("proof-forge-client.ts");
+    // Keypair name matches the generated package (stem-sbpf-project).
+    let keypair_path = project_dir
+        .join("deploy")
+        .join(format!("{contract_name}-sbpf-project-keypair.json"));
+    let deploy_elf = project_dir
+        .join("deploy")
+        .join(format!("{contract_name}.so"));
+
+    ensure!(
+        asm_path.exists(),
+        "{contract_name} ELF build missing assembly `{}`",
+        asm_path.display()
+    );
+    ensure!(
+        manifest_path.exists(),
+        "{contract_name} ELF build missing manifest `{}`",
+        manifest_path.display()
+    );
+    ensure!(
+        idl_path.exists(),
+        "{contract_name} ELF build missing IDL `{}`",
+        idl_path.display()
+    );
+    ensure!(
+        client_path.exists(),
+        "{contract_name} ELF build missing client `{}`",
+        client_path.display()
+    );
+    ensure!(
+        keypair_path.exists(),
+        "{contract_name} ELF build missing keypair `{}`",
+        keypair_path.display()
+    );
+    // Mollusk::new appends `.so` to the program path stem. Prefer deploy/
+    // layout (name without extension); fall back to stripping the -o `.so`.
+    let program_for_mollusk = if deploy_elf.exists() {
+        project_dir.join("deploy").join(contract_name)
+    } else if elf_path.exists() {
+        // Counter.so → Counter (mollusk loads Counter.so)
+        elf_path.with_extension("")
+    } else {
+        bail!("{contract_name} ELF build missing program binary")
+    };
+    ensure!(
+        program_for_mollusk.with_extension("so").exists() || elf_path.exists(),
+        "{contract_name} ELF build missing program `{}`",
+        program_for_mollusk.display()
+    );
+    let program_path = program_for_mollusk;
+    let elf_artifact = if elf_path.exists() {
+        elf_path
+    } else {
+        deploy_elf
+    };
+
+    // Metadata must claim final ELF honestly.
+    let meta_text = fs::read_to_string(&artifact_path)
+        .with_context(|| format!("failed to read `{}`", artifact_path.display()))?;
+    ensure!(
+        meta_text.contains("\"artifactKind\": \"solana-elf\"")
+            || meta_text.contains("\"artifactKind\":\"solana-elf\""),
+        "{contract_name} metadata must claim artifactKind solana-elf"
+    );
+    ensure!(
+        meta_text.contains("\"sbpfBuild\": \"passed\"")
+            || meta_text.contains("\"sbpfBuild\":\"passed\""),
+        "{contract_name} metadata must claim sbpfBuild=passed"
+    );
+
+    Ok(SolanaFixtureArtifact {
+        asm_path,
+        manifest_path,
+        metadata_path: artifact_path,
+        idl_path: Some(idl_path),
+        client_path: Some(client_path),
+        contract_spec_path: None,
+        source_path: Some(source_path.to_path_buf()),
+        elf_path: Some(elf_artifact),
+        keypair_path,
+        program_path,
+    })
 }
 
 fn finish_solana_fixture(
@@ -940,6 +1075,7 @@ fn finish_solana_fixture(
         client_path,
         contract_spec_path: None,
         source_path,
+        elf_path: None,
         keypair_path,
         program_path,
     })
@@ -1028,6 +1164,7 @@ fn build_error_ref_fixture(
         client_path: None,
         contract_spec_path: Some(contract_spec_path),
         source_path: None,
+        elf_path: None,
         keypair_path,
         program_path,
     })
