@@ -1239,6 +1239,14 @@ benchmark-counter-native:
 # Counter matrix entrypoint: PF rows (B1.3) + native rows (B1.4).
 benchmark-counter: benchmark-counter-pf benchmark-counter-native
 
+# B1.5: PF vs native behavior parity on bm-counter rows under build/benchmarks/.
+benchmark-behavior-gate:
+    scripts/benchmarks/behavior-gate-smoke.sh
+
+# B1.6: render markdown cost/artifact table → docs/generated/benchmark-counter.md
+benchmark-cost-table:
+    scripts/benchmarks/cost-table-smoke.sh
+
 # Run the unified RFC 0007 testkit scenario suite.
 testkit:
     CAST="${CAST:-$HOME/.foundry/bin/cast}" cargo run --manifest-path testkit/Cargo.toml -p proof-forge-testkit -- run

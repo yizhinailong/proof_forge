@@ -418,8 +418,8 @@ aleo-leo        | …              | *       | *           | …               |
 | **B1.2** | Native Counter corpus | Check in minimal native Counter sources under `benchmarks/native/{evm,solana,near}/Counter.*` (or scripts that fetch pinned refs) | Builds with solc/cargo/near tooling when present | M | done: sol Counter.sol + pinocchio counter + NEAR→testkit/compare; just benchmark-native-counter |
 | **B1.3** | PF Counter runner | Script: build PF Counter for triad; run Foundry/Mollusk/offline-host; emit schema rows | `just benchmark-counter` produces JSON under `build/benchmarks/` | M | done: counter-pf-runner (NEAR fuel + EVM/Solana sizes); just benchmark-counter |
 | **B1.4** | Native Counter runner | Same scenario steps on native corpus; same schema | Side-by-side rows for triad | M | done: counter-native-runner; EVM Anvil gas; Solana check; NEAR wasm size |
-| **B1.5** | Behavior gate | Assert identical storage/returns/events for PF vs native within each target | Fail CI job (optional non-required) on mismatch | M | pending |
-| **B1.6** | Cost table + budgets | Publish markdown table; optionally pin regression bands (start ±15% vs native, tighten later) | `docs/generated/benchmark-counter.md` or committed snapshot | M | pending |
+| **B1.5** | Behavior gate | Assert identical storage/returns/events for PF vs native within each target | Fail CI job (optional non-required) on mismatch | M | done: behavior-gate.py step name/return parity; just benchmark-behavior-gate |
+| **B1.6** | Cost table + budgets | Publish markdown table; optionally pin regression bands (start ±15% vs native, tighten later) | `docs/generated/benchmark-counter.md` or committed snapshot | M | done: render-cost-table.py; just benchmark-cost-table; snapshot committed |
 | **B1.7** | Expand scenarios | ValueVault then Ownable; FT/remote only after N1/E1 readiness | Matrix rows ≥3 scenarios on triad | L | pending |
 | **B1.8** | ZK optional rows | Psy DPN JSON size/ops vs hand `.psy`; Aleo `.aleo` vs hand Leo (when tools installed) | Documented experimental tables; skip if tools missing | M | pending |
 
@@ -602,7 +602,7 @@ The plan is **complete** when:
 | N1 | done: N1.1–N1.7 closed | near-deploy-honesty; budget honesty; storage_withdraw; FT offline |
 | E1 | done: E1.1–E1.6 closed | upgrade honesty; packing D-051; StakingVault; batch receiver |
 | L1 | done: L1.1–L1.5 closed | memo multi-byte; pinocchio 7 refs; solana-source-elf |
-| B1 | in_progress: B1.0–B1.4 done; next B1.5 behavior gate | just benchmark-counter (PF+native) |
+| B1 | in_progress: B1.0–B1.6 done; next B1.7 expand scenarios | just benchmark-cost-table |
 | Z1 | in_progress: Z1.0 catalog lock done; next Z1.1 goldens | `docs/targets/psy-dpn.md` DPN bytecode section + official links |
 | Z2 | pending | research findings landed in this plan |
 | P1 | pending | |

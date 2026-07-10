@@ -1,6 +1,6 @@
 # ProofForge vs Native Benchmark Matrix
 
-Status: **Active (B1.4 native Counter runner landed)**  
+Status: **Active (B1.6 cost table landed)**  
 Plan: [post-review execution plan](superpowers/plans/2026-07-10-post-review-execution.md) wave **B1**
 
 ## Why
@@ -132,8 +132,9 @@ just benchmark-native-counter   # B1.2 — native corpus compile/typecheck
 just benchmark-counter-pf       # B1.3 — PF Counter rows
 just benchmark-counter-native   # B1.4 — native Counter rows (EVM gas when Anvil present)
 just benchmark-counter          # B1.3 + B1.4
+just benchmark-behavior-gate    # B1.5 — PF vs native step parity
+just benchmark-cost-table       # B1.6 — docs/generated/benchmark-counter.md
 # → build/benchmarks/bm-counter_{evm,solana-sbpf-asm,wasm-near}_{proofforge,native}.json
-# behavior gate (B1.5); optional docs/generated/benchmark-counter.md (B1.6)
 ```
 
 Seeds still useful for budgets outside the matrix:
@@ -152,8 +153,8 @@ just product             # multi-target compile matrix
 | B1.2 Native Counter corpus | **done** (`benchmarks/native/`, `just benchmark-native-counter`) |
 | B1.3 PF Counter runner | **done** (`just benchmark-counter` / `benchmark-counter-pf`) |
 | B1.4 Native Counter runner | **done** (`just benchmark-counter-native`; EVM gas via Anvil/cast) |
-| B1.5 Behavior gate | pending |
-| B1.6 Cost table snapshot | pending |
+| B1.5 Behavior gate | **done** (`just benchmark-behavior-gate`; step name/return parity) |
+| B1.6 Cost table snapshot | **done** (`just benchmark-cost-table` → `docs/generated/benchmark-counter.md`) |
 | B1.7 Expand scenarios | pending |
 | B1.8 ZK optional rows | pending |
 
