@@ -196,13 +196,17 @@ def wasmCloudflareWorkers : TargetProfile := {
     .dataStruct,
     .assertions
   ]
-  requiredTools := #["zig", "wrangler"]
+  requiredTools := #["wrangler"]
   support := {
-    TargetSupport.fixtureResearch
-      "Counter fixture TypeScript Worker sourcegen; not Wasm despite artifactKind"
-      #[{ tool := "wrangler", stage := "sourcegen" }]
-    with
+    maturity := .counterMvp
+    inputModes := #[.fixture]
     commands := #[.emit]
+    outputStages := #[.sourcegen]
+    validationLevel := .capability
+    supportedFragment :=
+      "Counter MVP (PF-P3-02 six-gate): fixture counter → TypeScript Worker; " ++
+      "wrangler toolchain; product contract_source fail-closed; not Wasm binary"
+    toolStages := #[{ tool := "wrangler", stage := "sourcegen" }]
   }
 }
 

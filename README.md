@@ -57,7 +57,7 @@ with local `sui move build/test` validation.
 | `move-sui` | portable IR → Sui Move package | Counter MVP | Counter package layout, local `sui move build/test`, unsupported-shape diagnostics, emit/build parity, object semantics, local-only validation, TypeScript client smoke |
 | `psy-dpn` | portable IR → `.psy` → Dargo → DPN circuit JSON | Experimental (restricted subset) | golden sources, diagnostics, `dargo` execute smokes |
 | `aleo-leo` | portable IR → Leo package → `leo build`/`leo test` | Research spike (listed; fixture emit + optional `leo` gates) | Counter/PureMath golden fixtures and smokes |
-| `wasm-cloudflare-workers` | portable IR → TypeScript Worker | Research spike (fixture `emit` only) | `tsc` type-check, `wrangler` dry-run |
+| `wasm-cloudflare-workers` | portable IR → TypeScript Worker | Counter MVP (PF-P3-02 six-gate) | `just cloudflare-promotion` (fixture TS · wrangler · product fail-closed); not Wasm binary |
 
 **CLI-only verification target:** `quint` is accepted by `proof-forge emit --target quint`
 for formal/model-checking fixtures but is **not** in `Target.knownIds` /
