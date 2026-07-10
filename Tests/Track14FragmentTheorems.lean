@@ -90,8 +90,14 @@ open ProofForge.Backend.Refinement
 #check isCounterInitializeEntrypoint_eq
 #check counterShapeModule
 #check isCounterShapeLowerable_matches_counterShapeModule
+#check isCounterShapeLowerable_eq_counterShapeModule
 #check evm_lowerable_implies_counter_skeleton
 #check evm_lowerable_state_eq_counter
+#check evm_counter_module_eq_counterShapeModule
+#check evm_counterShapeModule_Counter_lowering_total
+#check evm_lowerable_eq_counterShapeModule
+#check evm_withCanonical_of_lowerable_eq_counter
+#check evm_lowerable_implies_canonical_lowering_total
 
 end ProofForge.Tests.Track14FragmentTheorems
 

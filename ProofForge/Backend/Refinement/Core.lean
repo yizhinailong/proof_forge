@@ -377,7 +377,7 @@ def isCounterShapeLowerable (module : Module) : Bool :=
     module.proxyPattern?.isNone &&
     module.nearCrosscallStrings.size == 0 &&
     !module.overflowChecked &&
-    module.allocator == defaultAllocator &&
+    decide (module.allocator = defaultAllocator) &&
     counterEntrypointsMetadataPinned module.entrypoints.toList &&
     isCounterModuleShape module.state.toList module.entrypoints.toList
 
@@ -601,9 +601,9 @@ theorem isCounterShapeLowerable_flags
       m.proxyPattern? = none ∧
       m.nearCrosscallStrings = #[] ∧
       m.overflowChecked = false ∧
-      (m.allocator == defaultAllocator) = true ∧
+      m.allocator = defaultAllocator ∧
       counterEntrypointsMetadataPinned m.entrypoints.toList = true := by
-  simp only [isCounterShapeLowerable, Bool.and_eq_true] at h
+  simp only [isCounterShapeLowerable, Bool.and_eq_true, decide_eq_true_eq] at h
   -- (((((structs ∧ proxy) ∧ near) ∧ !overflow) ∧ allocator) ∧ meta) ∧ shape
   obtain ⟨⟨⟨⟨⟨⟨hstructsB, hproxyB⟩, hnearB⟩, hoverflowB⟩, halloc⟩, hmeta⟩, _hshape⟩ := h
   have hstructs : m.structs = #[] :=
@@ -788,12 +788,25 @@ theorem isCounterShapeLowerable_matches_counterShapeModule
       m.proxyPattern? = (counterShapeModule m.name).proxyPattern? ∧
       m.nearCrosscallStrings = (counterShapeModule m.name).nearCrosscallStrings ∧
       m.overflowChecked = (counterShapeModule m.name).overflowChecked ∧
-      (m.allocator == (counterShapeModule m.name).allocator) = true := by
+      m.allocator = (counterShapeModule m.name).allocator := by
   obtain ⟨hstructs, hproxy, hnear, hoverflow, halloc, _⟩ :=
     isCounterShapeLowerable_flags m h
   refine ⟨rfl, hstructs, isCounterShapeLowerable_state_array m h,
     isCounterShapeLowerable_entrypoints_array m h, hproxy, hnear, hoverflow, ?_⟩
   simpa [counterShapeModule] using halloc
+
+/-- PF-P3-01: every shape-lowerable module is definitionally `counterShapeModule`
+with the module's own name (full structure equality). -/
+theorem isCounterShapeLowerable_eq_counterShapeModule
+    (m : Module) (h : isCounterShapeLowerable m = true) :
+    m = counterShapeModule m.name := by
+  obtain ⟨_, hstructs, hstate, hentr, hproxy, hnear, hoverflow, halloc⟩ :=
+    isCounterShapeLowerable_matches_counterShapeModule m h
+  cases m
+  case mk name structs state entrypoints allocator proxyPattern? nearCrosscallStrings overflowChecked =>
+    simp only [counterShapeModule] at hstructs hstate hentr hproxy hnear hoverflow halloc ⊢
+    subst hstructs; subst hstate; subst hentr; subst hproxy; subst hnear; subst hoverflow; subst halloc
+    rfl
 
 /-- PF-P3-01 progressive structural skeleton: every shape-lowerable module has
 fixed host/scalar flags, pinned allocator + empty paramAbiWords, unique `count`
@@ -808,7 +821,7 @@ theorem isCounterShapeLowerable_skeleton
       m.proxyPattern? = none ∧
       m.nearCrosscallStrings = #[] ∧
       m.overflowChecked = false ∧
-      (m.allocator == defaultAllocator) = true ∧
+      m.allocator = defaultAllocator ∧
       (∃ sd, m.state.toList = [sd] ∧
         sd = { id := "count", kind := .scalar, type := .u64 }) ∧
       (∃ e0 e1 e2,

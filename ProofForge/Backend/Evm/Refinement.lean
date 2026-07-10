@@ -1335,9 +1335,7 @@ theorem evm_counter_shape_name_family_lowerable_total :
 
 /-- PF-P3-01 progressive structural bridge: every EVM-lowerable module carries
 the pinned Counter IR skeleton (flags, default allocator, empty
-paramAbiWords, fixed state/entrypoints/bodies). Remaining half of
-`∀ m, lowerable m → lowerModule m = .ok` is lowerer totality / name-
-independence of `isOk` over this class. -/
+paramAbiWords, fixed state/entrypoints/bodies). -/
 theorem evm_lowerable_implies_counter_skeleton
     (m : ProofForge.IR.Module)
     (h : evmYulTargetSemantics.lowerableAccepts m = true) :
@@ -1345,7 +1343,7 @@ theorem evm_lowerable_implies_counter_skeleton
       m.proxyPattern? = none ∧
       m.nearCrosscallStrings = #[] ∧
       m.overflowChecked = false ∧
-      (m.allocator == ProofForge.IR.defaultAllocator) = true ∧
+      m.allocator = ProofForge.IR.defaultAllocator ∧
       (∃ sd, m.state.toList = [sd] ∧
         sd = { id := "count", kind := .scalar, type := .u64 }) ∧
       (∃ e0 e1 e2,
@@ -1372,7 +1370,64 @@ theorem evm_lowerable_state_eq_counter
     (h : evmYulTargetSemantics.lowerableAccepts m = true) :
     m.state = ProofForge.IR.Examples.Counter.module.state := by
   have harr := isCounterShapeLowerable_state_array m h
-  -- Counter.module.state is the single count scalar.
   simpa [ProofForge.IR.Examples.Counter.module, ProofForge.IR.Examples.Counter.stateCount] using harr
+
+/-- PF-P3-01: the IR fixture Counter is definitionally the pinned shape module. -/
+theorem evm_counter_module_eq_counterShapeModule :
+    ProofForge.IR.Examples.Counter.module = counterShapeModule "Counter" := by
+  simp only [
+    ProofForge.IR.Examples.Counter.module,
+    ProofForge.IR.Examples.Counter.stateCount,
+    ProofForge.IR.Examples.Counter.initializeEntrypoint,
+    ProofForge.IR.Examples.Counter.increment,
+    ProofForge.IR.Examples.Counter.get,
+    counterShapeModule,
+    counterInitializeEntrypoint,
+    counterIncrementEntrypoint,
+    counterGetEntrypoint,
+    ProofForge.IR.defaultAllocator
+  ]
+
+/-- PF-P3-01: `counterShapeModule "Counter"` lowers (via fixture identity). -/
+theorem evm_counterShapeModule_Counter_lowering_total :
+    (ProofForge.Backend.Evm.IR.lowerModule
+      (counterShapeModule "Counter")).isOk = true := by
+  rw [← evm_counter_module_eq_counterShapeModule]
+  exact evm_counter_lowering_total
+
+/-- PF-P3-01: every lowerable module equals `counterShapeModule` at its name. -/
+theorem evm_lowerable_eq_counterShapeModule
+    (m : ProofForge.IR.Module)
+    (h : evmYulTargetSemantics.lowerableAccepts m = true) :
+    m = counterShapeModule m.name :=
+  isCounterShapeLowerable_eq_counterShapeModule m h
+
+/-- PF-P3-01: name-pin of any lowerable module equals the Counter fixture. -/
+theorem evm_withCanonical_of_lowerable_eq_counter
+    (m : ProofForge.IR.Module)
+    (h : evmYulTargetSemantics.lowerableAccepts m = true) :
+    withCanonicalCounterName m = ProofForge.IR.Examples.Counter.module := by
+  have hshape : isCounterShapeLowerable (withCanonicalCounterName m) = true := by
+    have hcanon :=
+      isCounterShapeLowerable_implies_isCounterModule_with_canonical_name m h
+    exact isCounterModule_implies_shape_lowerable _ hcanon
+  have heq := isCounterShapeLowerable_eq_counterShapeModule (withCanonicalCounterName m) hshape
+  -- withCanonicalCounterName m has name "Counter"
+  have hname : (withCanonicalCounterName m).name = "Counter" := by
+    simp only [withCanonicalCounterName]
+  calc
+    withCanonicalCounterName m = counterShapeModule (withCanonicalCounterName m).name := heq
+    _ = counterShapeModule "Counter" := by simp only [hname]
+    _ = ProofForge.IR.Examples.Counter.module := evm_counter_module_eq_counterShapeModule.symm
+
+/-- PF-P3-01 structural `∀ m, lowerable m → lowerModule (withCanonicalCounterName m) = .ok`.
+Free-name `lowerModule m = .ok` still needs name-independence of `isOk`. -/
+theorem evm_lowerable_implies_canonical_lowering_total
+    (m : ProofForge.IR.Module)
+    (h : evmYulTargetSemantics.lowerableAccepts m = true) :
+    (ProofForge.Backend.Evm.IR.lowerModule
+      (withCanonicalCounterName m)).isOk = true := by
+  rw [evm_withCanonical_of_lowerable_eq_counter m h]
+  exact evm_counter_lowering_total
 
 end ProofForge.Backend.Evm.Refinement

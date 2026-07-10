@@ -48,7 +48,7 @@ inductive AllocatorStrategy where
   | bumpReset
   | freeList
   | hostImport
-  deriving Repr, BEq, Inhabited
+  deriving Repr, BEq, DecidableEq, Inhabited
 
 def AllocatorStrategy.id : AllocatorStrategy → String
   | .bump => "bump"
@@ -62,14 +62,14 @@ structure AllocatorRegion where
   base : Nat := 60000
   size? : Option Nat := none
   growable : Bool := true
-  deriving Repr, BEq, Inhabited
+  deriving Repr, BEq, DecidableEq, Inhabited
 
 /-- What `Statement.release` means for this module/target binding. -/
 inductive AllocatorRelease where
   | none
   | noop
   | reuse
-  deriving Repr, BEq, Inhabited
+  deriving Repr, BEq, DecidableEq, Inhabited
 
 def AllocatorRelease.id : AllocatorRelease → String
   | .none => "none"
@@ -85,7 +85,7 @@ structure AllocatorModel where
   region : AllocatorRegion
   release : AllocatorRelease
   hostProvided : Bool := false
-  deriving Repr, BEq, Inhabited
+  deriving Repr, BEq, DecidableEq, Inhabited
 
 def AllocatorModel.id (model : AllocatorModel) : String :=
   let base := s!"base={model.region.base}"
@@ -96,7 +96,7 @@ def AllocatorModel.id (model : AllocatorModel) : String :=
 helpers below to emit the matching alloc/dealloc helpers. -/
 structure AllocatorConfig where
   model : AllocatorModel := { strategy := .bump, region := {}, release := .none }
-  deriving Repr, BEq, Inhabited
+  deriving Repr, BEq, DecidableEq, Inhabited
 
 /-- Default configuration: a plain bump allocator at offset 60000. -/
 def defaultAllocator : AllocatorConfig := { model := { strategy := .bump, region := {}, release := .none } }
