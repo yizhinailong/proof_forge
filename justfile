@@ -779,14 +779,19 @@ portable-solana-accounts:
 backend: solana-lean
     @echo "backend: solana-lean ok (use solana-light / emitwat-ci-smoke / evm-* for more)"
 
+# PF-P2-01: every Examples/Product/*.lean must be in catalog.json
+product-catalog:
+    python3 scripts/portable/check-product-catalog.py
+
 # Primary product gate: Product sources × multi-target materialize matrix.
 # Docs: docs/product-sdk.md · Examples/Product/README.md
 product:
+    just product-catalog
     just portable-default
     just product-matrix
     just portable-counter-multi-target
     just portable-remote-call-multi-target
-    @echo "product: ok (matrix · counter · remote)"
+    @echo "product: ok (catalog · matrix · counter · remote)"
 
 # Wave β: Product TokenSpec on wasm-near — NEP-141 plan + FT body WAT (one health path).
 product-token-near:
