@@ -11,7 +11,8 @@ for the off-chain reinterpretation of capabilities.
 ## Spike honesty (U7)
 
 - **NEAR (`wasm-near`)** is the primary Wasm product host (Experimental).
-- **CosmWasm:** portable remote uses a WasmMsg-shaped `execute_msg` **stub**;
+- **CosmWasm:** Counter MVP six-gate (`just cosmwasm-promotion`); portable remote
+  still uses a WasmMsg-shaped `execute_msg` **stub**;
   Gate G1a (M3/M4) is **not started**.
 - **Soroban:** host adapter spike; interpreter auth is always-authorised until
   real Env auth lands.

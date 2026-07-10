@@ -155,7 +155,7 @@ def writeNearContractSidecars
   IO.println s!"wrote {unifiedClientOutput}"
   return (specOutput, nearClientOutput, unifiedClientOutput)
 
-/-- Wasm-host sidecars keyed by target (PF-P0-04): Soroban must not emit NEAR wrappers. -/
+/-- Wasm-host sidecars keyed by target (PF-P0-04): Soroban/CosmWasm must not emit NEAR wrappers. -/
 def writeWasmHostContractSidecars
     (targetId : String)
     (schemaDir : FilePath)
@@ -178,6 +178,24 @@ def writeWasmHostContractSidecars
     IO.FS.writeFile unifiedClientOutput client
     IO.println s!"wrote {unifiedClientOutput}"
     return (specOutput, sorobanClientOutput, unifiedClientOutput)
+  else if targetId == ProofForge.Target.wasmCosmWasm.id then
+    let specOutput := schemaDir / s!"{spec.name}.contract-spec.json"
+    let cwClientOutput := schemaDir / ProofForge.Contract.Client.cosmWasmWrapperPath
+    let unifiedClientOutput := schemaDir / "proof-forge-client.ts"
+    if let some parent := specOutput.parent then
+      IO.FS.createDirAll parent
+    IO.FS.writeFile specOutput (ProofForge.Contract.Spec.Json.render spec ++ "\n")
+    IO.println s!"wrote {specOutput}"
+    let client := ProofForge.Contract.Client.renderCosmWasmWrapper spec ++ "\n"
+    if let some parent := cwClientOutput.parent then
+      IO.FS.createDirAll parent
+    IO.FS.writeFile cwClientOutput client
+    IO.println s!"wrote {cwClientOutput}"
+    if let some parent := unifiedClientOutput.parent then
+      IO.FS.createDirAll parent
+    IO.FS.writeFile unifiedClientOutput client
+    IO.println s!"wrote {unifiedClientOutput}"
+    return (specOutput, cwClientOutput, unifiedClientOutput)
   else
     writeNearContractSidecars schemaDir spec
 

@@ -237,8 +237,21 @@ def fixtureOnlyBuild (target flag : String) (req : BuildRequest) : Except String
     Except.ok flag
 
 def cosmwasmResolveBuild (req : BuildRequest) : Except String String :=
-  if isLearnInput req.input? then
+  let isLearn := isLearnInput req.input?
+  let isLeanSource := isLeanSourceFile req.input?
+  if isLearn then
     Except.error "proof-forge build --target wasm-cosmwasm from .learn source is not yet implemented"
+  else if req.token then
+    Except.error
+      "proof-forge build --target wasm-cosmwasm --token: no TokenSpec lane; \
+use --target evm | solana-sbpf-asm | wasm-near (see `just token-feature-matrix`)"
+  else if isLeanSource then
+    -- PF-P3-02: product contract_source via EmitWat + HostBridge.cosmWasm
+    -- (same flag as NEAR/Soroban; bridge selected from --target).
+    if req.format?.isSome && req.format? != some "wat" then
+      Except.error s!"proof-forge build --target wasm-cosmwasm does not support format '{req.format?.getD ""}'; use --format wat"
+    else
+      Except.ok "--contract-source-emitwat"
   else
     fixtureOnlyBuild "wasm-cosmwasm" "--emit-counter-ir-cosmwasm" req
 

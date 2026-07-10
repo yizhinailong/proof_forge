@@ -1,6 +1,6 @@
 {
   "README.md": {
-    "sha256": "cea3bad4d7f54904c965fd579878de79e2fda5e298303b0f2dd513aaae54910d",
+    "sha256": "356419e9dd44da718a452876d77693b04ca01c9594af68ff706ec4e32c4e19f0",
     "zh": "docs/zh/README-root.zh.md",
     "model": "manual-zh",
     "note": "manually synced for PF-P1-02 (backend-status generated table pointer)"
@@ -127,7 +127,7 @@
     "note": "synced after Product/Backend reorg path renames"
   },
   "docs/targets/wasm-family.md": {
-    "sha256": "0d8ad12a12330b444e6e3fae672ff2c315fcf0b3308af516531cd38c9390a3c5",
+    "sha256": "4ae08d940e67df659bb800578e116302a8d566c5cefb030a9272cfec04efe746",
     "zh": "docs/zh/targets/wasm-family.zh.md",
     "model": "manual-zh",
     "note": "manually synced through the 2026-07-10 audit integration"

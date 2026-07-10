@@ -346,7 +346,9 @@ def writeEmitWatArtifactMetadata
     if let some wasmRel := wasmRel? then
       nearFields := nearFields.push ("wasm", ProofForge.Contract.SdkSchema.Json.string wasmRel)
     let extKey :=
-      if targetId == "wasm-stellar-soroban" then "soroban" else "near"
+      if targetId == "wasm-stellar-soroban" then "soroban"
+      else if targetId == "wasm-cosmwasm" then "cosmwasm"
+      else "near"
     let nearExtension : ProofForge.Contract.SdkSchema.TargetExtension := {
       key := extKey
       targetId := targetId
