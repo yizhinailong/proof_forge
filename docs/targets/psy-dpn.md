@@ -242,6 +242,16 @@ Checked-in normalized circuit JSON:
 Normalize: `scripts/psy/normalize-dpn-json.py`  
 Gate: `just psy-dpn-goldens` (shape always; rebuild-diff when `build/psy/dargo-*/target/proof_forge_*.json` exists)
 
+### Lean DPN AST (Z1.3)
+
+Lean modules:
+
+- `ProofForge/Backend/Psy/Dpn/Ast.lean` — `IndexedVarDef`, `StateCommand`, `FunctionCircuit`
+- `ProofForge/Backend/Psy/Dpn/Printer.lean` — golden-compatible JSON printer
+- Hand-encoded Counter document: `CounterGolden.document`
+
+Gate: `just psy-dpn-printer` (byte-match `Examples/Backend/Psy/dpn/Counter.golden.dpn.json`)
+
 ### Artifact honesty (Z1.2)
 
 `proof-forge-artifact.json` fields:

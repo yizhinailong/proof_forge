@@ -1320,6 +1320,11 @@ check: build build-test-deps product target-registry target-backend target-suppo
 psy-dpn-goldens:
     scripts/psy/dpn-golden-gate.sh
 
+# Z1.3: Lean DPN AST printer round-trip against Counter golden JSON.
+psy-dpn-printer:
+    lake build ProofForge.Backend.Psy.Dpn
+    lake env lean --run Tests/PsyDpnPrinter.lean
+
 # Check generated Psy golden sources that CI tracks without requiring dargo.
 psy-golden-sources:
     #!/usr/bin/env bash
