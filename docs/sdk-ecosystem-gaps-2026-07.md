@@ -213,5 +213,5 @@ Total: 0 open P0 blockers across three chains (0 EVM + 0 Solana + 0 NEAR).
 All three primary chains now have zero open P0 blockers. Remaining work is
 P1 feature expansion. PF-P2-02 closed EVM receiver callbacks (`onERC721Received`,
 `onERC1155Received`), custom-error 4-byte selector surface, and ERC-1155 size-2
-batch MVP; PF-P2-03 closed EVM/Solana real peer `call_with_args → 49`. NEAR
-sandbox peer/Promise gates remain external-tool blocked.
+batch MVP; PF-P2-03 closed EVM/Solana/NEAR real peer `call_with_args → 49`
+(`just testkit-remote-call`, `just near-sandbox-peer`).
