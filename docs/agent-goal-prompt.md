@@ -120,8 +120,8 @@ implementation SHA is only known after the implementation commit exists.
 | 3 | PF-P2-01 | done: verified@72c5789e; just product-catalog; just product; just testkit; just testkit-array-example; just testkit-ownable; just testkit-remote-call; just check | Waves 1 and 2 done |
 | 3 | PF-P2-02 | done: verified@7c4def9c; Foundry ERC721/1155/custom-error; Solana ELF; `just near-sandbox-peer` (storage_usage + promise peer); `just product`; `just check` | Waves 1 and 2 done; complete one backend slice at a time |
 | 3 | PF-P2-03 | done: verified@7c4def9c; `just testkit-remote-call` (evm+solana); Foundry peer; Mollusk CPI; `just near-sandbox-peer` (call_with_args→49); `just product` | Waves 1 and 2 done |
-| 5 | PF-P3-01 | in_progress: shape identity + canonical lowers + family free-name total; next: general `∀ m lowerable → lowerModule m = .ok` (isOk name-independence for all String) | Wave 3 done; after PF-P3-02 |
-| 5 | PF-P3-03 | in_progress: HOSTED_ISOLATION + lean pin + rebuild-hash + wall-clock + `just worker-cgroup` (CPU RLIMIT + mem when platform supports); next: require mem backend on hosted Linux workers / close remaining gaps | Wave 3 done |
+| 5 | PF-P3-01 | in_progress: shape identity + canonical lowers + 10-name formal family + 20-name computational totality smoke; next: general `∀ String` isOk name-independence | Wave 3 done; after PF-P3-02 |
+| 5 | PF-P3-03 | in_progress: HOSTED_ISOLATION + lean pin + rebuild-hash + wall-clock + CPU RLIMIT + worker-cgroup (mem when platform supports); next: ledger `done` after check@HEAD + optional hosted mem-require docs | Wave 3 done |
 | 4 | PF-P3-02 | done: verified@8d4dd0c4; `just soroban-promotion` `cosmwasm-promotion` `aptos-promotion` `sui-promotion` `cloudflare-promotion` `psy-promotion` `aleo-promotion` | Wave 3 done; promote only one target at a time, and do not block Wave 5 |
 
 PF-P3-02 promotion order is fixed unless the human changes it: Soroban,
