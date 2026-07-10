@@ -486,7 +486,7 @@ solana-lean:
     lake env lean --run Tests/LearnDiagnostics.lean
     lake env lean --run Tests/TargetRouting.lean
     lake env lean --run Tests/ValueVaultExample.lean
-    lake env lean --run Tests/SharedTokenIntent.lean
+    just shared-token-intent
     lake env lean --run Tests/TokenSpec.lean
     lake env lean --run Tests/TokenLearn.lean
     lake env lean --run Tests/TokenEvm.lean
