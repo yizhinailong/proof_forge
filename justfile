@@ -746,6 +746,10 @@ near-sandbox-peer:
 near-remote-call-offline-peer:
     scripts/near/remote-call-offline-peer-smoke.sh
 
+# N1.5: Product StorageDeposit offline lifecycle (deposit + withdraw).
+near-storage-deposit-offline:
+    scripts/near/storage-deposit-offline-smoke.sh
+
 # Build the shared portable Counter to EVM, Solana sBPF, and NEAR/Wasm from one source file.
 portable-counter-multi-target:
     scripts/portable/counter-multi-target.sh

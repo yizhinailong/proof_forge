@@ -183,7 +183,7 @@ Probe: `proof-forge build --target wasm-near` on Product sources after S0 merge.
 | Feature | Status | Evidence | Priority |
 |---|---|---|---|
 | NEP-141 (fungible token) | Partial (N1.3) | `just product-token-near`: TokenSpec plan + body WAT + offline mint/transfer lifecycle; `just wasm-near-ft-transfer-call-e2e` for transfer_call/resolve; bare TokenSpec `build` needs `--token` | P1 remain: NEP-148 JSON metadata objects, live sandbox dual-deploy optional |
-| NEP-145 (storage management) | Partial | `Tests/ContractSource/NearStorageDeposit.lean` + Product `StorageDeposit.lean` build; full JSON `StorageBalance`, withdraw/refund, byte accounting remain open | P1 |
+| NEP-145 (storage management) | Partial (N1.5) | Product `storage_deposit` + **`storage_withdraw`**; `just near-storage-deposit-offline` (7→4); near-compare storage-deposit green | P1 remain: JSON `StorageBalance` objects, full unregister/refund to predecessor |
 | NEP-148 (metadata) | Missing | No metadata fixture | P1 |
 | NEP-171 (NFT) | Missing | No NFT example | P1 |
 | NEP-178 (NFT enumeration) | Missing | No enumeration example | P2 |

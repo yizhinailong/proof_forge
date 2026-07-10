@@ -1824,8 +1824,16 @@ fn run_near_storage_deposit(repo_root: &Path, args: &Args) -> Result<()> {
             "storage_balance_bounds",
             "storage_balance_of",
             "storage_deposit",
+            "storage_withdraw",
         ],
         |repo, wat| {
+            // account hash × deposit/balance/withdraw sequence (see scripts/near/storage-deposit-offline-smoke.sh)
+            let account =
+                "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+            let withdraw_amt = "0300000000000000"; // 3u64 LE
+            let lifecycle_inputs = format!(
+                ",,{account},{account},{account},{account}{withdraw_amt},{account}"
+            );
             let out = run_offline_host_opts(
                 repo,
                 wat,
@@ -1835,9 +1843,11 @@ fn run_near_storage_deposit(repo_root: &Path, args: &Args) -> Result<()> {
                     "storage_balance_of",
                     "storage_deposit",
                     "storage_balance_of",
+                    "storage_withdraw",
+                    "storage_balance_of",
                 ],
                 OfflineHostOpts {
-                    inputs_hex_csv: &inputs,
+                    inputs_hex_csv: &lifecycle_inputs,
                     predecessor: Some("alice.testnet"),
                     attached_deposit: Some(7),
                     block_timestamp: None,
@@ -1857,8 +1867,12 @@ fn run_near_storage_deposit(repo_root: &Path, args: &Args) -> Result<()> {
                 out.contains("return_u64=7"),
                 "expected balance 7 after deposit\n{out}"
             );
+            ensure!(
+                out.contains("return_u64=4"),
+                "expected balance 4 after withdraw 3\n{out}"
+            );
             Ok((
-                "init→bounds 1→bal 0→deposit(7)→bal 7".into(),
+                "init→bounds 1→bal 0→deposit(7)→bal 7→withdraw(3)→bal 4".into(),
                 out,
             ))
         },

@@ -30,4 +30,10 @@ contract_source NearStorageDeposit do
     let previous : .u64 := mapRead storageDeposits account_id;
     do mapWrite storageDeposits account_id (previous +! amount);
 
+  entry storage_withdraw (account_id : .hash, amount : .u64) do
+    let previous : .u64 := mapRead storageDeposits account_id;
+    do ProofForge.Contract.Surface.requireGe (ProofForge.Contract.Surface.ref previous)
+      (ProofForge.Contract.Surface.ref amount) "insufficient storage deposit";
+    do mapWrite storageDeposits account_id (previous -! amount);
+
 end Tests.ContractSource.NearStorageDeposit

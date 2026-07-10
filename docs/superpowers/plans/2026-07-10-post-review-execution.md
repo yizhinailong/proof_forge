@@ -599,7 +599,7 @@ The plan is **complete** when:
 | Wave | State | Evidence |
 |------|-------|----------|
 | S0 | done: verified@81b4c373; S0.1 merge + S0.2 product green + S0.3 claim + S0.4 INDEX + S0.5 inventory | just product green; origin 0 behind; branch inventory written |
-| N1 | in_progress: N1.1–N1.4 done; next N1.5 NEP-145 / N1.6 budgets | offline peer 49; sandbox peer; ft e2e; aggregate ABI |
+| N1 | in_progress: N1.1–N1.5 done; next N1.6 budgets / N1.7 deploy | storage_withdraw offline; peer 49; FT lifecycle |
 | E1 | pending | |
 | L1 | pending | |
 | B1 | in_progress: B1.0 skeleton done; next B1.1 schema | `docs/benchmarks.md`, `benchmarks/README.md` |
