@@ -554,6 +554,7 @@ def AbiParamPlan.headWordCount (param : AbiParamPlan) : Nat :=
 
 structure ReturnPlan where
   returnType : ValueType
+  abiType? : Option String := none
   wordTypes : Array ValueType
   localNames : Array String
   deriving Repr

@@ -194,7 +194,7 @@ mutual
     | origin
     | coinbase
     | blockHash (blockNumber : Expr)
-    deriving Repr
+    deriving Repr, BEq
 
   inductive Expr where
     | literal (value : Literal)
@@ -281,7 +281,7 @@ mutual
     /-- NEAR host-extension only: Borsh-decoded U64 payload from promise result at `index`. -/
     | nearPromiseResultU64 (index : Expr)
     | effect (effect : Effect)
-    deriving Repr
+    deriving Repr, BEq
 
   inductive Effect where
     | storageScalarRead (stateId : String)
@@ -321,13 +321,13 @@ mutual
     Non-EVM targets must reject honestly. -/
     | checkErc1155BatchReceived
         (operator fromAddr toAddr ids amounts : Expr)
-    deriving Repr
+    deriving Repr, BEq
 
   inductive StoragePathSegment where
     | field (fieldName : String)
     | index (index : Expr)
     | mapKey (key : Expr)
-    deriving Repr
+    deriving Repr, BEq
 end
 
 def ContextField.name : ContextField → String
@@ -418,8 +418,7 @@ structure ErrorRef where
   solidityArgExprs : Array Expr := #[]
   deriving Repr
 
-/-- Manual `BEq` for `ErrorRef` — `solidityArgExprs` compared by arity only,
-since `Expr` is a mutual inductive without a structural `BEq` instance. -/
+/-- Manual `BEq` for `ErrorRef`, including the runtime argument expressions. -/
 instance : BEq ErrorRef where
   beq a b :=
     a.assertionId == b.assertionId &&
@@ -427,7 +426,7 @@ instance : BEq ErrorRef where
     a.soliditySelector? == b.soliditySelector? &&
     a.solidityArgWords == b.solidityArgWords &&
     a.solidityArgTypes == b.solidityArgTypes &&
-    a.solidityArgExprs.size == b.solidityArgExprs.size
+    a.solidityArgExprs == b.solidityArgExprs
 
 inductive Statement where
   | letBind (name : String) (type : ValueType) (value : Expr)
@@ -488,6 +487,8 @@ structure Entrypoint where
   chain-neutral so other ABI-bearing targets can reuse the same field (D-050). -/
   paramAbiWords : Array (Option String) := #[]
   returns : ValueType := .unit
+  /-- Optional host ABI override for the return carrier. -/
+  returnAbiWord? : Option String := none
   body : Array Statement
   deriving Repr
 

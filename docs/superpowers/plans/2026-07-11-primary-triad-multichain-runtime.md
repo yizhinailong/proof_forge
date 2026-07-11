@@ -69,7 +69,7 @@ surfaces.
 
 At plan creation, the branch already contains committed work at `bbc4fb9d`:
 
-- EVM runtime custom-error expression arguments (partially closed; see E-P0-04).
+- EVM runtime custom-error expression arguments (initial slice later completed by E-P0-04).
 - NEAR TokenSpec source auto-detection.
 - A one-yocto guard for one NEAR storage-withdraw path.
 
@@ -169,12 +169,12 @@ match standards behavior, not duplicate the full catalog indiscriminately.
 |---|---|---|---|
 | Fungible token | [ERC-20](https://eips.ethereum.org/EIPS/eip-20) | Core transfer/allowance/event shape exists, but amounts are commonly narrowed below `uint256` | Close every ERC-20 MUST-level ABI/behavior requirement with a full-width amount policy |
 | Fungible product profile | ERC-20 optional metadata plus [OZ ERC20](https://docs.openzeppelin.com/contracts/5.x/api/token/erc20) interoperability | Metadata and authority policies are incomplete | Separately require optional name/symbol/decimals, mint authority, cap/pause policy, and SafeERC20 behavior; do not call these ERC-20 MUSTs |
-| Permit | [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612), [EIP-712](https://eips.ethereum.org/EIPS/eip-712) | Public `setPermitSig` plus a second four-argument call is not atomic ERC-2612 and conflicts with the advertised selector | Replace with canonical seven-argument permit and security checks |
+| Permit | [ERC-2612](https://eips.ethereum.org/EIPS/eip-2612), [EIP-712](https://eips.ethereum.org/EIPS/eip-712) | Canonical seven-argument atomic route now exists with replay/deadline/domain/low-s/v attacks; compliance evidence is not yet bound | Bind exact adapter/artifact/runtime evidence before promotion from `experimental` |
 | NFT | [ERC-721](https://eips.ethereum.org/EIPS/eip-721) | Transfer subset only | Add mandatory balance/approval/operator/ERC-165 behavior and canonical address ABI |
 | Multi-token | [ERC-1155](https://eips.ethereum.org/EIPS/eip-1155) | Single-transfer subset plus a custom fixed-size-two batch | Dynamic batch ABI, `TransferBatch`, `balanceOfBatch`, standard receiver data and ERC-165 |
-| Interface discovery | [ERC-165](https://eips.ethereum.org/EIPS/eip-165) | Public mutable registration permits false claims | Immutable/generated interface set; `0xffffffff` must be false |
-| Ownership | [ERC-173](https://eips.ethereum.org/EIPS/eip-173) | Portable ownership exists, but types/events/init do not match ERC-173 | Canonical owner/transfer ABI and event plus atomic initialization |
-| Role access | [OZ Access](https://docs.openzeppelin.com/contracts/5.x/api/access) | Portable roles exist, but OZ-compatible types/events/admin semantics do not | Use a separate component profile for role-admin, grant/revoke/renounce and events; do not attribute role behavior to ERC-173 |
+| Interface discovery | [ERC-165](https://eips.ethereum.org/EIPS/eip-165) | Immutable/generated identity set now rejects `0xffffffff`; evidence remains `experimental` | Bind the exact adapter/artifact/runtime result to the compliance manifest |
+| Ownership | [ERC-173](https://eips.ethereum.org/EIPS/eip-173) | Canonical EVM ABI/event and one-shot initialization now coexist with a portable u64 carrier | Bind the exact adapter/artifact/runtime result to the compliance manifest |
+| Role access | [OZ Access](https://docs.openzeppelin.com/contracts/5.x/api/access) | EVM bytes32 role/admin/event surface is separate from the portable u64 role profile | Finish behavioral equivalence and evidence binding; never report the portable profile as exact OZ AccessControl |
 | Vault | [ERC-4626](https://eips.ethereum.org/EIPS/eip-4626) | Substantial runtime body with security hardening, but not a complete tokenized vault | Share allowance, delegated exits, total-assets policy, full-precision math, atomic initialization |
 | Upgrade | [ERC-1967](https://eips.ethereum.org/EIPS/eip-1967), [ERC-1822](https://eips.ethereum.org/EIPS/eip-1822) | Transport spike exists | `proxiableUUID`, only-proxy boundary, initializer calldata, authority binding, layout/migration checks |
 | Governance | [OZ Governance](https://docs.openzeppelin.com/contracts/5.x/api/governance), [ERC-5805](https://eips.ethereum.org/EIPS/eip-5805), [ERC-6372](https://eips.ethereum.org/EIPS/eip-6372) | No reusable Governor/Votes/Timelock SDK | Add only after token/access compliance closes |
@@ -244,7 +244,7 @@ hook ELF.
 
 | ID | Finding | Consequence |
 |---|---|---|
-| X-P0-01 | `TokenSpec` feature matrices validate plan labels rather than final behavior | `full` can be reported for code that does not materialize cap, pause, permit, confidential transfer, or storage unregister |
+| X-P0-01 | `TokenSpec` feature matrices historically validated plan labels rather than final behavior | Fail-closed routing is enforced for cap, pause, permit, confidential transfer and storage unregister; promotion from `experimental` to `full` now requires a verified full-scope claim for the canonical manifest, exact adapter/version and emitted artifact digest |
 | X-P0-02 | There is no typed product route plan above target module plans | CLI, client, metadata, deploy and lowerers can independently infer different standard choices |
 | X-P0-03 | Artifact kind does not fully model generated code versus protocol transaction bundles versus hybrid output | Solana TokenSpec is either under-claimed as a plan or over-claimed as a program |
 | X-P0-04 | Portable call intent does not distinguish atomic return from scheduled callback | NEAR Promise identifiers can be mistaken for business return values |
@@ -259,28 +259,35 @@ hook ELF.
   surfaces; `ownerOf` metadata is not canonical address ABI.
 - ERC-1155 single transfer omits the standard bytes argument, and the fixed
   two-item batch is not the standard dynamic batch or `TransferBatch` event.
-- ERC-2612 currently has a two-transaction signature staging design while
-  advertising the canonical permit selector. It is overwrite/front-run prone.
-- ERC-165 registration is publicly mutable and permits forbidden interface
-  claims.
-- Ownable/AccessControl ABI, events, role-admin, and one-shot initialization do
-  not match their advertised EVM component semantics.
+- ERC-2612 staging/front-run, replay, deadline, domain, high-s, and invalid-v
+  attacks are covered by the atomic Foundry gate. The feature router now accepts
+  only exact canonical-manifest, adapter/version, artifact and passing-result
+  evidence; ordinary builds remain `experimental` until they supply that claim.
+- ERC-165 public mutation and forbidden-ID claims are closed; requirement-bound
+  evidence promotion remains open.
+- Ownable canonical ABI/events and one-shot initialization are closed. The EVM
+  AccessControl adapter now has bytes32 roles/admin/events/renounce, while the
+  portable role profile remains explicitly separate; full OZ behavioral
+  equivalence and evidence promotion remain open.
 - ERC-4626 lacks full share-token allowance/delegated exit behavior, a defined
   live `totalAssets` policy, full-precision math, and atomic initialization.
-- Runtime custom-error expressions at `bbc4fb9d` still need inferred type/range
-  checks, static/runtime mutual exclusion, complete equality, and runtime
-  payload tests.
+- Runtime custom-error expressions now enforce inferred type/range checks,
+  static/runtime mutual exclusion, structural equality, selector/schema parity,
+  and exact native revert payload tests.
 - Entrypoint mutability cannot express payable/nonpayable/pure accurately.
 
 ### 4.3 NEAR P0 findings
 
-- Generated Wasm entrypoints decode Borsh while the generated TypeScript client
-  sends and parses JSON.
-- `NearFungibleToken` is not NEP-141-compatible and has repeatable init,
-  unrestricted mint, non-private resolver, one global pending-transfer slot,
-  and incomplete refund bounds.
-- TokenSpec name, decimals, initial supply, cap, pause, and permit can be
-  accepted without being materialized.
+- Closed by N-P0-01: one per-entrypoint Borsh plan now drives generated Wasm
+  input validation and TypeScript client encoding/decoding; unsupported dynamic
+  schemas fail client/build generation.
+- Closed by N-P0-02: `NearFungibleToken` now has one-shot init, bound mint
+  authority, private keyed resolver state, out-of-order callback isolation and
+  refunds bounded by peer-unused, original amount and receiver balance.
+- Closed by N-P0-03: hash-valued U64/Hash-keyed map results allocate stable
+  copies, and affected entrypoints reset the hash bump allocator.
+- TokenSpec name, decimals, and initial supply still need complete runtime
+  parameterization. Cap, pause, and permit now reject before NEAR planning.
 - External FT portable calls use zero deposit and synchronous assumptions that
   conflict with NEP-141 and Promise semantics.
 - Predecessor/current/signer identities are hashed and truncated to U64,
@@ -295,8 +302,9 @@ hook ELF.
   later account/instruction offsets.
 - Every entrypoint is forced to carry the module-wide account set, expanding
   locks and writable permissions.
-- Token feature support overstates cap, pause, permit, confidential transfer,
-  and unconditional burn behavior.
+- Token feature routing now rejects cap, pause, permit, and confidential
+  transfer, and burn is capability-gated. Evidence-bound promotion from
+  `experimental` remains open.
 - Token-2022 extension initialization uses an untyped common account/parameter
   shape even though extension scope, space, ordering, and accounts differ.
 - `SolanaModulePlan` remains a flat MVP while lowerer extensions, IDL, client,
@@ -707,16 +715,17 @@ Allowed states are `pending`, `in_progress: evidence`, `blocked: condition`, and
 
 | ID | Deliverable | Primary files | Acceptance | Depends | State |
 |---|---|---|---|---|---|
-| T-00 | Requirement-level standards manifests and evidence model; replace broad `Covered` claims | `docs/sdk-ecosystem-gaps-2026-07.md`, new `ProofForge/Contract/Compliance.lean`, `Tests/StandardCompliance.lean` | Stable requirement IDs cover interface, behavior and security obligations; status binds adapter version, artifact digest, oracle version and actual run result | none | pending |
-| E-P0-01 | Canonical selector/schema derivation and fail-closed mismatch checks | `ProofForge/Cli/EvmAbi.lean`, `Contract/Spec.lean`, EVM validators | Tests reject a selector whose actual params differ; ABI JSON matches dispatcher | T-00 | pending |
-| E-P0-02 | Replace staged permit with atomic ERC-2612 or reject permit routing until complete | `Stdlib/ERC20Permit.lean`, `Token/EvmSpec.lean`, Foundry smoke | canonical seven-arg permit, nonce/domain/deadline/low-s/v tests, front-run regression | E-P0-01 | pending |
-| E-P0-03 | Fix immutable standard identity/access surfaces | `Stdlib/ERC165.lean`, `Ownable.lean`, `AccessControl.lean` | Separate ERC-165, ERC-173 and access-profile conformance plus attacker re-init tests | T-00 | pending |
-| E-P0-04 | Finish runtime custom-error expression safety from `bbc4fb9d` | EVM validation/lowering, `ErrorRef`, error smokes | inferred type/range, mutual exclusion, equality, exact Foundry payload | T-00 | in_progress: initial expression lowering committed at bbc4fb9d |
-| N-P0-01 | One authoritative per-entrypoint NEAR codec plan; stop emitting incompatible clients | `WasmHost/NearModulePlan.lean`, `Params.lean`, `Return.lean`, `Contract/Client.lean` | generated TS client calls nonzero-arg sandbox contract and decodes result; codec mismatch fails build | T-00 | pending |
-| N-P0-02 | One-shot init, authorized mint, private/concurrent-safe resolver | `Stdlib/NearFungibleToken.lean`, NEAR sandbox tests | repeat-init, attacker mint, direct callback, concurrent transfer-call, and refund-bound attacks fail | N-P0-01 | pending |
-| S-P0-01 | Duplicate-aware Solana account input decoder and alias policy | `Backend/Solana/StateLayout.lean`, `SbpfAsm/Common.lean`, plan/tests | duplicate logical roles followed by another account decode correctly in ELF and pinned live runtime | T-00 | pending |
-| S-P0-02 | Per-entrypoint account graph and least privilege | `Backend/Solana/Plan.lean`, `Manifest.lean`, `Idl.lean`, `Client.lean`, lowerer | unused accounts absent; signer/writable escalation tests fail closed | S-P0-01 | pending |
-| X-P0-01 | Feature support derives from executable adapter evidence | `Contract/Token.lean`, `TokenAuth.lean`, feature matrix tests | cap/pause/permit/confidential/unregister cannot report full without a verified requirement result for the exact adapter/artifact | T-00 | pending |
+| T-00 | Requirement-level standards manifests and evidence model; replace broad `Covered` claims | `docs/sdk-ecosystem-gaps-2026-07.md`, new `ProofForge/Contract/Compliance.lean`, `Tests/StandardCompliance.lean` | Stable requirement IDs cover interface, behavior and security obligations; status binds adapter version, artifact digest, oracle version and actual run result | none | done: verified@528a0148; `just standard-compliance`, `just docs-check`, `just product` |
+| E-P0-01 | Canonical selector/schema derivation and fail-closed mismatch checks | `ProofForge/Cli/EvmAbi.lean`, `Contract/Spec.lean`, EVM validators | Tests reject a selector whose actual params differ; ABI JSON matches dispatcher | T-00 | done: verified@fac64949; `just evm-abi-schema`, `just portable-counter-multi-target`, `just evm-foundry` |
+| E-P0-02 | Replace staged permit with atomic ERC-2612 or reject permit routing until complete | `Stdlib/ERC20Permit.lean`, `Token/EvmSpec.lean`, Foundry smoke | canonical seven-arg permit, nonce/domain/deadline/low-s/v tests, front-run regression | E-P0-01 | done: verified@86cc0f89; `just product-erc20-permit`, `just evm-foundry`, `just evm-anvil-deploy`, `just product` |
+| E-P0-03 | Fix immutable standard identity/access surfaces | `Stdlib/ERC165.lean`, `Ownable.lean`, `AccessControl.lean` | Separate ERC-165, ERC-173 and access-profile conformance plus attacker re-init tests | T-00 | done: verified@6dac65f6; `just evm-standard-identity`, `just portable-auth-materialize`, `just contract-client`, `just evm-foundry`, `just product`, `just docs-check`, `just build` |
+| E-P0-04 | Finish runtime custom-error expression safety from `bbc4fb9d` | EVM validation/lowering, `ErrorRef`, error smokes | inferred type/range, mutual exclusion, equality, exact Foundry payload | T-00 | done: verified@876e2ad9; `just evm-diagnostics`, `just evm-smoke errors`, `just evm-abi-schema`, `just contract-spec-json`, `just contract-client`, `just product`, `just docs-check`, `just build` |
+| N-P0-01 | One authoritative per-entrypoint NEAR codec plan; stop emitting incompatible clients | `WasmHost/NearModulePlan.lean`, `Params.lean`, `Return.lean`, `Contract/Client.lean` | generated TS client calls nonzero-arg sandbox contract and decodes result; codec mismatch fails build | T-00 | done: verified@ab461417; `just near-abi-plan`, `just near-abi-client`, `just near-abi-client-sandbox`, `just near-plan-smoke`, `just near-target-first`, `just value-vault-wasm-refinement-smoke`, `just product`, `just docs-check`, `just build` |
+| N-P0-02 | One-shot init, authorized mint, private/concurrent-safe resolver | `Stdlib/NearFungibleToken.lean`, NEAR sandbox tests | repeat-init, attacker mint, direct callback, concurrent transfer-call, and refund-bound attacks fail | N-P0-01 | done: verified@92ace75b; `just near-ft-security`, `just wasm-near-ft-transfer-call`, `just wasm-near-ft-transfer-call-e2e`, `just near-ft-security-sandbox`, `just contract-client`, `just product`, `just docs-check`, `just build` |
+| N-P0-03 | Stable non-aliasing `Map<U64, Hash>` read results | `WasmHost/Map.lean`, allocator/plan/refinement tests | two retained hash reads survive later map operations and compare/store correctly in interpreter and sandbox | N-P0-01 | done: verified@4f4ccb5f; `just near-map-hash-alias`, `just near-map-hash-alias-sandbox`, `just wasm-near-plan`, `just near-plan-smoke`, `just near-target-first`, `just wasm-near-ft-transfer-call-e2e`, `just value-vault-wasm-refinement-smoke`, `just near-ft-security-sandbox`, `just product`, `just docs-check`, `just build` |
+| S-P0-01 | Duplicate-aware Solana account input decoder and alias policy | `Backend/Solana/StateLayout.lean`, `SbpfAsm/Common.lean`, plan/tests | duplicate logical roles followed by another account decode correctly in ELF and pinned live runtime | T-00 | done: verified@ab23a012; `just solana-duplicate-accounts`, `just solana-bpf-encode-smoke`, `just solana-duplicate-accounts-live`, `just solana-light`, `just product`, `just docs-check` |
+| S-P0-02 | Per-entrypoint account graph and least privilege | `Backend/Solana/Plan.lean`, `Manifest.lean`, `Idl.lean`, `Client.lean`, lowerer | unused accounts absent; signer/writable escalation tests fail closed | S-P0-01 | done: verified@315f3acd; `just solana-account-graph`, `just solana-pinocchio-reference-equivalence`, `just solana-light`, `just product`, `just docs-check`, `git diff --check`; manifest/IDL/client/plan/lowerer share entrypoint graphs, runtime counts are exact, and CPI/PDA/syscall helpers use entrypoint-local bindings |
+| X-P0-01 | Feature support derives from executable adapter evidence | `Contract/Token.lean`, `TokenAuth.lean`, feature matrix tests | cap/pause/permit/confidential/unregister cannot report full without a verified requirement result for the exact adapter/artifact | T-00 | done: verified@0f9ce05f; `just token-feature-matrix`, `just standard-compliance`, `just product-erc20-permit`, `just product-token-near`, `just product-token-solana`, `just token-intent-smoke`, `just product`, `just docs-check`, `just build` |
 | T-99 | Wave-T fail-closed gate | all Wave-T tests and product matrices | Every earlier Wave-T row is green or the corresponding route is rejected; evidence report records commands and digests | all earlier Wave-T rows | pending |
 
 ### Wave F - Portable numeric and principal foundations
@@ -816,17 +825,17 @@ after current branch changes are safely committed.
 `Tests/StandardCompliance.lean`; modify
 `docs/sdk-ecosystem-gaps-2026-07.md` and add `standard-compliance` to `justfile`.
 
-- [ ] Define stable standard revision and requirement IDs for interface,
+- [x] Define stable standard revision and requirement IDs for interface,
       behavior, and security obligations. Split ERC-20 MUSTs from the optional
       product profile, and split ERC-173 from the access-role profile.
-- [ ] Define run evidence that binds requirement ID, adapter ID/version,
+- [x] Define run evidence that binds requirement ID, adapter ID/version,
       artifact digest, oracle ID/version, command, status, and result digest.
-- [ ] Add failing assertions proving current ERC-721, ERC-1155, ERC-2612,
+- [x] Add failing assertions proving current ERC-721, ERC-1155, ERC-2612,
       NEP-141, and Solana Token claims are not `exact`.
-- [ ] Derive `exact` only when every applicable requirement has passing bound
+- [x] Derive `exact` only when every applicable requirement has passing bound
       evidence; derive `scoped` from an explicit subset; never trust a status
       string supplied by an adapter.
-- [ ] Run `just standard-compliance`, `just docs-check`, translation sync, and
+- [x] Run `just standard-compliance`, `just docs-check`, translation sync, and
       commit only compliance/test/doc paths.
 
 ### Task 2: X-P0-01 Executable Feature Honesty
@@ -835,13 +844,13 @@ after current branch changes are safely committed.
 `ProofForge/Contract/TokenAuth.lean`, `Tests/TokenFeatureMatrix.lean`, and target
 token artifact tests.
 
-- [ ] Add negative cases for EVM cap/pause, NEAR cap/pause/permit/unregister,
+- [x] Add negative cases for EVM cap/pause, NEAR cap/pause/permit/unregister,
       and Solana cap/pause/permit/confidential/unconditional burn.
-- [ ] Change every unmaterialized combination to a stable fail-closed
+- [x] Change every unmaterialized combination to a stable fail-closed
       diagnostic before adding any new feature implementation.
-- [ ] Replace named-gate strings with verified evidence references for the
+- [x] Replace named-gate strings with verified evidence references for the
       exact adapter version and emitted artifact/bundle digest.
-- [ ] Run `just token-feature-matrix`, affected target token smokes,
+- [x] Run `just token-feature-matrix`, affected target token smokes,
       `just product`, and commit.
 
 ### Task 3: E-P0-01 Canonical EVM ABI And Selector Schema
@@ -849,13 +858,13 @@ token artifact tests.
 **Files:** Modify `ProofForge/Cli/EvmAbi.lean`, the contract ABI/spec schema,
 EVM validators, and focused ABI/dispatcher tests.
 
-- [ ] Add a regression where an advertised selector and actual parameter schema
+- [x] Add a regression where an advertised selector and actual parameter schema
       disagree and prove the current path accepts or misreports it.
-- [ ] Derive selectors from the same canonical function schema consumed by the
+- [x] Derive selectors from the same canonical function schema consumed by the
       dispatcher and client; reject manual overrides that disagree.
-- [ ] Compare emitted ABI JSON, dispatcher decode widths/types, and runtime call
+- [x] Compare emitted ABI JSON, dispatcher decode widths/types, and runtime call
       behavior for static and dynamic arguments.
-- [ ] Run the focused ABI tests, `just product`, `just evm-foundry`, and commit.
+- [x] Run the focused ABI tests, `just product`, `just evm-foundry`, and commit.
 
 ### Task 4: E-P0-02 Atomic ERC-2612
 
@@ -863,22 +872,22 @@ EVM validators, and focused ABI/dispatcher tests.
 `ProofForge/Contract/Token/EvmSpec.lean`, EVM ABI/client metadata, and Foundry
 smokes. This task cannot start before E-P0-01.
 
-- [ ] Add attacks for signature overwrite/front-run, replay, expired deadline,
+- [x] Add attacks for signature overwrite/front-run, replay, expired deadline,
       bad domain, high-s, and invalid v.
-- [ ] Remove the public signature-staging entrypoint and use one canonical
+- [x] Remove the public signature-staging entrypoint and use one canonical
       seven-parameter permit call.
-- [ ] Verify nonce/domain/signature rules and Approval emission atomically.
-- [ ] Run targeted Lean tests, `just product-erc20-permit`,
+- [x] Verify nonce/domain/signature rules and Approval emission atomically.
+- [x] Run targeted Lean tests, `just product-erc20-permit`,
       `just evm-foundry`, `just evm-anvil-deploy`, `just product`, and commit.
 
 ### Task 5: E-P0-03 And E-P0-04 EVM Safety Closure
 
 Execute as two commits with disjoint ownership where possible.
 
-- [ ] E-P0-03: make the ERC-165 set immutable/generated, force `0xffffffff`
+- [x] E-P0-03: make the ERC-165 set immutable/generated, force `0xffffffff`
       false, implement ERC-173 ABI/event behavior, separate role-profile
       requirements, and reject repeat initialization.
-- [ ] E-P0-04: add runtime custom-error inferred-type/range validation,
+- [x] E-P0-04: add runtime custom-error inferred-type/range validation,
       static/runtime mutual exclusion, complete equality, and exact Foundry
       payload assertions.
 - [ ] Run their focused tests, `just evm-foundry`, `just product`, and commit
@@ -890,9 +899,9 @@ Execute as two commits with disjoint ownership where possible.
 `Return.lean`, `ProofForge/Contract/Client.lean`,
 `Stdlib/NearFungibleToken.lean`, and nearest plan/sandbox tests.
 
-- [ ] N-P0-01: reproduce the generated-client JSON versus generated-Wasm Borsh
+- [x] N-P0-01: reproduce the generated-client JSON versus generated-Wasm Borsh
       mismatch with a nonzero argument and non-unit result.
-- [ ] Add a per-entrypoint `NearAbiPlan`; make Wasm and client consume it and
+- [x] Add a per-entrypoint `NearAbiPlan`; make Wasm and client consume it and
       validate input length/schema.
 - [ ] N-P0-02: add repeat-init, attacker-mint, direct-callback, concurrent
       transfer-call, and refund-bound attack tests; implement one-shot init,
@@ -906,15 +915,28 @@ Execute as two commits with disjoint ownership where possible.
 `Plan.lean`, `Manifest.lean`, `Idl.lean`, `Client.lean`, focused Lean tests, and
 a pinned Pinocchio/Surfpool fixture.
 
-- [ ] S-P0-01: reproduce two logical roles sharing one pubkey followed by a
+- [x] S-P0-01: reproduce two logical roles sharing one pubkey followed by a
       distinct account; implement compact duplicate-marker walking before any
       state or instruction offset is consumed.
-- [ ] Define allowed and forbidden alias policies and verify the later account
+- [x] Define allowed and forbidden alias policies and verify the later account
       plus instruction data in ELF and the pinned runtime.
-- [ ] S-P0-02: carry an `AccountGraph` per entrypoint through plan, validator,
+- [x] S-P0-02: carry an `AccountGraph` per entrypoint through plan, validator,
       IDL, client, manifest, and lowerer; reject signer/writable escalation.
-- [ ] Run focused Lean/ELF tests, `just solana-light`, the pinned live gate,
+- [x] Run focused Lean/ELF tests, `just solana-light`, the pinned live gate,
       `just product`, and commit each task separately.
+
+S-P0-01 evidence (`ab23a012`): the interpreter regression executes the emitted
+scanner against `[unique account 0, duplicate-of-0, unique account 2]`, checks
+all three pointer-table slots and the final instruction-data cursor, and rejects
+self/forward duplicate indices with target error 13. The generated live fixture
+declares three logical roles and submitted `[payer, payer, system_program]` to a
+deployed ELF on Surfpool; dispatch succeeded with the distinct third role after
+the compact duplicate record. The verified ELF SHA-256 was
+`d007d77353344f797eb94031e158f7fda120a06911b60702b7a79458de1202fb`.
+The pinned local runner was Darwin 25.4.0 arm64 with Lean 4.31.0, sbpf 0.2.2,
+Surfpool 0.10.8, Solana CLI 3.1.12, and Cargo 1.94.1. The optional GitHub
+`solana-pinocchio-live` job runs the same live gate after its pinned toolchain
+installer.
 
 ### Task 8: F-01 And F-02 Portable Value Foundations
 

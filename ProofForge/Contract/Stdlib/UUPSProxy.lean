@@ -5,9 +5,10 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Minimal backend-only UUPS proxy shell: ERC-1967 implementation slot plus
 delegatecall fallback. The implementation and administrator are constructor
 arguments written atomically during deployment; the runtime intentionally has
-no public initializer. The `admin` constructor argument is bound to the `owner`
-storage slot via `addressKeccak`, providing runtime authorization for `upgradeTo`.
-Pair with an implementation mixin such as `UUPSUpgradeable`.
+no public initializer. The explicit `admin` constructor argument initializes the
+`owner` storage slot used by `upgradeTo`, but it does not bind a portable
+`UpgradePolicy.authority` `keyRef`. This fixture therefore declares no upgrade
+policy. Pair it with an implementation mixin such as `UUPSUpgradeable`.
 -/
 import ProofForge.Contract.Source
 import ProofForge.Contract.Stdlib.UUPSUpgradeable

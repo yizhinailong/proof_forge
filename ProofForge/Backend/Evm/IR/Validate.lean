@@ -769,6 +769,11 @@ mutual
         if let some ref := errorRef? then
           discard <| lowerValidate <|
             ProofForge.Backend.Evm.Validate.validateSolidityErrorRef "assert" ref
+          for ((abiType, expr), index) in
+              (ref.solidityArgTypes.zip ref.solidityArgExprs).zipIdx do
+            discard <| lowerValidate <|
+              ProofForge.Backend.Evm.Validate.validateSolidityRuntimeArgType
+                "assert" index abiType (← inferExprType module env expr)
         .ok env
     | .assertEq lhs rhs _ errorRef? => do
         let lhsType ← inferExprType module env lhs
@@ -778,6 +783,11 @@ mutual
         if let some ref := errorRef? then
           discard <| lowerValidate <|
             ProofForge.Backend.Evm.Validate.validateSolidityErrorRef "assert_eq" ref
+          for ((abiType, expr), index) in
+              (ref.solidityArgTypes.zip ref.solidityArgExprs).zipIdx do
+            discard <| lowerValidate <|
+              ProofForge.Backend.Evm.Validate.validateSolidityRuntimeArgType
+                "assert_eq" index abiType (← inferExprType module env expr)
         .ok env
     | .release _ =>
         .error { message := "release statements are not supported by IR EVM v0" }
@@ -785,6 +795,11 @@ mutual
     | .revertWithError ref => do
         discard <| lowerValidate <|
           ProofForge.Backend.Evm.Validate.validateSolidityErrorRef "revertWithError" ref
+        for ((abiType, expr), index) in
+            (ref.solidityArgTypes.zip ref.solidityArgExprs).zipIdx do
+          discard <| lowerValidate <|
+            ProofForge.Backend.Evm.Validate.validateSolidityRuntimeArgType
+              "revertWithError" index abiType (← inferExprType module env expr)
         .ok env
     | .ifElse condition thenBody elseBody => do
         ensureType "if condition" .bool (← inferExprType module env condition)

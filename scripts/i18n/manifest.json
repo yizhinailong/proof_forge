@@ -1,9 +1,9 @@
 {
   "README.md": {
-    "sha256": "732f8baf3308a6fc789b8c6c0eb4e860c4d45a6c8107248640cd1b20136e6ac7",
+    "sha256": "6714d3aad1dab1be9a0747b15e7fa5bbe0bed4c98678b920a12a86ae3cbd44c5",
     "zh": "docs/zh/README-root.zh.md",
     "model": "manual-zh",
-    "note": "manually synced through the 2026-07-11 target-maturity docs update"
+    "note": "manually synced through the 2026-07-11 target-maturity, EVM custom-error, NEAR FT safety, and hash-map alias updates"
   },
   "CONTRIBUTING.md": {
     "sha256": "b47c1fcaf0d003718e5487575f74486b403ed4bbfb88dc7fc1891cbe23cc7b64",
@@ -163,7 +163,7 @@
     "model": "manual-zh",
     "en_sha256": "474529032de93d7d0be3cf2bddd5e1802f08a3ef9a06c4c0ad82d8cb68e23cf4"
   },
-  "docs/sdk-ecosystem-gaps-2026-07.md": "1dc6d19342aa556a71629c5cea3d7fa444c36347578b8a367f3ee9da01339605",
+  "docs/sdk-ecosystem-gaps-2026-07.md": "52f5cc9d6a56c8ca95c492e2441821a859e6e85afe5097c1299d21dab2e185e8",
   "docs/tutorials/portable-shared-path.md": {
     "sha256": "01bc8f804f62c56a171796721b7adbba2fd36955bdedbc48187f7020236ace08",
     "zh": "docs/zh/tutorials/portable-shared-path.zh.md",

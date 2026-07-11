@@ -17,7 +17,7 @@ fail() {
 
 lake build proof-forge >/dev/null
 
-# --- EVM: bare TokenSpec build must fail and recommend --token ---
+# EVM: bare TokenSpec build must fail and recommend --token.
 set +e
 err="$(lake env proof-forge build --target evm --root . \
   -o "$OUT/FungibleToken.bare" Examples/Product/FungibleToken.lean 2>&1)"
@@ -32,18 +32,28 @@ echo "$err" | grep -Fq -- "--token" || \
 [[ ! -e "$OUT/FungibleToken.bare" ]] || \
   fail "bare TokenSpec EVM build wrote an artifact despite failing"
 
-# --- NEAR: bare TokenSpec build succeeds via P0-NEAR-1 auto-detection ---
-set +e
-err2="$(lake env proof-forge build --target wasm-near --root . \
-  -o "$OUT/FungibleToken.near" Examples/Product/FungibleToken.lean 2>&1)"
-status2=$?
-set -e
+# NEAR: bare TokenSpec build succeeds and emits the complete artifact set.
+ARTIFACT_DIR="$OUT/FungibleToken.near"
+lake env proof-forge build --target wasm-near --root . \
+  -o "$ARTIFACT_DIR" Examples/Product/FungibleToken.lean >/dev/null
 
-if [[ "$status2" -ne 0 ]]; then
-  echo "token-spec-routing: NEAR auto-detect not ready yet (expected after P0-NEAR-1): $err2" >&2
-  exit 1
-fi
-[[ -e "$OUT/FungibleToken.near" ]] || \
-  fail "NEAR TokenSpec auto-detect build did not produce an artifact"
+test -s "$ARTIFACT_DIR/prf.wasm"
+test -s "$ARTIFACT_DIR/PRF.contract-spec.json"
+test -s "$ARTIFACT_DIR/proof-forge-artifact.json"
+
+python3 - "$ARTIFACT_DIR" <<'PY'
+import json
+import pathlib
+import sys
+
+artifact_dir = pathlib.Path(sys.argv[1])
+spec = json.loads((artifact_dir / "PRF.contract-spec.json").read_text())
+artifact = json.loads((artifact_dir / "proof-forge-artifact.json").read_text())
+
+assert spec["name"] == "PRF", spec
+assert artifact["target"] == "wasm-near", artifact
+assert artifact["sourceKind"] == "contract-sdk", artifact
+assert artifact["sourceModule"] == "PRF", artifact
+PY
 
 echo "token-spec-routing: ok"
