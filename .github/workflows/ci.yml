@@ -24,9 +24,7 @@ jobs:
 
       - name: Install Lean
         run: |
-          toolchain="$(cat lean-toolchain)"
-          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o elan-init.sh
-          sh elan-init.sh -y --default-toolchain "$toolchain"
+          scripts/ci/install-lean.sh
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - name: Install Foundry
@@ -90,9 +88,7 @@ jobs:
 
       - name: Install Lean
         run: |
-          toolchain="$(cat lean-toolchain)"
-          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o elan-init.sh
-          sh elan-init.sh -y --default-toolchain "$toolchain"
+          scripts/ci/install-lean.sh
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - name: Install Foundry
@@ -290,9 +286,7 @@ jobs:
 
       - name: Install Lean
         run: |
-          toolchain="$(cat lean-toolchain)"
-          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o elan-init.sh
-          sh elan-init.sh -y --default-toolchain "$toolchain"
+          scripts/ci/install-lean.sh
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - name: Install Rust stable
@@ -364,9 +358,7 @@ jobs:
 
       - name: Install Lean
         run: |
-          toolchain="$(cat lean-toolchain)"
-          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o elan-init.sh
-          sh elan-init.sh -y --default-toolchain "$toolchain"
+          scripts/ci/install-lean.sh
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - name: Install Leo
@@ -417,9 +409,7 @@ jobs:
 
       - name: Install Lean
         run: |
-          toolchain="$(cat lean-toolchain)"
-          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o elan-init.sh
-          sh elan-init.sh -y --default-toolchain "$toolchain"
+          scripts/ci/install-lean.sh
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - name: Install Node and wrangler
@@ -451,9 +441,7 @@ jobs:
 
       - name: Install Lean
         run: |
-          toolchain="$(cat lean-toolchain)"
-          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o elan-init.sh
-          sh elan-init.sh -y --default-toolchain "$toolchain"
+          scripts/ci/install-lean.sh
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - name: Install Rust toolchain
@@ -491,9 +479,7 @@ jobs:
 
       - name: Install Lean
         run: |
-          toolchain="$(cat lean-toolchain)"
-          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o elan-init.sh
-          sh elan-init.sh -y --default-toolchain "$toolchain"
+          scripts/ci/install-lean.sh
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
 
       - name: Install Aptos CLI
